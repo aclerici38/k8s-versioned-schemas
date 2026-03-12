@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - apps/**
+  pull_request:
+    paths:
+      - apps/**
   workflow_dispatch:
     inputs:
       appname:
@@ -15,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   get-changed-schemas:
@@ -48,7 +52,26 @@ jobs:
           else
             ./gen-schemas.sh apps/*.yaml
           fi
+
+      - name: Get Schema Diff
+        if: github.event_name == 'pull_request'
+        run: |
+          git add -f schemas/
+          echo '### Schema Changes' > /tmp/schema-diff.md
+          echo '' >> /tmp/schema-diff.md
+          echo '```diff' >> /tmp/schema-diff.md
+          git diff --cached -- schemas/ >> /tmp/schema-diff.md || echo 'No schema changes detected.' >> /tmp/schema-diff.md
+          echo '```' >> /tmp/schema-diff.md
+
+      - name: Comment Schema Diff on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@52423e01640425a022ef5fd42c6fb5f633a02728 # v2.9.1
+        with:
+          header: schema-diff
+          path: /tmp/schema-diff.md
+
       - name: Commit Changed Schemas
+        if: github.ref == 'refs/heads/main'
         run: |
           git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
           git config user.email "200541989+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
