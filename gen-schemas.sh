@@ -40,7 +40,8 @@ for app_file in "$@"; do
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
 
   cd "$OUTPUT_DIR"
-  echo "\nProcessing $APP_NAME version $VERSION"
+  echo
+  echo "Processing $APP_NAME version $VERSION"
 
   for url in $FILE_URLS; do
     version_url="${url//\$\{VERSION\}/$VERSION}"
