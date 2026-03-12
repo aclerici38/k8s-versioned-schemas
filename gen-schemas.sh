@@ -10,19 +10,19 @@ curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/ope
 # fetch all YAML files in that directory and output them as a single multidoc stream.
 fetch_github_folder() {
   python3 - "$1" <<'PYEOF'
-    import json, urllib.request, sys
-    # ['https:', '', 'github.com', 'owner', 'repo', 'tree', 'ref', 'path', ...]
-    parts = sys.argv[1].split('/')
-    owner_repo = parts[3] + '/' + parts[4]
-    ref = parts[6]
-    path = '/'.join(parts[7:])
-    url = f'https://api.github.com/repos/{owner_repo}/contents/{path}?ref={ref}'
-    entries = json.load(urllib.request.urlopen(url))
-    for e in entries:
-        if e['name'].endswith(('.yaml', '.yml')):
-            body = urllib.request.urlopen(e['download_url']).read().decode()
-            print('---')
-            print(body)
+import json, urllib.request, sys
+# ['https:', '', 'github.com', 'owner', 'repo', 'tree', 'ref', 'path', ...]
+parts = sys.argv[1].split('/')
+owner_repo = parts[3] + '/' + parts[4]
+ref = parts[6]
+path = '/'.join(parts[7:])
+url = f'https://api.github.com/repos/{owner_repo}/contents/{path}?ref={ref}'
+entries = json.load(urllib.request.urlopen(url))
+for e in entries:
+    if e['name'].endswith(('.yaml', '.yml')):
+        body = urllib.request.urlopen(e['download_url']).read().decode()
+        print('---')
+        print(body)
 PYEOF
 }
 
@@ -40,6 +40,7 @@ for app_file in "$@"; do
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
 
   cd "$OUTPUT_DIR"
+  echo "Processing $APP_NAME version $VERSION"
 
   for url in $FILE_URLS; do
     version_url="${url//\$\{VERSION\}/$VERSION}"
