@@ -59,9 +59,14 @@ jobs:
           git add -f schemas/
           echo '### Schema Changes' > /tmp/schema-diff.md
           echo '' >> /tmp/schema-diff.md
-          echo '```diff' >> /tmp/schema-diff.md
-          git diff --cached -- schemas/ >> /tmp/schema-diff.md || echo 'No schema changes detected.' >> /tmp/schema-diff.md
-          echo '```' >> /tmp/schema-diff.md
+          STAT=$(git diff --cached --stat -- schemas/)
+          if [ -z "$STAT" ]; then
+            echo 'No schema changes detected.' >> /tmp/schema-diff.md
+          else
+            echo '```' >> /tmp/schema-diff.md
+            echo "$STAT" >> /tmp/schema-diff.md
+            echo '```' >> /tmp/schema-diff.md
+          fi
 
       - name: Comment Schema Diff on PR
         if: github.event_name == 'pull_request'
