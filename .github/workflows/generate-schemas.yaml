@@ -6,10 +6,16 @@ on:
       - main
     paths:
       - apps/**
-        
+  workflow_dispatch:
+    inputs:
+      appname:
+        description: "App name to generate schemas for. Leave empty for all apps."
+        required: false
+        default: ""
+
 permissions:
   contents: write
-  
+
 jobs:
   get-changed-schemas:
     runs-on: ubuntu-latest
@@ -20,41 +26,33 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_KEY }}
-          
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token.outputs.token }}
-              
-      - name: get-changed-apps
-        id: changed-apps
-        uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
-        with:
-          files: apps/**
-      
+
       - name: Setup uv
-        if: steps.changed-apps.outputs.any_changed == 'true'
         uses: astral-sh/setup-uv@6ee6290f1cbc4156c0bdd66691b2c144ef8df19a # v7.4.0
         with:
           version: "0.10.9"
-          
+
       - name: Setup Helm
-        if: steps.changed-apps.outputs.any_changed == 'true'
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-  
+
       - name: Generate Schemas
-        if: steps.changed-apps.outputs.any_changed == 'true'
-        env:
-          ALL_CHANGED_APPS: ${{ steps.changed-apps.outputs.all_changed_files }}
         run: |
           chmod +x gen-schemas.sh
-          ./gen-schemas.sh ${ALL_CHANGED_APPS}
+          if [ -n "${{ inputs.appname }}" ]; then
+            ./gen-schemas.sh apps/${{ inputs.appname }}.yaml
+          else
+            ./gen-schemas.sh apps/*.yaml
+          fi
       - name: Commit Changed Schemas
-        if: steps.changed-apps.outputs.any_changed == 'true'
         run: |
           git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
           git config user.email "200541989+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-          
+
           git add -f schemas/
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "chore: update schemas [skip ci]"
@@ -62,4 +60,3 @@ jobs:
           else
             echo "No new schemas to commit."
           fi
-    
