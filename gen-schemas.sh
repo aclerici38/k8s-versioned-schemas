@@ -9,7 +9,7 @@ curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/ope
 # Given a GitHub tree URL (https://github.com/owner/repo/tree/ref/path/to/dir),
 # fetch all YAML files in that directory and output them as a single multidoc stream.
 fetch_github_folder() {
-  python3 -c "
+  python3 - "$1" <<'PYEOF'
     import json, urllib.request, sys
     # ['https:', '', 'github.com', 'owner', 'repo', 'tree', 'ref', 'path', ...]
     parts = sys.argv[1].split('/')
@@ -23,7 +23,7 @@ fetch_github_folder() {
             body = urllib.request.urlopen(e['download_url']).read().decode()
             print('---')
             print(body)
-    " "$1"
+PYEOF
 }
 
 COUNT=0
