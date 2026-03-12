@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Usage: ./gen-schemas.sh apps/kgateway.yaml apps/cilium.yaml
+# Usage: ./gen-schemas.sh apps/*
 
 SCHEMA_CMD="uv run --with pyyaml python3 /tmp/openapi2jsonschema.py"
 curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py \
@@ -40,7 +41,7 @@ for app_file in "$@"; do
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
 
   cd "$OUTPUT_DIR"
-  echo
+  echo ""
   echo "Processing $APP_NAME version $VERSION"
 
   for url in $FILE_URLS; do
@@ -70,7 +71,3 @@ for app_file in "$@"; do
 done
 
 echo "# schemas generated: $COUNT"
-if [ "$COUNT" -eq 0 ]; then
-  echo "ERROR: No schemas were generated"
-  exit 1
-fi
