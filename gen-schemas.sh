@@ -21,7 +21,8 @@ for app_file in "$@"; do
   cd "$OUTPUT_DIR"
 
   for url in $FILE_URLS; do
-    version_url="${url//\$\{version\}/$VERSION}"
+    version_url="${url//\$\{VERSION\}/$VERSION}"
+    echo "Fetching CRDs from $version_url"
     $SCHEMA_CMD "$version_url"
   done
 
