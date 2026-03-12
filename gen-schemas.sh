@@ -41,3 +41,7 @@ for app_file in "$@"; do
 done
 
 echo "# schemas generated: $COUNT"
+if [ "$COUNT" -eq 0 ]; then
+  echo "ERROR: No schemas were generated"
+  exit 1
+fi
