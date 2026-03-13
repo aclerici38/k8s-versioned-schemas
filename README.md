@@ -41,9 +41,9 @@ In my opinion, neither approach is ideal:
 - **Option A** requires manually contributing new schema versions and waiting for review/merge before they're published
 - **Option B** requires installing CRDs on a cluster before you can even configure the app (with the schemas)
 
-My alternative option:
+My alternative option here:
 
-C) Generate versioned schemas directly from upstream sources (this repo).
+C) Generate versioned schemas directly from upstream sources.
 
 | Pros | Cons |
 |------|------|
