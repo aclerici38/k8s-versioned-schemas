@@ -11,17 +11,21 @@ curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/ope
 # fetch all YAML files in that directory and output them as a single multidoc stream.
 fetch_github_folder() {
   python3 - "$1" <<'PYEOF'
-import json, urllib.request, sys
+import json, os, urllib.request, sys
 # ['https:', '', 'github.com', 'owner', 'repo', 'tree', 'ref', 'path', ...]
 parts = sys.argv[1].split('/')
 owner_repo = parts[3] + '/' + parts[4]
 ref = parts[6]
 path = '/'.join(parts[7:])
 url = f'https://api.github.com/repos/{owner_repo}/contents/{path}?ref={ref}'
-entries = json.load(urllib.request.urlopen(url))
+token = os.environ.get('GITHUB_TOKEN', '')
+headers = {'Authorization': f'token {token}'} if token else {}
+req = urllib.request.Request(url, headers=headers)
+entries = json.load(urllib.request.urlopen(req))
 for e in entries:
     if e['name'].endswith(('.yaml', '.yml')):
-        body = urllib.request.urlopen(e['download_url']).read().decode()
+        dl_req = urllib.request.Request(e['download_url'], headers=headers)
+        body = urllib.request.urlopen(dl_req).read().decode()
         print('---')
         print(body)
 PYEOF
