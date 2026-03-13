@@ -29,7 +29,7 @@ jobs:
 
       - name: Generate index.html
         run: |
-          rows=""
+          rowsfile="$(mktemp)"
           for app_dir in schemas/*/; do
             app="$(basename "$app_dir")"
             versions="$(ls -d "$app_dir"*/ | xargs -n1 basename | sort -V)"
@@ -53,9 +53,13 @@ jobs:
               done
               version_links="${version_links}<div><span class=\"toggle\">${v}</span><div class=\"schemas\">${schema_links}</div></div>"
             done
-            rows="${rows}<tr><td>${app}</td><td>${version_links}</td></tr>"
+            echo "<tr><td>${app}</td><td>${version_links}</td></tr>" >> "$rowsfile"
           done
-          awk -v rows="$rows" '{gsub(/<!-- SCHEMA_ROWS -->/, rows); print}' index.template.html > schemas/index.html
+          sed -e '/<!-- SCHEMA_ROWS -->/{
+            r '"$rowsfile"'
+            d
+          }' index.template.html > schemas/index.html
+          rm "$rowsfile"
           echo "Generated index.html"
 
       - name: Deploy to Cloudflare Pages
