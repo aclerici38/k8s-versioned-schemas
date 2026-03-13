@@ -35,16 +35,23 @@ jobs:
             versions="$(ls -d "$app_dir"*/ | xargs -n1 basename | sort -V)"
             latest="$(echo "$versions" | tail -1)"
             version_links=""
-            for v in $versions; do
+            # latest entry using /latest/ URLs
+            latest_schemas=""
+            for f in "$app_dir$latest"/*.json; do
+              fname="$(basename "$f")"
+              url="/${app}/latest/${fname}"
+              latest_schemas="${latest_schemas}<div><a href=\"${url}\">${fname}</a><button class=\"copy-btn\" data-url=\"${url}\">copy</button></div>"
+            done
+            version_links="<div><span class=\"toggle\">latest</span><div class=\"schemas\">${latest_schemas}</div></div>"
+            # versioned entries
+            for v in $(echo "$versions" | sort -rV); do
               schema_links=""
               for f in "$app_dir$v"/*.json; do
                 fname="$(basename "$f")"
                 url="/${app}/${v}/${fname}"
                 schema_links="${schema_links}<div><a href=\"${url}\">${fname}</a><button class=\"copy-btn\" data-url=\"${url}\">copy</button></div>"
               done
-              label="$v"
-              if [ "$v" = "$latest" ]; then label="$v (latest)"; fi
-              version_links="${version_links}<div><span class=\"toggle\">${label}</span><div class=\"schemas\">${schema_links}</div></div>"
+              version_links="${version_links}<div><span class=\"toggle\">${v}</span><div class=\"schemas\">${schema_links}</div></div>"
             done
             rows="${rows}<tr><td>${app}</td><td>${version_links}</td></tr>"
           done
