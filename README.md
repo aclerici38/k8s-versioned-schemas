@@ -19,6 +19,8 @@ For convenience, since the app names are somewhat arbitrary and it's not reasona
 
 ## Why?
 
+TL;DR: This is a catalog of json schemas for kubernetes Custom Resources. The schemas are generated, organized, and stored with versions that correspond to the version of the software that uses them. This means the most recent update will always have a schema available, and an old version can still be validated.
+
 CRDs change as the software distributing them evolves. Currently, using [redhat's yaml-language-server](https://github.com/redhat-developer/yaml-language-server),
 there seem to be 2 common ways to add schemas for k8s custom resources.
 
