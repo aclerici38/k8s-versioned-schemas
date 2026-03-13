@@ -1,6 +1,6 @@
 # k8s-versioned-schemas
 
-*Versioned* YAML JSON-schemas for CRDs in Kubernetes.
+## *Versioned* YAML JSON-schemas for CRDs in Kubernetes.
 
 ![UI Screenshot](ui.png)
 
@@ -8,7 +8,7 @@ Visit this page at https://versioned-k8s-schemas.pages.dev
 
 ## Quickstart
 
-The url format for the schemas is versioned-k8s-schemas.pages.dev/{APP}/{VERSION}/{CRDKIND_VERSION}. For consistency, none of the versions are v-prefixed even if the upstream is. For example, to get schemas for Cloudnative-PG's `backup` CRD:
+The url format for the schemas is `versioned-k8s-schemas.pages.dev/{APP}/{VERSION}/{CRDKIND_VERSION}`. For consistency, none of the versions are v-prefixed even if the upstream is. For example, to get schemas for Cloudnative-PG's `backup` CRD:
 
 - From whatever the latest version of Cloudnative-PG is: `https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json`
   - `# yaml-language-server: $schema=https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json`
@@ -58,17 +58,39 @@ Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file inc
 
 ### Adding a new app
 
-The app metadata files attempt to support all methods of distrubuting CRDs with an emphasis on ease-of-addition to this repo. Method of adding the CRDs is up to the author. Personally, I prefer adding via the chart if possible since the urls are accessible. See the full example at https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml to see all the configuration options.
+The app metadata files attempt to support all methods of distrubuting CRDs with an emphasis on ease-of-addition to this repo. Method of adding the CRDs is up to the author. Personally, I prefer adding via the chart if possible since the urls are easy to find. See the full example at https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml to see all the configuration options.
 
 ## Usage
 
 I have thought of a couple ways to utilize the versioned schemas, where they're providing benefits over the existing options. Be sure to note the downsides of each option as well. If you have a better method let me know!
 
+To track the versions in the `yaml-language-server` lines with Renovate, I use this custom manager. Note, the tags released are in the format `app/version` with a literal forward slash in the tag:
+```
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  customManagers: [
+    {
+      customType: "regex",
+      fileMatch: [".yaml"],
+      matchStrings: [
+        "k8s-versioned-schemas\\.pages\\.dev/(?<depName>[^/]+)/(?<currentValue>[^/]+)/"
+      ],
+      datasourceTemplate: "github-tags",
+      packageNameTemplate: "aclerici38/k8s-versioned-schemas",
+      extractVersionTemplate: "^{{{depName}}}/(?<version>.*)$"
+    },
+  ],
+}
+```
+
 - Always use `/latest` version in url. This is guaranteed to point at the latest CRD schemas for an app (since Renovate will update them) but the url will never change, meaning the yaml-language-server's cache will have to expire or be purged before new versions are fetched. (e.g. # yaml-language-server: $schema=https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json)
 
 - Pin schemas to app version, add a Renovate group with [`minimumGroupSize`](https://docs.renovatebot.com/configuration-options/#minimumgroupsize). This ensures an update for the app AND schemas is available so they remain on the same version. In addition, any diff in the schemas is added to the release notes here which will be shown in a pull request from Renovate. In practice, maintaining a group for each app/CRD combo can be cumbersome and updates can be suppressed if workflows here are broken. In addition, it's likely the version here is from a separate datasource than the deployed app.
 
-- Pin schemas to app version but automerge them. This avoids yaml-language-server caching and adding Renovate groups, but assumes you will ALWAYS be running the latest version of apps. In practice there are likely not enough CRD changes to make a big difference (assuming apps are reasonably up to date :smile). I like to keep things up to date, so this is what I'm currently doing in [my home-ops repo](https://github.com/aclerici38/home-ops).
+- Pin schemas to app version but automerge them. This avoids yaml-language-server caching and adding Renovate groups, but assumes you will ALWAYS be running the latest version of apps. In practice there are likely not enough CRD changes to make a big difference (assuming apps are reasonably up to date :smile:). I like to keep things up to date, so this is what I'm currently doing in [my home-ops repo](https://github.com/aclerici38/home-ops).
+
+- Manually bump the versions in the url. No fun.
 
 ## Acknowledgements
 - [Kubeconform](https://github.com/yannh/kubeconform) for the openapi2jsonschema script this relies on
+- [Renovate](https://github.com/renovatebot/renovate) for easy and endlessly-configurable version tracking
