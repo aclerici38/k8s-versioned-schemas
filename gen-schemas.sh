@@ -44,6 +44,7 @@ for app_file in "$@"; do
   TEMPLATE="$(yq '.helm.template // false' "$app_file")"
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
 
+  rm -rf "$OUTPUT_DIR"/*
   cd "$OUTPUT_DIR"
   echo ""
   echo "Processing $APP_NAME version $VERSION"
@@ -71,6 +72,10 @@ for app_file in "$@"; do
 
   cd ../../../
   GENERATED=$(find "$OUTPUT_DIR" -name '*.json' | wc -l)
+  if [ "$GENERATED" -eq 0 ]; then
+    echo "ERROR: no schemas generated for $APP_NAME. To debug, run: ./gen-schemas.sh $app_file" >&2
+    exit 1
+  fi
   COUNT=$((COUNT + GENERATED))
 done
 
