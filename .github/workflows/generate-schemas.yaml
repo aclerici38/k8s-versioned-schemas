@@ -36,6 +36,13 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token || github.token }}
 
+      - name: Get Changed Apps
+        id: changed-apps
+        if: github.event_name == 'pull_request'
+        uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
+        with:
+          files: apps/*.yaml
+
       - name: Setup uv
         uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
         with:
@@ -47,13 +54,10 @@ jobs:
       - name: Generate Schemas
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          SCHEMA_TARGETS: ${{ inputs.appname && format('apps/{0}.yaml', inputs.appname) || steps.changed-apps.outputs.all_changed_files || 'apps/*.yaml' }}
         run: |
           chmod +x gen-schemas.sh
-          if [ -n "${{ inputs.appname }}" ]; then
-            ./gen-schemas.sh apps/${{ inputs.appname }}.yaml
-          else
-            ./gen-schemas.sh apps/*.yaml
-          fi
+          ./gen-schemas.sh $SCHEMA_TARGETS
 
       - name: Get Schema Diff
         if: github.event_name == 'pull_request'
