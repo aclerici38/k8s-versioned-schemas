@@ -60,6 +60,8 @@ Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file inc
 
 The app metadata files attempt to support all methods of distrubuting CRDs with an emphasis on ease-of-addition to this repo. Method of adding the CRDs is up to the author. Personally, I prefer adding via the chart if possible since the urls are easy to find. See the full example at https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml to see all the configuration options. Make a pull request with the app (1 app per pull request please) and I will get to it ASAP.
 
+To test, install uv and run `./gen-schemas.sh apps/myappname` and it will output any schemas into `schemas/`. Alternatively the ci will generate them and show a diff in the PR. Do NOT commit the schemas!!
+
 ## Usage
 
 To track the versions in the `yaml-language-server` lines with Renovate, I use this custom manager. Note, the tags released are in the format `app/version` with a literal forward slash in the tag:
