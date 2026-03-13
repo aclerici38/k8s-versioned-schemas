@@ -1,0 +1,44 @@
+---
+# IMPORTANT: version tracking is kinda the whole point. adding the renovate config is required. See examples in apps/
+# renovate: datasource: github-releases depName: org/app
+# or for an oci chart
+# renovate: datasource=docker depName: ghcr.io/org/charts/app
+version: v0.0.1
+
+# Links to raw yaml files to extract CRD schemas from
+# ${VERSION} is interpolated with the app version tracked in this file. do NOT omit ${VERSION}
+fileUrls:
+  # yaml multidoc with non-crds included
+  # https://github.com/aclerici38/k8s-versioned-schemas/blob/main/apps/kubevirt.yaml
+  - https://github.com/org/app/releases/download/${VERSION}/install.yaml
+  # iterates through all crds, no duplicates in outputs. later-processed urls will overwrite earlier ones with identical CRD kinds.
+  # https://github.com/aclerici38/k8s-versioned-schemas/blob/main/apps/gateway-api.yaml
+  - https://raw.githubusercontent.com/org/app/refs/tags/${VERSION}/deployments/experimental-crds.yml
+  
+# Links to github directories that contain CRDs, as the link appears in the browser
+# ${VERSION} is interpolated with the version set in the file. do NOT omit ${VERSION}
+githubFolders:
+  # parses ALL yaml files in this folder for CRDs
+  # https://github.com/aclerici38/k8s-versioned-schemas/blob/main/apps/external-dns.yaml
+  - https://github.com/org/app/tree/${VERSION}/config/crd/standard
+  
+helm:
+  # URL to an OCI helm chart. If helm.template is NOT true CRDs will be extracted using `helm show crds`
+  # Limitations: `helm show crds` only works with a `crds` folder in the chart. Some charts distrubute CRDs via templates
+  # To test, manually run the helm command `helm show crds oci://ghcr.io/org/charts/app --version v0.0.1
+  # https://github.com/aclerici38/k8s-versioned-schemas/blob/main/apps/pocket-id-operator.yaml
+  chartUrl: oci://ghcr.io/org/charts/app
+  
+  # If the chart's CRDs are distributed through templates, `helm template app oci://chart` is needed to extract them. 
+  # It is recommended to use helm show crds where possible.
+  # To test, manually run the helm command `helm template app oci://ghcr.io/org/charts/app --version v0.0.1
+  # https://github.com/aclerici38/k8s-versioned-schemas/blob/main/apps/external-secrets.yaml
+  template: true
+  
+  # If the chart does NOT install crds by default and extra values are needed, set them here
+  # ONLY used if `helm.template: true`
+  # https://github.com/aclerici38/k8s-versioned-schemas/blob/main/apps/cert-manager.yaml
+  requiredValues:
+    crds:
+      enabled: true
+      
