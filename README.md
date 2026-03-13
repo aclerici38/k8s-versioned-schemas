@@ -62,8 +62,6 @@ The app metadata files attempt to support all methods of distrubuting CRDs with 
 
 ## Usage
 
-I have thought of a couple ways to utilize the versioned schemas, where they're providing benefits over the existing options. Be sure to note the downsides of each option as well. If you have a better method let me know!
-
 To track the versions in the `yaml-language-server` lines with Renovate, I use this custom manager. Note, the tags released are in the format `app/version` with a literal forward slash in the tag:
 ```
 {
@@ -82,6 +80,8 @@ To track the versions in the `yaml-language-server` lines with Renovate, I use t
   ],
 }
 ```
+
+I have thought of a couple ways to utilize the versioned schemas, where they're providing benefits over the existing options. Be sure to note the downsides of each option as well. If you have a better method let me know!
 
 - Always use `/latest` version in url. This is guaranteed to point at the latest CRD schemas for an app (since Renovate will update them) but the url will never change, meaning the yaml-language-server's cache will have to expire or be purged before new versions are fetched. (e.g. # yaml-language-server: $schema=https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json)
 
