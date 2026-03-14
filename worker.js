@@ -1,4 +1,4 @@
-import redirectData from "./schemas/_redirects.json";
+import redirectData from "./_redirects.json";
 
 const { latest, groups } = redirectData;
 
