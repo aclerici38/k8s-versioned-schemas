@@ -5,7 +5,7 @@ const { latest, groups } = redirectData;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const parts = url.pathname.split("/").filter(Boolean);
+    const parts = url.pathname.toLowerCase().split("/").filter(Boolean);
 
     if (parts.length >= 2) {
       const [first, ...rest] = parts;
