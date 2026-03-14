@@ -17,22 +17,37 @@ jobs:
         with:
           ref: main
 
-      - name: Generate redirects
+      - name: Generate redirect data
         run: |
-          for app_dir in schemas/*/; do
-            app_name="$(basename "$app_dir")"
-            latest="$(ls -d "$app_dir"*/ | xargs -n1 basename | sort -V | tail -1)"
-            echo "/${app_name}/latest/* /${app_name}/${latest}/:splat 302"
-            
-            # Redirect /GROUP/KIND_VERSION.json to /APP/latest/KIND_VERSION.json
-            if [ -f "$app_dir$latest/_groups.txt" ]; then
-              while read -r group schema_file; do
-                echo "/${group}/${schema_file} /${app_name}/${latest}/${schema_file} 302"
-              done < "$app_dir$latest/_groups.txt"
-            fi
-          done > schemas/_redirects
-          echo "Generated _redirects:"
-          cat schemas/_redirects
+          python3 -c "
+          import json, os, subprocess
+          latest = {}
+          groups = {}
+          for app in sorted(os.listdir('schemas')):
+            app_dir = f'schemas/{app}'
+            if not os.path.isdir(app_dir):
+              continue
+            versions = sorted(
+              [v for v in os.listdir(app_dir) if os.path.isdir(f'{app_dir}/{v}')],
+              key=lambda v: [int(x) if x.isdigit() else x for x in v.replace('.', ' ').split()]
+            )
+            if not versions:
+              continue
+            latest[app] = versions[-1]
+            groups_file = f'{app_dir}/{versions[-1]}/_groups.txt'
+            if os.path.isfile(groups_file):
+              with open(groups_file) as f:
+                for line in f:
+                  parts = line.strip().split()
+                  if len(parts) >= 2:
+                    group = parts[0]
+                    if group not in groups:
+                      groups[group] = app
+          with open('schemas/_redirects.json', 'w') as f:
+            json.dump({'latest': latest, 'groups': groups}, f)
+          print(json.dumps({'latest': latest, 'groups': groups}, indent=2))
+          "
+          cp worker.js schemas/_worker.js
 
       - name: Generate index.html
         run: |
