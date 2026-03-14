@@ -15,6 +15,8 @@ The url format for the schemas is `versioned-k8s-schemas.pages.dev/{APP}/{VERSIO
 - From Cloudnative-PG 0.27.1: `https://k8s-versioned-schemas.pages.dev/cloudnative-pg/0.27.1/backup_v1.json`
   - `# yaml-language-server: $schema=https://k8s-versioned-schemas.pages.dev/cloudnative-pg/0.27.1/backup_v1.json`
 
+If you prefer, the typical `{CRDGROUP}/{CRDKIND}_{CRDVERSION}.json` path is available as well, always redirecting to the latest version. For example, `https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json` and `https://k8s-versioned-schemas.pages.dev/postgresql.cnpg.io/backup_v1.json` both redirect to the latest CRD schema for the resource.
+
 For convenience, since the app names are somewhat arbitrary and it's not reasonable to have to guess or look back through the repo, there's a simple ui at the root: https://versioned-k8s-schemas.pages.dev. The page lists all apps, versions, and links to the respective schemas, along with a search bar for app names. The page is updated alongside the schemas. *NOTE*: The `copy` button in the ui copies the whole `# yaml-language-server: $schema={schemaurl}` line for convenience.
 
 ## Why?
@@ -38,12 +40,13 @@ B) Extract schemas from a running cluster and publish to an accessible URL.
 | Schemas match your exact cluster state and app versions | Requires a running cluster or previously extracted CRDs |
 | Includes all installed CRDs | *ONLY* includes installed CRDs |
 | | Complexity to extract/publish schemas safely |
+| | Limited to exactly what's running in the target cluster |
 
 In my opinion, neither approach is ideal:
 - **Option A** requires manually contributing new schema versions and waiting for review/merge before they're published
 - **Option B** requires installing CRDs on a cluster before you can even configure the app (with the schemas)
 
-My alternative option here:
+My alternative solution here is a bit of a hybrid:
 
 C) Generate versioned schemas directly from upstream sources.
 
@@ -63,6 +66,41 @@ Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file inc
 The app metadata files attempt to support all methods of distrubuting CRDs with an emphasis on ease-of-addition to this repo. Method of adding the CRDs is up to the author. Personally, I prefer adding via the chart if possible since the urls are easy to find. See the full example at https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml to see all the configuration options. Make a pull request with the app (1 app per pull request please) and I will get to it ASAP.
 
 To test, install uv and run `./gen-schemas.sh apps/myappname` and it will output any schemas into `schemas/`. Alternatively the ci will generate them and show a diff in the PR. Do NOT commit the schemas!!
+
+### Supported Sources
+
+Each app file supports multiple source types. They can be combined as needed. The target file/folder does *NOT* only have to include CRDs, it can include other yaml files. Just the CRDs will be extracted.
+
+**File URLs** — Direct links to raw YAML files containing CRDs. `${VERSION}` is required and is interpolated with the tracked version.
+```yaml
+fileUrls:
+  - https://github.com/org/app/releases/download/${VERSION}/install.yaml
+```
+
+**GitHub Folders** — Links to GitHub directories containing CRD YAML files (as they appear in the browser). All YAML files in the folder are parsed.
+```yaml
+githubFolders:
+  - https://github.com/org/app/tree/${VERSION}/config/crd/standard
+```
+
+**Helm Chart (`helm show crds`)** — Extract CRDs from a Helm chart's `crds/` directory. Only works if the chart distributes CRDs in a `crds/` folder, not via templates.
+```yaml
+helm:
+  chartUrl: oci://ghcr.io/org/charts/app
+```
+
+**Helm Chart (`helm template`)** — For charts that distribute CRDs through templates instead of a `crds/` folder. Optionally provide values needed to enable CRD installation.
+```yaml
+helm:
+  chartUrl: oci://ghcr.io/org/charts/app
+  template: true
+  requiredValues:
+    crds:
+      enabled: true
+```
+
+See the full example at [full-example-app.yaml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml) for all configuration options and links to real apps using each source type.
+
 
 ## Usage
 
@@ -87,7 +125,7 @@ To track the versions in the `yaml-language-server` lines with Renovate, I use t
 
 I have thought of a couple ways to utilize the versioned schemas, where they're providing benefits over the existing options. Be sure to note the downsides of each option as well. If you have a better method let me know!
 
-- Always use `/latest` version in url. This is guaranteed to point at the latest CRD schemas for an app (since Renovate will update them) but the url will never change, meaning the yaml-language-server's cache will have to expire or be purged before new versions are fetched. (e.g. # yaml-language-server: $schema=https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json)
+- Always use `/latest` version in url, or the typical `{CRDGROUP}/{CRDKIND}_{CRDVERSION}` path. This is guaranteed to point at the latest CRD schemas for an app (since Renovate will update them) but the url will never change, meaning the yaml-language-server's cache will have to expire or be purged before new versions are fetched. (e.g. # yaml-language-server: $schema=https://k8s-versioned-schemas.pages.dev/cloudnative-pg/latest/backup_v1.json)
 
 - Pin schemas to app version, add a Renovate group with [`minimumGroupSize`](https://docs.renovatebot.com/configuration-options/#minimumgroupsize). This ensures an update for the app AND schemas is available so they remain on the same version. In addition, any diff in the schemas is added to the release notes here which will be shown in a pull request from Renovate. In practice, maintaining a group for each app/CRD combo can be cumbersome and updates can be suppressed if there's an issue here, or with renovate, or with the upstream. These errors can compound as the schema likely uses a different datasource for versioning that the app.
 
