@@ -3,6 +3,7 @@ set -euo pipefail
 # Usage: ./gen-schemas.sh apps/kgateway.yaml apps/cilium.yaml
 # Usage: ./gen-schemas.sh apps/*
 
+export FILENAME_FORMAT="{fullgroup}_{kind}_{version}"
 SCHEMA_CMD="uv run --with pyyaml python3 /tmp/openapi2jsonschema.py"
 curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py \
   -o /tmp/openapi2jsonschema.py
@@ -70,7 +71,17 @@ for app_file in "$@"; do
     fi
   fi
 
+  # Metadata for Group: Kind mapping
   cd ../../../
+  rm -f "$OUTPUT_DIR/_groups.txt"
+  for schema in "$OUTPUT_DIR"/*.json; do
+    fname="$(basename "$schema" .json)"
+    GROUP=$(echo "$fname" | cut -d_ -f1)
+    KIND_VERSION=$(echo "$fname" | cut -d_ -f2-)
+    echo "$GROUP ${KIND_VERSION}.json" >> "$OUTPUT_DIR/_groups.txt"
+    mv "$schema" "$OUTPUT_DIR/${KIND_VERSION}.json"
+  done
+  
   GENERATED=$(find "$OUTPUT_DIR" -name '*.json' | wc -l)
   if [ "$GENERATED" -eq 0 ]; then
     echo "ERROR: no schemas generated for $APP_NAME. To debug, run: ./gen-schemas.sh $app_file" >&2

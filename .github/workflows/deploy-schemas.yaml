@@ -17,12 +17,19 @@ jobs:
         with:
           ref: main
 
-      - name: Generate latest redirects
+      - name: Generate redirects
         run: |
           for app_dir in schemas/*/; do
             app_name="$(basename "$app_dir")"
             latest="$(ls -d "$app_dir"*/ | xargs -n1 basename | sort -V | tail -1)"
             echo "/${app_name}/latest/* /${app_name}/${latest}/:splat 302"
+            
+            # Redirect /GROUP/KIND_VERSION.json to /APP/latest/KIND_VERSION.json
+            if [ -f "$app_dir$latest/_groups.txt" ]; then
+              while read -r group schema_file; do
+                echo "/${group}/${schema_file} /${app_name}/latest/${schema_file} 302"
+              done < "$app_dir$latest/_groups.txt"
+            fi
           done > schemas/_redirects
           echo "Generated _redirects:"
           cat schemas/_redirects
