@@ -32,12 +32,25 @@ for e in entries:
 PYEOF
 }
 
+# Filter CRDs out of multidocs and save to metadata.name
+filter_crds() {
+  local dir="$1" tmp
+  tmp="$(mktemp)"
+  yq eval 'select(.kind == "CustomResourceDefinition")' - >"$tmp"
+  if [ -s "$tmp" ]; then
+    mkdir -p "$dir"
+    yq eval -s "\"${dir}/\" + .metadata.name + \".yaml\"" "$tmp"
+  fi
+  rm -f "$tmp"
+}
+
 COUNT=0
 for app_file in "$@"; do
   VERSION="$(yq '.version' "$app_file")"
   APP_NAME="$(basename "$app_file" .yaml)"
-  OUTPUT_DIR="schemas/${APP_NAME}/${VERSION#v}"
-  mkdir -p "$OUTPUT_DIR"
+  SCHEMAS_DIR="schemas/${APP_NAME}/${VERSION#v}"
+  CRDS_DIR="crds/${APP_NAME}/${VERSION#v}"
+  mkdir -p "$SCHEMAS_DIR"
 
   FILE_URLS="$(yq '.fileUrls[]' "$app_file")" || true
   GITHUB_FOLDERS="$(yq '.githubFolders[]' "$app_file")" || true
@@ -46,20 +59,20 @@ for app_file in "$@"; do
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
   VALUES_SCHEMA_URL="$(yq '.helm.valuesSchemaUrl // ""' "$app_file")"
 
-  rm -rf "${OUTPUT_DIR:?}"/*
-  cd "$OUTPUT_DIR"
+  rm -f "${CRDS_DIR:?}"/* 2>/dev/null || true
+  rm -f "${SCHEMAS_DIR:?}"/*
   echo ""
   echo "Processing $APP_NAME version $VERSION"
 
   for url in $FILE_URLS; do
     version_url="${url//\$\{VERSION\}/$VERSION}"
     echo "Fetching CRDs from $version_url"
-    $SCHEMA_CMD "$version_url"
+    curl -sfL "$version_url" | filter_crds "$CRDS_DIR"
   done
 
   for folder_url in $GITHUB_FOLDERS; do
     folder_url="${folder_url//\$\{VERSION\}/$VERSION}"
-    fetch_github_folder "$folder_url" | $SCHEMA_CMD /dev/stdin
+    fetch_github_folder "$folder_url" | filter_crds "$CRDS_DIR"
   done
 
   if [ -n "$CHART_URL" ]; then
@@ -69,15 +82,15 @@ for app_file in "$@"; do
 
     if [ -z "$VALUES_SCHEMA_URL" ] && [ -f "$CHART_DIR/values.schema.json" ]; then
       echo "Found values schema in $APP_NAME chart"
-      cp "$CHART_DIR/values.schema.json" values.schema.json
+      cp "$CHART_DIR/values.schema.json" "$SCHEMAS_DIR/values.schema.json"
     fi
 
     if [ "$TEMPLATE" = "true" ]; then
       echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - |
-        $SCHEMA_CMD /dev/stdin
+        filter_crds "$CRDS_DIR"
     else
       helm show crds "$CHART_DIR" |
-        $SCHEMA_CMD /dev/stdin
+        filter_crds "$CRDS_DIR"
     fi
 
     rm -rf "$PULL_DIR"
@@ -85,29 +98,33 @@ for app_file in "$@"; do
 
   if [ -n "$VALUES_SCHEMA_URL" ]; then
     url="${VALUES_SCHEMA_URL//\$\{VERSION\}/$VERSION}"
-    curl -sfL "$url" -o values.schema.json
+    curl -sfL "$url" -o "$SCHEMAS_DIR/values.schema.json"
+  fi
+
+  cd "$SCHEMAS_DIR"
+  if [ -d "../../../$CRDS_DIR" ]; then
+    $SCHEMA_CMD ../../../"$CRDS_DIR"/*.yaml
   fi
 
   # Metadata for Group: Kind mapping
-  cd ../../../
-  rm -f "$OUTPUT_DIR/_groups.txt"
-  for schema in "$OUTPUT_DIR"/*.json; do
-    case "$(basename "$schema")" in
+  for schema in *.json; do
+    case "$schema" in
     values.schema.json) continue ;;
     esac
-    fname="$(basename "$schema" .json)"
+    fname="${schema%.json}"
     GROUP=$(echo "$fname" | cut -d_ -f1)
     KIND_VERSION=$(echo "$fname" | cut -d_ -f2-)
-    echo "$GROUP ${KIND_VERSION}.json" >>"$OUTPUT_DIR/_groups.txt"
-    mv "$schema" "$OUTPUT_DIR/${KIND_VERSION}.json"
+    echo "$GROUP ${KIND_VERSION}.json" >>_groups.txt
+    mv "$schema" "${KIND_VERSION}.json"
   done
 
-  GENERATED=$(find "$OUTPUT_DIR" -name '*.json' | wc -l)
+  GENERATED=$(find . -name '*.json' | wc -l)
   if [ "$GENERATED" -eq 0 ]; then
     echo "ERROR: no schemas generated for $APP_NAME. To debug, run: ./gen-schemas.sh $app_file" >&2
     exit 1
   fi
   COUNT=$((COUNT + GENERATED))
+  cd -
 done
 
 echo "# schemas generated: $COUNT"
