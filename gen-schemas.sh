@@ -34,11 +34,14 @@ PYEOF
 
 # Filter CRDs out of multidocs and save to metadata.name
 filter_crds() {
-  local dir="$1" filtered
-  filtered="$(yq eval 'select(.kind == "CustomResourceDefinition")' -)"
-  [ -z "$filtered" ] && return
-  mkdir -p "$dir"
-  echo "$filtered" | yq eval -s "\"${dir}/\" + .metadata.name + \".yaml\"" -
+  local dir="$1" tmp
+  tmp="$(mktemp)"
+  yq eval 'select(.kind == "CustomResourceDefinition")' - >"$tmp"
+  if [ -s "$tmp" ]; then
+    mkdir -p "$dir"
+    yq eval -s "\"${dir}/\" + .metadata.name + \".yaml\"" "$tmp"
+  fi
+  rm -f "$tmp"
 }
 
 COUNT=0
