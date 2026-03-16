@@ -12,15 +12,17 @@ export default {
 
       // /app/latest/* -> /app/{version}/*
       if (first in latest && rest[0] === "latest") {
-        const newPath = `/${first}/${latest[first]}/${rest.slice(1).join("/")}`;
-        return Response.redirect(new URL(newPath, url.origin).toString(), 302);
+        const dest = new URL(`/${first}/${latest[first]}/${rest.slice(1).join("/")}`, url.origin);
+        dest.search = url.search;
+        return Response.redirect(dest.toString(), 302);
       }
 
       // /group/kind_version.json -> /app/{version}/kind_version.json
       if (first in groups) {
         const app = groups[first];
-        const newPath = `/${app}/${latest[app]}/${rest.join("/")}`;
-        return Response.redirect(new URL(newPath, url.origin).toString(), 302);
+        const dest = new URL(`/${app}/${latest[app]}/${rest.join("/")}`, url.origin);
+        dest.search = url.search;
+        return Response.redirect(dest.toString(), 302);
       }
     }
 
