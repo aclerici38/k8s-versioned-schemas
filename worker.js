@@ -24,6 +24,28 @@ export default {
       }
     }
 
+    // Inject values schema into helmrelease via '?values=app/version'
+    // e.g. /flux/2.8.3/helmrelease_v2.json?values=cilium/0.19.1
+    const values = url.searchParams.get("values");
+    if (values) {
+      const [app, ver] = values.split("/");
+      const resolved = ver === "latest" ? latest[app] : ver;
+      const asset = (path) =>
+        env.ASSETS.fetch(new Request(new URL(path, url.origin)));
+
+      const [baseRes, valuesRes] = await Promise.all([
+        asset(url.pathname),
+        asset(`/${app}/${resolved}/values.schema.json`),
+      ]);
+      if (!baseRes.ok || !valuesRes.ok) {
+        return new Response("Schema not found", { status: 404 });
+      }
+
+      const schema = await baseRes.json();
+      schema.properties.spec.properties.values = await valuesRes.json();
+      return Response.json(schema);
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
