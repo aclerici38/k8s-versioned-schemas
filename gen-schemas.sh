@@ -99,7 +99,9 @@ for app_file in "$@"; do
   fi
 
   cd "$SCHEMAS_DIR"
-  $SCHEMA_CMD ../../../"$CRDS_DIR"/*.yaml
+  if [ -d "../../../$CRDS_DIR" ]; then
+    $SCHEMA_CMD ../../../"$CRDS_DIR"/*.yaml
+  fi
 
   # Metadata for Group: Kind mapping
   for schema in *.json; do
