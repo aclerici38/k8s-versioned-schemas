@@ -63,10 +63,12 @@ jobs:
       - name: Get Schema Diff
         if: github.event_name == 'pull_request'
         run: |
+          git fetch origin main --quiet
           git add -f schemas/
+          STAT=$(git diff --cached --stat=200 origin/main -- schemas/)
+
           echo '### Schema Changes' > /tmp/schema-diff.md
           echo '' >> /tmp/schema-diff.md
-          STAT=$(git diff --cached --stat=200 -- schemas/)
           if [ -z "$STAT" ]; then
             echo 'No schema changes detected.' >> /tmp/schema-diff.md
           else
