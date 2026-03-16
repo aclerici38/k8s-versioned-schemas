@@ -67,11 +67,9 @@ for app_file in "$@"; do
     helm pull "$CHART_URL" --version "$VERSION" --untar -d "$PULL_DIR"
     CHART_DIR="$(ls -d "$PULL_DIR"/*/)"
     
-    if [ -n "$VALUES_SCHEMA_URL" ]; then
-      if [ -f "$CHART_DIR/values.schema.json" ]; then
-        echo "Found values schema in $APP_NAME chart"
-        cp "$CHART_DIR/values.schema.json" values.schema.json
-      fi
+    if [ -z "$VALUES_SCHEMA_URL" ] && [ -f "$CHART_DIR/values.schema.json" ]; then
+      echo "Found values schema in $APP_NAME chart"
+      cp "$CHART_DIR/values.schema.json" values.schema.json
     fi
     
     if [ "$TEMPLATE" = "true" ]; then
