@@ -44,6 +44,7 @@ for app_file in "$@"; do
   CHART_URL="$(yq '.helm.chartUrl // ""' "$app_file")"
   TEMPLATE="$(yq '.helm.template // false' "$app_file")"
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
+  VALUES_SCHEMA_URL="$(yq '.helm.valuesSchemaUrl // ""' "$app_file")"
 
   rm -rf "$OUTPUT_DIR"/*
   cd "$OUTPUT_DIR"
@@ -62,19 +63,38 @@ for app_file in "$@"; do
   done
 
   if [ -n "$CHART_URL" ]; then
+    PULL_DIR="$(mktemp -d)"
+    helm pull "$CHART_URL" --version "$VERSION" --untar -d "$PULL_DIR"
+    CHART_DIR="$(ls -d "$PULL_DIR"/*/)"
+    
+    if [ -z "$VALUES_SCHEMA_URL" ] && [ -f "$CHART_DIR/values.schema.json" ]; then
+      echo "Found values schema in $APP_NAME chart"
+      cp "$CHART_DIR/values.schema.json" values.schema.json
+    fi
+    
     if [ "$TEMPLATE" = "true" ]; then
-      echo "$VALUES" | helm template "$APP_NAME" "$CHART_URL" --version "$VERSION" -f - \
+      echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - \
         | $SCHEMA_CMD /dev/stdin
     else
-      helm show crds "$CHART_URL" --version "$VERSION" \
+      helm show crds "$CHART_DIR" \
         | $SCHEMA_CMD /dev/stdin
     fi
+
+    rm -rf "$PULL_DIR"
+  fi
+  
+  if [ -n "$VALUES_SCHEMA_URL" ]; then
+    url="${VALUES_SCHEMA_URL//\$\{VERSION\}/$VERSION}"
+    curl -sfL "$url" -o values.schema.json
   fi
 
   # Metadata for Group: Kind mapping
   cd ../../../
   rm -f "$OUTPUT_DIR/_groups.txt"
   for schema in "$OUTPUT_DIR"/*.json; do
+    case "$(basename "$schema")" in
+      values.schema.json) continue ;;
+    esac
     fname="$(basename "$schema" .json)"
     GROUP=$(echo "$fname" | cut -d_ -f1)
     KIND_VERSION=$(echo "$fname" | cut -d_ -f2-)
