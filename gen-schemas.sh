@@ -101,6 +101,10 @@ for app_file in "$@"; do
     curl -sfL "$url" -o "$SCHEMAS_DIR/values.schema.json"
   fi
 
+  if [ -d "$CRDS_DIR" ] && ls "$CRDS_DIR"/*.yaml &>/dev/null; then
+    (cd "$CRDS_DIR" && kustomize create --autodetect)
+  fi
+
   cd "$SCHEMAS_DIR"
   if [ -d "../../../$CRDS_DIR" ]; then
     $SCHEMA_CMD ../../../"$CRDS_DIR"/*.yaml
