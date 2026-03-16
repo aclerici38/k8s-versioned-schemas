@@ -92,6 +92,9 @@ for app_file in "$@"; do
   cd ../../../
   rm -f "$OUTPUT_DIR/_groups.txt"
   for schema in "$OUTPUT_DIR"/*.json; do
+    case "$(basename "$schema")" in
+      values.schema.json) continue ;;
+    esac
     fname="$(basename "$schema" .json)"
     GROUP=$(echo "$fname" | cut -d_ -f1)
     KIND_VERSION=$(echo "$fname" | cut -d_ -f2-)
