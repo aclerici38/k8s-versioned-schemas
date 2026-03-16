@@ -42,7 +42,11 @@ export default {
       }
 
       const schema = await baseRes.json();
-      schema.properties.spec.properties.values = await valuesRes.json();
+      const valuesRaw = await valuesRes.text();
+      const prefix = "#/properties/spec/properties/values";
+      schema.properties.spec.properties.values = JSON.parse(
+        valuesRaw.replaceAll('"#/', `"${prefix}/`),
+      );
       return Response.json(schema);
     }
 
