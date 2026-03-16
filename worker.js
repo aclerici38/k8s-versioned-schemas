@@ -24,29 +24,24 @@ export default {
       }
     }
 
-    // Inject values schema into helmrelease via '?values=app/version'
+    // Inject values schema ref into helmrelease via '?values=app/version'
     // e.g. /flux/2.8.3/helmrelease_v2.json?values=cilium/0.19.1
     const values = url.searchParams.get("values");
     if (values) {
       const [app, ver] = values.split("/");
       const resolved = ver === "latest" ? latest[app] : ver;
-      const asset = (path) =>
-        env.ASSETS.fetch(new Request(new URL(path, url.origin)));
 
-      const [baseRes, valuesRes] = await Promise.all([
-        asset(url.pathname),
-        asset(`/${app}/${resolved}/values.schema.json`),
-      ]);
-      if (!baseRes.ok || !valuesRes.ok) {
+      const baseRes = await env.ASSETS.fetch(
+        new Request(new URL(url.pathname, url.origin)),
+      );
+      if (!baseRes.ok) {
         return new Response("Schema not found", { status: 404 });
       }
 
       const schema = await baseRes.json();
-      const valuesRaw = await valuesRes.text();
-      const prefix = "#/properties/spec/properties/values";
-      schema.properties.spec.properties.values = JSON.parse(
-        valuesRaw.replaceAll('"#/', `"${prefix}/`),
-      );
+      schema.properties.spec.properties.values = {
+        $ref: `${url.origin}/${app}/${resolved}/values.schema.json`,
+      };
       return Response.json(schema);
     }
 
