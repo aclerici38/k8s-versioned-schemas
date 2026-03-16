@@ -46,7 +46,7 @@ for app_file in "$@"; do
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
   VALUES_SCHEMA_URL="$(yq '.helm.valuesSchemaUrl // ""' "$app_file")"
 
-  rm -rf "$OUTPUT_DIR"/*
+  rm -rf "${OUTPUT_DIR:?}"/*
   cd "$OUTPUT_DIR"
   echo ""
   echo "Processing $APP_NAME version $VERSION"
@@ -66,23 +66,23 @@ for app_file in "$@"; do
     PULL_DIR="$(mktemp -d)"
     helm pull "$CHART_URL" --version "$VERSION" --untar -d "$PULL_DIR"
     CHART_DIR="$(ls -d "$PULL_DIR"/*/)"
-    
+
     if [ -z "$VALUES_SCHEMA_URL" ] && [ -f "$CHART_DIR/values.schema.json" ]; then
       echo "Found values schema in $APP_NAME chart"
       cp "$CHART_DIR/values.schema.json" values.schema.json
     fi
-    
+
     if [ "$TEMPLATE" = "true" ]; then
-      echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - \
-        | $SCHEMA_CMD /dev/stdin
+      echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - |
+        $SCHEMA_CMD /dev/stdin
     else
-      helm show crds "$CHART_DIR" \
-        | $SCHEMA_CMD /dev/stdin
+      helm show crds "$CHART_DIR" |
+        $SCHEMA_CMD /dev/stdin
     fi
 
     rm -rf "$PULL_DIR"
   fi
-  
+
   if [ -n "$VALUES_SCHEMA_URL" ]; then
     url="${VALUES_SCHEMA_URL//\$\{VERSION\}/$VERSION}"
     curl -sfL "$url" -o values.schema.json
@@ -93,15 +93,15 @@ for app_file in "$@"; do
   rm -f "$OUTPUT_DIR/_groups.txt"
   for schema in "$OUTPUT_DIR"/*.json; do
     case "$(basename "$schema")" in
-      values.schema.json) continue ;;
+    values.schema.json) continue ;;
     esac
     fname="$(basename "$schema" .json)"
     GROUP=$(echo "$fname" | cut -d_ -f1)
     KIND_VERSION=$(echo "$fname" | cut -d_ -f2-)
-    echo "$GROUP ${KIND_VERSION}.json" >> "$OUTPUT_DIR/_groups.txt"
+    echo "$GROUP ${KIND_VERSION}.json" >>"$OUTPUT_DIR/_groups.txt"
     mv "$schema" "$OUTPUT_DIR/${KIND_VERSION}.json"
   done
-  
+
   GENERATED=$(find "$OUTPUT_DIR" -name '*.json' | wc -l)
   if [ "$GENERATED" -eq 0 ]; then
     echo "ERROR: no schemas generated for $APP_NAME. To debug, run: ./gen-schemas.sh $app_file" >&2
