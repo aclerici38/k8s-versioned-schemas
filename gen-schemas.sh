@@ -55,7 +55,6 @@ for app_file in "$@"; do
   FILE_URLS="$(yq '.fileUrls[]' "$app_file")" || true
   GITHUB_FOLDERS="$(yq '.githubFolders[]' "$app_file")" || true
   CHART_URL="$(yq '.helm.chartUrl // ""' "$app_file")"
-  TEMPLATE="$(yq '.helm.template // false' "$app_file")"
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
   VALUES_SCHEMA_URL="$(yq '.helm.valuesSchemaUrl // ""' "$app_file")"
 
@@ -85,12 +84,14 @@ for app_file in "$@"; do
       cp "$CHART_DIR/values.schema.json" "$SCHEMAS_DIR/values.schema.json"
     fi
 
-    if [ "$TEMPLATE" = "true" ]; then
-      echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - |
-        filter_crds "$CRDS_DIR"
-    else
+    if [ -z "$VALUES" ]; then
       helm show crds "$CHART_DIR" |
         filter_crds "$CRDS_DIR"
+    fi
+    if ! ls "$CRDS_DIR"/*.yaml &>/dev/null; then
+      echo "helm show crds produced no CRDs for $APP_NAME, falling back to helm template"
+      echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - 2>/dev/null |
+        filter_crds "$CRDS_DIR" || true
     fi
 
     rm -rf "$PULL_DIR"
