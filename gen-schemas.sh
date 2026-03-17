@@ -85,9 +85,11 @@ for app_file in "$@"; do
       cp "$CHART_DIR/values.schema.json" "$SCHEMAS_DIR/values.schema.json"
     fi
 
-    if ! echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - 2>/dev/null |
-      filter_crds "$CRDS_DIR"; then
-      echo "helm template failed for $APP_NAME, falling back to helm show crds"
+    echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - 2>/dev/null |
+      filter_crds "$CRDS_DIR" || true
+      
+    if ! ls "$CRDS_DIR"/*.yaml &>/dev/null; then
+      echo "helm template produced no CRDs for $APP_NAME, falling back to helm show crds"
       helm show crds "$CHART_DIR" |
         filter_crds "$CRDS_DIR"
     fi
