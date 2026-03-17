@@ -55,7 +55,6 @@ for app_file in "$@"; do
   FILE_URLS="$(yq '.fileUrls[]' "$app_file")" || true
   GITHUB_FOLDERS="$(yq '.githubFolders[]' "$app_file")" || true
   CHART_URL="$(yq '.helm.chartUrl // ""' "$app_file")"
-  TEMPLATE="$(yq '.helm.template // false' "$app_file")"
   VALUES="$(yq '.helm.requiredValues // ""' "$app_file")"
   VALUES_SCHEMA_URL="$(yq '.helm.valuesSchemaUrl // ""' "$app_file")"
 

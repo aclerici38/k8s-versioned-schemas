@@ -83,17 +83,10 @@ githubFolders:
   - https://github.com/org/app/tree/${VERSION}/config/crd/standard
 ```
 
-**Helm Chart (`helm show crds`)** — Extract CRDs from a Helm chart's `crds/` directory. Only works if the chart distributes CRDs in a `crds/` folder, not via templates.
+**Helm Chart (RECOMMENDED)** — Extract CRDs from a Helm chart. `crds/` directory. Only works if the chart distributes CRDs through templates or the crds directory. The script first tries `helm show crds` and falls back to `helm template`. If the chart requires values set to enable the CRDs, set them in `requiredValues`. If no values are set leave `requiredValues` unset.
 ```yaml
 helm:
   chartUrl: oci://ghcr.io/org/charts/app
-```
-
-**Helm Chart (`helm template`)** — For charts that distribute CRDs through templates instead of a `crds/` folder. Optionally provide values needed to enable CRD installation.
-```yaml
-helm:
-  chartUrl: oci://ghcr.io/org/charts/app
-  template: true
   requiredValues:
     crds:
       enabled: true
