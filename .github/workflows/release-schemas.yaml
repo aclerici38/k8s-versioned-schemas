@@ -21,7 +21,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         with:
-          app-id: ${{ secrets.APP_ID }}
+          client-id: ${{ secrets.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_KEY }}
 
       - name: Checkout code
@@ -64,10 +64,15 @@ jobs:
                 body="Initial version tracked."
               fi
 
+              notes_file=$(mktemp)
+              printf '%s' "$body" > "$notes_file"
+
               gh release create "$tag" \
                 --title "${app_name} ${version}" \
-                --notes "$body" \
+                --notes-file "$notes_file" \
                 --target "${{ github.sha }}" \
                 schemas/${app_name}/${version}/*.json
+
+              rm -f "$notes_file"
             done
           done
