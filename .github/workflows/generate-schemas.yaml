@@ -38,6 +38,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token.outputs.token || github.token }}
+          persist-credentials: false
 
       - name: Get Changed Apps
         id: changed-apps
@@ -91,14 +92,18 @@ jobs:
 
       - name: Commit Changed Schemas
         if: github.ref == 'refs/heads/main'
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
         run: |
-          git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
-          git config user.email "200541989+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "200541989+${APP_SLUG}[bot]@users.noreply.github.com"
 
           git add -f schemas/ crds/
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "chore: update schemas"
-            git push
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" HEAD:main
           else
             echo "No new schemas to commit."
           fi
