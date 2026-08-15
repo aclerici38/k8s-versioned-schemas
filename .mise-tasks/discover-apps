@@ -73,9 +73,11 @@ case "${1:-}" in
   # Each helm call absorbs its own failure
   crds() {
     # -N: without it yq separates the emitted names with ---, and sort -u leaves
-    # one behind as a name that matches nothing known.
+    # one behind as a name that matches nothing known. The trailing || true is
+    # what absorbs the failure: pipefail would otherwise carry a chart helm
+    # cannot render out through set -e and kill the whole probe.
     "$@" 2>/dev/null | yq -rN 'select(.kind == "CustomResourceDefinition") | .metadata.name' 2>/dev/null |
-      sort -u
+      sort -u || true
   }
 
   # Same order gen-schemas uses, so a hit here is one gen-schemas can reproduce.
