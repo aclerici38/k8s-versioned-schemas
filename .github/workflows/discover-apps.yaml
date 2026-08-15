@@ -1,0 +1,104 @@
+name: discover-apps
+
+# Opens one PR per newly discovered app.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      min_repos:
+        description: "Ignore charts run by fewer than this many clusters"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discover-apps
+  cancel-in-progress: false
+
+env:
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+
+jobs:
+  discover-apps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: "2026.8.5"
+          install_args: "helm yq aqua:oras-project/oras"
+
+      - name: Discover Apps
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MIN_REPOS: ${{ inputs.min_repos || '1' }}
+        run: mise run discover-apps
+
+      - name: Open a PR per new App
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "200541989+${APP_SLUG}[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+
+          for f in $(git ls-files --others --exclude-standard apps/); do
+            APP="$(basename "$f" .yaml)"
+            BRANCH="discover/${APP}"
+
+            if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+              echo "Branch $BRANCH already exists, skipping $APP"
+              continue
+            fi
+
+            CLUSTERS="$(grep -oP '(?<=referenced by )\d+' "$f" || echo '?')"
+            CHART="$(yq -r '.helm.chartUrl' "$f")"
+
+            git checkout -q -b "$BRANCH" origin/main
+            git add "$f"
+            git commit -q -m "feat(apps): add ${APP}"
+            git push -q origin "$BRANCH"
+
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "feat(apps): add ${APP}" \
+              --body "$(cat <<EOF
+          Discovered by \`discover-apps\`, which sweeps every repo carrying the
+          [k8s-at-home](https://github.com/topics/k8s-at-home) or
+          [kubesearch](https://github.com/topics/kubesearch) topic.
+
+          | | |
+          |---|---|
+          | Chart | \`${CHART}\` |
+          | Referenced by | ${CLUSTERS} clusters |
+
+          The \`generate-schemas\` run on this PR comments the schema diff. **If it reports
+          no schema changes, close this PR** and add \`${APP}\` to \`.github/discover-ignore.txt\`
+          so it stops being proposed.
+          EOF
+              )"
+
+            git checkout -q main
+          done

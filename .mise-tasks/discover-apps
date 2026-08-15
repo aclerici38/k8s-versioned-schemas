@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+#MISE description="Write an app.yaml for every OCI chart the k8s-at-home community runs that we don't track yet"
+set -euo pipefail
+shopt -s nullglob
+export LC_ALL=C # keep sort/join collation identical everywhere this runs
+# Usage: mise run discover-apps        (MIN_REPOS=10 to be stricter)
+#
+# Sweep every repo carrying the k8s-at-home or kubesearch topic, collect the OCI
+# charts they run, then pull each unknown chart.
+
+MIN_REPOS="${MIN_REPOS:-1}" # ignore charts fewer than this many clusters run
+IGNORE_FILE="${IGNORE_FILE:-.github/discover-ignore.txt}"
+TOPICS="${TOPICS:-k8s-at-home kubesearch}"
+
+WORK="${WORK:-$(mktemp -d)}"
+export WORK
+
+case "${1:-}" in
+--fetch)
+  # One repo per process
+  REPO="$2" BRANCH="$3"
+  OUT="$WORK/refs/${REPO//\//_}"
+  DIR="$(mktemp -d)"
+  trap 'rm -rf "$DIR"' EXIT
+
+  # Tarballs redirect to codeload, so they cost nothing against the REST quota.
+  gh api "repos/$REPO/tarball/$BRANCH" 2>/dev/null | tar xz -C "$DIR" 2>/dev/null || exit 0
+
+  # gotk-components.yaml *defines* the OCIRepository CRD, so matching Flux's own
+  # installer would read it as a chart reference. `--null`
+  { grep -rl --null --include='*.yaml' --include='*.yml' --exclude='gotk-components*' \
+    -E 'kind: (OCIRepository|HelmRepository|HelmRelease)' "$DIR" 2>/dev/null || true; } |
+    # @tsv must sit inside each branch; trailing it after the comma-list binds to
+    # the last branch alone.
+    xargs -0 -r yq -r '
+      (select(.kind == "OCIRepository" and .spec.url) | ["chart", .spec.url] | @tsv),
+      (select(.kind == "HelmRepository" and .spec.url) | ["src", .metadata.name, .spec.url] | @tsv),
+      (select(.kind == "HelmRelease" and .spec.chart.spec.chart)
+        | ["rel", .spec.chart.spec.sourceRef.name, .spec.chart.spec.chart] | @tsv)
+    ' 2>/dev/null |
+    # Support OCIRepository and HelmRepository
+    awk -F'\t' -v OFS='\t' -v repo="$REPO" '
+      function emit(u) { if (u ~ /^oci:\/\/[[:alnum:].:-]+\/[^ ]+$/ && u !~ /[{}$]/) print tolower(repo), tolower(u) }
+      $1 == "chart" { emit($2) }
+      $1 == "src"   { sub(/\/+$/, "", $3); url[$2] = $3 }
+      $1 == "rel"   { n++; src[n] = $2; chart[n] = $3 }
+      END { for (i = 1; i <= n; i++) if (src[i] in url) emit(url[src[i]] "/" chart[i]) }
+    ' | sort -u >"$OUT"
+  exit 0
+  ;;
+
+--probe)
+  # One candidate per process. Writes apps/<name>.yaml itself, or nothing.
+  COUNT="$2" NAME="$3" URL="$4"
+
+  # Newest release tag from the registry
+  VERSION="$(oras repo tags "${URL#oci://}" 2>/dev/null |
+    grep -E '^[vV]?[0-9]+\.[0-9]+\.[0-9]+$' |
+    awk '{v = $0; sub(/^[vV]/, "", v); print v "\t" $0}' |
+    sort -t$'\t' -k1,1rV -k2,2r | head -1 | cut -f2 || true)"
+  [ -n "$VERSION" ] || exit 0
+
+  DIR="$(mktemp -d)"
+  trap 'rm -rf "$DIR"' EXIT
+  helm pull "$URL" --version "$VERSION" --untar -d "$DIR" &>/dev/null || exit 0
+  # echo, not `ls -d`: nullglob leaves the glob empty and `ls -d` with no operand
+  # would report the working directory as if it were the chart.
+  CHART="$(echo "$DIR"/*/)"
+  [ -d "$CHART" ] || exit 0
+
+  # Each helm call absorbs its own failure
+  crds() {
+    "$@" 2>/dev/null | yq -r 'select(.kind == "CustomResourceDefinition") | .metadata.name' 2>/dev/null |
+      grep -c . || true
+  }
+
+  # Same order gen-schemas uses, so a hit here is one gen-schemas can reproduce.
+  FOUND=$(crds helm show crds "$CHART")
+  TOGGLE=""
+  [ "$FOUND" -eq 0 ] && FOUND=$(crds helm template "$NAME" "$CHART")
+  if [ "$FOUND" -eq 0 ]; then
+    # Charts gating CRDs behind a value read as CRD-less otherwise (cert-manager).
+    for t in crds.enabled installCRDs crds.install crd.create crds.create; do
+      FOUND=$(crds helm template "$NAME" "$CHART" --set "$t=true")
+      [ "$FOUND" -gt 0 ] && TOGGLE="$t" && break
+    done
+  fi
+
+  SCHEMA=no
+  [ -f "$CHART/values.schema.json" ] && SCHEMA=yes
+  if [ "$FOUND" -eq 0 ] && [ "$SCHEMA" = no ]; then
+    echo "  skip $NAME ($COUNT clusters): no CRDs, no values.schema.json" >&2
+    exit 0
+  fi
+
+  {
+    echo "---"
+    echo "# discovered by discover-apps: referenced by $COUNT clusters"
+    echo "# renovate: datasource=docker depName=${URL#oci://}"
+    echo "version: $VERSION"
+    echo "helm:"
+    echo "  chartUrl: $URL"
+    if [ -n "$TOGGLE" ]; then
+      echo "  requiredValues:"
+      yq -n ".$TOGGLE = true" | sed 's/^/    /'
+    fi
+  } >"apps/$NAME.yaml"
+  echo "  add  $NAME ($COUNT clusters): $FOUND CRDs, values schema: $SCHEMA${TOGGLE:+, needs $TOGGLE}" >&2
+  exit 0
+  ;;
+esac
+
+trap 'rm -rf "$WORK"' EXIT
+
+# --- every repo carrying either topic -----------------------------------------
+# gh walks the pages itself, but only if the cursor variable is spelled exactly
+# $endCursor and pageInfo carries both fields.
+QUERY='query($topic:String!,$endCursor:String){topic(name:$topic){repositories(first:100,after:$endCursor){
+  pageInfo{hasNextPage endCursor} nodes{nameWithOwner defaultBranchRef{name} isArchived}}}}'
+
+for topic in $TOPICS; do
+  gh api graphql --paginate -f query="$QUERY" -F topic="$topic" --jq '.data.topic.repositories.nodes[]
+    | select((.isArchived | not) and .defaultBranchRef) | "\(.nameWithOwner) \(.defaultBranchRef.name)"'
+done | sort -u >"$WORK/repos.txt"
+
+REPOS=$(wc -l <"$WORK/repos.txt" | tr -d ' ')
+echo "Sweeping $REPOS repos across topics: $TOPICS"
+# Near-empty means something failed
+[ "$REPOS" -ge 100 ] || { echo "ERROR: only $REPOS repos found, expected hundreds" >&2; exit 1; }
+
+# --- what they run ------------------------------------------------------------
+mkdir -p "$WORK/refs"
+xargs -P "${FETCH_JOBS:-16}" -n 2 "$0" --fetch <"$WORK/repos.txt" >/dev/null 2>&1 || true
+# /dev/null first, so an empty refs/ cannot leave cat reading this script's stdin.
+cat /dev/null "$WORK/refs"/* | sort -u >"$WORK/refs.tsv"
+
+FOUND_IN=$(cut -f1 "$WORK/refs.tsv" | sort -u | wc -l | tr -d ' ')
+echo "Found $(cut -f2 "$WORK/refs.tsv" | sort -u | wc -l | tr -d ' ') charts across $FOUND_IN repos"
+# A few repos always fail (renamed, rate-limited); most of them failing does not.
+[ "$FOUND_IN" -ge $((REPOS / 4)) ] || { echo "ERROR: only $FOUND_IN repos yielded anything" >&2; exit 1; }
+
+# --- minus what we already have -----------------------------------------------
+# By app name as well as URL: apps/cilium.yaml takes its CRDs from the source
+# repo, so matching on chart URL alone would propose it all over again.
+{
+  basename -a apps/*.yaml | sed 's/\.yaml$//'
+  yq -r '.helm.chartUrl // ""' apps/*.yaml | tr 'A-Z' 'a-z' | sed 's|/*$||'
+  # Entries are matched as whole strings, so both ends get trimmed -- otherwise a
+  # trailing comment leaves the space in front of it on the entry and it matches
+  # nothing, silently.
+  if [ -f "$IGNORE_FILE" ]; then sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' "$IGNORE_FILE"; fi
+} | grep -v '^[[:space:]]*$' | sort -u >"$WORK/known.txt"
+
+# refs.tsv is already unique, so counting rows per chart counts distinct repos.
+cut -f2 "$WORK/refs.tsv" | sort | uniq -c | sort -k1,1nr |
+  awk -v min="$MIN_REPOS" '
+    # A known entry carrying a wildcard is a glob -- only the ignore file can
+    # produce one, so app names and chart URLs stay exact lookups. Escape first:
+    # an unescaped . in a chart URL would match any character.
+    function glob2re(p,  r) { r = p; gsub(/[]\\.[(){}+^$|]/, "\\\\&", r); gsub(/\*/, ".*", r); gsub(/\?/, ".", r); return "^" r "$" }
+    NR == FNR { if ($0 ~ /[*?]/) globs[++g] = glob2re($0); else known[$0]; next }
+    $1 >= min {
+      name = $2; sub(/.*\//, "", name)
+      if (name in known || $2 in known) next
+      for (i = 1; i <= g; i++) if (name ~ globs[i] || $2 ~ globs[i]) next
+      known[name]; print $1, name, $2
+    }
+  ' "$WORK/known.txt" - >"$WORK/candidates.txt"
+
+CANDIDATES=$(wc -l <"$WORK/candidates.txt" | tr -d ' ')
+echo "Probing $CANDIDATES charts run by >= $MIN_REPOS clusters"
+[ "$CANDIDATES" -gt 0 ] || exit 0
+
+# --- keep the ones worth publishing -------------------------------------------
+before=(apps/*.yaml)
+xargs -P "${JOBS:-10}" -n 3 "$0" --probe <"$WORK/candidates.txt"
+after=(apps/*.yaml)
+echo "Added $((${#after[@]} - ${#before[@]})) apps"
