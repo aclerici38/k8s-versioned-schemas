@@ -3,7 +3,7 @@ name: generate-schemas
 on:
   push:
     branches: [main]
-    paths-ignore: 
+    paths-ignore:
       - "schemas/**"
       - "crds/**"
   pull_request:
@@ -21,6 +21,9 @@ permissions:
 concurrency:
   group: generate-schemas-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
 
 jobs:
   generate-schemas:
@@ -47,21 +50,18 @@ jobs:
         with:
           files: apps/*.yaml
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
-          version: "0.12.5"
-
-      - name: Setup Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: "2026.8.5"
+          install_args: "helm yq kustomize python uv"
 
       - name: Generate Schemas
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           SCHEMA_TARGETS: ${{ inputs.appname && format('apps/{0}.yaml', inputs.appname) || steps.changed-apps.outputs.all_changed_files || 'apps/*.yaml' }}
-        run: |
-          chmod +x gen-schemas.sh
-          ./gen-schemas.sh $SCHEMA_TARGETS
+        run: mise run gen-schemas $SCHEMA_TARGETS
 
       - name: Get Schema Diff
         if: github.event_name == 'pull_request'

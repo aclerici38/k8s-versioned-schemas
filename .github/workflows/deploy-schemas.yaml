@@ -6,8 +6,10 @@ on:
     branches: [main]
     paths:
       - "schemas/**"
-      - "gen-schemas.sh"
+      - ".mise.toml"
+      - ".mise-tasks/**"
       - "worker.js"
+      - "index.template.html"
       - ".github/workflows/**"
 
 permissions:
@@ -16,6 +18,9 @@ permissions:
 concurrency:
   group: deploy-schemas
   cancel-in-progress: true
+
+env:
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
 
 jobs:
   deploy:
@@ -27,72 +32,18 @@ jobs:
           ref: main
           persist-credentials: false
 
-      - name: Generate redirect data
-        run: |
-          python3 -c "
-          import json, os, subprocess
-          latest = {}
-          groups = {}
-          for app in sorted(os.listdir('schemas')):
-            app_dir = f'schemas/{app}'
-            if not os.path.isdir(app_dir):
-              continue
-            versions = sorted(
-              [v for v in os.listdir(app_dir) if os.path.isdir(f'{app_dir}/{v}')],
-              key=lambda v: [int(x) if x.isdigit() else x for x in v.replace('.', ' ').split()]
-            )
-            if not versions:
-              continue
-            latest[app] = versions[-1]
-            groups_file = f'{app_dir}/{versions[-1]}/_groups.txt'
-            if os.path.isfile(groups_file):
-              with open(groups_file) as f:
-                for line in f:
-                  parts = line.strip().split()
-                  if len(parts) >= 2:
-                    group = parts[0]
-                    if group not in groups:
-                      groups[group] = app
-          with open('schemas/_redirects.json', 'w') as f:
-            json.dump({'latest': latest, 'groups': groups}, f)
-          print(json.dumps({'latest': latest, 'groups': groups}, indent=2))
-          "
-          cp worker.js schemas/_worker.js
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: "2026.8.5"
+          install_args: "python"
+          # This job publishes to Cloudflare Pages; don't restore a tool cache
+          # into it (zizmor cache-poisoning).
+          cache: false
 
-      - name: Generate index.html
-        run: |
-          rowsfile="$(mktemp)"
-          for app_dir in schemas/*/; do
-            app="$(basename "$app_dir")"
-            versions="$(ls -d "$app_dir"*/ | xargs -n1 basename | sort -V)"
-            latest="$(echo "$versions" | tail -1)"
-            version_links=""
-            # latest entry using /latest/ URLs
-            latest_schemas=""
-            for f in "$app_dir$latest"/*.json; do
-              fname="$(basename "$f")"
-              url="/${app}/latest/${fname}"
-              latest_schemas="${latest_schemas}<div><a href=\"${url}\">${fname}</a><button class=\"copy-btn\" data-url=\"${url}\">copy</button></div>"
-            done
-            version_links="<div><span class=\"toggle\">latest</span><div class=\"schemas\">${latest_schemas}</div></div>"
-            # versioned entries
-            for v in $(echo "$versions" | sort -rV); do
-              schema_links=""
-              for f in "$app_dir$v"/*.json; do
-                fname="$(basename "$f")"
-                url="/${app}/${v}/${fname}"
-                schema_links="${schema_links}<div><a href=\"${url}\">${fname}</a><button class=\"copy-btn\" data-url=\"${url}\">copy</button></div>"
-              done
-              version_links="${version_links}<div><span class=\"toggle\">${v}</span><div class=\"schemas\">${schema_links}</div></div>"
-            done
-            echo "<tr><td>${app}</td><td>${version_links}</td></tr>" >> "$rowsfile"
-          done
-          sed -e '/<!-- SCHEMA_ROWS -->/{
-            r '"$rowsfile"'
-            d
-          }' index.template.html > schemas/index.html
-          rm "$rowsfile"
-          echo "Generated index.html"
+      - name: Build site
+        run: mise run build-site
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0

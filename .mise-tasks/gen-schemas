@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
+#MISE description="Generate JSON schemas from each app's upstream CRDs (defaults to every app in apps/)"
 set -euo pipefail
-# Usage: ./gen-schemas.sh apps/kgateway.yaml apps/cilium.yaml
-# Usage: ./gen-schemas.sh apps/*
+# Usage: mise run gen-schemas apps/kgateway.yaml apps/cilium.yaml
+# Usage: mise run gen-schemas
 
-export FILENAME_FORMAT="{fullgroup}_{kind}_{version}"
-SCHEMA_CMD="uv run --with pyyaml python3 /tmp/openapi2jsonschema.py"
+[ "$#" -gt 0 ] || set -- apps/*.yaml
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
 curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py \
-  -o /tmp/openapi2jsonschema.py
+  -o "$WORK/openapi2jsonschema.py"
+SCHEMA_CMD=(uv run --no-project --with pyyaml python3 "$WORK/openapi2jsonschema.py")
 
 # Given a GitHub tree URL (https://github.com/owner/repo/tree/ref/path/to/dir),
 # fetch all YAML files in that directory and output them as a single multidoc stream.
@@ -108,7 +113,7 @@ for app_file in "$@"; do
 
   cd "$SCHEMAS_DIR"
   if [ -d "../../../$CRDS_DIR" ]; then
-    $SCHEMA_CMD ../../../"$CRDS_DIR"/*.yaml
+    "${SCHEMA_CMD[@]}" ../../../"$CRDS_DIR"/*.yaml
   fi
 
   # Metadata for Group: Kind mapping
@@ -125,7 +130,7 @@ for app_file in "$@"; do
 
   GENERATED=$(find . -name '*.json' | wc -l)
   if [ "$GENERATED" -eq 0 ]; then
-    echo "ERROR: no schemas generated for $APP_NAME. To debug, run: ./gen-schemas.sh $app_file" >&2
+    echo "ERROR: no schemas generated for $APP_NAME. To debug, run: mise run gen-schemas $app_file" >&2
     exit 1
   fi
   COUNT=$((COUNT + GENERATED))

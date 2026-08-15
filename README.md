@@ -59,13 +59,13 @@ C) Generate versioned schemas directly from upstream sources.
 
 ## How?
 
-Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file includes the version of the app, Renovate configuration to track the version, and sources to extract the CRDs from. The logic for parsing these files is in [gen-schemas.sh](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/gen-schemas.sh), which uses the amazing [openapi2jsonschema.py](https://github.com/yannh/kubeconform/blob/master/scripts/openapi2jsonschema.py) script to save json schemas for each CRD into `schemas/`. `schemas/` then gets served via cloudflare pages at https://versioned-k8s-schemas.pages.dev. A git tag `app/version` is created for each update along with a release showing the diff from the previous CRDs.
+Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file includes the version of the app, Renovate configuration to track the version, and sources to extract the CRDs from. The logic for parsing these files is in the [gen-schemas](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise-tasks/gen-schemas) task, which uses the amazing [openapi2jsonschema.py](https://github.com/yannh/kubeconform/blob/master/scripts/openapi2jsonschema.py) script to save json schemas for each CRD into `schemas/`. `schemas/` then gets served via cloudflare pages at https://versioned-k8s-schemas.pages.dev. A git tag `app/version` is created for each update along with a release showing the diff from the previous CRDs.
 
 ### Adding a new app
 
 The app metadata files attempt to support all methods of distrubuting CRDs with an emphasis on ease-of-addition to this repo. Method of adding the CRDs is up to the author. Personally, I prefer adding via the chart if possible since the urls are easy to find. See the full example at https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml to see all the configuration options. Make a pull request with the app (1 app per pull request please) and I will get to it ASAP.
 
-To test, install uv and run `./gen-schemas.sh apps/myappname` and it will output any schemas into `schemas/`. Alternatively the ci will generate them and show a diff in the PR. Do NOT commit the schemas!!
+To test, install [mise](https://mise.jdx.dev/) and run `mise install && mise run gen-schemas apps/myappname.yaml`. It will output any schemas into `schemas/`. Alternatively the ci will generate them and show a diff in the PR. Do NOT commit the schemas!!
 
 ### Supported Sources
 
@@ -94,6 +94,19 @@ helm:
 
 See the full example at [full-example-app.yaml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/full-example-app.yaml) for all configuration options and links to real apps using each source type.
 
+
+## Development
+
+Every tool this repo needs (helm, yq, kustomize, python, uv, gh) is pinned in [.mise.toml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise.toml) and locked in `mise.lock`. Install them with `mise install`, then use the tasks in `.mise-tasks/`. CI runs the exact same tasks.
+
+| Task | What it does |
+|------|--------------|
+| `mise run gen-schemas [apps/foo.yaml ...]` | Fetch each app's upstream CRDs into `crds/` and generate JSON schemas into `schemas/`. Defaults to every app in `apps/`. |
+| `mise run build-site` | Build the Cloudflare Pages bundle in `schemas/` — `_redirects.json`, `_worker.js`, and the `index.html` UI. Run `gen-schemas` first. |
+| `mise run release-schemas` | Create the `app/version` tag and GitHub release, with a CRD diff, for every schema version that doesn't have one. Needs `GH_TOKEN`. |
+| `mise run clean` | Delete the generated `crds/` and `schemas/` trees. |
+
+`mise tasks` lists them, `mise run` with no arguments picks one interactively.
 
 ## Usage
 
