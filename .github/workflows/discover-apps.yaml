@@ -1,6 +1,7 @@
-name: discover-apps
+name: discover
 
-# Opens one PR per newly discovered app.
+# Sweeps the k8s-at-home/kubesearch topics once, then opens one PR per newly
+# discovered app and one issue for the CRD groups no app covers.
 on:
   schedule:
     - cron: "38 6 * * *"
@@ -9,7 +10,11 @@ on:
       min_repos:
         description: "Ignore charts run by fewer than this many clusters"
         required: false
-        default: "3"
+        default: "1"
+      min_crd_repos:
+        description: "Ignore CRD groups run by fewer than this many clusters"
+        required: false
+        default: "1"
       dry_run:
         description: "Dry run"
         required: false
@@ -27,7 +32,27 @@ env:
   MISE_TASK_RUN_AUTO_INSTALL: "false"
 
 jobs:
+  list-repos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Sweep topics
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./.mise-tasks/discover/repos > repos.txt
+
+      - name: Upload repo list
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repos
+          path: repos.txt
+
   discover-apps:
+    needs: list-repos
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -54,11 +79,17 @@ jobs:
           version: "2026.8.5"
           install_args: "helm yq aqua:oras-project/oras"
 
+      - name: Download repo list
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: repos
+
       - name: Discover Apps
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           MIN_REPOS: ${{ inputs.min_repos || '1' }}
-        run: mise run discover-apps
+          REPOS_FILE: repos.txt
+        run: mise run discover:apps
 
       - name: Open a PR per new App
         env:
@@ -118,3 +149,110 @@ jobs:
 
             git checkout -q main
           done
+
+  find-crds:
+    needs: list-repos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: "2026.8.5"
+          install_args: "yq github:home-operations/flate"
+
+      - name: Download repo list
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: repos
+
+      # Renders untrusted third-party manifests, so it runs on the read-only
+      # default token -- the App token is minted in the job that files the issue.
+      - name: Find CRDs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MIN_REPOS: ${{ inputs.min_crd_repos || '3' }}
+          REPOS_FILE: repos.txt
+        run: mise run discover:crds
+
+      - name: Upload report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crd-report
+          path: crd-report.tsv
+
+  file-crd-issue:
+    # After discover-apps so a group it just opened a PR for is not also an issue.
+    needs: [discover-apps, find-crds]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_KEY }}
+          permission-issues: write
+          permission-pull-requests: read
+
+      - name: Download report
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: crd-report
+
+      - name: Open an issue for the untracked groups
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          # Every group already proposed, whether the issue is open or closed --
+          # a closed one was triaged, so it stays suppressed.
+          gh issue list --label discover-crds --state all --limit 100 --json body --jq '.[].body' |
+            grep -o '<!-- groups: [^>]*' | sed 's/<!-- groups: //' | tr ' ' '\n' | sort -u >seen.txt || true
+          gh pr list --label discover --state open --limit 100 --json headRefName \
+            --jq '.[].headRefName | sub("^discover/"; "")' | sort -u >proposed.txt || true
+
+          awk -F'\t' '
+            FILENAME == "seen.txt"     { s[$0]; next }
+            FILENAME == "proposed.txt" { p[$0]; next }
+            $1 in s { next }
+            { n = split($5, c, " "); for (i = 1; i <= n; i++) if (c[i] in p) next; print }
+          ' seen.txt proposed.txt crd-report.tsv >new.tsv
+
+          COUNT=$(wc -l <new.tsv | tr -d ' ')
+          [ "$COUNT" -gt 0 ] || { echo "No untracked CRD groups"; exit 0; }
+
+          {
+            echo "\`flate\` rendered every repo carrying the [k8s-at-home](https://github.com/topics/k8s-at-home)"
+            echo "or [kubesearch](https://github.com/topics/kubesearch) topic. These CRD groups have no schema here."
+            echo
+            awk -F'\t' '{
+              printf "### `%s`%s\n\n", $1, ($2 == "partial" ? " -- group partly covered already" : "")
+              printf "Run by **%s** clusters. Kinds: `%s`\n\n", $3, $4
+              n = split($6, p, ";")
+              for (i = 1; i <= n; i++) printf "- %s\n", p[i]
+              printf "\n"
+            }' new.tsv
+            echo "Every group listed here is suppressed from later runs whether this issue is open or"
+            echo "closed, so close it once triaged. Add a group to \`.github/crd-ignore.txt\` to pre-empt it."
+            printf '<!-- groups: %s -->\n' "$(cut -f1 new.tsv | paste -sd' ' -)"
+          } >body.md
+
+          if [ "$DRY_RUN" = true ]; then
+            echo "would open an issue for $COUNT groups:"
+            cat body.md
+            exit 0
+          fi
+
+          gh label create discover-crds --color 1d76db --force \
+            --description "Opened automatically by the find-crds job"
+          gh issue create \
+            --label discover-crds \
+            --title "$COUNT CRD groups without schemas ($(date -u +%Y-%m-%d))" \
+            --body-file body.md

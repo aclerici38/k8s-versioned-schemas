@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#MISE description="List every repo carrying the k8s-at-home or kubesearch topic"
+set -euo pipefail
+export LC_ALL=C
+# Usage: mise run discover:repos > repos.txt
+# Emits "<owner/repo> <default-branch>" per line. discover:apps and discover:crds
+# both consume it, so one sweep pins them to the same snapshot.
+
+TOPICS="${TOPICS:-k8s-at-home kubesearch}"
+
+# gh walks the pages itself, but only if the cursor variable is spelled exactly
+# $endCursor and pageInfo carries both fields.
+QUERY='query($topic:String!,$endCursor:String){topic(name:$topic){repositories(first:100,after:$endCursor){
+  pageInfo{hasNextPage endCursor} nodes{nameWithOwner defaultBranchRef{name} isArchived}}}}'
+
+OUT="$(mktemp)"
+trap 'rm -f "$OUT"' EXIT
+
+for topic in $TOPICS; do
+  gh api graphql --paginate -f query="$QUERY" -F topic="$topic" --jq '.data.topic.repositories.nodes[]
+    | select((.isArchived | not) and .defaultBranchRef) | "\(.nameWithOwner) \(.defaultBranchRef.name)"'
+done | sort -u >"$OUT"
+
+REPOS=$(wc -l <"$OUT" | tr -d ' ')
+echo "Swept $REPOS repos across topics: $TOPICS" >&2
+# Near-empty means something failed
+[ "$REPOS" -ge 100 ] || { echo "ERROR: only $REPOS repos found, expected hundreds" >&2; exit 1; }
+cat "$OUT"

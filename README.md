@@ -105,6 +105,9 @@ Every tool whose version affects the generated schemas (helm, yq, kustomize, crd
 | `mise run build-site` | Build the Cloudflare Pages bundle in `schemas/` — `_redirects.json`, `_worker.js`, and the `index.html` UI. Run `gen-schemas` first. |
 | `mise run release-schemas` | Create the `app/version` tag and GitHub release, with a CRD diff, for every schema version that doesn't have one. Needs `GH_TOKEN`. |
 | `mise run prune-schemas` | Delete all but the 5 most recent versions of each app, from both `schemas/` and `crds/`. `KEEP=n` to change the count. `PRUNE_RELEASES=true` also deletes each pruned version's GitHub release and tag (needs `GH_TOKEN`); off by default locally, on in CI. |
+| `mise run discover:repos` | List every repo carrying the [k8s-at-home](https://github.com/topics/k8s-at-home) or [kubesearch](https://github.com/topics/kubesearch) topic, one `<owner/repo> <branch>` per line. Needs `GH_TOKEN`. |
+| `mise run discover:apps` | Pull every OCI chart those repos run and write an `apps/*.yaml` for each one that would add CRDs or a values schema this repo lacks. `MIN_REPOS=n` to ignore charts fewer than n clusters run. |
+| `mise run discover:crds` | Render those repos with [flate](https://github.com/home-operations/flate) and write `crd-report.tsv`, the CRD groups at least `MIN_REPOS` clusters install that have no schema here. Catches what `discover:apps` cannot: a chart reached through a templated or `postBuild`-substituted ref, and CRDs applied straight from a Kustomization. |
 | `mise run clean` | Delete the generated `crds/` and `schemas/` trees. |
 
 `mise tasks` lists them, `mise run` with no arguments picks one interactively.

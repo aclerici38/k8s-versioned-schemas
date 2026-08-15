@@ -10,7 +10,6 @@ export LC_ALL=C # keep sort/join collation identical everywhere this runs
 
 MIN_REPOS="${MIN_REPOS:-1}" # ignore charts fewer than this many clusters run
 IGNORE_FILE="${IGNORE_FILE:-.github/discover-ignore.txt}"
-TOPICS="${TOPICS:-k8s-at-home kubesearch}"
 
 WORK="${WORK:-$(mktemp -d)}"
 export WORK
@@ -128,24 +127,14 @@ esac
 trap 'rm -rf "$WORK"' EXIT
 
 # --- every repo carrying either topic -----------------------------------------
-# gh walks the pages itself, but only if the cursor variable is spelled exactly
-# $endCursor and pageInfo carries both fields.
-QUERY='query($topic:String!,$endCursor:String){topic(name:$topic){repositories(first:100,after:$endCursor){
-  pageInfo{hasNextPage endCursor} nodes{nameWithOwner defaultBranchRef{name} isArchived}}}}'
-
-for topic in $TOPICS; do
-  gh api graphql --paginate -f query="$QUERY" -F topic="$topic" --jq '.data.topic.repositories.nodes[]
-    | select((.isArchived | not) and .defaultBranchRef) | "\(.nameWithOwner) \(.defaultBranchRef.name)"'
-done | sort -u >"$WORK/repos.txt"
-
-REPOS=$(wc -l <"$WORK/repos.txt" | tr -d ' ')
-echo "Sweeping $REPOS repos across topics: $TOPICS"
-# Near-empty means something failed
-[ "$REPOS" -ge 100 ] || { echo "ERROR: only $REPOS repos found, expected hundreds" >&2; exit 1; }
+REPOS_FILE="${REPOS_FILE:-}"
+[ -n "$REPOS_FILE" ] || { REPOS_FILE="$WORK/repos.txt"; "$(dirname "$0")/repos" >"$REPOS_FILE"; }
+REPOS=$(wc -l <"$REPOS_FILE" | tr -d ' ')
+echo "Sweeping $REPOS repos"
 
 # --- what they run ------------------------------------------------------------
 mkdir -p "$WORK/refs"
-xargs -P "${FETCH_JOBS:-16}" -n 2 "$0" --fetch <"$WORK/repos.txt" >/dev/null 2>&1 || true
+xargs -P "${FETCH_JOBS:-16}" -n 2 "$0" --fetch <"$REPOS_FILE" >/dev/null 2>&1 || true
 # /dev/null first, so an empty refs/ cannot leave cat reading this script's stdin.
 cat /dev/null "$WORK/refs"/* | sort -u >"$WORK/refs.tsv"
 
