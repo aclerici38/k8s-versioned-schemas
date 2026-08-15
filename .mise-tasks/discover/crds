@@ -25,20 +25,21 @@ TIMEOUT="$(command -v timeout || command -v gtimeout || true)"
 case "${1:-}" in
 --render)
   # One repo per process. Writes $WORK/found/<repo>, or nothing.
-  REPO="$2" BRANCH="$3"
+  REPO="$2" BRANCH="$3" SLUG="${2//\//_}"
   DIR="$(mktemp -d)"
   trap 'rm -rf "$DIR"' EXIT
 
-  gh api "repos/$REPO/tarball/$BRANCH" 2>/dev/null | tar xz -C "$DIR" 2>/dev/null || exit 0
+  gh api "repos/$REPO/tarball/$BRANCH" 2>/dev/null | tar xz -C "$DIR" 2>/dev/null ||
+    { echo "  $REPO: fetch failed" >&2; exit 0; }
   ROOT="$(echo "$DIR"/*/)"
-  [ -d "$ROOT" ] || exit 0
+  [ -d "$ROOT" ] || { echo "  $REPO: empty tarball" >&2; exit 0; }
 
   # --skip-crds=false rather than --only-crds
   ${TIMEOUT:+$TIMEOUT ${RENDER_TIMEOUT:-300}} flate build all --skip-crds=false -p "$ROOT" \
     --restrict-egress --allow-missing-secrets --no-progress \
     --concurrency "${FLATE_JOBS:-6}" --cache-dir "$WORK/cache" \
     >"$DIR/rendered.yaml" 2>/dev/null || true
-  [ -s "$DIR/rendered.yaml" ] || exit 0
+  [ -s "$DIR/rendered.yaml" ] || { echo "  $REPO: nothing rendered" >&2; exit 0; }
 
   yq -rN '
     (select(.kind == "CustomResourceDefinition") | ["crd", .spec.group, .spec.names.kind,
@@ -76,7 +77,8 @@ case "${1:-}" in
           print f[1], f[2], repo, chart, u, where
         }
       }
-    ' | sort -u >"$WORK/found/${REPO//\//_}"
+    ' | sort -u >"$WORK/found/$SLUG"
+  echo "  $REPO: $(wc -l <"$WORK/found/$SLUG" | tr -d ' ') CRDs" >&2
   exit 0
   ;;
 esac
@@ -100,8 +102,13 @@ echo "Matching against $KNOWN published group/kinds"
 # In chunks, because the source cache grows ~15MB a repo and outlives any one of them.
 mkdir -p "$WORK/found"
 split -l "${CHUNK:-100}" "$REPOS_FILE" "$WORK/chunk."
+CHUNKS=$(ls "$WORK"/chunk.* | wc -l | tr -d ' ')
+i=0
 for chunk in "$WORK"/chunk.*; do
+  i=$((i + 1)) start=$SECONDS
+  echo "--- chunk $i/$CHUNKS: $(wc -l <"$chunk" | tr -d ' ') repos, ${SECONDS}s elapsed"
   xargs -P "${JOBS:-8}" -n 2 "$0" --render <"$chunk" || true
+  echo "--- chunk $i/$CHUNKS done in $((SECONDS - start))s, $(ls "$WORK/found" | wc -l | tr -d ' ') repos with CRDs so far"
   flate cache gc --cache-dir "$WORK/cache" --max-age 15m --include-mirrors >/dev/null 2>&1 || true
 done
 cat /dev/null "$WORK/found"/* | awk -F'\t' 'NF==6' | sort -u >"$WORK/found.tsv"
