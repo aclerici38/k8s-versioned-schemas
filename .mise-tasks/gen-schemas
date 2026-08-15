@@ -9,25 +9,14 @@ set -euo pipefail
 # Given a GitHub tree URL (https://github.com/owner/repo/tree/ref/path/to/dir),
 # fetch all YAML files in that directory and output them as a single multidoc stream.
 fetch_github_folder() {
-  python3 - "$1" <<'PYEOF'
-import json, os, urllib.request, sys
-# ['https:', '', 'github.com', 'owner', 'repo', 'tree', 'ref', 'path', ...]
-parts = sys.argv[1].split('/')
-owner_repo = parts[3] + '/' + parts[4]
-ref = parts[6]
-path = '/'.join(parts[7:])
-url = f'https://api.github.com/repos/{owner_repo}/contents/{path}?ref={ref}'
-token = os.environ.get('GITHUB_TOKEN', '')
-headers = {'Authorization': f'token {token}'} if token else {}
-req = urllib.request.Request(url, headers=headers)
-entries = json.load(urllib.request.urlopen(req))
-for e in entries:
-    if e['name'].endswith(('.yaml', '.yml')):
-        dl_req = urllib.request.Request(e['download_url'], headers=headers)
-        body = urllib.request.urlopen(dl_req).read().decode()
-        print('---')
-        print(body)
-PYEOF
+  IFS=/ read -r _ _ _ owner repo _ ref path <<<"$1"
+  curl -sfL -H "Authorization: ${GITHUB_TOKEN:+token $GITHUB_TOKEN}" \
+    "https://api.github.com/repos/$owner/$repo/contents/$path?ref=$ref" |
+    yq -p json -o tsv '.[] | select(.name | test("\.ya?ml$")) | [.download_url]' |
+    while read -r url; do
+      echo "---"
+      curl -sfL "$url"
+    done
 }
 
 # Filter CRDs out of multidocs and save to metadata.name
