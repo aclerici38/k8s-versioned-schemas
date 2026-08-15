@@ -97,7 +97,7 @@ See the full example at [full-example-app.yaml](https://github.com/aclerici38/k8
 
 ## Development
 
-Every tool this repo needs (helm, yq, kustomize, crd-schema-publisher, python, gh) is pinned in [.mise.toml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise.toml) and locked in `mise.lock`. Install them with `mise install`, then use the tasks in `.mise-tasks/`. CI runs the exact same tasks.
+Every tool whose version affects the generated schemas (helm, yq, kustomize, crd-schema-publisher) is pinned in [.mise.toml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise.toml) and locked in `mise.lock`. Install them with `mise install`, then use the tasks in `.mise-tasks/`. CI runs the exact same tasks.
 
 | Task | What it does |
 |------|--------------|
