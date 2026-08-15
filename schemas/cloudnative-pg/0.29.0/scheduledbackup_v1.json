@@ -3,29 +3,40 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
       "type": "object"
     },
     "spec": {
+      "additionalProperties": false,
       "description": "Specification of the desired behavior of the ScheduledBackup.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status",
       "properties": {
         "backupOwnerReference": {
           "default": "none",
-          "description": "Indicates which ownerReference should be put inside the created backup resources.<br />\n- none: no owner reference for created backup objects (same behavior as before the field was introduced)<br />\n- self: sets the Scheduled backup object as owner of the backup<br />\n- cluster: set the cluster as owner of the backup<br />",
+          "description": "Indicates which ownerReference should be put inside the created backup resources.\u003cbr /\u003e\n- none: no owner reference for created backup objects (same behavior as before the field was introduced)\u003cbr /\u003e\n- self: sets the Scheduled backup object as owner of the backup\u003cbr /\u003e\n- cluster: set the cluster as owner of the backup\u003cbr /\u003e",
           "enum": [
             "none",
             "self",
             "cluster"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "cluster": {
+          "additionalProperties": false,
           "description": "The cluster to backup",
           "properties": {
             "name": {
@@ -42,12 +53,14 @@
               "message": "cluster reference is immutable after creation",
               "rule": "self == oldSelf"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
         "immediate": {
           "description": "If the first backup has to be immediately start after creation or not",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "method": {
           "default": "barmanObjectStore",
@@ -57,29 +70,45 @@
             "volumeSnapshot",
             "plugin"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "online": {
           "description": "Whether the default type of backup with volume snapshots is\nonline/hot (`true`, default) or offline/cold (`false`)\nOverrides the default setting specified in the cluster field '.spec.backup.volumeSnapshot.online'",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "onlineConfiguration": {
+          "additionalProperties": false,
           "description": "Configuration parameters to control the online/hot backup with volume snapshots\nOverrides the default settings specified in the cluster '.backup.volumeSnapshot.onlineConfiguration' stanza",
           "properties": {
             "immediateCheckpoint": {
               "description": "Control whether the I/O workload for the backup initial checkpoint will\nbe limited, according to the `checkpoint_completion_target` setting on\nthe PostgreSQL server. If set to true, an immediate checkpoint will be\nused, meaning PostgreSQL will complete the checkpoint as soon as\npossible. `false` by default.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "waitForArchive": {
               "default": true,
               "description": "If false, the function will return immediately after the backup is completed,\nwithout waiting for WAL to be archived.\nThis behavior is only useful with backup software that independently monitors WAL archiving.\nOtherwise, WAL required to make the backup consistent might be missing and make the backup useless.\nBy default, or when this parameter is true, pg_backup_stop will wait for WAL to be archived when archiving is\nenabled.\nOn a standby, this means that it will wait only when archive_mode = always.\nIf write activity on the primary is low, it may be useful to run pg_switch_wal on the primary in order to trigger\nan immediate segment switch.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "pluginConfiguration": {
+          "additionalProperties": false,
           "description": "Configuration parameters passed to the plugin managing this backup",
           "properties": {
             "name": {
@@ -91,14 +120,19 @@
                 "type": "string"
               },
               "description": "Parameters are the configuration parameters passed to the backup\nplugin for this backup",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
           "required": [
             "name"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "schedule": {
           "description": "The schedule does not follow the same format used in Kubernetes CronJobs\nas it includes an additional seconds specifier,\nsee https://pkg.go.dev/github.com/robfig/cron#hdr-CRON_Expression_Format",
@@ -106,7 +140,10 @@
         },
         "suspend": {
           "description": "If this backup is suspended or not",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "target": {
           "description": "The policy to decide which instance should perform this backup. If empty,\nit defaults to `cluster.spec.backup.target`.\nAvailable options are empty string, `primary` and `prefer-standby`.\n`primary` to have backups run always on primary instances,\n`prefer-standby` to have backups run preferably on the most updated\nstandby, if available.",
@@ -114,41 +151,58 @@
             "primary",
             "prefer-standby"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "cluster",
         "schedule"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "status": {
+      "additionalProperties": false,
       "description": "Most recently observed status of the ScheduledBackup. This data may not be up\nto date. Populated by the system. Read-only.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status",
       "properties": {
         "error": {
           "description": "Error is the latest admission validation error",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "lastCheckTime": {
           "description": "The latest time the schedule",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "lastScheduleTime": {
           "description": "Information when was the last time that backup was successfully scheduled.",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "nextScheduleTime": {
           "description": "Next time we will run a backup",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [

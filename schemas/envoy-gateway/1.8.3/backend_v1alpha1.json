@@ -3,16 +3,26 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
+      "additionalProperties": false,
       "description": "Spec defines the desired state of Backend.",
       "properties": {
         "appProtocols": {
@@ -26,14 +36,19 @@
             ],
             "type": "string"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "endpoints": {
           "description": "Endpoints defines the endpoints to be used when connecting to the backend.",
           "items": {
+            "additionalProperties": false,
             "description": "BackendEndpoint describes a backend endpoint, which can be either a fully-qualified domain name, IP address or unix domain socket\ncorresponding to Envoy's Address: https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/address.proto#config-core-v3-address",
             "properties": {
               "fqdn": {
+                "additionalProperties": false,
                 "description": "FQDN defines a FQDN endpoint",
                 "properties": {
                   "hostname": {
@@ -55,17 +70,23 @@
                   "hostname",
                   "port"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "hostname": {
                 "description": "Hostname defines an optional hostname for the backend endpoint.",
                 "maxLength": 253,
                 "minLength": 1,
                 "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "ip": {
+                "additionalProperties": false,
                 "description": "IP defines an IP endpoint. Supports both IPv4 and IPv6 addresses.",
                 "properties": {
                   "address": {
@@ -87,10 +108,13 @@
                   "address",
                   "port"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "unix": {
+                "additionalProperties": false,
                 "description": "Unix defines the unix domain socket endpoint",
                 "properties": {
                   "path": {
@@ -99,7 +123,7 @@
                     "x-kubernetes-validations": [
                       {
                         "message": "unix domain socket path must not exceed 108 characters",
-                        "rule": "size(self) <= 108"
+                        "rule": "size(self) \u003c= 108"
                       }
                     ]
                   }
@@ -107,12 +131,17 @@
                 "required": [
                   "path"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "zone": {
                 "description": "Zone defines the service zone of the backend endpoint.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "type": "object",
@@ -123,14 +152,16 @@
               },
               {
                 "message": "only one of fqdn, ip or unix can be specified",
-                "rule": "((has(self.fqdn) && !(has(self.ip) || has(self.unix))) || (has(self.ip) && !(has(self.fqdn) || has(self.unix))) || (has(self.unix) && !(has(self.ip) || has(self.fqdn))))"
+                "rule": "((has(self.fqdn) \u0026\u0026 !(has(self.ip) || has(self.unix))) || (has(self.ip) \u0026\u0026 !(has(self.fqdn) || has(self.unix))) || (has(self.unix) \u0026\u0026 !(has(self.ip) || has(self.fqdn))))"
               }
-            ],
-            "additionalProperties": false
+            ]
           },
           "maxItems": 256,
           "minItems": 1,
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "fqdn addresses cannot be mixed with other address types",
@@ -140,9 +171,13 @@
         },
         "fallback": {
           "description": "Fallback indicates whether the backend is designated as a fallback.\nIt is highly recommended to configure active or passive health checks to ensure that failover can be detected\nwhen the active backends become unhealthy and to automatically readjust once the primary backends are healthy again.\nThe overprovisioning factor is set to 1.4, meaning the fallback backends will only start receiving traffic when\nthe health of the active backends falls below 72%.",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "tls": {
+          "additionalProperties": false,
           "description": "TLS defines the TLS settings for the backend.\nIf TLS is specified here and a BackendTLSPolicy is also configured for the backend, the final TLS settings will\nbe a merge of both configurations. In case of overlapping fields, the values defined in the BackendTLSPolicy will\ntake precedence.",
           "properties": {
             "alpnProtocols": {
@@ -151,11 +186,15 @@
                 "description": "ALPNProtocol specifies the protocol to be negotiated using ALPN",
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "caCertificateRefs": {
               "description": "CACertificateRefs contains one or more references to Kubernetes objects that\ncontain TLS certificates of the Certificate Authorities that can be used\nas a trust anchor to validate the certificates presented by the backend.\n\nA single reference to a Kubernetes ConfigMap or a Kubernetes Secret,\nwith the CA certificate in a key named `ca.crt` is currently supported.\n\nIf CACertificateRefs is empty or unspecified, then WellKnownCACertificates must be\nspecified. Only one of CACertificateRefs or WellKnownCACertificates may be specified,\nnot both.",
               "items": {
+                "additionalProperties": false,
                 "description": "LocalObjectReference identifies an API object within the namespace of the\nreferrer.\nThe API object must be valid in the cluster; the Group and Kind must\nbe registered in the cluster for this reference to be valid.\n\nReferences to objects with invalid Group and Kind are not valid, and must\nbe rejected by the implementation, with appropriate Conditions set\non the containing object.",
                 "properties": {
                   "group": {
@@ -183,20 +222,26 @@
                   "kind",
                   "name"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
               "maxItems": 8,
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "ciphers": {
               "description": "Ciphers specifies the set of cipher suites supported when\nnegotiating TLS 1.0 - 1.2. This setting has no effect for TLS 1.3.\nFor Envoy TLS cipher suite configuration semantics and default cipher\nlists, see the Envoy documentation:\nhttps://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#extensions-transport-sockets-tls-v3-tlsparameters\nSupported cipher suite names:\n- ECDHE-ECDSA-AES128-GCM-SHA256\n- ECDHE-RSA-AES128-GCM-SHA256\n- ECDHE-ECDSA-AES256-GCM-SHA384\n- ECDHE-RSA-AES256-GCM-SHA384\n- ECDHE-ECDSA-CHACHA20-POLY1305\n- ECDHE-RSA-CHACHA20-POLY1305\n- ECDHE-ECDSA-AES128-SHA\n- ECDHE-RSA-AES128-SHA\n- AES128-GCM-SHA256\n- AES128-SHA\n- ECDHE-ECDSA-AES256-SHA\n- ECDHE-RSA-AES256-SHA\n- AES256-GCM-SHA384\n- AES256-SHA\nSupported IANA/RFC aliases:\n- TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256\n- TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256\n- TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\n- TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384\n- TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256\n- TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256\n- TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA\n- TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA\n- TLS_RSA_WITH_AES_128_GCM_SHA256\n- TLS_RSA_WITH_AES_128_CBC_SHA\n- TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA\n- TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA\n- TLS_RSA_WITH_AES_256_GCM_SHA384\n- TLS_RSA_WITH_AES_256_CBC_SHA\nIn non-FIPS Envoy Proxy builds the default cipher list is:\n- [ECDHE-ECDSA-AES128-GCM-SHA256|ECDHE-ECDSA-CHACHA20-POLY1305]\n- [ECDHE-RSA-AES128-GCM-SHA256|ECDHE-RSA-CHACHA20-POLY1305]\n- ECDHE-ECDSA-AES256-GCM-SHA384\n- ECDHE-RSA-AES256-GCM-SHA384\nIn builds using BoringSSL FIPS the default cipher list is:\n- ECDHE-ECDSA-AES128-GCM-SHA256\n- ECDHE-RSA-AES128-GCM-SHA256\n- ECDHE-ECDSA-AES256-GCM-SHA384\n- ECDHE-RSA-AES256-GCM-SHA384",
               "items": {
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "clientCertificateRef": {
+              "additionalProperties": false,
               "description": "ClientCertificateRef defines the reference to a Kubernetes Secret that contains\nthe client certificate and private key for Envoy to use when connecting to\nbackend services and external services, such as ExtAuth, ALS, OpenTelemetry, etc.\nThis secret should be located within the same namespace as the Envoy proxy resource that references it.",
               "properties": {
                 "group": {
@@ -204,7 +249,10 @@
                   "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                   "maxLength": 253,
                   "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "kind": {
                   "default": "Secret",
@@ -212,7 +260,10 @@
                   "maxLength": 63,
                   "minLength": 1,
                   "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "name": {
                   "description": "Name is the name of the referent.",
@@ -225,24 +276,32 @@
                   "maxLength": 63,
                   "minLength": 1,
                   "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "ecdhCurves": {
               "description": "ECDHCurves specifies the set of supported ECDH curves.\nIn non-FIPS Envoy Proxy builds the default curves are:\n- X25519\n- P-256\nIn builds using BoringSSL FIPS the default curve is:\n- P-256",
               "items": {
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "fingerprints": {
-              "description": "Fingerprints specifies TLS client fingerprinting.\nWhen specified, a JAX fingerprint derived from the client\u2019s TLS handshake\nis generated. The fingerprint can be logged in access logs or\nforwarded to upstream services using request headers.\n\nFingerprinting is disabled if not specified.\n\nSupported values are:\n- JA3\n- JA4",
+              "description": "Fingerprints specifies TLS client fingerprinting.\nWhen specified, a JAX fingerprint derived from the client’s TLS handshake\nis generated. The fingerprint can be logged in access logs or\nforwarded to upstream services using request headers.\n\nFingerprinting is disabled if not specified.\n\nSupported values are:\n- JA3\n- JA4",
               "items": {
                 "description": "TLSFingerprintType specifies the TLS client fingerprinting mode.",
                 "enum": [
@@ -251,12 +310,18 @@
                 ],
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "insecureSkipVerify": {
               "default": false,
               "description": "InsecureSkipVerify indicates whether the upstream's certificate verification\nshould be skipped. Defaults to \"false\".",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "maxVersion": {
               "description": "Max specifies the maximal TLS protocol version to allow\nThe default is TLS 1.3 if this is not specified.",
@@ -267,7 +332,10 @@
                 "1.2",
                 "1.3"
               ],
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "minVersion": {
               "description": "Min specifies the minimal TLS protocol version to allow.\nThe default is TLS 1.2 if this is not specified.",
@@ -278,50 +346,64 @@
                 "1.2",
                 "1.3"
               ],
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "signatureAlgorithms": {
               "description": "SignatureAlgorithms specifies which signature algorithms the listener should\nsupport.",
               "items": {
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "sni": {
               "description": "SNI is specifies the SNI value used when establishing an upstream TLS connection to the backend.\n\nEnvoy Gateway will use the HTTP host header value for SNI, when all resources referenced in BackendRefs are:\n1. Backend resources that do not set SNI, or\n2. Service/ServiceImport resources that do not have a BackendTLSPolicy attached to them\n\nWhen a BackendTLSPolicy attaches to a Backend resource, the BackendTLSPolicy's Hostname value takes precedence\nover this value.",
               "maxLength": 253,
               "minLength": 1,
               "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "wellKnownCACertificates": {
               "description": "WellKnownCACertificates specifies whether system CA certificates may be used in\nthe TLS handshake between the gateway and backend pod.\n\nIf WellKnownCACertificates is unspecified or empty (\"\"), then CACertificateRefs\nmust be specified with at least one entry for a valid configuration. Only one of\nCACertificateRefs or WellKnownCACertificates may be specified, not both.",
               "maxLength": 253,
               "minLength": 1,
               "pattern": "^(System|([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9]))$",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "must not contain both CACertificateRefs and WellKnownCACertificates",
-              "rule": "!(has(self.caCertificateRefs) && size(self.caCertificateRefs) > 0 && has(self.wellKnownCACertificates) && self.wellKnownCACertificates != \"\")"
+              "rule": "!(has(self.caCertificateRefs) \u0026\u0026 size(self.caCertificateRefs) \u003e 0 \u0026\u0026 has(self.wellKnownCACertificates) \u0026\u0026 self.wellKnownCACertificates != \"\")"
             },
             {
               "message": "must not contain either CACertificateRefs or WellKnownCACertificates when InsecureSkipVerify is enabled",
-              "rule": "!((has(self.insecureSkipVerify) && self.insecureSkipVerify) && ((has(self.caCertificateRefs) && size(self.caCertificateRefs) > 0) || (has(self.wellKnownCACertificates) && self.wellKnownCACertificates != \"\")))"
+              "rule": "!((has(self.insecureSkipVerify) \u0026\u0026 self.insecureSkipVerify) \u0026\u0026 ((has(self.caCertificateRefs) \u0026\u0026 size(self.caCertificateRefs) \u003e 0) || (has(self.wellKnownCACertificates) \u0026\u0026 self.wellKnownCACertificates != \"\")))"
             },
             {
               "message": "setting ciphers has no effect if the minimum possible TLS version is 1.3",
-              "rule": "has(self.minVersion) && self.minVersion == '1.3' ? !has(self.ciphers) : true"
+              "rule": "has(self.minVersion) \u0026\u0026 self.minVersion == '1.3' ? !has(self.ciphers) : true"
             },
             {
               "message": "minVersion must be smaller or equal to maxVersion",
-              "rule": "has(self.minVersion) && has(self.maxVersion) ? {\"Auto\":0,\"1.0\":1,\"1.1\":2,\"1.2\":3,\"1.3\":4}[self.minVersion] <= {\"1.0\":1,\"1.1\":2,\"1.2\":3,\"1.3\":4,\"Auto\":5}[self.maxVersion] : !has(self.minVersion) && has(self.maxVersion) ? 3 <= {\"1.0\":1,\"1.1\":2,\"1.2\":3,\"1.3\":4,\"Auto\":5}[self.maxVersion] : true"
+              "rule": "has(self.minVersion) \u0026\u0026 has(self.maxVersion) ? {\"Auto\":0,\"1.0\":1,\"1.1\":2,\"1.2\":3,\"1.3\":4}[self.minVersion] \u003c= {\"1.0\":1,\"1.1\":2,\"1.2\":3,\"1.3\":4,\"Auto\":5}[self.maxVersion] : !has(self.minVersion) \u0026\u0026 has(self.maxVersion) ? 3 \u003c= {\"1.0\":1,\"1.1\":2,\"1.2\":3,\"1.3\":4,\"Auto\":5}[self.maxVersion] : true"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
         "type": {
           "default": "Endpoints",
@@ -330,7 +412,10 @@
             "Endpoints",
             "DynamicResolver"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object",
@@ -339,15 +424,16 @@
           "message": "DynamicResolver type cannot have endpoints specified",
           "rule": "self.type != 'DynamicResolver' || !has(self.endpoints)"
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "status": {
+      "additionalProperties": false,
       "description": "Status defines the current status of Backend.",
       "properties": {
         "conditions": {
           "description": "Conditions describe the current conditions of the Backend.",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -364,7 +450,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -396,19 +485,23 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           "maxItems": 8,
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "type"
           ],
           "x-kubernetes-list-type": "map"
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [

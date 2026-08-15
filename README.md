@@ -59,7 +59,7 @@ C) Generate versioned schemas directly from upstream sources.
 
 ## How?
 
-Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file includes the version of the app, Renovate configuration to track the version, and sources to extract the CRDs from. The logic for parsing these files is in the [gen-schemas](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise-tasks/gen-schemas) task, which uses the amazing [openapi2jsonschema.py](https://github.com/yannh/kubeconform/blob/master/scripts/openapi2jsonschema.py) script to save json schemas for each CRD into `schemas/`. `schemas/` then gets served via cloudflare pages at https://versioned-k8s-schemas.pages.dev. A git tag `app/version` is created for each update along with a release showing the diff from the previous CRDs.
+Each "app" to publish CRDs for has a metadata yaml file in `apps/`. The file includes the version of the app, Renovate configuration to track the version, and sources to extract the CRDs from. The logic for parsing these files is in the [gen-schemas](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise-tasks/gen-schemas) task, which uses the excellent [crd-schema-publisher](https://github.com/sholdee/crd-schema-publisher) to save json schemas for each CRD into `schemas/`. `schemas/` then gets served via cloudflare pages at https://versioned-k8s-schemas.pages.dev. A git tag `app/version` is created for each update along with a release showing the diff from the previous CRDs.
 
 ### Adding a new app
 
@@ -97,7 +97,7 @@ See the full example at [full-example-app.yaml](https://github.com/aclerici38/k8
 
 ## Development
 
-Every tool this repo needs (helm, yq, kustomize, python, uv, gh) is pinned in [.mise.toml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise.toml) and locked in `mise.lock`. Install them with `mise install`, then use the tasks in `.mise-tasks/`. CI runs the exact same tasks.
+Every tool this repo needs (helm, yq, kustomize, crd-schema-publisher, python, gh) is pinned in [.mise.toml](https://github.com/aclerici38/k8s-versioned-schemas/blob/main/.mise.toml) and locked in `mise.lock`. Install them with `mise install`, then use the tasks in `.mise-tasks/`. CI runs the exact same tasks.
 
 | Task | What it does |
 |------|--------------|
@@ -140,5 +140,5 @@ I have thought of a couple ways to utilize the versioned schemas, where they're 
 - Manually bump the versions in the url. No fun.
 
 ## Acknowledgements
-- [Kubeconform](https://github.com/yannh/kubeconform) for the openapi2jsonschema script this relies on
+- [crd-schema-publisher](https://github.com/sholdee/crd-schema-publisher) for the CRD to JSON schema conversion this relies on
 - [Renovate](https://github.com/renovatebot/renovate) for easy and endlessly-configurable version tracking

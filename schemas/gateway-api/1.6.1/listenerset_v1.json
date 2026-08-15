@@ -3,23 +3,35 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
+      "additionalProperties": false,
       "description": "Spec defines the desired state of ListenerSet.",
       "properties": {
         "listeners": {
           "description": "Listeners associated with this ListenerSet. Listeners define\nlogical endpoints that are bound on this referenced parent Gateway's addresses.\n\nListeners in a `Gateway` and their attached `ListenerSets` are concatenated\nas a list when programming the underlying infrastructure. Each listener\nname does not need to be unique across the Gateway and ListenerSets.\nSee ListenerEntry.Name for more details.\n\nImplementations MUST treat the parent Gateway as having the merged\nlist of all listeners from itself and attached ListenerSets using\nthe following precedence:\n\n1. \"parent\" Gateway\n2. ListenerSet ordered by creation time (oldest first)\n3. ListenerSet ordered alphabetically by \"{namespace}/{name}\".\n\nAn implementation MAY reject listeners by setting the ListenerEntryStatus\n`Accepted` condition to False with the Reason `TooManyListeners`\n\nIf a listener has a conflict, this will be reported in the\nStatus.ListenerEntryStatus setting the `Conflicted` condition to True.\n\nImplementations SHOULD be cautious about what information from the\nparent or siblings are reported to avoid accidentally leaking\nsensitive information that the child would not otherwise have access\nto. This can include contents of secrets etc.",
           "items": {
+            "additionalProperties": false,
             "properties": {
               "allowedRoutes": {
+                "additionalProperties": false,
                 "default": {
                   "namespaces": {
                     "from": "Same"
@@ -30,6 +42,7 @@
                   "kinds": {
                     "description": "Kinds specifies the groups and kinds of Routes that are allowed to bind\nto this Gateway Listener. When unspecified or empty, the kinds of Routes\nselected are determined using the Listener protocol.\n\nA RouteGroupKind MUST correspond to kinds of Routes that are compatible\nwith the application protocol specified in the Listener's Protocol field.\nIf an implementation does not support or recognize this resource type, it\nMUST set the \"ResolvedRefs\" condition to False for this Listener with the\n\"InvalidRouteKinds\" reason.\n\nSupport: Core",
                     "items": {
+                      "additionalProperties": false,
                       "description": "RouteGroupKind indicates the group and kind of a Route resource.",
                       "properties": {
                         "group": {
@@ -37,7 +50,10 @@
                           "description": "Group is the group of the Route.",
                           "maxLength": 253,
                           "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "kind": {
                           "description": "Kind is the kind of the Route.",
@@ -50,14 +66,17 @@
                       "required": [
                         "kind"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": "object"
                     },
                     "maxItems": 8,
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-type": "atomic"
                   },
                   "namespaces": {
+                    "additionalProperties": false,
                     "default": {
                       "from": "Same"
                     },
@@ -71,14 +90,19 @@
                           "Selector",
                           "Same"
                         ],
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "selector": {
+                        "additionalProperties": false,
                         "description": "Selector must be specified when From is set to \"Selector\". In that case,\nonly Routes in Namespaces matching this Selector will be selected by this\nGateway. This field is ignored for other values of \"From\".\n\nSupport: Core",
                         "properties": {
                           "matchExpressions": {
                             "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
                             "items": {
+                              "additionalProperties": false,
                               "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
                               "properties": {
                                 "key": {
@@ -94,7 +118,10 @@
                                   "items": {
                                     "type": "string"
                                   },
-                                  "type": "array",
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ],
                                   "x-kubernetes-list-type": "atomic"
                                 }
                               },
@@ -102,10 +129,12 @@
                                 "key",
                                 "operator"
                               ],
-                              "type": "object",
-                              "additionalProperties": false
+                              "type": "object"
                             },
-                            "type": "array",
+                            "type": [
+                              "array",
+                              "null"
+                            ],
                             "x-kubernetes-list-type": "atomic"
                           },
                           "matchLabels": {
@@ -113,27 +142,39 @@
                               "type": "string"
                             },
                             "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-                            "type": "object"
+                            "type": [
+                              "object",
+                              "null"
+                            ]
                           }
                         },
-                        "type": "object",
-                        "x-kubernetes-map-type": "atomic",
-                        "additionalProperties": false
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "x-kubernetes-map-type": "atomic"
                       }
                     },
-                    "type": "object",
-                    "additionalProperties": false
+                    "type": [
+                      "object",
+                      "null"
+                    ]
                   }
                 },
-                "type": "object",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "hostname": {
                 "description": "Hostname specifies the virtual hostname to match for protocol types that\ndefine this concept. When unspecified, all hostnames are matched. This\nfield is ignored for protocols that don't require hostname based\nmatching.\n\nImplementations MUST apply Hostname matching appropriately for each of\nthe following protocols:\n\n* TLS: The Listener Hostname MUST match the SNI.\n* HTTP: The Listener Hostname MUST match the Host header of the request.\n* HTTPS: The Listener Hostname SHOULD match at both the TLS and HTTP\n  protocol layers as described above. If an implementation does not\n  ensure that both the SNI and Host header match the Listener hostname,\n  it MUST clearly document that.\n\nFor HTTPRoute and TLSRoute resources, there is an interaction with the\n`spec.hostnames` array. When both listener and route specify hostnames,\nthere MUST be an intersection between the values for a Route to be\naccepted. For more information, refer to the Route specific Hostnames\ndocumentation.\n\nHostnames that are prefixed with a wildcard label (`*.`) are interpreted\nas a suffix match. That means that a match for `*.example.com` would match\nboth `test.example.com`, and `foo.test.example.com`, but not `example.com`.",
                 "maxLength": 253,
                 "minLength": 1,
                 "pattern": "^(\\*\\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "name": {
                 "description": "Name is the name of the Listener. This name MUST be unique within a\nListenerSet.\n\nName is not required to be unique across a Gateway and ListenerSets.\nRoutes can attach to a Listener by having a ListenerSet as a parentRef\nand setting the SectionName",
@@ -157,11 +198,13 @@
                 "type": "string"
               },
               "tls": {
+                "additionalProperties": false,
                 "description": "TLS is the TLS configuration for the Listener. This field is required if\nthe Protocol field is \"HTTPS\" or \"TLS\". It is invalid to set this field\nif the Protocol field is \"HTTP\", \"TCP\", or \"UDP\".\n\nThe association of SNIs to Certificate defined in ListenerTLSConfig is\ndefined based on the Hostname field for this listener.\n\nThe GatewayClass MUST use the longest matching SNI out of all\navailable certificates for any TLS handshake.",
                 "properties": {
                   "certificateRefs": {
                     "description": "CertificateRefs contains a series of references to Kubernetes objects that\ncontains TLS certificates and private keys. These certificates are used to\nestablish a TLS handshake for requests that match the hostname of the\nassociated listener.\n\nA single CertificateRef to a Kubernetes Secret has \"Core\" support.\nImplementations MAY choose to support attaching multiple certificates to\na Listener, but this behavior is implementation-specific.\n\nReferences to a resource in different namespace are invalid UNLESS there\nis a ReferenceGrant in the target namespace that allows the certificate\nto be attached. If a ReferenceGrant does not allow this reference, the\n\"ResolvedRefs\" condition MUST be set to False for this listener with the\n\"RefNotPermitted\" reason.\n\nThis field is required to have at least one element when the mode is set\nto \"Terminate\" (default) and is optional otherwise.\n\nCertificateRefs can reference to standard Kubernetes resources, i.e.\nSecret, or implementation-specific custom resources.\n\nSupport: Core - A single reference to a Kubernetes Secret of type kubernetes.io/tls\n\nSupport: Implementation-specific (More than one reference or other resource types)",
                     "items": {
+                      "additionalProperties": false,
                       "description": "SecretObjectReference identifies an API object including its namespace,\ndefaulting to Secret.\n\nThe API object must be valid in the cluster; the Group and Kind must\nbe registered in the cluster for this reference to be valid.\n\nReferences to objects with invalid Group and Kind are not valid, and must\nbe rejected by the implementation, with appropriate Conditions set\non the containing object.",
                       "properties": {
                         "group": {
@@ -169,7 +212,10 @@
                           "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                           "maxLength": 253,
                           "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "kind": {
                           "default": "Secret",
@@ -177,7 +223,10 @@
                           "maxLength": 63,
                           "minLength": 1,
                           "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "name": {
                           "description": "Name is the name of the referent.",
@@ -190,17 +239,22 @@
                           "maxLength": 63,
                           "minLength": 1,
                           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
                         "name"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": "object"
                     },
                     "maxItems": 64,
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-type": "atomic"
                   },
                   "mode": {
@@ -210,7 +264,10 @@
                       "Terminate",
                       "Passthrough"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "options": {
                     "additionalProperties": {
@@ -221,17 +278,22 @@
                     },
                     "description": "Options are a list of key/value pairs to enable extended TLS\nconfiguration for each implementation. For example, configuring the\nminimum TLS version or supported cipher suites.\n\nA set of common keys MAY be defined by the API in the future. To avoid\nany ambiguity, implementation-specific definitions MUST use\ndomain-prefixed names, such as `example.com/my-custom-option`.\nUn-prefixed names are reserved for key names defined by Gateway API.\n\nSupport: Implementation-specific",
                     "maxProperties": 16,
-                    "type": "object"
+                    "type": [
+                      "object",
+                      "null"
+                    ]
                   }
                 },
-                "type": "object",
+                "type": [
+                  "object",
+                  "null"
+                ],
                 "x-kubernetes-validations": [
                   {
                     "message": "certificateRefs or options must be specified when mode is Terminate",
-                    "rule": "self.mode == 'Terminate' ? size(self.certificateRefs) > 0 || size(self.options) > 0 : true"
+                    "rule": "self.mode == 'Terminate' ? size(self.certificateRefs) \u003e 0 || size(self.options) \u003e 0 : true"
                   }
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "required": [
@@ -239,8 +301,7 @@
               "port",
               "protocol"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           "maxItems": 64,
           "minItems": 1,
@@ -256,11 +317,11 @@
             },
             {
               "message": "tls mode must be Terminate for protocol HTTPS",
-              "rule": "self.all(l, (l.protocol == 'HTTPS' && has(l.tls)) ? (l.tls.mode == '' || l.tls.mode == 'Terminate') : true)"
+              "rule": "self.all(l, (l.protocol == 'HTTPS' \u0026\u0026 has(l.tls)) ? (l.tls.mode == '' || l.tls.mode == 'Terminate') : true)"
             },
             {
               "message": "tls mode must be set for protocol TLS",
-              "rule": "self.all(l, (l.protocol == 'TLS' ? has(l.tls) && has(l.tls.mode) && l.tls.mode != '' : true))"
+              "rule": "self.all(l, (l.protocol == 'TLS' ? has(l.tls) \u0026\u0026 has(l.tls.mode) \u0026\u0026 l.tls.mode != '' : true))"
             },
             {
               "message": "hostname must not be specified for protocols ['TCP', 'UDP']",
@@ -272,11 +333,12 @@
             },
             {
               "message": "Combination of port, protocol and hostname must be unique for each listener",
-              "rule": "self.all(l1, !has(l1.port) || self.exists_one(l2, has(l2.port) && l1.port == l2.port && l1.protocol == l2.protocol && (has(l1.hostname) && has(l2.hostname) ? l1.hostname == l2.hostname : !has(l1.hostname) && !has(l2.hostname))))"
+              "rule": "self.all(l1, !has(l1.port) || self.exists_one(l2, has(l2.port) \u0026\u0026 l1.port == l2.port \u0026\u0026 l1.protocol == l2.protocol \u0026\u0026 (has(l1.hostname) \u0026\u0026 has(l2.hostname) ? l1.hostname == l2.hostname : !has(l1.hostname) \u0026\u0026 !has(l2.hostname))))"
             }
           ]
         },
         "parentRef": {
+          "additionalProperties": false,
           "description": "ParentRef references the Gateway that the listeners are attached to.",
           "properties": {
             "group": {
@@ -284,7 +346,10 @@
               "description": "Group is the group of the referent.",
               "maxLength": 253,
               "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "kind": {
               "default": "Gateway",
@@ -292,7 +357,10 @@
               "maxLength": 63,
               "minLength": 1,
               "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "name": {
               "description": "Name is the name of the referent.",
@@ -305,24 +373,26 @@
               "maxLength": 63,
               "minLength": 1,
               "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
             "name"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": "object"
         }
       },
       "required": [
         "listeners",
         "parentRef"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "status": {
+      "additionalProperties": false,
       "default": {
         "conditions": [
           {
@@ -362,6 +432,7 @@
           ],
           "description": "Conditions describe the current conditions of the ListenerSet.\n\nImplementations MUST express ListenerSet conditions using the\n`ListenerSetConditionType` and `ListenerSetConditionReason`\nconstants so that operators and tools can converge on a common\nvocabulary to describe ListenerSet state.\n\nKnown condition types are:\n\n* \"Accepted\"\n* \"Programmed\"",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -378,7 +449,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -410,11 +484,13 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           "maxItems": 8,
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "type"
           ],
@@ -423,6 +499,7 @@
         "listeners": {
           "description": "Listeners provide status for each unique listener port defined in the Spec.",
           "items": {
+            "additionalProperties": false,
             "description": "ListenerStatus is the status associated with a Listener.",
             "properties": {
               "attachedRoutes": {
@@ -433,6 +510,7 @@
               "conditions": {
                 "description": "Conditions describe the current condition of this listener.",
                 "items": {
+                  "additionalProperties": false,
                   "description": "Condition contains details for one aspect of the current state of this API Resource.",
                   "properties": {
                     "lastTransitionTime": {
@@ -449,7 +527,10 @@
                       "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                       "format": "int64",
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "reason": {
                       "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -481,8 +562,7 @@
                     "status",
                     "type"
                   ],
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": "object"
                 },
                 "maxItems": 8,
                 "type": "array",
@@ -501,6 +581,7 @@
               "supportedKinds": {
                 "description": "SupportedKinds is the list indicating the Kinds supported by this\nlistener. This MUST represent the kinds supported by an implementation for\nthat Listener configuration.\n\nIf kinds are specified in Spec that are not supported, they MUST NOT\nappear in this list and an implementation MUST set the \"ResolvedRefs\"\ncondition to \"False\" with the \"InvalidRouteKinds\" reason. If both valid\nand invalid Route kinds are specified, the implementation MUST\nreference the valid Route kinds that have been specified.",
                 "items": {
+                  "additionalProperties": false,
                   "description": "RouteGroupKind indicates the group and kind of a Route resource.",
                   "properties": {
                     "group": {
@@ -508,7 +589,10 @@
                       "description": "Group is the group of the Route.",
                       "maxLength": 253,
                       "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "description": "Kind is the kind of the Route.",
@@ -521,11 +605,13 @@
                   "required": [
                     "kind"
                   ],
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": "object"
                 },
                 "maxItems": 8,
-                "type": "array",
+                "type": [
+                  "array",
+                  "null"
+                ],
                 "x-kubernetes-list-type": "atomic"
               }
             },
@@ -534,19 +620,23 @@
               "conditions",
               "name"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           "maxItems": 64,
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "name"
           ],
           "x-kubernetes-list-type": "map"
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [

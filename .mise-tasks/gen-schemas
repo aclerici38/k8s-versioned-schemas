@@ -6,13 +6,6 @@ set -euo pipefail
 
 [ "$#" -gt 0 ] || set -- apps/*.yaml
 
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
-
-curl -sfL https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py \
-  -o "$WORK/openapi2jsonschema.py"
-SCHEMA_CMD=(uv run --no-project --with pyyaml python3 "$WORK/openapi2jsonschema.py")
-
 # Given a GitHub tree URL (https://github.com/owner/repo/tree/ref/path/to/dir),
 # fetch all YAML files in that directory and output them as a single multidoc stream.
 fetch_github_folder() {
@@ -109,32 +102,36 @@ for app_file in "$@"; do
 
   if [ -d "$CRDS_DIR" ] && ls "$CRDS_DIR"/*.yaml &>/dev/null; then
     (cd "$CRDS_DIR" && kustomize create --autodetect)
+
+    # convert writes group-scoped schemas (<group>/<kind>_<version>.json) plus a
+    # kubeconform master-standalone copy and a _meta manifest. Only the
+    # group-scoped ones are published; flatten them into SCHEMAS_DIR and record
+    # the group each one came from for the /{group}/{kind}_{version} redirects.
+    STAGE="$(mktemp -d)"
+    crd-schema-publisher convert -d "$CRDS_DIR" -o "$STAGE"
+    for group_dir in "$STAGE"/*/; do
+      GROUP="$(basename "$group_dir")"
+      case "$GROUP" in
+      _meta | master-standalone) continue ;;
+      esac
+      for schema in "$group_dir"*.json; do
+        fname="$(basename "$schema")"
+        if [ -e "$SCHEMAS_DIR/$fname" ]; then
+          echo "WARNING: $APP_NAME: $GROUP/$fname overwrites the same filename from another group" >&2
+        fi
+        cp "$schema" "$SCHEMAS_DIR/$fname"
+        echo "$GROUP $fname" >>"$SCHEMAS_DIR/_groups.txt"
+      done
+    done
+    rm -rf "$STAGE"
   fi
 
-  cd "$SCHEMAS_DIR"
-  if [ -d "../../../$CRDS_DIR" ]; then
-    "${SCHEMA_CMD[@]}" ../../../"$CRDS_DIR"/*.yaml
-  fi
-
-  # Metadata for Group: Kind mapping
-  for schema in *.json; do
-    case "$schema" in
-    values.schema.json) continue ;;
-    esac
-    fname="${schema%.json}"
-    GROUP=$(echo "$fname" | cut -d_ -f1)
-    KIND_VERSION=$(echo "$fname" | cut -d_ -f2-)
-    echo "$GROUP ${KIND_VERSION}.json" >>_groups.txt
-    mv "$schema" "${KIND_VERSION}.json"
-  done
-
-  GENERATED=$(find . -name '*.json' | wc -l)
+  GENERATED=$(find "$SCHEMAS_DIR" -name '*.json' | wc -l)
   if [ "$GENERATED" -eq 0 ]; then
     echo "ERROR: no schemas generated for $APP_NAME. To debug, run: mise run gen-schemas $app_file" >&2
     exit 1
   fi
   COUNT=$((COUNT + GENERATED))
-  cd -
 done
 
 echo "# schemas generated: $COUNT"

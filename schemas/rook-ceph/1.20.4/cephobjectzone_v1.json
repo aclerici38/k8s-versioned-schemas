@@ -3,16 +3,23 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
       "type": "object"
     },
     "spec": {
+      "additionalProperties": false,
       "description": "ObjectZoneSpec represent the spec of an ObjectZone",
       "properties": {
         "customEndpoints": {
@@ -21,15 +28,22 @@
             "type": "string"
           },
           "nullable": true,
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "dataPool": {
+          "additionalProperties": false,
           "description": "The data pool settings",
           "nullable": true,
           "properties": {
             "application": {
               "description": "The application name to set on the pool. Only expected to be set for rgw pools.",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "compressionMode": {
               "description": "DEPRECATED: use Parameters instead, e.g., Parameters[\"compression_mode\"] = \"force\"\nThe inline compression mode in Bluestore OSD to set to (options are: none, passive, aggressive, force)\nDo NOT set a default value for kubebuilder as this will override the Parameters",
@@ -41,28 +55,44 @@
                 ""
               ],
               "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "crushRoot": {
               "description": "The root of the crush hierarchy utilized by the pool",
               "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "deviceClass": {
               "description": "The device class the OSD should set to for use in the pool",
               "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "enableCrushUpdates": {
               "description": "Allow rook operator to change the pool CRUSH tunables once the pool is created",
               "nullable": true,
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "enableRBDStats": {
               "description": "EnableRBDStats is used to enable gathering of statistics for all RBD images in the pool",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "erasureCoded": {
+              "additionalProperties": false,
               "description": "The erasure code settings",
               "properties": {
                 "algorithm": {
@@ -71,7 +101,10 @@
                     "isa",
                     "jerasure"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "codingChunks": {
                   "description": "Number of coding chunks per object in an erasure coded storage pool (required for erasure-coded pool type).\nThis is the number of OSDs that can be lost simultaneously before data cannot be recovered.",
@@ -82,13 +115,19 @@
                   "description": "Number of failure domains to use for erasure coded chunk placement.\nWhen specified along with crushOSDsPerFailureDomain, a CRUSH MSR rule will be created\nthat distributes chunks across this many failure domains.",
                   "format": "int32",
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "crushOSDsPerFailureDomain": {
                   "description": "Number of OSDs allowed per failure domain for erasure coded chunk placement.\nWhen specified along with crushNumFailureDomains, a CRUSH MSR rule will be created\nthat allows up to this many chunks on OSDs within each failure domain.",
                   "format": "int32",
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "dataChunks": {
                   "description": "Number of data chunks per object in an erasure coded storage pool (required for erasure-coded pool type).\nThe number of chunks required to recover an object when any single OSD is lost is the same\nas dataChunks so be aware that the larger the number of data chunks, the higher the cost of recovery.",
@@ -96,14 +135,6 @@
                   "type": "integer"
                 },
                 "stripeUnit": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "string"
-                    }
-                  ],
                   "description": "Erasure code stripe size in bytes. Ceph default is 4096 bytes (4 KiB).\nValue must be a multiple of 4096 (4Ki).",
                   "enum": [
                     "4Ki",
@@ -112,7 +143,18 @@
                     "256Ki",
                     "1Mi"
                   ],
-                  "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                  "oneOf": [
+                    {
+                      "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
                   "x-kubernetes-int-or-string": true
                 }
               },
@@ -120,25 +162,34 @@
                 "codingChunks",
                 "dataChunks"
               ],
-              "type": "object",
+              "type": [
+                "object",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "crushNumFailureDomains and crushOSDsPerFailureDomain must be specified together",
                   "rule": "has(self.crushNumFailureDomains) == has(self.crushOSDsPerFailureDomain)"
                 }
-              ],
-              "additionalProperties": false
+              ]
             },
             "failureDomain": {
               "description": "The failure domain: osd/host/(region or zone if available) - technically also any type in the crush map",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "mirroring": {
+              "additionalProperties": false,
               "description": "The mirroring settings",
               "properties": {
                 "enabled": {
                   "description": "Enabled whether this pool is mirrored or not",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "mode": {
                   "description": "Mode is the mirroring mode: pool, image or init-only.",
@@ -147,9 +198,13 @@
                     "image",
                     "init-only"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "peers": {
+                  "additionalProperties": false,
                   "description": "Peers represents the peers spec",
                   "nullable": true,
                   "properties": {
@@ -158,38 +213,57 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "snapshotSchedules": {
                   "description": "SnapshotSchedules is the scheduling of snapshot for mirrored images/pools",
                   "items": {
+                    "additionalProperties": false,
                     "description": "SnapshotScheduleSpec represents the snapshot scheduling settings of a mirrored pool",
                     "properties": {
                       "interval": {
                         "description": "Interval represent the periodicity of the snapshot.",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "path": {
                         "description": "Path is the path to snapshot, only valid for CephFS",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "startTime": {
                         "description": "StartTime indicates when to start the snapshot",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       }
                     },
-                    "type": "object",
-                    "additionalProperties": false
+                    "type": "object"
                   },
-                  "type": "array"
+                  "type": [
+                    "array",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "parameters": {
               "additionalProperties": {
@@ -197,36 +271,53 @@
               },
               "description": "Parameters is a list of properties to enable on a given pool",
               "nullable": true,
-              "type": "object",
+              "type": [
+                "object",
+                "null"
+              ],
               "x-kubernetes-preserve-unknown-fields": true
             },
             "quotas": {
+              "additionalProperties": false,
               "description": "The quota settings",
               "nullable": true,
               "properties": {
                 "maxBytes": {
                   "description": "MaxBytes represents the quota in bytes\nDeprecated in favor of MaxSize",
                   "format": "int64",
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "maxObjects": {
                   "description": "MaxObjects represents the quota in objects",
                   "format": "int64",
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "maxSize": {
                   "description": "MaxSize represents the quota in bytes as a string",
                   "pattern": "^[0-9]+[\\.]?[0-9]*([KMGTPE]i|[kMGTPE])?$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "replicated": {
+              "additionalProperties": false,
               "description": "The replication settings",
               "properties": {
                 "hybridStorage": {
+                  "additionalProperties": false,
                   "description": "HybridStorage represents hybrid storage tier settings",
                   "nullable": true,
                   "properties": {
@@ -245,17 +336,25 @@
                     "primaryDeviceClass",
                     "secondaryDeviceClass"
                   ],
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "replicasPerFailureDomain": {
                   "description": "ReplicasPerFailureDomain the number of replica in the specified failure domain",
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "requireSafeReplicaSize": {
                   "description": "RequireSafeReplicaSize if false allows you to set replica 1",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "size": {
                   "description": "Size - Number of copies per object in a replicated storage pool, including the object itself (required for replicated pool type)",
@@ -264,57 +363,86 @@
                 },
                 "subFailureDomain": {
                   "description": "SubFailureDomain the name of the sub-failure domain",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "targetSizeRatio": {
                   "description": "TargetSizeRatio gives a hint (%) to Ceph in terms of expected consumption of the total cluster capacity",
                   "minimum": 0,
-                  "type": "number"
+                  "type": [
+                    "number",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "size"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "statusCheck": {
+              "additionalProperties": false,
               "description": "The mirroring statusCheck",
               "properties": {
                 "mirror": {
+                  "additionalProperties": false,
                   "description": "HealthCheckSpec represents the health check of an object store bucket",
                   "nullable": true,
                   "properties": {
                     "disabled": {
-                      "type": "boolean"
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "interval": {
                       "description": "Interval is the internal in second or minute for the health check to run like 60s for 60 seconds",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "timeout": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "x-kubernetes-preserve-unknown-fields": true,
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-preserve-unknown-fields": true
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "metadataPool": {
+          "additionalProperties": false,
           "description": "The metadata pool settings",
           "nullable": true,
           "properties": {
             "application": {
               "description": "The application name to set on the pool. Only expected to be set for rgw pools.",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "compressionMode": {
               "description": "DEPRECATED: use Parameters instead, e.g., Parameters[\"compression_mode\"] = \"force\"\nThe inline compression mode in Bluestore OSD to set to (options are: none, passive, aggressive, force)\nDo NOT set a default value for kubebuilder as this will override the Parameters",
@@ -326,28 +454,44 @@
                 ""
               ],
               "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "crushRoot": {
               "description": "The root of the crush hierarchy utilized by the pool",
               "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "deviceClass": {
               "description": "The device class the OSD should set to for use in the pool",
               "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "enableCrushUpdates": {
               "description": "Allow rook operator to change the pool CRUSH tunables once the pool is created",
               "nullable": true,
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "enableRBDStats": {
               "description": "EnableRBDStats is used to enable gathering of statistics for all RBD images in the pool",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "erasureCoded": {
+              "additionalProperties": false,
               "description": "The erasure code settings",
               "properties": {
                 "algorithm": {
@@ -356,7 +500,10 @@
                     "isa",
                     "jerasure"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "codingChunks": {
                   "description": "Number of coding chunks per object in an erasure coded storage pool (required for erasure-coded pool type).\nThis is the number of OSDs that can be lost simultaneously before data cannot be recovered.",
@@ -367,13 +514,19 @@
                   "description": "Number of failure domains to use for erasure coded chunk placement.\nWhen specified along with crushOSDsPerFailureDomain, a CRUSH MSR rule will be created\nthat distributes chunks across this many failure domains.",
                   "format": "int32",
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "crushOSDsPerFailureDomain": {
                   "description": "Number of OSDs allowed per failure domain for erasure coded chunk placement.\nWhen specified along with crushNumFailureDomains, a CRUSH MSR rule will be created\nthat allows up to this many chunks on OSDs within each failure domain.",
                   "format": "int32",
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "dataChunks": {
                   "description": "Number of data chunks per object in an erasure coded storage pool (required for erasure-coded pool type).\nThe number of chunks required to recover an object when any single OSD is lost is the same\nas dataChunks so be aware that the larger the number of data chunks, the higher the cost of recovery.",
@@ -381,14 +534,6 @@
                   "type": "integer"
                 },
                 "stripeUnit": {
-                  "anyOf": [
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "string"
-                    }
-                  ],
                   "description": "Erasure code stripe size in bytes. Ceph default is 4096 bytes (4 KiB).\nValue must be a multiple of 4096 (4Ki).",
                   "enum": [
                     "4Ki",
@@ -397,7 +542,18 @@
                     "256Ki",
                     "1Mi"
                   ],
-                  "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                  "oneOf": [
+                    {
+                      "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
                   "x-kubernetes-int-or-string": true
                 }
               },
@@ -405,25 +561,34 @@
                 "codingChunks",
                 "dataChunks"
               ],
-              "type": "object",
+              "type": [
+                "object",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "crushNumFailureDomains and crushOSDsPerFailureDomain must be specified together",
                   "rule": "has(self.crushNumFailureDomains) == has(self.crushOSDsPerFailureDomain)"
                 }
-              ],
-              "additionalProperties": false
+              ]
             },
             "failureDomain": {
               "description": "The failure domain: osd/host/(region or zone if available) - technically also any type in the crush map",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "mirroring": {
+              "additionalProperties": false,
               "description": "The mirroring settings",
               "properties": {
                 "enabled": {
                   "description": "Enabled whether this pool is mirrored or not",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "mode": {
                   "description": "Mode is the mirroring mode: pool, image or init-only.",
@@ -432,9 +597,13 @@
                     "image",
                     "init-only"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "peers": {
+                  "additionalProperties": false,
                   "description": "Peers represents the peers spec",
                   "nullable": true,
                   "properties": {
@@ -443,38 +612,57 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "snapshotSchedules": {
                   "description": "SnapshotSchedules is the scheduling of snapshot for mirrored images/pools",
                   "items": {
+                    "additionalProperties": false,
                     "description": "SnapshotScheduleSpec represents the snapshot scheduling settings of a mirrored pool",
                     "properties": {
                       "interval": {
                         "description": "Interval represent the periodicity of the snapshot.",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "path": {
                         "description": "Path is the path to snapshot, only valid for CephFS",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "startTime": {
                         "description": "StartTime indicates when to start the snapshot",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       }
                     },
-                    "type": "object",
-                    "additionalProperties": false
+                    "type": "object"
                   },
-                  "type": "array"
+                  "type": [
+                    "array",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "parameters": {
               "additionalProperties": {
@@ -482,36 +670,53 @@
               },
               "description": "Parameters is a list of properties to enable on a given pool",
               "nullable": true,
-              "type": "object",
+              "type": [
+                "object",
+                "null"
+              ],
               "x-kubernetes-preserve-unknown-fields": true
             },
             "quotas": {
+              "additionalProperties": false,
               "description": "The quota settings",
               "nullable": true,
               "properties": {
                 "maxBytes": {
                   "description": "MaxBytes represents the quota in bytes\nDeprecated in favor of MaxSize",
                   "format": "int64",
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "maxObjects": {
                   "description": "MaxObjects represents the quota in objects",
                   "format": "int64",
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "maxSize": {
                   "description": "MaxSize represents the quota in bytes as a string",
                   "pattern": "^[0-9]+[\\.]?[0-9]*([KMGTPE]i|[kMGTPE])?$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "replicated": {
+              "additionalProperties": false,
               "description": "The replication settings",
               "properties": {
                 "hybridStorage": {
+                  "additionalProperties": false,
                   "description": "HybridStorage represents hybrid storage tier settings",
                   "nullable": true,
                   "properties": {
@@ -530,17 +735,25 @@
                     "primaryDeviceClass",
                     "secondaryDeviceClass"
                   ],
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "replicasPerFailureDomain": {
                   "description": "ReplicasPerFailureDomain the number of replica in the specified failure domain",
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "requireSafeReplicaSize": {
                   "description": "RequireSafeReplicaSize if false allows you to set replica 1",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "size": {
                   "description": "Size - Number of copies per object in a replicated storage pool, including the object itself (required for replicated pool type)",
@@ -549,62 +762,94 @@
                 },
                 "subFailureDomain": {
                   "description": "SubFailureDomain the name of the sub-failure domain",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "targetSizeRatio": {
                   "description": "TargetSizeRatio gives a hint (%) to Ceph in terms of expected consumption of the total cluster capacity",
                   "minimum": 0,
-                  "type": "number"
+                  "type": [
+                    "number",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "size"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "statusCheck": {
+              "additionalProperties": false,
               "description": "The mirroring statusCheck",
               "properties": {
                 "mirror": {
+                  "additionalProperties": false,
                   "description": "HealthCheckSpec represents the health check of an object store bucket",
                   "nullable": true,
                   "properties": {
                     "disabled": {
-                      "type": "boolean"
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "interval": {
                       "description": "Interval is the internal in second or minute for the health check to run like 60s for 60 seconds",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "timeout": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "x-kubernetes-preserve-unknown-fields": true,
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-preserve-unknown-fields": true
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "preservePoolsOnDelete": {
           "default": true,
           "description": "Preserve pools on object zone deletion",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "sharedPools": {
+          "additionalProperties": false,
           "description": "The pool information when configuring RADOS namespaces in existing pools.",
           "nullable": true,
           "properties": {
             "dataPoolName": {
               "description": "The data pool used for creating RADOS namespaces in the object store",
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "object store shared data pool is immutable",
@@ -614,7 +859,10 @@
             },
             "metadataPoolName": {
               "description": "The metadata pool used for creating RADOS namespaces in the object store",
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "object store shared metadata pool is immutable",
@@ -623,12 +871,16 @@
               ]
             },
             "poolPlacements": {
-              "description": "PoolPlacements control which Pools are associated with a particular RGW bucket.\nOnce PoolPlacements are defined, RGW client will be able to associate pool\nwith ObjectStore bucket by providing \"<LocationConstraint>\" during s3 bucket creation\nor \"X-Storage-Policy\" header during swift container creation.\nSee: https://docs.ceph.com/en/latest/radosgw/placement/#placement-targets\nPoolPlacement with name: \"default\" will be used as a default pool if no option\nis provided during bucket creation.\nIf default placement is not provided, spec.sharedPools.dataPoolName and spec.sharedPools.MetadataPoolName will be used as default pools.\nIf spec.sharedPools are also empty, then RGW pools (spec.dataPool and spec.metadataPool) will be used as defaults.",
+              "description": "PoolPlacements control which Pools are associated with a particular RGW bucket.\nOnce PoolPlacements are defined, RGW client will be able to associate pool\nwith ObjectStore bucket by providing \"\u003cLocationConstraint\u003e\" during s3 bucket creation\nor \"X-Storage-Policy\" header during swift container creation.\nSee: https://docs.ceph.com/en/latest/radosgw/placement/#placement-targets\nPoolPlacement with name: \"default\" will be used as a default pool if no option\nis provided during bucket creation.\nIf default placement is not provided, spec.sharedPools.dataPoolName and spec.sharedPools.MetadataPoolName will be used as default pools.\nIf spec.sharedPools are also empty, then RGW pools (spec.dataPool and spec.metadataPool) will be used as defaults.",
               "items": {
+                "additionalProperties": false,
                 "properties": {
                   "dataNonECPoolName": {
                     "description": "The data pool used to store ObjectStore data that cannot use erasure coding (ex: multi-part uploads).\nIf dataPoolName is not erasure coded, then there is no need for dataNonECPoolName.\nWARNING: Do not change this field after creation. Pool names are used in RADOS namespaces and renaming leads to data loss.",
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "dataPoolName": {
                     "description": "The data pool used to store ObjectStore objects data.\nWARNING: Do not change this field after creation. Pool names are used in RADOS namespaces and renaming leads to data loss.",
@@ -637,7 +889,10 @@
                   },
                   "default": {
                     "description": "Sets given placement as default. Only one placement in the list can be marked as default.\nDefault is false.",
-                    "type": "boolean"
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
                   },
                   "metadataPoolName": {
                     "description": "The metadata pool used to store ObjectStore bucket index.\nWARNING: Do not change this field after creation. Pool names are used in RADOS namespaces and renaming leads to data loss.",
@@ -653,6 +908,7 @@
                   "storageClasses": {
                     "description": "StorageClasses can be selected by user to override dataPoolName during object creation.\nEach placement has default STANDARD StorageClass pointing to dataPoolName.\nThis list allows defining additional StorageClasses on top of default STANDARD storage class.",
                     "items": {
+                      "additionalProperties": false,
                       "properties": {
                         "dataPoolName": {
                           "description": "DataPoolName is the data pool used to store ObjectStore objects data.\nWARNING: Do not change this field after creation. Pool names are used in RADOS namespaces and renaming leads to data loss.",
@@ -670,11 +926,13 @@
                         "dataPoolName",
                         "name"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": "object"
                     },
                     "maxItems": 10,
-                    "type": "array"
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -682,18 +940,25 @@
                   "metadataPoolName",
                   "name"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "preserveRadosNamespaceDataOnDelete": {
               "description": "Whether the RADOS namespaces should be preserved on deletion of the object store",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "zoneGroup": {
           "description": "The name of the zone group the zone is a member of.",
@@ -703,56 +968,85 @@
       "required": [
         "zoneGroup"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "status": {
+      "additionalProperties": false,
       "description": "Status represents the status of an object",
       "properties": {
         "conditions": {
           "items": {
+            "additionalProperties": false,
             "description": "Condition represents a status condition on any Rook-Ceph Custom Resource.",
             "properties": {
               "lastHeartbeatTime": {
                 "format": "date-time",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "lastTransitionTime": {
                 "format": "date-time",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "message": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "ConditionReason is a reason for a condition",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "status": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "type": {
                 "description": "ConditionType represent a resource's status",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "observedGeneration": {
           "description": "ObservedGeneration is the latest generation observed by the controller.",
           "format": "int64",
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "phase": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "x-kubernetes-preserve-unknown-fields": true,
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-preserve-unknown-fields": true
     }
   },
   "required": [

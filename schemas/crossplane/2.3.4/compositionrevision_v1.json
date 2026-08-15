@@ -3,19 +3,30 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
+      "additionalProperties": false,
       "description": "CompositionRevisionSpec specifies the desired state of the composition\nrevision.",
       "properties": {
         "compositeTypeRef": {
+          "additionalProperties": false,
           "description": "CompositeTypeRef specifies the type of composite resource that this\ncomposition is compatible with.",
           "properties": {
             "apiVersion": {
@@ -37,8 +48,7 @@
               "message": "Value is immutable",
               "rule": "self == oldSelf"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
         "mode": {
           "default": "Pipeline",
@@ -46,16 +56,21 @@
           "enum": [
             "Pipeline"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "pipeline": {
           "description": "Pipeline is a list of function steps that will be used when a\ncomposite resource referring to this composition is created.\n\nThe Pipeline is only used by the \"Pipeline\" mode of Composition. It is\nignored by other modes.",
           "items": {
+            "additionalProperties": false,
             "description": "A PipelineStep in a function pipeline.",
             "properties": {
               "credentials": {
                 "description": "Credentials are optional credentials that the function needs.",
                 "items": {
+                  "additionalProperties": false,
                   "description": "FunctionCredentials are optional credentials that a function\nneeds to run.",
                   "properties": {
                     "name": {
@@ -63,6 +78,7 @@
                       "type": "string"
                     },
                     "secretRef": {
+                      "additionalProperties": false,
                       "description": "A SecretRef is a reference to a secret containing credentials that should\nbe supplied to the function.",
                       "properties": {
                         "name": {
@@ -78,8 +94,10 @@
                         "name",
                         "namespace"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": [
+                        "object",
+                        "null"
+                      ]
                     },
                     "source": {
                       "description": "Source of the function credentials.",
@@ -98,18 +116,21 @@
                   "x-kubernetes-validations": [
                     {
                       "message": "the Secret source requires a secretRef",
-                      "rule": "self.source == 'Secret' && has(self.secretRef)"
+                      "rule": "self.source == 'Secret' \u0026\u0026 has(self.secretRef)"
                     }
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
-                "type": "array",
+                "type": [
+                  "array",
+                  "null"
+                ],
                 "x-kubernetes-list-map-keys": [
                   "name"
                 ],
                 "x-kubernetes-list-type": "map"
               },
               "functionRef": {
+                "additionalProperties": false,
                 "description": "FunctionRef is a reference to the function this step should\nexecute.",
                 "properties": {
                   "name": {
@@ -120,21 +141,25 @@
                 "required": [
                   "name"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
               "input": {
                 "description": "Input is an optional, arbitrary Kubernetes resource (i.e. a resource\nwith an apiVersion and kind) that will be passed to the function as\nthe 'input' of its RunFunctionRequest.",
-                "type": "object",
+                "type": [
+                  "object",
+                  "null"
+                ],
                 "x-kubernetes-embedded-resource": true,
                 "x-kubernetes-preserve-unknown-fields": true
               },
               "requirements": {
+                "additionalProperties": false,
                 "description": "Requirements are resource requirements that will be satisfied before\nthis pipeline step is called for the first time. This allows\npre-populating required resources without requiring a function to\nrequest them first.",
                 "properties": {
                   "requiredResources": {
                     "description": "RequiredResources is a list of resources that must be fetched before\nthis function is called.",
                     "items": {
+                      "additionalProperties": false,
                       "description": "RequiredResourceSelector selects a required resource.",
                       "properties": {
                         "apiVersion": {
@@ -150,15 +175,24 @@
                             "type": "string"
                           },
                           "description": "MatchLabels specifies the set of labels to match for finding the\nrequired resource. When specified, Name is ignored.",
-                          "type": "object"
+                          "type": [
+                            "object",
+                            "null"
+                          ]
                         },
                         "name": {
                           "description": "Name of the required resource.",
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "namespace": {
                           "description": "Namespace of the required resource if it is namespaced.",
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "requirementName": {
                           "description": "RequirementName is the unique name to identify this required resource\nin the Required Resources map in the function request.",
@@ -174,12 +208,14 @@
                       "x-kubernetes-validations": [
                         {
                           "message": "name and matchLabels are mutually exclusive",
-                          "rule": "!(has(self.name) && has(self.matchLabels))"
+                          "rule": "!(has(self.name) \u0026\u0026 has(self.matchLabels))"
                         }
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-map-keys": [
                       "requirementName"
                     ],
@@ -188,6 +224,7 @@
                   "requiredSchemas": {
                     "description": "RequiredSchemas is a list of OpenAPI schemas that must be fetched before\nthis function is called.",
                     "items": {
+                      "additionalProperties": false,
                       "description": "RequiredSchemaSelector selects a required OpenAPI schema.",
                       "properties": {
                         "apiVersion": {
@@ -208,18 +245,22 @@
                         "kind",
                         "requirementName"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": "object"
                     },
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-map-keys": [
                       "requirementName"
                     ],
                     "x-kubernetes-list-type": "map"
                   }
                 },
-                "type": "object",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "step": {
                 "description": "Step name. Must be unique within its Pipeline.",
@@ -230,38 +271,47 @@
               "functionRef",
               "step"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "step"
           ],
           "x-kubernetes-list-type": "map"
         },
         "revision": {
-          "description": "Revision number. Newer revisions have larger numbers.\n\nThis number can change. When a Composition transitions from state A\n-> B -> A there will be only two CompositionRevisions. Crossplane will\nedit the original CompositionRevision to change its revision number from\n0 to 2.",
+          "description": "Revision number. Newer revisions have larger numbers.\n\nThis number can change. When a Composition transitions from state A\n-\u003e B -\u003e A there will be only two CompositionRevisions. Crossplane will\nedit the original CompositionRevision to change its revision number from\n0 to 2.",
           "format": "int64",
           "type": "integer"
         },
         "writeConnectionSecretsToNamespace": {
           "description": "WriteConnectionSecretsToNamespace specifies the namespace in which the\nconnection secrets of composite resource dynamically provisioned using\nthis composition will be created.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "compositeTypeRef",
         "revision"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "status": {
+      "additionalProperties": false,
       "description": "CompositionRevisionStatus shows the observed state of the composition\nrevision.",
       "properties": {
         "conditions": {
           "description": "Conditions of the resource.",
           "items": {
+            "additionalProperties": false,
             "description": "A Condition that may apply to a resource.",
             "properties": {
               "lastTransitionTime": {
@@ -271,12 +321,18 @@
               },
               "message": {
                 "description": "A Message containing details about this condition's last transition from\none status to another, if any.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "observedGeneration": {
                 "description": "ObservedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "A Reason for this condition's last transition from one status to another.",
@@ -297,18 +353,22 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "type"
           ],
           "x-kubernetes-list-type": "map"
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "type": "object"

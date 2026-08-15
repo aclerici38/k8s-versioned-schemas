@@ -1,12 +1,16 @@
 {
   "properties": {
     "spec": {
+      "additionalProperties": false,
       "description": "Configuration affecting VMs onboarded into the mesh. See more details at: https://istio.io/docs/reference/config/networking/workload-entry.html",
       "properties": {
         "address": {
           "description": "Address associated with the network endpoint without the port.",
           "maxLength": 256,
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "UDS must be an absolute path or abstract socket",
@@ -24,17 +28,26 @@
           },
           "description": "One or more labels associated with the endpoint.",
           "maxProperties": 256,
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "locality": {
           "description": "The locality associated with the endpoint.",
           "maxLength": 2048,
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "network": {
           "description": "Network enables Istio to group endpoints resident in the same L3 domain/network.",
           "maxLength": 2048,
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "ports": {
           "additionalProperties": {
@@ -44,30 +57,39 @@
             "x-kubernetes-validations": [
               {
                 "message": "port must be between 1-65535",
-                "rule": "0 < self && self <= 65535"
+                "rule": "0 \u003c self \u0026\u0026 self \u003c= 65535"
               }
             ]
           },
           "description": "Set of ports associated with the endpoint.",
           "maxProperties": 128,
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "port name must be valid",
-              "rule": "self.all(key, size(key) < 63 && key.matches(\"^[a-zA-Z0-9](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?$\"))"
+              "rule": "self.all(key, size(key) \u003c 63 \u0026\u0026 key.matches(\"^[a-zA-Z0-9](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?$\"))"
             }
           ]
         },
         "serviceAccount": {
           "description": "The service account associated with the workload if a sidecar is present in the workload.",
           "maxLength": 253,
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "weight": {
           "description": "The load balancing weight associated with the endpoint.",
           "maximum": 4294967295,
           "minimum": 0,
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       },
       "type": "object",
@@ -80,66 +102,93 @@
           "message": "UDS may not include ports",
           "rule": "(has(self.address) ? self.address : \"\").startsWith(\"unix://\") ? !has(self.ports) : true"
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "status": {
+      "additionalProperties": false,
       "properties": {
         "conditions": {
           "description": "Current service state of the resource.",
           "items": {
+            "additionalProperties": false,
             "properties": {
               "lastProbeTime": {
                 "description": "Last time we probed the condition.",
                 "format": "date-time",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "lastTransitionTime": {
                 "description": "Last time the condition transitioned from one status to another.",
                 "format": "date-time",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "message": {
                 "description": "Human-readable message indicating details about last transition.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "observedGeneration": {
-                "anyOf": [
+                "description": "Resource Generation to which the Condition refers.",
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
                   {
                     "type": "integer"
                   },
                   {
-                    "type": "string"
+                    "type": "null"
                   }
                 ],
-                "description": "Resource Generation to which the Condition refers.",
                 "x-kubernetes-int-or-string": true
               },
               "reason": {
                 "description": "Unique, one-word, CamelCase reason for the condition's last transition.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "status": {
                 "description": "Status is the status of the condition.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "type": {
                 "description": "Type is the type of the condition.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "observedGeneration": {
-          "anyOf": [
+          "oneOf": [
+            {
+              "type": "string"
+            },
             {
               "type": "integer"
             },
             {
-              "type": "string"
+              "type": "null"
             }
           ],
           "x-kubernetes-int-or-string": true
@@ -147,10 +196,14 @@
         "validationMessages": {
           "description": "Includes any errors or warnings detected by Istio's analyzers.",
           "items": {
+            "additionalProperties": false,
             "properties": {
               "documentationUrl": {
                 "description": "A url pointing to the Istio documentation for this specific error type.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "level": {
                 "description": "Represents how severe a message is.\n\nValid Options: UNKNOWN, ERROR, WARNING, INFO",
@@ -160,32 +213,48 @@
                   "WARNING",
                   "INFO"
                 ],
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "type": {
+                "additionalProperties": false,
                 "properties": {
                   "code": {
                     "description": "A 7 character code matching `^IST[0-9]{4}$` intended to uniquely identify the message type.",
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "name": {
                     "description": "A human-readable name for the message type.",
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
-                "type": "object",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             },
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "x-kubernetes-preserve-unknown-fields": true,
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-preserve-unknown-fields": true
     }
   },
   "required": [
