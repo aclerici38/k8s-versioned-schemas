@@ -1,0 +1,510 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kanidmoauth2clients.kaniop.rs
+spec:
+  group: kaniop.rs
+  names:
+    categories:
+      - kaniop
+    kind: KanidmOAuth2Client
+    plural: kanidmoauth2clients
+    shortNames:
+      - oauth2
+    singular: kanidmoauth2client
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.kanidmRef
+          name: Kanidm
+          type: string
+        - jsonPath: .spec.public
+          name: Public
+          type: string
+        - jsonPath: .status.secretName
+          name: Secret
+          type: string
+        - jsonPath: .status.ready
+          name: Ready
+          type: boolean
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1beta1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            The Kanidm OAuth2 client custom resource definition (CRD) defines an OAuth2 client
+                integration in Kanidm.
+          properties:
+            spec:
+              description: |-
+                The KanidmOAuth2Client custom resource definition (CRD) defines an OAuth2 client integration in
+                Kanidm. This resource allows you to configure OAuth2 clients that can interact with the Kanidm
+                authorization server. The CRD supports various configurations, including scope maps,
+                claim maps, and other OAuth2 client settings.
+                More info:
+                https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+              properties:
+                allowInsecureClientDisablePkce:
+                  description: |-
+                    Disable PKCE on this oauth2 client to work around insecure clients that may not support it.
+                    You should request the client to enable PKCE!
+
+                    Public clients cannot disable PKCE.
+                    PKCE is enabled by default.
+                  nullable: true
+                  type: boolean
+                allowLocalhostRedirect:
+                  description: |-
+                    Allow public clients to redirect to localhost.
+
+                    Just public clients can allow localhost redirect.
+                    Disabled by default.
+                  nullable: true
+                  type: boolean
+                claimMap:
+                  description: Mapping from a group to a custom claims that it provides to members.
+                  items:
+                    description: |-
+                      Some OAuth2 services may consume custom claims from an id token for access control or other
+                      policy decisions. Each custom claim is a key:values set, where there can be many values
+                      associated to a claim name. Different applications may expect these values to be formatted
+                      (joined) in different ways.
+
+                      Claim values are mapped based on membership to groups. When an account is a member of multiple
+                      groups that would receive the same claim, the values of these maps are merged.
+                    properties:
+                      joinStrategy:
+                        default: array
+                        description: |-
+                          The strategy to join the values together.
+                          Possible strategies to join the values of a claim map:
+                          `csv` -> "value_a,value_b"
+                          `ssv` -> "value_a value_b"
+                          `array` -> ["value_a", "value_b"]
+                        enum:
+                          - csv
+                          - ssv
+                          - array
+                        type: string
+                      name:
+                        description: The name of the claim that will be provided to the client.
+                        type: string
+                      valuesMap:
+                        items:
+                          properties:
+                            group:
+                              description: The group name or SPN that will provide the claim.
+                              type: string
+                            values:
+                              description: The values that will be provided to the client.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                            - group
+                            - values
+                          type: object
+                        type: array
+                    required:
+                      - name
+                      - valuesMap
+                    type: object
+                  nullable: true
+                  type: array
+                disableConsentPrompt:
+                  description: |-
+                    Disable the consent prompt for this OAuth2 client. This allows skipping the user
+                    consent screen for well-known admin-managed applications. When enabled, users will
+                    not be prompted to grant consent when authorizing with this client.
+
+                    Disabled by default.
+                  nullable: true
+                  type: boolean
+                displayname:
+                  description: Set the display name for the OAuth2 client.
+                  type: string
+                image:
+                  description: |-
+                    Optional URL to an image for the OAuth2 client application.
+                    The image will be downloaded and set in Kanidm for display in the application portal.
+                    Constraints:
+                    - Maximum size: 256 KB
+                    - Maximum dimensions: 1024 x 1024 pixels
+                    - Supported formats: png, jpg, gif, svg, webp
+                  nullable: true
+                  properties:
+                    url:
+                      description: |-
+                        URL to fetch the image from (HTTP/HTTPS only).
+                        The operator will periodically check this URL for changes using HEAD requests
+                        and re-download the image when changes are detected.
+                      type: string
+                  required:
+                    - url
+                  type: object
+                jwtLegacyCryptoEnable:
+                  description: |-
+                    Enable legacy signing crypto on this oauth2 client. This defaults to being disabled.
+                    You only need to enable this for openid clients that do not support modern cryptographic
+                    operations.
+
+                    Disabled by default.
+                  nullable: true
+                  type: boolean
+                kanidmName:
+                  description: |-
+                    The name of the entity in Kanidm. If not specified, the Kubernetes resource name is used.
+                    Use this field to manage Kanidm entities with names that don't conform to Kubernetes naming rules
+                    (e.g., entities with underscores like `idm_admin` or `idm_all_persons`).
+                    This field is immutable and cannot be changed after creation.
+                  nullable: true
+                  type: string
+                  x-kubernetes-validations:
+                    - message: kanidmName cannot be changed.
+                      rule: self == oldSelf
+                kanidmRef:
+                  description: |-
+                    KanidmRef is a reference to a Kanidm object in the same cluster. It is used to specify where
+                    the object is stored.
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      description: |-
+                        For cross-namespace resources. Reference Kanidm namespace. If omitted, the namespace of the
+                        resource will be used.
+                      nullable: true
+                      type: string
+                  required:
+                    - name
+                  type: object
+                  x-kubernetes-validations:
+                    - message: Value is immutable
+                      rule: self == oldSelf
+                origin:
+                  description: |-
+                    Set the landing page (home page) of the client. The landing page is where users will be
+                    redirected to from the Kanidm application portal.
+                  type: string
+                preferShortUsername:
+                  description: |-
+                    Use the 'name' attribute instead of 'spn' for the preferred_username.
+
+                    Disabled by default.
+                  nullable: true
+                  type: boolean
+                public:
+                  default: false
+                  description: |-
+                    Create a new OAuth2 public client that requires PKCE. You should prefer using confidential
+                    client types if possible over public ones.
+
+                    Public clients have many limitations and can not access all API's of OAuth2. For example
+                    rfc7662 token introspection requires client authentication.
+
+                    This cannot be changed after creation. Default value is false.
+                    This field is immutable.
+                    If public is false, the operator will create a secret containing the client secret with
+                    the name `<oauth2-client-name>-kanidm-oauth2-credentials` in the same namespace as the OAuth2 client.
+                  type: boolean
+                  x-kubernetes-validations:
+                    - message: Public cannot be changed.
+                      rule: self == oldSelf
+                redirectUrl:
+                  description: Set the URL where the application expects OAuth2 requests to be sent.
+                  items:
+                    type: string
+                  type: array
+                scopeMap:
+                  description: |-
+                    Main scope map for the OAuth2 client. For an authorization to proceed, all scopes requested
+                    by the client must be available in the final scope set that is granted to the account.
+                  items:
+                    description: |-
+                      The `KanidmScopeMap` struct represents a mapping of a group to a set of OAuth2 scopes in Kanidm.
+
+                      Scope maps in Kanidm are used to define the permissions that a client application can request on
+                      behalf of a user. These scopes determine what resources the client can access and what
+                      operations it can perform.
+
+                      These provide a set of scopes if a user is a member of a specific group within Kanidm. This
+                      allows you to create a relationship between the scopes of a service, and the groups/roles in
+                      Kanidm which can be specific to that service.
+                    properties:
+                      group:
+                        description: Group name or SPN. Members of this group will be granted the scopes defined in the `scopes` field.
+                        type: string
+                      scopes:
+                        description: |-
+                          A scope is a string that represents a specific permission or set of permissions that a
+                          client application can request from an authorization server. Scopes define the level of
+                          access that the client application is granted to the user's resources.
+
+                          OpenID Connect allows a number of scopes that affect the content of the resulting authorization
+                          token. If one of the following scopes is requested by the OpenID client, then the associated
+                          claims may be added to the authorization token. It is not guaranteed that all of the associated
+                          claims will be added.
+
+                          - `profile`: name, family_name, given_name, middle_name, nickname, preferred_username, profile,
+                             picture, website, gender, birthdate, zoneinfo, locale, and updated_at
+                          - `email`: email, email_verified
+                          - `address`: address
+                          - `phone`: phone_number, phone_number_verified
+                          - `groups`: groups
+
+                          If you are creating an OpenID Connect (OIDC) client, you MUST provide a scope map containing `openid`.
+                          Without this, OpenID Connect clients WILL NOT WORK!
+                        items:
+                          type: string
+                        type: array
+                    required:
+                      - group
+                      - scopes
+                    type: object
+                  nullable: true
+                  type: array
+                secretKeyAliases:
+                  description: |-
+                    Aliases for the canonical secret keys (CLIENT_ID and CLIENT_SECRET).
+                    Allows consumers that require different fixed key names to access the same credentials.
+                    The canonical keys CLIENT_ID and CLIENT_SECRET are always present.
+                    Only applies to confidential clients (public: false).
+                  nullable: true
+                  properties:
+                    clientId:
+                      description: |-
+                        Aliases for the CLIENT_ID key.
+                        Each alias will be added as an additional key containing the same client ID value.
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    clientSecret:
+                      description: |-
+                        Aliases for the CLIENT_SECRET key.
+                        Each alias will be added as an additional key containing the same client secret value.
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                  type: object
+                secretRotation:
+                  description: |-
+                    Automatic rotation configuration for the OAuth2 client secret. Only applies to confidential
+                    clients (public: false). When enabled, the operator will regenerate the client secret
+                    periodically based on the configured rotation period.
+                  nullable: true
+                  properties:
+                    enabled:
+                      default: false
+                      description: Enable automatic secret rotation. Defaults to false (opt-in).
+                      type: boolean
+                    periodDays:
+                      default: 90
+                      description: |-
+                        Rotation period in days. Secrets will be rotated when they are older than this period.
+                        Defaults to 90 days.
+                      type: integer
+                      minimum: 0.0
+                  type: object
+                secretTemplate:
+                  description: |-
+                    Template applied to the Secret created for confidential clients (public: false).
+                    Allows attaching custom annotations and labels to the generated Secret. The operator's own
+                    labels and annotations take precedence over any conflicting keys in the template.
+                    Changes to this template are enforced on the next reconciliation, overwriting any manual
+                    modifications made to the Secret
+                  nullable: true
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Annotations to add to the object. The operator's own annotations take precedence over
+                        any keys specified here.
+                      nullable: true
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Labels to add to the object. The operator's own labels take precedence over any keys
+                        specified here.
+                      nullable: true
+                      type: object
+                  type: object
+                strictRedirectUrl:
+                  description: |-
+                    Enable strict validation of redirect URLs. Previously redirect URLs only validated the
+                    origin of the URL matched. When enabled, redirect URLs must match exactly.
+
+                    Enabled by default.
+                  nullable: true
+                  type: boolean
+                supScopeMap:
+                  description: |-
+                    Supplementary scope maps for the OAuth2 client. These function the same as scope maps where
+                    membership of a group provides a set of scopes to the account.
+                    However these scopes are NOT consulted during authorization decisions made by Kanidm.
+                    These scopes exist to allow optional properties to be provided (such as personal
+                    information about a subset of accounts to be revealed) or so that the service may make its
+                    own authorization decisions based on the provided scopes.
+                  items:
+                    description: |-
+                      The `KanidmScopeMap` struct represents a mapping of a group to a set of OAuth2 scopes in Kanidm.
+
+                      Scope maps in Kanidm are used to define the permissions that a client application can request on
+                      behalf of a user. These scopes determine what resources the client can access and what
+                      operations it can perform.
+
+                      These provide a set of scopes if a user is a member of a specific group within Kanidm. This
+                      allows you to create a relationship between the scopes of a service, and the groups/roles in
+                      Kanidm which can be specific to that service.
+                    properties:
+                      group:
+                        description: Group name or SPN. Members of this group will be granted the scopes defined in the `scopes` field.
+                        type: string
+                      scopes:
+                        description: |-
+                          A scope is a string that represents a specific permission or set of permissions that a
+                          client application can request from an authorization server. Scopes define the level of
+                          access that the client application is granted to the user's resources.
+
+                          OpenID Connect allows a number of scopes that affect the content of the resulting authorization
+                          token. If one of the following scopes is requested by the OpenID client, then the associated
+                          claims may be added to the authorization token. It is not guaranteed that all of the associated
+                          claims will be added.
+
+                          - `profile`: name, family_name, given_name, middle_name, nickname, preferred_username, profile,
+                             picture, website, gender, birthdate, zoneinfo, locale, and updated_at
+                          - `email`: email, email_verified
+                          - `address`: address
+                          - `phone`: phone_number, phone_number_verified
+                          - `groups`: groups
+
+                          If you are creating an OpenID Connect (OIDC) client, you MUST provide a scope map containing `openid`.
+                          Without this, OpenID Connect clients WILL NOT WORK!
+                        items:
+                          type: string
+                        type: array
+                    required:
+                      - group
+                      - scopes
+                    type: object
+                  nullable: true
+                  type: array
+              required:
+                - displayname
+                - kanidmRef
+                - origin
+                - redirectUrl
+              type: object
+            status:
+              description: |-
+                Most recent observed status of the Kanidm Group. Read-only.
+                More info:
+                https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+              nullable: true
+              properties:
+                claimsMap:
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                conditions:
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    properties:
+                      lastTransitionTime:
+                        description: lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: message is a human readable message indicating details about the transition. This may be an empty string.
+                        type: string
+                      observedGeneration:
+                        description: observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.
+                        format: int64
+                        type: integer
+                      reason:
+                        description: reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  nullable: true
+                  type: array
+                image:
+                  description: Status of the OAuth2 client image.
+                  nullable: true
+                  properties:
+                    contentHash:
+                      description: Hash of the image content (SHA-256, for validation).
+                      nullable: true
+                      type: string
+                    contentLength:
+                      description: Content-Length from the last fetch.
+                      type: integer
+                      minimum: 0.0
+                      nullable: true
+                    etag:
+                      description: ETag header from the last fetch (for change detection).
+                      nullable: true
+                      type: string
+                    lastModified:
+                      description: Last-Modified header from the last fetch.
+                      nullable: true
+                      type: string
+                    url:
+                      description: The URL from which the image was last fetched.
+                      type: string
+                  required:
+                    - url
+                  type: object
+                kanidmRef:
+                  type: string
+                origin:
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                ready:
+                  type: boolean
+                scopeMap:
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+                secretName:
+                  nullable: true
+                  type: string
+                supScopeMap:
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
+              required:
+                - kanidmRef
+                - ready
+              type: object
+          required:
+            - spec
+          title: KanidmOAuth2Client
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

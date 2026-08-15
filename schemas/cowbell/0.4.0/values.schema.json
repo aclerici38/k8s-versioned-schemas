@@ -1,0 +1,288 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[0-9a-f]{64}$" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": { "name": { "$ref": "#/definitions/nonemptyString" } }
+      }
+    },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "$ref": "#/definitions/stringMap" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "paths"],
+            "properties": {
+              "host": { "$ref": "#/definitions/nonemptyString" },
+              "paths": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["path", "pathType"],
+                  "properties": {
+                    "path": { "$ref": "#/definitions/nonemptyString" },
+                    "pathType": { "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["secretName", "hosts"],
+            "properties": {
+              "secretName": { "$ref": "#/definitions/nonemptyString" },
+              "hosts": { "type": "array", "items": { "$ref": "#/definitions/nonemptyString" } }
+            }
+          }
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["existingSecret"],
+      "properties": {
+        "existingSecret": { "$ref": "#/definitions/nonemptyString" },
+        "required": { "$ref": "#/definitions/requiredSecretKeys" },
+        "optional": { "$ref": "#/definitions/optionalSecretKeys" }
+      }
+    },
+    "configChecksum": { "type": "string" },
+    "restartAt": { "type": "string" },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backoffLimit": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "maintenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "schedule": { "$ref": "#/definitions/nonemptyString" },
+        "startingDeadlineSeconds": { "type": "integer", "minimum": 0, "maximum": 3600 },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "dispatcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "replicaCount", "secretKeys", "resources"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicaCount": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "secretKeys": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["DATABASE_URL", "COWBELL_LISTENER_DATABASE_URL", "COWBELL_HERMES_WEBHOOK_URL", "COWBELL_HERMES_WEBHOOK_SECRET"],
+          "properties": {
+            "DATABASE_URL": { "$ref": "#/definitions/secretKey" },
+            "COWBELL_LISTENER_DATABASE_URL": { "$ref": "#/definitions/secretKey" },
+            "COWBELL_HERMES_WEBHOOK_URL": { "$ref": "#/definitions/secretKey" },
+            "COWBELL_HERMES_WEBHOOK_SECRET": { "$ref": "#/definitions/secretKey" }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "resources": { "$ref": "#/definitions/resources" },
+    "podSecurityContext": { "$ref": "#/definitions/podSecurityContext" },
+    "containerSecurityContext": { "$ref": "#/definitions/containerSecurityContext" },
+    "podAnnotations": { "$ref": "#/definitions/stringMap" },
+    "podLabels": { "$ref": "#/definitions/stringMap" },
+    "nodeSelector": { "$ref": "#/definitions/stringMap" },
+    "tolerations": { "type": "array", "items": { "$ref": "#/definitions/openObject" } },
+    "affinity": { "$ref": "#/definitions/openObject" },
+    "topologySpreadConstraints": { "type": "array", "items": { "$ref": "#/definitions/openObject" } },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^(100|[0-9]?[0-9])%$" }
+          ]
+        }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingress": { "type": "array", "items": { "$ref": "#/definitions/openObject" } }
+      }
+    },
+    "serviceMonitor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "interval": { "type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h)$" },
+        "scrapePath": { "type": "string", "pattern": "^/" },
+        "labels": { "$ref": "#/definitions/stringMap" }
+      }
+    }
+  },
+  "definitions": {
+    "nonemptyString": { "type": "string", "minLength": 1 },
+    "openObject": { "type": "object" },
+    "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": { "cpu": { "type": "string" }, "memory": { "type": "string" } },
+          "additionalProperties": { "type": ["string", "number"] }
+        },
+        "limits": {
+          "type": "object",
+          "properties": { "cpu": { "type": "string" }, "memory": { "type": "string" } },
+          "additionalProperties": { "type": ["string", "number"] }
+        }
+      },
+      "additionalProperties": true
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "runAsGroup": { "type": "integer", "minimum": 0 },
+        "seccompProfile": {
+          "type": "object",
+          "properties": { "type": { "type": "string" } },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": { "drop": { "type": "array", "items": { "type": "string" } } },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "secretKey": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "optionalSecretKey": { "type": "string", "pattern": "^$|^[A-Za-z0-9._-]+$" },
+    "requiredSecretKeys": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "COWBELL_BACKEND_SECRET",
+        "COWBELL_LISTENER_DATABASE_URL",
+        "DATABASE_URL",
+        "PLEX_CLIENT_ID",
+        "PLEX_SERVER_ID",
+        "PLEX_REDIRECT_URI"
+      ],
+      "properties": {
+        "COWBELL_BACKEND_SECRET": { "$ref": "#/definitions/secretKey" },
+        "COWBELL_LISTENER_DATABASE_URL": { "$ref": "#/definitions/secretKey" },
+        "DATABASE_URL": { "$ref": "#/definitions/secretKey" },
+        "PLEX_CLIENT_ID": { "$ref": "#/definitions/secretKey" },
+        "PLEX_SERVER_ID": { "$ref": "#/definitions/secretKey" },
+        "PLEX_REDIRECT_URI": { "$ref": "#/definitions/secretKey" }
+      }
+    },
+    "optionalSecretKeys": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "COWBELL_HERMES_SECRET": { "$ref": "#/definitions/optionalSecretKey" },
+        "PLEX_PRODUCT_NAME": { "$ref": "#/definitions/optionalSecretKey" },
+        "TAUTULLI_BASE_URL": { "$ref": "#/definitions/optionalSecretKey" },
+        "TAUTULLI_API_KEY": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_ELASTICSEARCH_URL": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_ELASTICSEARCH_USERNAME": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_ELASTICSEARCH_PASSWORD": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_INDEX_PREFIX": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_RABBITMQ_URL": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_RETRY_DELAY_MS": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_RETRY_LIMIT": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_JOB_TIMEOUT_MS": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_CACHE_REDIS_URL": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_SEARCH_TTL_SECONDS": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_HIERARCHY_TTL_SECONDS": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_AUTOCOMPLETE_RATE_LIMIT": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_HIERARCHY_RATE_LIMIT": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_RATE_LIMIT_WINDOW_SECONDS": { "$ref": "#/definitions/optionalSecretKey" },
+        "CATALOG_SYNC_LOCK_TTL_SECONDS": { "$ref": "#/definitions/optionalSecretKey" },
+        "PLEX_CATALOG_BASE_URL": { "$ref": "#/definitions/optionalSecretKey" },
+        "PLEX_CATALOG_TOKEN": { "$ref": "#/definitions/optionalSecretKey" },
+        "POSTER_CACHE_REDIS_URL": { "$ref": "#/definitions/optionalSecretKey" },
+        "POSTER_CACHE_TTL_SECONDS": { "$ref": "#/definitions/optionalSecretKey" },
+        "POSTER_CACHE_MAX_MEMORY_BYTES": { "$ref": "#/definitions/optionalSecretKey" }
+      }
+    }
+  }
+}

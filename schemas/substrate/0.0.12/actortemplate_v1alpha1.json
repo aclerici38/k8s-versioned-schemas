@@ -1,0 +1,551 @@
+{
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of ActorTemplate. This field is immutable.",
+      "properties": {
+        "containers": {
+          "description": "Containers is the workload definition.",
+          "items": {
+            "additionalProperties": false,
+            "description": "A single application container that you want to run within a WorkerPool.",
+            "properties": {
+              "args": {
+                "description": "Arguments to the entrypoint. Not executed within a shell. The container\nimage's CMD is used if this is not provided (unless command is set,\nwhich discards the image's CMD).\n\nUnlike Kubernetes, variable references $(VAR_NAME) are NOT expanded.",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "x-kubernetes-list-type": "atomic"
+              },
+              "command": {
+                "description": "Entrypoint array. Not executed within a shell. The container image's\nENTRYPOINT is used if this is not provided; if it is provided, the\nimage's ENTRYPOINT and CMD are both ignored and the process argv is\ncommand + args.\n\nUnlike Kubernetes, variable references $(VAR_NAME) are NOT expanded.",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "x-kubernetes-list-type": "atomic"
+              },
+              "env": {
+                "description": "Environment variables to set in the worker replicas.",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "EnvVar represents an environment variable supplied to a container in an\nActorTemplate. It models only a subset of Kubernetes Pod env behavior:\nliteral values are not expanded with Kubernetes-style $(VAR) references,\nand envFrom and valueFrom are not supported.",
+                  "properties": {
+                    "name": {
+                      "description": "Name is the name of the environment variable. May be any printable ASCII\ncharacter except '='.",
+                      "minLength": 1,
+                      "pattern": "^[ -\u003c\u003e-~]+$",
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Value is the literal value of the environment variable. Unlike in\nKubernetes pods, this value is not interpolated, and $(VAR)\nreferences are not expanded.",
+                      "minLength": 0,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 32,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "image": {
+                "description": "Image to use for the worker replicas.",
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "All images must be pinned (changing the image invalidates snapshots)",
+                    "rule": "self.contains('@')"
+                  }
+                ]
+              },
+              "name": {
+                "description": "Name of the container.",
+                "maxLength": 63,
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "Name must be a valid DNS label",
+                    "rule": "!format.dns1123Label().validate(self).hasValue()"
+                  }
+                ]
+              },
+              "readyz": {
+                "additionalProperties": false,
+                "description": "Readyz is an optional HTTP readiness probe. When set, the actor is not\nconsidered ready (and Run/Restore RPCs do not return success) until the\ncontainer's HTTP endpoint returns 200.",
+                "properties": {
+                  "httpGet": {
+                    "additionalProperties": false,
+                    "description": "HTTPGet specifies the HTTP request to perform against the container.",
+                    "properties": {
+                      "path": {
+                        "default": "/readyz",
+                        "description": "Path to access on the HTTP server. Defaults to \"/readyz\".\nMust be a valid URL path starting with \"/\". Only characters permitted\nby RFC 3986 path segments are accepted; percent-escapes must be a\nliteral \"%\" followed by exactly two hex digits. Query strings (\"?\")\nand fragments (\"#\") must be omitted.",
+                        "maxLength": 1024,
+                        "pattern": "^/([A-Za-z0-9\\-._~!$\u0026'()*+,;=:@/]|%[0-9A-Fa-f]{2})*$",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "port": {
+                        "description": "Port to access on the container.",
+                        "format": "int32",
+                        "maximum": 65535,
+                        "minimum": 1,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "port"
+                    ],
+                    "type": "object"
+                  },
+                  "timeoutSeconds": {
+                    "default": 30,
+                    "description": "TimeoutSeconds is how long to keep polling HTTPGet before giving up.\nExceeding it fails the actor start rather than proceeding with a\ncontainer that never reported ready.\n\nHow long a workload takes to become ready is a property of that workload,\nwhich is why this is set per template rather than cluster-wide: a heavy\nruntime that needs minutes should not force every other template to wait\nas long before its failures surface.\n\nUnset defaults to 30, applied by the API server so the effective value is\nvisible on the stored object rather than only in the ateom. A manifest\nasking for 0 is rejected: unlike a warmup delay, a zero deadline could\nnever be met, so it is never what a template author means.",
+                    "format": "int32",
+                    "maximum": 3600,
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "httpGet"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "volumeMounts": {
+                "description": "volumeMounts define the volumes to mount into this container.",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "VolumeMount describes a mounting of a Volume within a actor.",
+                  "properties": {
+                    "mountPath": {
+                      "description": "Path within the actor at which the volume should be mounted. Must be a\nclean absolute Unix path: must start with '/', not be '/', and contain\nno ':', '..', '.', '//', trailing '/', or control characters.",
+                      "maxLength": 4096,
+                      "type": "string",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "MountPath must be a clean absolute Unix path: must start with '/', not be '/', and contain no ':', '..', '.', '//', trailing '/', or control characters",
+                          "rule": "self.startsWith('/') \u0026\u0026 size(self) \u003e 1 \u0026\u0026 !self.endsWith('/') \u0026\u0026 !self.contains('//') \u0026\u0026 !self.contains(':') \u0026\u0026 !self.matches('[\\x00-\\x1f\\x7f]') \u0026\u0026 !self.matches('(^|/)[.][.]?(/|$)')"
+                        }
+                      ]
+                    },
+                    "name": {
+                      "description": "This must match the Name of a Volume.",
+                      "maxLength": 63,
+                      "type": "string",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "Name must be a valid DNS label",
+                          "rule": "!format.dns1123Label().validate(self).hasValue()"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mountPath",
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 32,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "image",
+              "name"
+            ],
+            "type": "object"
+          },
+          "maxItems": 10,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sandboxClass": {
+          "default": "gvisor",
+          "description": "SandboxClass selects the sandbox runtime family this template's actors run\non. Only worker pools whose SandboxClass matches are eligible. Snapshots are\nnot portable across classes, so this is a hard gate, AND'd with WorkerSelector\nand the actor's worker_selector. Defaults to gvisor.\n\n\n1) How does someone discover what classes are available, or what they mean?\n2) How does someone define a new sandbox class?\n3) Does a class mean the specific type of sandbox tech or does it include some aspect of config (e.g. can we have 2 different classes which both use gVisor with different config, or 2 classes which use different microvms)\n4) How does the default get set and who sets it?\n\nSee Also: WorkerPool SandboxClass",
+          "enum": [
+            "gvisor",
+            "microvm"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshotsConfig": {
+          "additionalProperties": false,
+          "description": "Snapshots configuration for the actor.",
+          "properties": {
+            "location": {
+              "description": "Location is the base object-storage URI snapshots of this template's\nactors are stored under.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "onCommit": {
+              "default": "Full",
+              "description": "OnCommit specifies what to include in the snapshot when a commit is requested.\nIf not provided, the \"Full\" behavior is used by default.\nonCommit must be a subset of the onPause content.\n\nFor example:\n  - if onPause is \"Full\", then onCommit can be \"Full\" or \"Data\".\n  - if onPause is \"Data\", then onCommit must be \"Data\".",
+              "enum": [
+                "Full",
+                "Data"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "onPause": {
+              "default": "Full",
+              "description": "OnPause specifies what to include in the snapshot when the actor is paused.\nIf not provided, the \"Full\" behavior is used by default.",
+              "enum": [
+                "Full",
+                "Data"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "onResume": {
+              "additionalProperties": false,
+              "default": {},
+              "description": "OnResume specifies, per snapshot situation, what supplies the guest\nstate at resume (see OnResumeConfig). \"fromData: Golden\" requires\nsandboxClass \"microvm\".",
+              "properties": {
+                "fromData": {
+                  "default": "ColdBoot",
+                  "description": "FromData applies when the resume uses a Data-scope snapshot (from\nonPause or onCommit): \"ColdBoot\" starts fresh from the OCI image with\nthe durable data restored; \"Golden\" combines the durable data with the\ntemplate's golden snapshot. Defaults to \"ColdBoot\".",
+                  "enum": [
+                    "ColdBoot",
+                    "Golden"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "location"
+          ],
+          "type": "object",
+          "x-kubernetes-validations": [
+            {
+              "message": "onCommit must be a subset of onPause",
+              "rule": "(has(self.onPause) ? self.onPause : 'Full') == 'Full' || (has(self.onCommit) ? self.onCommit : 'Full') == (has(self.onPause) ? self.onPause : 'Full')"
+            }
+          ]
+        },
+        "volumes": {
+          "description": "Volumes defines the volumes to mount into all containers in the actor.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "durableDir": {
+                "description": "durableDir represents a durable directory on rootfs that persists across\nresumes and participates in snapshots.",
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "externalVolumeTemplate": {
+                "additionalProperties": false,
+                "description": "externalVolumeTemplate represents an external volume dynamically provisioned\nfor each actor. The volume only lives as long as the actor and is deleted\nwhen the actor is deleted.",
+                "properties": {
+                  "capacity": {
+                    "description": "capacity specifies the size of the volume to create.",
+                    "oneOf": [
+                      {
+                        "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ],
+                    "x-kubernetes-int-or-string": true
+                  },
+                  "storageClassName": {
+                    "description": "storageClassName refers to the StorageClass to create the volume from.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "capacity",
+                  "storageClassName"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "name of the volume.",
+                "maxLength": 63,
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "Name must be a valid DNS label",
+                    "rule": "!format.dns1123Label().validate(self).hasValue()"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "exactly one of the fields in [durableDir externalVolumeTemplate] must be set",
+                "rule": "[has(self.durableDir),has(self.externalVolumeTemplate)].filter(x,x==true).size() == 1"
+              }
+            ]
+          },
+          "maxItems": 32,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "workerSelector": {
+          "additionalProperties": false,
+          "description": "WorkerSelector restricts which worker pools actors from this template may\nuse. The scheduler only considers pools whose labels match this selector.\nIf nil, all pools are eligible (subject to the actor's own worker_selector).\nActs as a gate: the actor's worker_selector can only narrow this set further,\nnever expand it.",
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "items": {
+                "additionalProperties": false,
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "matchLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
+        }
+      },
+      "required": [
+        "snapshotsConfig"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "Spec is immutable",
+          "rule": "self == oldSelf"
+        },
+        {
+          "message": "All volumes defined in spec.volumes must be mounted by at least one container",
+          "rule": "!has(self.volumes) || self.volumes.all(v, has(self.containers) \u0026\u0026 self.containers.exists(c, has(c.volumeMounts) \u0026\u0026 c.volumeMounts.exists(vm, vm.name == v.name)))"
+        },
+        {
+          "message": "ExternalVolumes are not supported when sandboxClass is 'microvm'",
+          "rule": "!has(self.sandboxClass) || self.sandboxClass != 'microvm' || !has(self.volumes) || !self.volumes.exists(v, has(v.externalVolumeTemplate))"
+        },
+        {
+          "message": "onResume.fromData: Golden is not supported when sandboxClass is 'gvisor'",
+          "rule": "(has(self.sandboxClass) \u0026\u0026 self.sandboxClass == 'microvm') || !has(self.snapshotsConfig.onResume) || (has(self.snapshotsConfig.onResume.fromData) ? self.snapshotsConfig.onResume.fromData : 'ColdBoot') != 'Golden'"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status is the observed state of ActorTemplate",
+      "properties": {
+        "conditions": {
+          "description": "conditions defines the status conditions array",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "goldenActorID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "goldenSnapshot": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase of the actor template.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "takeGoldenSnapshotAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

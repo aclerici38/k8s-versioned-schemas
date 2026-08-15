@@ -1,0 +1,1445 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: roundtables.ai.roundtable.io
+spec:
+  group: ai.roundtable.io
+  names:
+    categories:
+      - roundtable
+    kind: RoundTable
+    listKind: RoundTableList
+    plural: roundtables
+    shortNames:
+      - rt
+    singular: roundtable
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - description: Ready/Total knights
+          jsonPath: .status.knightsReady
+          name: Knights
+          type: string
+        - jsonPath: .status.knightsTotal
+          name: Total
+          type: integer
+        - jsonPath: .status.totalTasksCompleted
+          name: Tasks
+          type: integer
+        - jsonPath: .status.totalCost
+          name: Cost
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RoundTable is the Schema for the roundtables API.
+            A RoundTable represents a fleet of knights with shared configuration,
+            NATS infrastructure, and operational policies. It is the top-level
+            organizational resource in the Round Table operator.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: spec defines the desired state of RoundTable
+              properties:
+                defaults:
+                  description: |-
+                    defaults defines default configuration applied to all knights in this table.
+                    Individual knight specs can override these values.
+                  properties:
+                    arsenal:
+                      description: arsenal configures the default skill arsenal for knights.
+                      properties:
+                        image:
+                          default: registry.k8s.io/git-sync/git-sync:v4.4.0
+                          description: image overrides the git-sync container image.
+                          type: string
+                        period:
+                          default: 300s
+                          description: period is how often to sync (e.g., "300s").
+                          type: string
+                        ref:
+                          default: main
+                          description: ref is the git ref to sync.
+                          type: string
+                        repo:
+                          default: https://github.com/dapperdivers/roundtable-arsenal
+                          description: repo is the git repository URL containing skills.
+                          type: string
+                      type: object
+                    concurrency:
+                      default: 2
+                      description: concurrency is the default max concurrent tasks per knight.
+                      format: int32
+                      type: integer
+                    image:
+                      description: image is the default container image for knights.
+                      type: string
+                    model:
+                      description: model is the default AI model for knights in this table.
+                      type: string
+                    resources:
+                      description: resources defines default compute resource requirements.
+                      properties:
+                        cpu:
+                          anyOf:
+                            - type: integer
+                            - type: string
+                          default: 200m
+                          description: cpu is the CPU limit for the knight container.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        memory:
+                          anyOf:
+                            - type: integer
+                            - type: string
+                          default: 256Mi
+                          description: memory is the memory limit for the knight container.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                      type: object
+                    taskTimeout:
+                      default: 120
+                      description: taskTimeout is the default task timeout in seconds.
+                      format: int32
+                      type: integer
+                  type: object
+                description:
+                  description: description is a human-readable description of this round table's purpose.
+                  type: string
+                ephemeral:
+                  default: false
+                  description: |-
+                    ephemeral marks this RoundTable as mission-owned. Ephemeral tables are
+                    excluded from fleet-wide aggregation and are garbage collected with their mission.
+                  type: boolean
+                knightSelector:
+                  description: |-
+                    knightSelector is a label selector for Knights that belong to this table.
+                    Knights matching this selector are automatically managed by this RoundTable.
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      items:
+                        description: |-
+                          A label selector requirement is a selector that contains values, a key, and an operator that
+                          relates the key and values.
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies to.
+                            type: string
+                          operator:
+                            description: |-
+                              operator represents a key's relationship to a set of values.
+                              Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: |-
+                              values is an array of string values. If the operator is In or NotIn,
+                              the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                              the values array must be empty. This array is replaced during a strategic
+                              merge patch.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                        map is equivalent to an element of matchExpressions, whose key field is "key", the
+                        operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
+                knightTemplates:
+                  additionalProperties:
+                    description: KnightSpec defines the desired state of a Knight — an AI agent in the Round Table.
+                    properties:
+                      arsenal:
+                        description: arsenal configures the skill arsenal git-sync sidecar.
+                        properties:
+                          image:
+                            default: registry.k8s.io/git-sync/git-sync:v4.4.0
+                            description: image overrides the git-sync container image.
+                            type: string
+                          period:
+                            default: 300s
+                            description: period is how often to sync (e.g., "300s").
+                            type: string
+                          ref:
+                            default: main
+                            description: ref is the git ref to sync.
+                            type: string
+                          repo:
+                            default: https://github.com/dapperdivers/roundtable-arsenal
+                            description: repo is the git repository URL containing skills.
+                            type: string
+                        type: object
+                      capabilities:
+                        description: capabilities configures optional runtime capabilities for the knight pod.
+                        properties:
+                          browser:
+                            description: |-
+                              browser enables a headless Chrome sidecar with agent-browser CLI for web automation.
+                              When true, the operator injects a browser sidecar and sets BROWSER_ENABLED=true.
+                            type: boolean
+                        type: object
+                      concurrency:
+                        default: 2
+                        description: concurrency is the maximum number of concurrent tasks the knight can process.
+                        format: int32
+                        maximum: 10
+                        minimum: 1
+                        type: integer
+                      domain:
+                        description: |-
+                          domain is the knight's area of expertise (e.g., "security", "infrastructure", "finance").
+                          Used for NATS subject routing and skill filtering.
+                        minLength: 1
+                        type: string
+                      env:
+                        description: env defines additional environment variables for the knight container.
+                        items:
+                          description: EnvVar represents an environment variable present in a Container.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            value:
+                              description: |-
+                                Variable references $(VAR_NAME) are expanded
+                                using the previously defined environment variables in the container and
+                                any service environment variables. If a variable cannot be resolved,
+                                the reference in the input string will be unchanged. Double $$ are reduced
+                                to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                Escaped references will never be expanded, regardless of whether the variable
+                                exists or not.
+                                Defaults to "".
+                              type: string
+                            valueFrom:
+                              description: Source for the environment variable's value. Cannot be used if value is not empty.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key of a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: The key to select.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or its key must be defined
+                                      type: boolean
+                                  required:
+                                    - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fieldRef:
+                                  description: |-
+                                    Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                    spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                  properties:
+                                    apiVersion:
+                                      description: Version of the schema the FieldPath is written in terms of, defaults to "v1".
+                                      type: string
+                                    fieldPath:
+                                      description: Path of the field to select in the specified API version.
+                                      type: string
+                                  required:
+                                    - fieldPath
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fileKeyRef:
+                                  description: |-
+                                    FileKeyRef selects a key of the env file.
+                                    Requires the EnvFiles feature gate to be enabled.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key within the env file. An invalid key will prevent the pod from starting.
+                                        The keys defined within a source may consist of any printable ASCII characters except '='.
+                                        During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                      type: string
+                                    optional:
+                                      default: false
+                                      description: |-
+                                        Specify whether the file or its key must be defined. If the file or key
+                                        does not exist, then the env var is not published.
+                                        If optional is set to true and the specified key does not exist,
+                                        the environment variable will not be set in the Pod's containers.
+
+                                        If optional is set to false and the specified key does not exist,
+                                        an error will be returned during Pod creation.
+                                      type: boolean
+                                    path:
+                                      description: |-
+                                        The path within the volume from which to select the file.
+                                        Must be relative and may not contain the '..' path or start with '..'.
+                                      type: string
+                                    volumeName:
+                                      description: The name of the volume mount containing the env file.
+                                      type: string
+                                  required:
+                                    - key
+                                    - path
+                                    - volumeName
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                resourceFieldRef:
+                                  description: |-
+                                    Selects a resource of the container: only resources limits and requests
+                                    (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                  properties:
+                                    containerName:
+                                      description: 'Container name: required for volumes, optional for env vars'
+                                      type: string
+                                    divisor:
+                                      anyOf:
+                                        - type: integer
+                                        - type: string
+                                      description: Specifies the output format of the exposed resources, defaults to "1"
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    resource:
+                                      description: 'Required: resource to select'
+                                      type: string
+                                  required:
+                                    - resource
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: Selects a key of a secret in the pod's namespace
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its key must be defined
+                                      type: boolean
+                                  required:
+                                    - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          required:
+                            - name
+                          type: object
+                        type: array
+                      envFrom:
+                        description: envFrom defines sources of environment variables (secrets, configmaps).
+                        items:
+                          description: EnvFromSource represents the source of a set of ConfigMaps or Secrets
+                          properties:
+                            configMapRef:
+                              description: The ConfigMap to select from
+                              properties:
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                                optional:
+                                  description: Specify whether the ConfigMap must be defined
+                                  type: boolean
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            prefix:
+                              description: |-
+                                Optional text to prepend to the name of each environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            secretRef:
+                              description: The Secret to select from
+                              properties:
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                                optional:
+                                  description: Specify whether the Secret must be defined
+                                  type: boolean
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          type: object
+                        type: array
+                      generatedSkills:
+                        description: |-
+                          generatedSkills contains inline skill definitions created by the planner.
+                          Each skill is a markdown document mounted at /skills/<name>.md
+                        items:
+                          description: |-
+                            GeneratedSkill is an inline skill definition created by the planner.
+                            Each skill is a markdown document that gets mounted into the knight's /skills/ directory.
+                          properties:
+                            content:
+                              description: content is the full markdown skill document.
+                              type: string
+                            name:
+                              description: name is the skill filename (without .md extension).
+                              type: string
+                          required:
+                            - content
+                            - name
+                          type: object
+                        type: array
+                      image:
+                        description: |-
+                          image is the container image for the knight runtime.
+                          If empty, the operator uses DEFAULT_KNIGHT_IMAGE env var.
+                        type: string
+                      lifecycle:
+                        description: lifecycle controls suspend/resume behavior.
+                        properties:
+                          idleTimeout:
+                            description: |-
+                              idleTimeout is how long after the last task before auto-suspending.
+                              Only used when SuspendPolicy is "auto" (e.g., "30m", "1h").
+                            type: string
+                          suspendPolicy:
+                            default: never
+                            description: |-
+                              suspendPolicy controls when the knight is suspended.
+                              Values: auto, manual, never (default: never)
+                            enum:
+                              - auto
+                              - manual
+                              - never
+                            type: string
+                        type: object
+                      model:
+                        default: openrouter/deepseek/deepseek-v3.2
+                        description: model is the AI model to use (e.g., "openrouter/deepseek/deepseek-v3.2", "claude-sonnet-4-20250514").
+                        type: string
+                      nats:
+                        description: nats configures the knight's NATS JetStream consumer and subjects.
+                        properties:
+                          consumerName:
+                            description: |-
+                              consumerName overrides the auto-generated durable consumer name.
+                              Defaults to "knight-{name}".
+                            type: string
+                          maxDeliver:
+                            default: 1
+                            description: maxDeliver is the maximum number of delivery attempts per message.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          resultsStream:
+                            default: fleet_a_results
+                            description: resultsStream is the JetStream stream to publish results to.
+                            type: string
+                          stream:
+                            default: fleet_a_tasks
+                            description: stream is the JetStream stream name to consume from.
+                            type: string
+                          subjects:
+                            description: |-
+                              subjects defines the JetStream filter subjects for task consumption.
+                              e.g., ["fleet-a.tasks.security.>"]
+                            items:
+                              type: string
+                            minItems: 1
+                            type: array
+                          url:
+                            default: nats://nats.database.svc:4222
+                            description: url is the NATS server URL.
+                            type: string
+                        required:
+                          - subjects
+                        type: object
+                      nixPackages:
+                        description: |-
+                          nixPackages lists nix packages to install during knight bootstrap.
+                          Packages are installed via: nix profile install nixpkgs#<pkg>
+                        items:
+                          type: string
+                        type: array
+                      prompt:
+                        description: prompt allows overriding the knight's system prompt components.
+                        properties:
+                          configMapRef:
+                            description: |-
+                              configMapRef references a ConfigMap containing prompt overrides.
+                              Keys: "AGENTS.md", "TOOLS.md", "SOUL.md"
+                            properties:
+                              name:
+                                default: ""
+                                description: |-
+                                  Name of the referent.
+                                  This field is effectively required, but due to backwards compatibility is
+                                  allowed to be empty. Instances of this type with an empty value here are
+                                  almost certainly wrong.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          identity:
+                            description: identity overrides the knight's identity/persona description.
+                            type: string
+                          instructions:
+                            description: instructions provides additional instructions appended to the system prompt.
+                            type: string
+                        type: object
+                      resources:
+                        description: resources defines compute resource requirements for the knight container.
+                        properties:
+                          cpu:
+                            anyOf:
+                              - type: integer
+                              - type: string
+                            default: 200m
+                            description: cpu is the CPU limit for the knight container.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                              - type: integer
+                              - type: string
+                            default: 256Mi
+                            description: memory is the memory limit for the knight container.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                      runtime:
+                        default: deployment
+                        description: |-
+                          runtime selects the backend for managing this knight's pod.
+                          "deployment" uses a standard Kubernetes Deployment (default).
+                          "sandbox" uses Agent Sandbox (agents.x-k8s.io) for lifecycle management.
+                        enum:
+                          - deployment
+                          - sandbox
+                        type: string
+                      serviceAccountName:
+                        description: |-
+                          serviceAccountName is the name of the ServiceAccount to use for the knight pod.
+                          If empty, the namespace default ServiceAccount is used.
+                        type: string
+                      skills:
+                        description: |-
+                          skills defines which skill categories this knight has access to.
+                          The operator will configure the skill-filter sidecar accordingly.
+                        items:
+                          type: string
+                        minItems: 1
+                        type: array
+                      suspended:
+                        default: false
+                        description: suspended, if true, scales the knight deployment to 0 replicas.
+                        type: boolean
+                      taskTimeout:
+                        default: 120
+                        description: taskTimeout is the default task timeout in seconds.
+                        format: int32
+                        maximum: 3600
+                        minimum: 30
+                        type: integer
+                      tools:
+                        description: tools defines additional system packages and tools the knight needs.
+                        properties:
+                          apt:
+                            description: apt is a list of apt packages to install (fallback, requires root — prefer nix).
+                            items:
+                              type: string
+                            type: array
+                          mise:
+                            description: mise is a list of tools to install via mise (e.g., "shodan", "kubectl").
+                            items:
+                              type: string
+                            type: array
+                          nix:
+                            description: |-
+                              nix is a list of nixpkgs packages to install via Nix flakes (e.g., "nmap", "whois", "dnsutils").
+                              These get compiled into a flake.nix and built on first boot, cached on the Nix PVC.
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      vault:
+                        description: vault configures the shared Obsidian vault mount.
+                        properties:
+                          claimName:
+                            default: obsidian-vault
+                            description: claimName is the PVC name for the shared vault.
+                            type: string
+                          readOnly:
+                            default: true
+                            description: readOnly mounts the base vault as read-only.
+                            type: boolean
+                          writablePaths:
+                            default:
+                              - Briefings/
+                              - Roundtable/
+                            description: writablePaths are subpaths within the vault the knight can write to.
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      workspace:
+                        description: workspace configures the knight's persistent workspace.
+                        properties:
+                          existingClaim:
+                            description: |-
+                              existingClaim references an existing PVC to use instead of creating a new one.
+                              Useful for migrating existing knights to operator management.
+                            type: string
+                          size:
+                            default: 1Gi
+                            description: size is the storage request for auto-created PVCs.
+                            type: string
+                        type: object
+                    required:
+                      - domain
+                      - nats
+                      - skills
+                    type: object
+                  description: |-
+                    knightTemplates defines reusable knight configurations that missions can reference.
+                    Templates provide defaults for domain, model, skills, NATS config, image, workspace, etc.
+                    Missions can override specific fields using specOverrides.
+                  type: object
+                missionRef:
+                  description: missionRef is set by the mission controller when creating ephemeral tables.
+                  type: string
+                nats:
+                  description: nats configures the shared NATS infrastructure for all knights in this table.
+                  properties:
+                    createStreams:
+                      default: false
+                      description: createStreams, if true, tells the controller to create/update the JetStream streams.
+                      type: boolean
+                    resultsStream:
+                      description: resultsStream is the JetStream stream name for results.
+                      type: string
+                    streamRetention:
+                      default: WorkQueue
+                      description: streamRetention configures the retention policy for auto-created streams.
+                      enum:
+                        - Limits
+                        - Interest
+                        - WorkQueue
+                      type: string
+                    subjectPrefix:
+                      description: |-
+                        subjectPrefix is the NATS subject prefix for this table (e.g., "fleet-a").
+                        All knights in this table use subjects under this prefix.
+                      minLength: 1
+                      type: string
+                    tasksStream:
+                      description: tasksStream is the JetStream stream name for tasks.
+                      type: string
+                    url:
+                      default: nats://nats.database.svc:4222
+                      description: url is the NATS server URL.
+                      type: string
+                  required:
+                    - resultsStream
+                    - subjectPrefix
+                    - tasksStream
+                  type: object
+                policies:
+                  description: policies defines fleet-level operational policies.
+                  properties:
+                    costBudgetUSD:
+                      default: "0"
+                      description: |-
+                        costBudgetUSD is the maximum cumulative cost in USD across all knights.
+                        When reached, all knights are suspended. "0" means unlimited.
+                      type: string
+                    costResetSchedule:
+                      description: costResetSchedule is a cron expression for resetting the cost counter (e.g., "0 0 1 * *" for monthly).
+                      type: string
+                    maxConcurrentTasks:
+                      default: 0
+                      description: |-
+                        maxConcurrentTasks is the maximum total concurrent tasks across all knights in this table.
+                        0 means unlimited.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    maxKnights:
+                      default: 0
+                      description: |-
+                        maxKnights is the maximum number of knights allowed in this table.
+                        0 means unlimited.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    maxMissions:
+                      default: 5
+                      description: maxMissions is the maximum number of concurrent active missions.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                  type: object
+                secrets:
+                  description: secrets references shared secrets available to all knights in this table.
+                  items:
+                    description: |-
+                      LocalObjectReference contains enough information to let you locate the
+                      referenced object inside the same namespace.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  type: array
+                sharedWorkspace:
+                  description: |-
+                    sharedWorkspace configures a shared RWX PVC mounted on all knights for collaborative work.
+                    Knights can read/write files here to pass artifacts between chain steps.
+                  properties:
+                    claimName:
+                      description: claimName is the PVC name for the shared workspace.
+                      type: string
+                    mountPath:
+                      default: /shared
+                      description: mountPath is where the shared workspace is mounted in knight pods.
+                      type: string
+                  required:
+                    - claimName
+                  type: object
+                suspended:
+                  default: false
+                  description: suspended, if true, suspends all knights in this table.
+                  type: boolean
+                vault:
+                  description: vault configures the shared Obsidian vault for all knights in this table.
+                  properties:
+                    claimName:
+                      default: obsidian-vault
+                      description: claimName is the PVC name for the shared vault.
+                      type: string
+                    readOnly:
+                      default: true
+                      description: readOnly mounts the base vault as read-only.
+                      type: boolean
+                    writablePaths:
+                      default:
+                        - Briefings/
+                        - Roundtable/
+                      description: writablePaths are subpaths within the vault the knight can write to.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                warmPool:
+                  description: |-
+                    warmPool configures a pool of pre-warmed Knight pods ready for instant mission assignment.
+                    When missions need ephemeral knights, they claim warm pods from this pool instead of cold-starting.
+                  properties:
+                    maxIdleTime:
+                      default: 1h
+                      description: |-
+                        maxIdleTime is how long a warm pod can sit idle before being recycled.
+                        Prevents stale state. Format: Go duration (e.g., "30m", "1h").
+                      type: string
+                    replaceOnClaim:
+                      default: true
+                      description: |-
+                        replaceOnClaim controls whether claimed knights are immediately replaced.
+                        When true (default), the pool is replenished as soon as a knight is claimed.
+                      type: boolean
+                    runtime:
+                      default: deployment
+                      description: runtime selects the backend for warm pool pods.
+                      enum:
+                        - deployment
+                        - sandbox
+                      type: string
+                    size:
+                      default: 0
+                      description: |-
+                        size is the desired number of warm knights to maintain in the pool.
+                        The controller ensures this many unclaimed knights exist at all times.
+                      format: int32
+                      maximum: 20
+                      minimum: 0
+                      type: integer
+                    template:
+                      description: |-
+                        template defines the base KnightSpec for warm pool pods.
+                        When a mission claims a warm knight, it patches this spec with mission-specific config.
+                      properties:
+                        arsenal:
+                          description: arsenal configures the skill arsenal git-sync sidecar.
+                          properties:
+                            image:
+                              default: registry.k8s.io/git-sync/git-sync:v4.4.0
+                              description: image overrides the git-sync container image.
+                              type: string
+                            period:
+                              default: 300s
+                              description: period is how often to sync (e.g., "300s").
+                              type: string
+                            ref:
+                              default: main
+                              description: ref is the git ref to sync.
+                              type: string
+                            repo:
+                              default: https://github.com/dapperdivers/roundtable-arsenal
+                              description: repo is the git repository URL containing skills.
+                              type: string
+                          type: object
+                        capabilities:
+                          description: capabilities configures optional runtime capabilities for the knight pod.
+                          properties:
+                            browser:
+                              description: |-
+                                browser enables a headless Chrome sidecar with agent-browser CLI for web automation.
+                                When true, the operator injects a browser sidecar and sets BROWSER_ENABLED=true.
+                              type: boolean
+                          type: object
+                        concurrency:
+                          default: 2
+                          description: concurrency is the maximum number of concurrent tasks the knight can process.
+                          format: int32
+                          maximum: 10
+                          minimum: 1
+                          type: integer
+                        domain:
+                          description: |-
+                            domain is the knight's area of expertise (e.g., "security", "infrastructure", "finance").
+                            Used for NATS subject routing and skill filtering.
+                          minLength: 1
+                          type: string
+                        env:
+                          description: env defines additional environment variables for the knight container.
+                          items:
+                            description: EnvVar represents an environment variable present in a Container.
+                            properties:
+                              name:
+                                description: |-
+                                  Name of the environment variable.
+                                  May consist of any printable ASCII characters except '='.
+                                type: string
+                              value:
+                                description: |-
+                                  Variable references $(VAR_NAME) are expanded
+                                  using the previously defined environment variables in the container and
+                                  any service environment variables. If a variable cannot be resolved,
+                                  the reference in the input string will be unchanged. Double $$ are reduced
+                                  to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                  "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                  Escaped references will never be expanded, regardless of whether the variable
+                                  exists or not.
+                                  Defaults to "".
+                                type: string
+                              valueFrom:
+                                description: Source for the environment variable's value. Cannot be used if value is not empty.
+                                properties:
+                                  configMapKeyRef:
+                                    description: Selects a key of a ConfigMap.
+                                    properties:
+                                      key:
+                                        description: The key to select.
+                                        type: string
+                                      name:
+                                        default: ""
+                                        description: |-
+                                          Name of the referent.
+                                          This field is effectively required, but due to backwards compatibility is
+                                          allowed to be empty. Instances of this type with an empty value here are
+                                          almost certainly wrong.
+                                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        type: string
+                                      optional:
+                                        description: Specify whether the ConfigMap or its key must be defined
+                                        type: boolean
+                                    required:
+                                      - key
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  fieldRef:
+                                    description: |-
+                                      Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                      spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                    properties:
+                                      apiVersion:
+                                        description: Version of the schema the FieldPath is written in terms of, defaults to "v1".
+                                        type: string
+                                      fieldPath:
+                                        description: Path of the field to select in the specified API version.
+                                        type: string
+                                    required:
+                                      - fieldPath
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  fileKeyRef:
+                                    description: |-
+                                      FileKeyRef selects a key of the env file.
+                                      Requires the EnvFiles feature gate to be enabled.
+                                    properties:
+                                      key:
+                                        description: |-
+                                          The key within the env file. An invalid key will prevent the pod from starting.
+                                          The keys defined within a source may consist of any printable ASCII characters except '='.
+                                          During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                        type: string
+                                      optional:
+                                        default: false
+                                        description: |-
+                                          Specify whether the file or its key must be defined. If the file or key
+                                          does not exist, then the env var is not published.
+                                          If optional is set to true and the specified key does not exist,
+                                          the environment variable will not be set in the Pod's containers.
+
+                                          If optional is set to false and the specified key does not exist,
+                                          an error will be returned during Pod creation.
+                                        type: boolean
+                                      path:
+                                        description: |-
+                                          The path within the volume from which to select the file.
+                                          Must be relative and may not contain the '..' path or start with '..'.
+                                        type: string
+                                      volumeName:
+                                        description: The name of the volume mount containing the env file.
+                                        type: string
+                                    required:
+                                      - key
+                                      - path
+                                      - volumeName
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  resourceFieldRef:
+                                    description: |-
+                                      Selects a resource of the container: only resources limits and requests
+                                      (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                    properties:
+                                      containerName:
+                                        description: 'Container name: required for volumes, optional for env vars'
+                                        type: string
+                                      divisor:
+                                        anyOf:
+                                          - type: integer
+                                          - type: string
+                                        description: Specifies the output format of the exposed resources, defaults to "1"
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      resource:
+                                        description: 'Required: resource to select'
+                                        type: string
+                                    required:
+                                      - resource
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  secretKeyRef:
+                                    description: Selects a key of a secret in the pod's namespace
+                                    properties:
+                                      key:
+                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        type: string
+                                      name:
+                                        default: ""
+                                        description: |-
+                                          Name of the referent.
+                                          This field is effectively required, but due to backwards compatibility is
+                                          allowed to be empty. Instances of this type with an empty value here are
+                                          almost certainly wrong.
+                                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        type: string
+                                      optional:
+                                        description: Specify whether the Secret or its key must be defined
+                                        type: boolean
+                                    required:
+                                      - key
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                type: object
+                            required:
+                              - name
+                            type: object
+                          type: array
+                        envFrom:
+                          description: envFrom defines sources of environment variables (secrets, configmaps).
+                          items:
+                            description: EnvFromSource represents the source of a set of ConfigMaps or Secrets
+                            properties:
+                              configMapRef:
+                                description: The ConfigMap to select from
+                                properties:
+                                  name:
+                                    default: ""
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap must be defined
+                                    type: boolean
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              prefix:
+                                description: |-
+                                  Optional text to prepend to the name of each environment variable.
+                                  May consist of any printable ASCII characters except '='.
+                                type: string
+                              secretRef:
+                                description: The Secret to select from
+                                properties:
+                                  name:
+                                    default: ""
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret must be defined
+                                    type: boolean
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          type: array
+                        generatedSkills:
+                          description: |-
+                            generatedSkills contains inline skill definitions created by the planner.
+                            Each skill is a markdown document mounted at /skills/<name>.md
+                          items:
+                            description: |-
+                              GeneratedSkill is an inline skill definition created by the planner.
+                              Each skill is a markdown document that gets mounted into the knight's /skills/ directory.
+                            properties:
+                              content:
+                                description: content is the full markdown skill document.
+                                type: string
+                              name:
+                                description: name is the skill filename (without .md extension).
+                                type: string
+                            required:
+                              - content
+                              - name
+                            type: object
+                          type: array
+                        image:
+                          description: |-
+                            image is the container image for the knight runtime.
+                            If empty, the operator uses DEFAULT_KNIGHT_IMAGE env var.
+                          type: string
+                        lifecycle:
+                          description: lifecycle controls suspend/resume behavior.
+                          properties:
+                            idleTimeout:
+                              description: |-
+                                idleTimeout is how long after the last task before auto-suspending.
+                                Only used when SuspendPolicy is "auto" (e.g., "30m", "1h").
+                              type: string
+                            suspendPolicy:
+                              default: never
+                              description: |-
+                                suspendPolicy controls when the knight is suspended.
+                                Values: auto, manual, never (default: never)
+                              enum:
+                                - auto
+                                - manual
+                                - never
+                              type: string
+                          type: object
+                        model:
+                          default: openrouter/deepseek/deepseek-v3.2
+                          description: model is the AI model to use (e.g., "openrouter/deepseek/deepseek-v3.2", "claude-sonnet-4-20250514").
+                          type: string
+                        nats:
+                          description: nats configures the knight's NATS JetStream consumer and subjects.
+                          properties:
+                            consumerName:
+                              description: |-
+                                consumerName overrides the auto-generated durable consumer name.
+                                Defaults to "knight-{name}".
+                              type: string
+                            maxDeliver:
+                              default: 1
+                              description: maxDeliver is the maximum number of delivery attempts per message.
+                              format: int32
+                              minimum: 1
+                              type: integer
+                            resultsStream:
+                              default: fleet_a_results
+                              description: resultsStream is the JetStream stream to publish results to.
+                              type: string
+                            stream:
+                              default: fleet_a_tasks
+                              description: stream is the JetStream stream name to consume from.
+                              type: string
+                            subjects:
+                              description: |-
+                                subjects defines the JetStream filter subjects for task consumption.
+                                e.g., ["fleet-a.tasks.security.>"]
+                              items:
+                                type: string
+                              minItems: 1
+                              type: array
+                            url:
+                              default: nats://nats.database.svc:4222
+                              description: url is the NATS server URL.
+                              type: string
+                          required:
+                            - subjects
+                          type: object
+                        nixPackages:
+                          description: |-
+                            nixPackages lists nix packages to install during knight bootstrap.
+                            Packages are installed via: nix profile install nixpkgs#<pkg>
+                          items:
+                            type: string
+                          type: array
+                        prompt:
+                          description: prompt allows overriding the knight's system prompt components.
+                          properties:
+                            configMapRef:
+                              description: |-
+                                configMapRef references a ConfigMap containing prompt overrides.
+                                Keys: "AGENTS.md", "TOOLS.md", "SOUL.md"
+                              properties:
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            identity:
+                              description: identity overrides the knight's identity/persona description.
+                              type: string
+                            instructions:
+                              description: instructions provides additional instructions appended to the system prompt.
+                              type: string
+                          type: object
+                        resources:
+                          description: resources defines compute resource requirements for the knight container.
+                          properties:
+                            cpu:
+                              anyOf:
+                                - type: integer
+                                - type: string
+                              default: 200m
+                              description: cpu is the CPU limit for the knight container.
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            memory:
+                              anyOf:
+                                - type: integer
+                                - type: string
+                              default: 256Mi
+                              description: memory is the memory limit for the knight container.
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                          type: object
+                        runtime:
+                          default: deployment
+                          description: |-
+                            runtime selects the backend for managing this knight's pod.
+                            "deployment" uses a standard Kubernetes Deployment (default).
+                            "sandbox" uses Agent Sandbox (agents.x-k8s.io) for lifecycle management.
+                          enum:
+                            - deployment
+                            - sandbox
+                          type: string
+                        serviceAccountName:
+                          description: |-
+                            serviceAccountName is the name of the ServiceAccount to use for the knight pod.
+                            If empty, the namespace default ServiceAccount is used.
+                          type: string
+                        skills:
+                          description: |-
+                            skills defines which skill categories this knight has access to.
+                            The operator will configure the skill-filter sidecar accordingly.
+                          items:
+                            type: string
+                          minItems: 1
+                          type: array
+                        suspended:
+                          default: false
+                          description: suspended, if true, scales the knight deployment to 0 replicas.
+                          type: boolean
+                        taskTimeout:
+                          default: 120
+                          description: taskTimeout is the default task timeout in seconds.
+                          format: int32
+                          maximum: 3600
+                          minimum: 30
+                          type: integer
+                        tools:
+                          description: tools defines additional system packages and tools the knight needs.
+                          properties:
+                            apt:
+                              description: apt is a list of apt packages to install (fallback, requires root — prefer nix).
+                              items:
+                                type: string
+                              type: array
+                            mise:
+                              description: mise is a list of tools to install via mise (e.g., "shodan", "kubectl").
+                              items:
+                                type: string
+                              type: array
+                            nix:
+                              description: |-
+                                nix is a list of nixpkgs packages to install via Nix flakes (e.g., "nmap", "whois", "dnsutils").
+                                These get compiled into a flake.nix and built on first boot, cached on the Nix PVC.
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        vault:
+                          description: vault configures the shared Obsidian vault mount.
+                          properties:
+                            claimName:
+                              default: obsidian-vault
+                              description: claimName is the PVC name for the shared vault.
+                              type: string
+                            readOnly:
+                              default: true
+                              description: readOnly mounts the base vault as read-only.
+                              type: boolean
+                            writablePaths:
+                              default:
+                                - Briefings/
+                                - Roundtable/
+                              description: writablePaths are subpaths within the vault the knight can write to.
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        workspace:
+                          description: workspace configures the knight's persistent workspace.
+                          properties:
+                            existingClaim:
+                              description: |-
+                                existingClaim references an existing PVC to use instead of creating a new one.
+                                Useful for migrating existing knights to operator management.
+                              type: string
+                            size:
+                              default: 1Gi
+                              description: size is the storage request for auto-created PVCs.
+                              type: string
+                          type: object
+                      required:
+                        - domain
+                        - nats
+                        - skills
+                      type: object
+                  required:
+                    - template
+                  type: object
+              required:
+                - nats
+              type: object
+            status:
+              description: status defines the observed state of RoundTable
+              properties:
+                activeMissions:
+                  description: activeMissions is the number of currently active missions under this table.
+                  format: int32
+                  type: integer
+                conditions:
+                  description: conditions represent the current state of the RoundTable resource.
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                knights:
+                  description: knights provides a summary of each knight's status.
+                  items:
+                    description: RoundTableKnightSummary provides an aggregated view of a knight's status.
+                    properties:
+                      name:
+                        description: name is the knight name.
+                        type: string
+                      phase:
+                        description: phase is the knight's current phase.
+                        enum:
+                          - Pending
+                          - Provisioning
+                          - Ready
+                          - Degraded
+                          - Suspended
+                        type: string
+                      ready:
+                        description: ready indicates whether this knight is ready.
+                        type: boolean
+                    required:
+                      - name
+                    type: object
+                  type: array
+                knightsReady:
+                  description: knightsReady is the number of knights in Ready phase.
+                  format: int32
+                  type: integer
+                knightsTotal:
+                  description: knightsTotal is the total number of knights in this table.
+                  format: int32
+                  type: integer
+                observedGeneration:
+                  description: observedGeneration is the most recent generation observed by the controller.
+                  format: int64
+                  type: integer
+                phase:
+                  description: phase is the current lifecycle phase of the round table.
+                  enum:
+                    - Provisioning
+                    - Ready
+                    - Degraded
+                    - Suspended
+                    - OverBudget
+                  type: string
+                totalCost:
+                  description: totalCost is the aggregate cost in USD across all knights since last reset.
+                  type: string
+                totalTasksCompleted:
+                  description: totalTasksCompleted is the aggregate tasks completed across all knights.
+                  format: int64
+                  type: integer
+                warmPool:
+                  description: warmPool reports the current state of the warm pool.
+                  properties:
+                    available:
+                      description: available is the number of warm knights ready to be claimed.
+                      format: int32
+                      type: integer
+                    claimed:
+                      description: claimed is the total number of warm knights claimed by missions since last reset.
+                      format: int32
+                      type: integer
+                    provisioning:
+                      description: provisioning is the number of warm knights still starting up.
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

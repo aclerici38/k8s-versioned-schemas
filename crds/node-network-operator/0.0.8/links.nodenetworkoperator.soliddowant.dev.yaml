@@ -1,0 +1,346 @@
+# Source: node-network-operator/templates/crds.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.0.0-20250818134112-b624019bbe8d
+    helm.sh/resource-policy: keep
+  name: links.nodenetworkoperator.soliddowant.dev
+spec:
+  group: nodenetworkoperator.soliddowant.dev
+  names:
+    kind: Link
+    listKind: LinkList
+    plural: links
+    singular: link
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: Link is the Schema for the links API
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: spec defines the desired state of Link
+              properties:
+                bridge:
+                  description: Bridge defines the desired state of the link as a bridge.
+                  properties:
+                    mtu:
+                      description: |-
+                        MTU is the maximum transmission unit for the bridge interface.
+                        This should be at least as large as the largest frame payload that will be sent over the bridge.
+                        If not specified, the default MTU for the node will be used.
+                      format: int32
+                      maximum: 65535
+                      minimum: 68
+                      type: integer
+                  type: object
+                interfaceName:
+                  description: |-
+                    LinkName is the name that should be used for the actual network link.
+                    If a link interface with this name already exists, it will be adopted.
+                    If it does not exist, a new link will be created.
+                    It is the responsibility of the user to ensure that the link name is unique across selected nodes.
+                  maxLength: 15
+                  pattern: ^[^\s/]+$
+                  type: string
+                nodeSelector:
+                  description: NodeSelector is used to select nodes that the link should be deployed to.
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      items:
+                        description: |-
+                          A label selector requirement is a selector that contains values, a key, and an operator that
+                          relates the key and values.
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies to.
+                            type: string
+                          operator:
+                            description: |-
+                              operator represents a key's relationship to a set of values.
+                              Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: |-
+                              values is an array of string values. If the operator is In or NotIn,
+                              the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                              the values array must be empty. This array is replaced during a strategic
+                              merge patch.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                        map is equivalent to an element of matchExpressions, whose key field is "key", the
+                        operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
+                unmanaged:
+                  description: |-
+                    Unmanaged indicates that the link is unmanaged by the operator.
+                    This can be used to reference links that are managed outside of the operator.
+                  type: object
+                vxlan:
+                  description: VXLAN defines the desired state of the link as a VXLAN.
+                  properties:
+                    device:
+                      description: |-
+                        Device is the network interface used for vxlan-encapsulated traffic.
+                        If not specified, the default is to use the first interface that netlink can use when sending traffic to the
+                        multicast address - effectively `ip route get <multicast address>`.
+                        Note: Setting this will cause netlink to delete the vxlan link immediately if the referenced device is deleted.
+                      properties:
+                        name:
+                          description: Name is the name of the referenced link resource.
+                          type: string
+                        optional:
+                          default: false
+                          description: |-
+                            Optional specifies whether the link reference is optional. If false, the link
+                            will be brought down if the referenced link is not found, or is not ready.
+                            Warning: setting this to "true" could situationally lead to packets not matching
+                            the correct netfilter rules, resulting in traffic passed, dropped, or misrouted.
+                          type: boolean
+                        setDownOnDependencyUpdate:
+                          default: true
+                          description: |-
+                            SetDownOnDependencyUpdate specifies whether the link should be brought down when
+                            the dependency link is updated. Under certain specific conditions, when a dependency
+                            link is updated, the dependent link may temporarily be a part of an undesired
+                            dependency chain. This can lead to packets being sent over the wrong link, or dropped.
+                            Setting this to true will cause the link to be brought down when the dependency link,
+                            or any of its dependencies, are updated. It will be brought back up once all dependencies
+                            are in their desired states.
+
+                            Here is an example of when this can happen when this option is false ("linkA -> linkB"
+                            means "linkA is the master of linkB"):
+                            Starting state: linkA -> linkB -> linkC, linkD, linkE
+                            Desired state: linkA, linkD -> linkB, linkE -> linkC
+                            If linkB is updated prior to linkC, then the interfaces will have an intermediate state of:
+                            linkA, linkD -> linkB -> linkC, linkE
+                            In this state, traffic that is supposed to go over linkE via the desired linkE -> linkC
+                            chain will instead be sent over linkB. By setting this to "true", linkC will be brought
+                            down when linkB is updated, and brought back up after it moves to linkE, preventing this
+                            issue.
+                          type: boolean
+                      required:
+                        - name
+                      type: object
+                    master:
+                      description: |-
+                        Master is the link that this VXLAN interface will be enslaved to.
+                        This is typically a bridge interface.
+                      properties:
+                        name:
+                          description: Name is the name of the referenced link resource.
+                          type: string
+                        optional:
+                          default: false
+                          description: |-
+                            Optional specifies whether the link reference is optional. If false, the link
+                            will be brought down if the referenced link is not found, or is not ready.
+                            Warning: setting this to "true" could situationally lead to packets not matching
+                            the correct netfilter rules, resulting in traffic passed, dropped, or misrouted.
+                          type: boolean
+                        setDownOnDependencyUpdate:
+                          default: true
+                          description: |-
+                            SetDownOnDependencyUpdate specifies whether the link should be brought down when
+                            the dependency link is updated. Under certain specific conditions, when a dependency
+                            link is updated, the dependent link may temporarily be a part of an undesired
+                            dependency chain. This can lead to packets being sent over the wrong link, or dropped.
+                            Setting this to true will cause the link to be brought down when the dependency link,
+                            or any of its dependencies, are updated. It will be brought back up once all dependencies
+                            are in their desired states.
+
+                            Here is an example of when this can happen when this option is false ("linkA -> linkB"
+                            means "linkA is the master of linkB"):
+                            Starting state: linkA -> linkB -> linkC, linkD, linkE
+                            Desired state: linkA, linkD -> linkB, linkE -> linkC
+                            If linkB is updated prior to linkC, then the interfaces will have an intermediate state of:
+                            linkA, linkD -> linkB -> linkC, linkE
+                            In this state, traffic that is supposed to go over linkE via the desired linkE -> linkC
+                            chain will instead be sent over linkB. By setting this to "true", linkC will be brought
+                            down when linkB is updated, and brought back up after it moves to linkE, preventing this
+                            issue.
+                          type: boolean
+                      required:
+                        - name
+                      type: object
+                    mtu:
+                      description: |-
+                        MTU is the maximum transmission unit for the VXLAN interface.
+                        This should be at least as large as the largest frame payload that will be sent over the VXLAN tunnel, but less
+                        that then MTU of the master (if any).
+                        If not specified, the default MTU for the node will be used.
+                      format: int32
+                      maximum: 65535
+                      minimum: 68
+                      type: integer
+                    port:
+                      default: 4789
+                      description: |-
+                        RemotePort is the remote VTEP UDP port used for VXLAN encapsulation.
+                        Multiple VTEPS can share the same port, as long as they have different VNIDs.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    remoteIPAddress:
+                      description: |-
+                        RemoteIPAddress defines the remote VTEP(s) for VXLAN traffic. This can refer to a single
+                        host, or a multicast group.
+                      format: ipv4
+                      type: string
+                    sourcePort:
+                      default:
+                        end: 4789
+                        start: 4789
+                      description: SourcePort is the source UDP port used for VXLAN encapsulation.
+                      properties:
+                        end:
+                          description: End is the ending port of the range.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                        start:
+                          description: Start is the starting port of the range.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                      required:
+                        - end
+                        - start
+                      type: object
+                      x-kubernetes-validations:
+                        - message: end must be greater than or equal to start
+                          rule: self.end >= self.start
+                    vnid:
+                      description: |-
+                        VNID is the Virtual Network Identifier for the underlay network.
+                        Note: Only one VXLAN interface with a given VNID can exist on a node. This is not validated
+                        by the operator, and is the responsibility of the user to ensure this is unique across
+                        all VXLAN links on the node. Deploying multiple VXLAN links with the same VNID will result
+                        in the operator repeatedly trying to create the link, and failing.
+                      format: int32
+                      maximum: 1.6777215e+07
+                      minimum: 1
+                      type: integer
+                  type: object
+              required:
+                - interfaceName
+              type: object
+              x-kubernetes-validations:
+                - message: exactly one of the fields in [bridge vxlan unmanaged] must be set
+                  rule: '[has(self.bridge),has(self.vxlan),has(self.unmanaged)].filter(x,x==true).size() == 1'
+            status:
+              description: status defines the observed state of Link
+              properties:
+                conditions:
+                  description: Conditions is a list of conditions that apply to the bridge configuration.
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                matchedNodes:
+                  description: |-
+                    MatchedNodes is a list of node names that match the bridge's node selector.
+                    This is used to track which nodes the bridge is deployed to.
+                  items:
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: atomic
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

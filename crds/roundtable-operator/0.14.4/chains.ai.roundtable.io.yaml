@@ -1,0 +1,414 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: chains.ai.roundtable.io
+spec:
+  group: ai.roundtable.io
+  names:
+    categories:
+      - roundtable
+    kind: Chain
+    listKind: ChainList
+    plural: chains
+    shortNames:
+      - ch
+    singular: chain
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .spec.steps
+          name: Steps
+          priority: 1
+          type: integer
+        - jsonPath: .spec.schedule
+          name: Schedule
+          type: string
+        - jsonPath: .status.runsCompleted
+          name: Runs
+          type: integer
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            Chain is the Schema for the chains API.
+            A Chain represents a declarative multi-knight task pipeline in the Round Table,
+            with support for parallel fan-out, sequential dependencies, data passing between
+            steps, and optional cron scheduling.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: spec defines the desired state of Chain
+              properties:
+                description:
+                  description: description is a human-readable summary of what this chain accomplishes.
+                  type: string
+                input:
+                  description: input provides initial data passed to the first step(s) as JSON.
+                  type: string
+                missionRef:
+                  description: |-
+                    missionRef is set by the mission controller when creating mission-scoped chains.
+                    The chain controller uses this to resolve NATS config from the mission's RoundTable.
+                  type: string
+                notify:
+                  description: |-
+                    notify configures a completion notification fired exactly once per run
+                    when the chain reaches a terminal phase (Succeeded, Failed,
+                    PartiallySucceeded).
+                  properties:
+                    webhook:
+                      description: |-
+                        webhook posts a roundtable.notify/v1 JSON payload to an HTTP endpoint.
+                        The URL must match one of the operator's allowed URL prefixes
+                        (notify.allowedURLPrefixes Helm value); non-matching URLs are rejected
+                        with a NotificationSent=False condition and a warning Event.
+                      properties:
+                        context:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            context is an opaque map echoed verbatim in the payload, letting the
+                            caller correlate the completion back to its origin (e.g. a chat
+                            session or channel).
+                          type: object
+                        tokenSecretRef:
+                          description: |-
+                            tokenSecretRef references a Secret key (in the resource's namespace)
+                            holding a bearer token sent in the Authorization header. Never inline
+                            tokens in the spec.
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must be a valid secret key.
+                              type: string
+                            name:
+                              default: ""
+                              description: |-
+                                Name of the referent.
+                                This field is effectively required, but due to backwards compatibility is
+                                allowed to be empty. Instances of this type with an empty value here are
+                                almost certainly wrong.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must be defined
+                              type: boolean
+                          required:
+                            - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        url:
+                          description: url is the endpoint to POST the completion payload to.
+                          minLength: 1
+                          pattern: ^https?://
+                          type: string
+                      required:
+                        - url
+                      type: object
+                  type: object
+                outputKnight:
+                  default: gawain
+                  description: |-
+                    outputKnight is the knight responsible for writing chain artifacts when steps have outputPath set.
+                    Defaults to "gawain" if not specified.
+                  type: string
+                retryPolicy:
+                  description: retryPolicy configures retry behavior for failed steps.
+                  properties:
+                    backoffSeconds:
+                      default: 30
+                      description: backoffSeconds is the delay between retries in seconds.
+                      format: int32
+                      type: integer
+                    maxRetries:
+                      default: 0
+                      description: maxRetries is the maximum number of retries per step.
+                      format: int32
+                      maximum: 5
+                      minimum: 0
+                      type: integer
+                  type: object
+                roundTableRef:
+                  description: |-
+                    roundTableRef references the RoundTable this chain belongs to.
+                    If omitted, the chain operates in the default namespace NATS prefix.
+                  type: string
+                schedule:
+                  description: |-
+                    schedule is an optional cron expression to trigger this chain on a recurring basis.
+                    Uses standard cron syntax (e.g., "0 */6 * * *").
+                  type: string
+                startingDeadlineSeconds:
+                  description: |-
+                    startingDeadlineSeconds bounds catch-up of missed scheduled runs.
+                    If the controller was down when a scheduled run should have fired, the
+                    run is triggered late only if fewer than this many seconds have passed
+                    since the missed schedule time. If not set, a missed run is always
+                    caught up (at most one catch-up run is triggered).
+                  format: int64
+                  minimum: 1
+                  type: integer
+                steps:
+                  description: |-
+                    steps defines the ordered list of pipeline steps.
+                    Steps execute sequentially unless parallel grouping is used via `parallel`.
+                  items:
+                    description: ChainStep defines a single step in the pipeline.
+                    properties:
+                      continueOnFailure:
+                        default: false
+                        description: continueOnFailure allows downstream steps to proceed even if this step fails.
+                        type: boolean
+                      dependsOn:
+                        description: |-
+                          dependsOn lists step names that must complete successfully before this step runs.
+                          If empty, the step runs immediately (or after the previous step in sequence).
+                        items:
+                          type: string
+                        type: array
+                      knightRef:
+                        description: knightRef is the name of the Knight to execute this step.
+                        type: string
+                      name:
+                        description: name is a unique identifier for this step within the chain.
+                        minLength: 1
+                        type: string
+                      outputKey:
+                        description: |-
+                          outputKey is the key name under which this step's output is stored for downstream steps.
+                          Defaults to the step name if not specified.
+                        type: string
+                      outputPath:
+                        description: |-
+                          outputPath is an optional file path where this step's output should be written.
+                          Supports Go template variables: {{ .Date }} (YYYY-MM-DD), {{ .Chain }} (chain name), {{ .Step }} (step name).
+                          When set, the controller dispatches a write task to the outputKnight after the step succeeds.
+                        type: string
+                      retry:
+                        description: retry configures per-step retry behavior, overriding the chain-level retryPolicy.
+                        properties:
+                          backoffSeconds:
+                            default: 30
+                            description: backoffSeconds is the delay between retries in seconds.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          maxAttempts:
+                            default: 0
+                            description: maxAttempts is the maximum number of retry attempts for this step.
+                            format: int32
+                            maximum: 10
+                            minimum: 0
+                            type: integer
+                        type: object
+                      task:
+                        description: |-
+                          task is the task prompt or instruction to send to the knight.
+                          Supports Go template syntax with access to prior step outputs: {{ .Steps.step_name.Output }}
+                        type: string
+                      timeout:
+                        default: 120
+                        description: timeout is the per-step timeout in seconds. Overrides the knight's default taskTimeout.
+                        format: int32
+                        maximum: 3600
+                        minimum: 10
+                        type: integer
+                    required:
+                      - knightRef
+                      - name
+                      - task
+                    type: object
+                  minItems: 1
+                  type: array
+                suspended:
+                  default: false
+                  description: suspended, if true, prevents scheduled runs and disallows new executions.
+                  type: boolean
+                timeout:
+                  default: 600
+                  description: timeout is the overall chain timeout in seconds. The entire chain is failed if exceeded.
+                  format: int32
+                  maximum: 86400
+                  minimum: 30
+                  type: integer
+              required:
+                - steps
+              type: object
+            status:
+              description: status defines the observed state of Chain
+              properties:
+                completedAt:
+                  description: completedAt is when the current chain run finished.
+                  format: date-time
+                  type: string
+                conditions:
+                  description: conditions represent the current state of the Chain resource.
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                lastScheduledAt:
+                  description: lastScheduledAt is when the chain was last triggered by its cron schedule.
+                  format: date-time
+                  type: string
+                observedGeneration:
+                  description: observedGeneration is the most recent generation observed by the controller.
+                  format: int64
+                  type: integer
+                phase:
+                  description: phase is the current lifecycle phase of the chain.
+                  enum:
+                    - Idle
+                    - Running
+                    - Succeeded
+                    - Failed
+                    - Suspended
+                    - PartiallySucceeded
+                  type: string
+                runId:
+                  description: |-
+                    runId uniquely identifies the current (or most recent) chain run.
+                    It is embedded in task IDs and NATS KV entries so results produced by
+                    a previous run can never be attributed to the current one.
+                  type: string
+                runsCompleted:
+                  description: runsCompleted is the total number of successful chain runs.
+                  format: int64
+                  type: integer
+                runsFailed:
+                  description: runsFailed is the total number of failed chain runs.
+                  format: int64
+                  type: integer
+                startedAt:
+                  description: startedAt is when the current chain run began.
+                  format: date-time
+                  type: string
+                stepStatuses:
+                  description: stepStatuses tracks the status of each step.
+                  items:
+                    description: ChainStepStatus tracks the execution status of an individual step.
+                    properties:
+                      completedAt:
+                        description: completedAt is when the step finished execution.
+                        format: date-time
+                        type: string
+                      error:
+                        description: error contains the error message if the step failed.
+                        type: string
+                      name:
+                        description: name matches the step name from the spec.
+                        type: string
+                      output:
+                        description: output is the result data from this step (truncated if large).
+                        type: string
+                      phase:
+                        description: phase is the current execution phase of this step.
+                        enum:
+                          - Pending
+                          - Running
+                          - Succeeded
+                          - Failed
+                          - Skipped
+                        type: string
+                      retries:
+                        description: retries is the number of retry attempts made.
+                        format: int32
+                        type: integer
+                      startedAt:
+                        description: startedAt is when the step began execution.
+                        format: date-time
+                        type: string
+                      taskId:
+                        description: |-
+                          taskID is the unique NATS task identifier for this step's current execution.
+                          Used to poll for the exact result message, preventing stale result replay.
+                        type: string
+                    required:
+                      - name
+                    type: object
+                  type: array
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

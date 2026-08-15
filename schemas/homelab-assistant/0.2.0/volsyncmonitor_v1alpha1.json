@@ -1,0 +1,464 @@
+{
+  "description": "VolSyncMonitor is the Schema for the volsyncmonitors API",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "VolSyncMonitorSpec defines the desired state of VolSyncMonitor",
+      "properties": {
+        "enabled": {
+          "description": "Enabled controls whether the monitor is active",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "jobSelector": {
+          "additionalProperties": false,
+          "description": "JobSelector defines how to identify VolSync jobs to monitor\nIf not specified, monitors all jobs with \"volsync-\" prefix",
+          "properties": {
+            "labelSelector": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "LabelSelector filters jobs by labels",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "namePrefix": {
+              "description": "NamePrefix filters jobs by name prefix (default: \"volsync-\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "namespaces": {
+              "description": "Namespaces to monitor (if empty, monitors all namespaces)",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lockErrorPatterns": {
+          "description": "LockErrorPatterns are regex patterns to match in job logs that indicate lock issues\nDefault patterns will be used if not specified",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "maxConcurrentUnlocks": {
+          "description": "MaxConcurrentUnlocks limits the number of concurrent unlock operations",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "removeFailedJobs": {
+          "description": "RemoveFailedJobs controls whether to remove failed VolSync jobs after creating unlock jobs",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "scanInterval": {
+          "description": "ScanInterval defines how often to scan for failed jobs (default: 30s)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ttlSecondsAfterFinished": {
+          "description": "TTLSecondsAfterFinished specifies the TTL for unlock jobs",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unlockJobTemplate": {
+          "additionalProperties": false,
+          "description": "UnlockJobTemplate defines the template for unlock jobs",
+          "properties": {
+            "args": {
+              "description": "Args are the arguments to pass to the command\nDefaults to [\"-c\", \"restic unlock\"] if not specified",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "command": {
+              "description": "Command is the command to run in the unlock job\nDefaults to [\"/bin/sh\"] if not specified",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "image": {
+              "description": "Image is the container image to use for unlock jobs\nThis should typically be the same image as used in your VolSync jobs",
+              "type": "string"
+            },
+            "resources": {
+              "additionalProperties": false,
+              "description": "Resources defines resource requirements for unlock jobs\nIf not specified, no resource limits are set (inherited config doesn't include resources)",
+              "properties": {
+                "limits": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Limits describes the maximum amount of compute resources allowed",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "requests": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Requests describes the minimum amount of compute resources required",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "securityContext": {
+              "additionalProperties": false,
+              "description": "SecurityContext for unlock jobs\nIf not specified, inherits the security context from the failed job",
+              "properties": {
+                "fsGroup": {
+                  "description": "FSGroup defines a file system group ID for all containers",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "runAsGroup": {
+                  "description": "RunAsGroup is the GID to run the entrypoint of the container process",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "runAsUser": {
+                  "description": "RunAsUser is the UID to run the entrypoint of the container process",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "serviceAccount": {
+              "description": "ServiceAccount to use for unlock jobs\nIf not specified, inherits the service account from the failed job",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "image"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "unlockJobTemplate"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "VolSyncMonitorStatus defines the observed state of VolSyncMonitor",
+      "properties": {
+        "activeUnlocks": {
+          "description": "ActiveUnlocks tracks currently running unlock operations",
+          "items": {
+            "additionalProperties": false,
+            "description": "ActiveUnlock represents an active unlock operation",
+            "properties": {
+              "alertFingerprint": {
+                "description": "AlertFingerprint is the unique identifier of the alert",
+                "type": "string"
+              },
+              "appName": {
+                "description": "AppName is the name of the application",
+                "type": "string"
+              },
+              "jobName": {
+                "description": "JobName is the name of the unlock job",
+                "type": "string"
+              },
+              "namespace": {
+                "description": "Namespace is the namespace of the VolSync resource",
+                "type": "string"
+              },
+              "objectName": {
+                "description": "ObjectName is the name of the VolSync object",
+                "type": "string"
+              },
+              "startTime": {
+                "description": "StartTime is when the unlock started",
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "alertFingerprint",
+              "appName",
+              "jobName",
+              "namespace",
+              "objectName",
+              "startTime"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "conditions": {
+          "description": "Conditions represent the latest available observations",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "lastError": {
+          "description": "LastError contains the last error encountered",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastUnlockTime": {
+          "description": "LastUnlockTime is the timestamp of the last unlock operation",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the last generation observed by the controller",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase represents the current phase of the monitor",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "processedJobs": {
+          "description": "ProcessedJobs tracks jobs that have been processed (failed jobs that were handled)",
+          "items": {
+            "additionalProperties": false,
+            "description": "ProcessedJob represents a failed job that was processed",
+            "properties": {
+              "jobName": {
+                "description": "JobName is the name of the failed job",
+                "type": "string"
+              },
+              "lockError": {
+                "description": "LockError is the lock error that was detected",
+                "type": "string"
+              },
+              "namespace": {
+                "description": "Namespace is the namespace of the failed job",
+                "type": "string"
+              },
+              "processedTime": {
+                "description": "ProcessedTime is when the job was processed",
+                "format": "date-time",
+                "type": "string"
+              },
+              "removed": {
+                "description": "Removed indicates if the failed job was removed",
+                "type": "boolean"
+              },
+              "unlockJobName": {
+                "description": "UnlockJobName is the name of the unlock job created for this failed job",
+                "type": "string"
+              }
+            },
+            "required": [
+              "jobName",
+              "lockError",
+              "namespace",
+              "processedTime",
+              "removed",
+              "unlockJobName"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "totalFailedJobsRemoved": {
+          "description": "TotalFailedJobsRemoved is the total number of failed jobs removed",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "totalLockErrorsDetected": {
+          "description": "TotalLockErrorsDetected is the total number of lock errors detected",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "totalUnlocksCreated": {
+          "description": "TotalUnlocksCreated is the total number of unlock jobs created",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "totalUnlocksFailed": {
+          "description": "TotalUnlocksFailed is the total number of unlock jobs that failed",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "totalUnlocksSucceeded": {
+          "description": "TotalUnlocksSucceeded is the total number of unlock jobs that succeeded",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}

@@ -1,0 +1,530 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LLMKube Helm chart values",
+  "description": "Catches typos and invalid values at 'helm install' time. Kept strict on enums and structured sub-objects; permissive on free-form maps (annotations/labels/nodeSelector) and passthrough Kubernetes fields (tolerations/affinity).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "controllerManager": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "registry": { "type": "string" },
+            "repository": { "type": "string", "minLength": 1 },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "tag": { "type": "string" },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          }
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "leaderElection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "limits": {
+              "type": "object",
+              "additionalProperties": { "type": ["string", "number"] }
+            },
+            "requests": {
+              "type": "object",
+              "additionalProperties": { "type": ["string", "number"] }
+            }
+          }
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "securityContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "livenessProbe": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "readinessProbe": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "affinity": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "initContainer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "registry": { "type": "string" },
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string" },
+            "defaultFSGroup": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Default fsGroup applied to inference pods when Spec.PodSecurityContext is unset. 102 matches curlimages/curl curl_group GID. Set to 0 to disable on OpenShift."
+            }
+          }
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          }
+        },
+        "caCertConfigMap": { "type": "string" },
+        "routerProxy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Default container image for ModelRouter-managed router-proxy pods. Per-ModelRouter spec.proxy.image overrides this.",
+          "properties": {
+            "registry": { "type": "string" },
+            "repository": { "type": "string", "minLength": 1 },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            },
+            "tag": { "type": "string" },
+            "digest": { "type": "string" },
+            "defaultLiteLLMURL": { "type": "string" }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "name": { "type": "string" }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "emitScrapeAnnotations": { "type": "boolean" },
+        "secure": { "type": "boolean" },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "nodePort": {
+              "description": "Empty string for auto-assign, or explicit int in 30000-32767.",
+              "oneOf": [
+                { "type": "string", "pattern": "^$" },
+                { "type": "integer", "minimum": 30000, "maximum": 32767 }
+              ]
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "prometheus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "interval": { "type": "string" },
+            "namespace": { "type": "string" }
+          }
+        },
+        "inferencePodMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "interval": { "type": "string" }
+          }
+        },
+        "routerPodMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "interval": { "type": "string" }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "namespace": { "type": "string" },
+            "rules": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "gpu": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "highUtilizationThreshold": { "type": "number", "minimum": 0, "maximum": 100 },
+                    "highTemperatureThreshold": { "type": "number", "minimum": 0, "maximum": 125 },
+                    "memoryPressure": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "enabled": { "type": "boolean" }
+                      }
+                    },
+                    "memoryPressureThreshold": { "type": "number", "minimum": 0, "maximum": 100 },
+                    "powerLimitThreshold": { "type": "number", "minimum": 0 }
+                  }
+                },
+                "inference": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "grafana": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dashboards": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "only": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "namespace": { "type": "string" },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "operator": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "mode": { "type": "string", "enum": ["auto", "all"] },
+                "instanceSelector": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "allowCrossNamespaceImport": { "type": "boolean" },
+                "folder": { "type": "string" },
+                "resyncPeriod": { "type": "string", "pattern": "^$|^[0-9]+(ms|s|m|h)$" },
+                "datasources": {
+                  "type": "array",
+                  "items": { "type": "object" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "pyrra": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "crds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "install": { "type": "boolean" },
+        "keep": { "type": "boolean" }
+      }
+    },
+    "modelCache": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mode": {
+          "type": "string",
+          "enum": ["perService", "shared"],
+          "default": "shared"
+        },
+        "size": { "type": "string", "minLength": 1 },
+        "storageClass": { "type": "string" },
+        "accessMode": {
+          "type": "string",
+          "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
+        },
+        "mountPath": { "type": "string", "pattern": "^/" },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "modelSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowedHostPathRoots": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^/" },
+          "default": []
+        },
+        "allowedRemoteHosts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      }
+    },
+    "priorityClasses": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auditLog": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "envoyProxyName": { "type": "string", "minLength": 1 },
+            "envoyProxyNamespace": { "type": "string" },
+            "otel": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "backendRef": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": { "type": "string", "minLength": 1 },
+                    "namespace": { "type": "string" },
+                    "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                  }
+                },
+                "resourceAttributes": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "serviceName": { "type": "string" },
+                    "clusterName": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "podLabels": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "networkPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "additionalEgressCIDRs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "webhook": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "failurePolicy": {
+          "type": "string",
+          "enum": ["Fail", "Ignore"]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "certValidityDays": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "multitenancy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "gpuSharing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "GPU sharing configuration for the operator's gpuSharing feature (#1196).",
+      "properties": {
+        "pools": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shared": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "nodeSelector": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "vramPerDeviceGiB": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Device memory (GiB) of one whole GPU; 0 means unset."
+        }
+      }
+    },
+    "runtimeImages": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Fleet-wide runtime image overrides; empty string means the operator's pinned default.",
+      "properties": {
+        "llamacpp": { "type": "string" },
+        "vllm": { "type": "string" },
+        "sglang": { "type": "string" },
+        "tgi": { "type": "string" }
+      }
+    },
+    "platformFloors": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Informational Blackwell platform floors rendered into NOTES.txt; not enforced.",
+      "properties": {
+        "show": { "type": "boolean" },
+        "nvidiaDriver": { "type": "string" },
+        "cudaToolkit": { "type": "string" },
+        "nccl": { "type": "string" },
+        "gpuOperator": { "type": "string" },
+        "k8sDevicePlugin": { "type": "string" },
+        "dcgmExporter": { "type": "string" },
+        "fabricManager": { "type": "string" }
+      }
+    }
+  }
+}

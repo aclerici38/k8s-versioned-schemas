@@ -1,0 +1,687 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "affinity": {
+      "description": "Affinity rules for pod scheduling (templated).",
+      "required": [],
+      "title": "affinity",
+      "type": "object"
+    },
+    "config": {
+      "description": "The exporter's runtime configuration. Each key maps to a DRM_EXPORTER_* (or\nRUST_LOG) environment variable the binary reads; see the README for details.",
+      "properties": {
+        "devices": {
+          "description": "Restrict export to specific PCI slots, e.g. `[\"0000:03:00.0\"]` (DRM_EXPORTER_DEVICES); empty exports every GPU discovered.",
+          "items": {
+            "required": []
+          },
+          "title": "devices",
+          "type": "array"
+        },
+        "intervalSeconds": {
+          "default": 5,
+          "description": "Seconds between GPU stat refreshes (DRM_EXPORTER_INTERVAL_SECONDS). Intel engine utilization is sampled across this window, so keep it at or below the Prometheus scrape interval.",
+          "title": "intervalSeconds",
+          "type": "integer"
+        },
+        "logLevel": {
+          "default": "info",
+          "description": "Log level (RUST_LOG): error, warn, info, debug, or trace.",
+          "title": "logLevel",
+          "type": "string"
+        },
+        "port": {
+          "default": 8081,
+          "description": "Metrics HTTP listen port (DRM_EXPORTER_PORT); also the container and Service port.",
+          "title": "port",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "config",
+      "type": "object"
+    },
+    "daemonsetAnnotations": {
+      "description": "Annotations added to the DaemonSet (workload) metadata, e.g. `reloader.stakater.com/auto: \"true\"`.",
+      "required": [],
+      "title": "daemonsetAnnotations",
+      "type": "object"
+    },
+    "dra": {
+      "description": "Dynamic Resource Allocation (DRA). On a cluster with a DRA GPU driver (e.g. the\nIntel GPU resource driver, device class `gpu.intel.com`), the exporter can claim\nGPU devices through a ResourceClaimTemplate instead of, or alongside, the\nhostAccess mounts. The default is an admin-access *monitor* claim: read-only\nvisibility of every GPU on the node, allocated as `All` and not counted as\nconsumed (so it never steals a VF from a workload). Admin access requires the\nrelease namespace to carry the label `resource.kubernetes.io/admin-access: \"true\"`.\nOff by default; `resource.k8s.io/v1` is GA in Kubernetes 1.34.",
+      "properties": {
+        "adminAccess": {
+          "default": true,
+          "description": "Request admin access: read-only visibility of devices, not counted as consumed. Requires the namespace label `resource.kubernetes.io/admin-access: \"true\"`.",
+          "title": "adminAccess",
+          "type": "boolean"
+        },
+        "allocationMode": {
+          "default": "All",
+          "description": "Allocation mode: `All` (every matching device on the node) or `ExactCount`.",
+          "title": "allocationMode",
+          "type": "string"
+        },
+        "annotations": {
+          "description": "ResourceClaimTemplate annotations (templated).",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "apiVersion": {
+          "default": "resource.k8s.io/v1",
+          "description": "ResourceClaimTemplate apiVersion; `resource.k8s.io/v1` is GA in Kubernetes 1.34. The rendered request uses the v1 `exactly` shape.",
+          "title": "apiVersion",
+          "type": "string"
+        },
+        "count": {
+          "default": 1,
+          "description": "Device count, used only when allocationMode is `ExactCount`.",
+          "title": "count",
+          "type": "integer"
+        },
+        "deviceClassName": {
+          "default": "",
+          "description": "DRA device class to request (the GPU driver's class), e.g. `gpu.intel.com` or `gpu.nvidia.com`. Required when `dra.enabled`; no default.",
+          "title": "deviceClassName",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Create a ResourceClaimTemplate and have the DaemonSet pods consume it (DRA-based GPU access).",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "requestName": {
+          "default": "",
+          "description": "Name of the device request within the claim; empty derives it from the release name (the chart fullname). Claim-scoped, so it need not be unique across releases.",
+          "title": "requestName",
+          "type": "string"
+        },
+        "tolerations": {
+          "description": "Device taint tolerations (DRA), letting the claim match tainted GPU devices. Empty by default; to monitor even tainted devices, add e.g. `- effect: NoSchedule` and `- effect: NoExecute`.",
+          "items": {
+            "required": []
+          },
+          "title": "tolerations",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "dra",
+      "type": "object"
+    },
+    "env": {
+      "description": "Extra environment variables for the container, as a map (templated).",
+      "required": [],
+      "title": "env",
+      "type": "object"
+    },
+    "envFrom": {
+      "description": "Sources of environment variables for the container (templated).",
+      "items": {
+        "required": []
+      },
+      "title": "envFrom",
+      "type": "array"
+    },
+    "extraEnv": {
+      "description": "  TZ: UTC\nExtra environment variables for the container, as a raw list (templated).",
+      "items": {
+        "required": []
+      },
+      "title": "extraEnv",
+      "type": "array"
+    },
+    "fullnameOverride": {
+      "default": "",
+      "description": "Override the generated name used for every resource's `metadata.name` (the chart \"fullname\").",
+      "title": "fullnameOverride",
+      "type": "string"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "hostAccess": {
+      "description": "Host access for reading GPU stats. `sys` (host /sys) is always needed — that is\nwhere frequency, memory, AMD engine, and hwmon stats are read, in both hostPath\nand DRA modes. The two device-node paths default to empty (nothing mounted); set\nthe one that matches how you grant device access:\n  - devDri: set to \"/dev/dri\" for plain hostPath access. Leave empty when using\n    DRA (dra.enabled) — the GPU driver injects the device via CDI, and a hostPath\n    /dev/dri is cgroup-blocked for a non-privileged container anyway.\n  - devCpu: set to \"/dev/cpu\" only to read Intel iGPU package temperature via MSR,\n    on a non-Talos host with the `msr` kernel module loaded. Talos ships no `msr`\n    (see the README) and it is unused on AMD.\nGrant access via devDri OR dra.enabled; with neither, the exporter starts but\nfinds no GPUs.",
+      "properties": {
+        "devCpu": {
+          "default": "",
+          "description": "Host path to the per-CPU MSR nodes, e.g. `/dev/cpu`, mounted read-only, for Intel iGPU package temperature (and the RAPL power fallback). Empty by default; set to `/dev/cpu` only on a non-Talos host with the `msr` kernel module loaded. Talos ships no `msr` (siderolabs/extensions#620); unused on AMD.",
+          "title": "devCpu",
+          "type": "string"
+        },
+        "devDri": {
+          "default": "",
+          "description": "Host path to the DRM device nodes, e.g. `/dev/dri`, mounted read-write to discover and read GPUs. Empty by default: set it for hostPath access, or leave empty and use DRA (`dra.enabled`), which injects the device instead.",
+          "title": "devDri",
+          "type": "string"
+        },
+        "hostNetwork": {
+          "default": false,
+          "description": "Use host networking (scrape via the node IP:port instead of through the Service).",
+          "title": "hostNetwork",
+          "type": "boolean"
+        },
+        "sys": {
+          "default": "/sys",
+          "description": "Host path to sysfs, e.g. `/sys`, mounted read-only; required in both hostPath and DRA modes for frequency, memory, AMD engine, and hwmon (temp/fan/power) stats. Set to \"\" to skip (rarely wanted).",
+          "title": "sys",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "hostAccess",
+      "type": "object"
+    },
+    "image": {
+      "properties": {
+        "digest": {
+          "default": "",
+          "description": "Pin the image by digest (sha256:…); set by the release pipeline. When set, it overrides the tag.",
+          "title": "digest",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Image pull policy.",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "repository": {
+          "default": "ghcr.io/home-operations/drm-exporter",
+          "description": "Image repository.",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Overrides the image tag; defaults to the chart appVersion.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "image",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "description": "Image pull secrets for private registries.",
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "initContainers": {
+      "description": "Additional init containers (templated).",
+      "items": {
+        "required": []
+      },
+      "title": "initContainers",
+      "type": "array"
+    },
+    "livenessProbe": {
+      "description": "Liveness probe. Targets /healthz (returns `OK`; /readyz is an alias).",
+      "properties": {
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/healthz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "metrics",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "initialDelaySeconds": {
+          "default": 5,
+          "title": "initialDelaySeconds",
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "default": 20,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "livenessProbe",
+      "type": "object"
+    },
+    "monitoring": {
+      "properties": {
+        "dashboards": {
+          "properties": {
+            "annotations": {
+              "description": "Annotations added to the dashboard ConfigMap (templated).",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Render the Grafana dashboard ConfigMap (for the kube-prometheus-stack sidecar or grafana-operator).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "grafanaOperator": {
+              "properties": {
+                "allowCrossNamespaceImport": {
+                  "default": true,
+                  "description": "Allow a Grafana in any namespace to import this GrafanaDashboard.",
+                  "title": "allowCrossNamespaceImport",
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "default": false,
+                  "description": "Render a GrafanaDashboard CR (grafana-operator) referencing the ConfigMap, instead of relying on the sidecar label.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "folder": {
+                  "default": "",
+                  "description": "Folder to create the dashboard in; empty uses the Grafana default.",
+                  "title": "folder",
+                  "type": "string"
+                },
+                "matchLabels": {
+                  "description": "Label selector matching the target Grafana instance (required when grafanaOperator is enabled).",
+                  "required": [],
+                  "title": "matchLabels",
+                  "type": "object"
+                },
+                "resyncPeriod": {
+                  "default": "10m",
+                  "description": "Resync period for the operator to re-check the dashboard.",
+                  "title": "resyncPeriod",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "grafanaOperator",
+              "type": "object"
+            },
+            "labels": {
+              "description": "Labels added to the dashboard ConfigMap.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "namespace": {
+              "default": "",
+              "description": "Namespace for the dashboard objects; defaults to the release namespace.",
+              "title": "namespace",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "dashboards",
+          "type": "object"
+        },
+        "serviceMonitor": {
+          "properties": {
+            "annotations": {
+              "description": "ServiceMonitor annotations.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Create a Prometheus Operator ServiceMonitor (requires its CRDs).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "30s",
+              "description": "Scrape interval.",
+              "title": "interval",
+              "type": "string"
+            },
+            "labels": {
+              "description": "ServiceMonitor labels.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "metricRelabelings": {
+              "description": "Prometheus metric relabelings.",
+              "items": {
+                "required": []
+              },
+              "title": "metricRelabelings",
+              "type": "array"
+            },
+            "path": {
+              "default": "/metrics",
+              "description": "Metrics path.",
+              "title": "path",
+              "type": "string"
+            },
+            "relabelings": {
+              "description": "Extra Prometheus relabelings, appended after the built-in one that maps the source pod's node name to a `node` label — the bundled dashboard groups GPUs by `node` (this is a DaemonSet, one pod per node, and the `device` PCI slot repeats across nodes).",
+              "items": {
+                "required": []
+              },
+              "title": "relabelings",
+              "type": "array"
+            },
+            "scrapeTimeout": {
+              "default": "10s",
+              "description": "Scrape timeout.",
+              "title": "scrapeTimeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceMonitor",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "monitoring",
+      "type": "object"
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "Override the chart name used in the `app.kubernetes.io/name` label.",
+      "title": "nameOverride",
+      "type": "string"
+    },
+    "nodeSelector": {
+      "description": "Node selector for pod scheduling (templated). In mixed clusters, scope to GPU nodes — e.g. a Node Feature Discovery label like `feature.node.kubernetes.io/pci-0300_8086.present: \"true\"`. See the README.",
+      "required": [],
+      "title": "nodeSelector",
+      "type": "object"
+    },
+    "podAnnotations": {
+      "description": "Annotations added to the pod.",
+      "required": [],
+      "title": "podAnnotations",
+      "type": "object"
+    },
+    "podLabels": {
+      "description": "Labels added to the pod.",
+      "required": [],
+      "title": "podLabels",
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "description": "Pod-level securityContext. The exporter runs as root by default because GPU\ntelemetry needs MSR access (Intel package power) and the perf PMU on\nlocked-down kernels; see `securityContext` for the (narrow) capability set.\nOverride to run unprivileged where your nodes permit it.",
+      "properties": {
+        "runAsGroup": {
+          "default": 0,
+          "title": "runAsGroup",
+          "type": "integer"
+        },
+        "runAsNonRoot": {
+          "default": false,
+          "title": "runAsNonRoot",
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "default": 0,
+          "title": "runAsUser",
+          "type": "integer"
+        },
+        "seccompProfile": {
+          "properties": {
+            "type": {
+              "default": "RuntimeDefault",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "seccompProfile",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "podSecurityContext",
+      "type": "object"
+    },
+    "priorityClassName": {
+      "default": "",
+      "description": "PriorityClass for the pod (templated); empty uses the cluster default.",
+      "title": "priorityClassName",
+      "type": "string"
+    },
+    "readinessProbe": {
+      "description": "Readiness probe.",
+      "properties": {
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/readyz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "metrics",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "initialDelaySeconds": {
+          "default": 2,
+          "title": "initialDelaySeconds",
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "default": 10,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "readinessProbe",
+      "type": "object"
+    },
+    "resources": {
+      "description": "Exporter container resource requests/limits.",
+      "required": [],
+      "title": "resources",
+      "type": "object"
+    },
+    "securityContext": {
+      "description": "Exporter container securityContext. Drops ALL capabilities, then adds only\nwhat GPU telemetry needs: PERFMON (Intel i915/xe engine utilization via the\nperf PMU) and SYS_RAWIO (Intel iGPU package temperature + the RAPL power\nfallback via /dev/cpu/*/msr, which needs the host msr kernel module — absent on\nTalos, so drop SYS_RAWIO there). AMD and all sysfs-based stats need neither.\nRead-only root filesystem, no privilege escalation, not privileged.",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "default": false,
+          "title": "allowPrivilegeEscalation",
+          "type": "boolean"
+        },
+        "capabilities": {
+          "properties": {
+            "add": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "required": []
+              },
+              "title": "add",
+              "type": "array"
+            },
+            "drop": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  }
+                ],
+                "required": []
+              },
+              "title": "drop",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "capabilities",
+          "type": "object"
+        },
+        "privileged": {
+          "default": false,
+          "title": "privileged",
+          "type": "boolean"
+        },
+        "readOnlyRootFilesystem": {
+          "default": true,
+          "title": "readOnlyRootFilesystem",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "securityContext",
+      "type": "object"
+    },
+    "service": {
+      "properties": {
+        "annotations": {
+          "description": "Service annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "type": {
+          "default": "ClusterIP",
+          "description": "Service type.",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "service",
+      "type": "object"
+    },
+    "serviceAccount": {
+      "properties": {
+        "annotations": {
+          "description": "ServiceAccount annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "automount": {
+          "default": false,
+          "description": "Mount the API token. The exporter never calls the Kubernetes API, so this is off by default.",
+          "title": "automount",
+          "type": "boolean"
+        },
+        "create": {
+          "default": true,
+          "description": "Create a ServiceAccount.",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "ServiceAccount name; empty uses the chart fullname.",
+          "title": "name",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "serviceAccount",
+      "type": "object"
+    },
+    "terminationGracePeriodSeconds": {
+      "default": 30,
+      "description": "Grace period for a clean shutdown.",
+      "title": "terminationGracePeriodSeconds",
+      "type": "integer"
+    },
+    "tests": {
+      "properties": {
+        "image": {
+          "properties": {
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "`helm test` image pull policy.",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "mirror.gcr.io/curlimages/curl",
+              "description": "`helm test` connection-pod image; a gcr-mirrored curl, so the test never pulls from Docker Hub.",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13",
+              "description": "`helm test` image, pinned as `tag",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "tests",
+      "type": "object"
+    },
+    "tolerations": {
+      "description": "Tolerations for pod scheduling (templated).",
+      "items": {
+        "required": []
+      },
+      "title": "tolerations",
+      "type": "array"
+    },
+    "updateStrategy": {
+      "description": "DaemonSet update strategy.",
+      "properties": {
+        "type": {
+          "default": "RollingUpdate",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "updateStrategy",
+      "type": "object"
+    },
+    "volumeMounts": {
+      "description": "Additional volume mounts on the exporter container (templated).",
+      "items": {
+        "required": []
+      },
+      "title": "volumeMounts",
+      "type": "array"
+    },
+    "volumes": {
+      "description": "Additional volumes on the pod, beyond the host mounts (templated).",
+      "items": {
+        "required": []
+      },
+      "title": "volumes",
+      "type": "array"
+    }
+  },
+  "required": [],
+  "type": "object"
+}

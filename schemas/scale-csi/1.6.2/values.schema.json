@@ -1,0 +1,1733 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Scale CSI chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "truenas",
+    "zfs"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "fencing",
+          "controller"
+        ],
+        "properties": {
+          "fencing": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "additive",
+                  "strict"
+                ]
+              }
+            }
+          },
+          "controller": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "controller": {
+            "properties": {
+              "replicas": {
+                "const": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "backendHealth",
+          "controller"
+        ],
+        "properties": {
+          "backendHealth": {
+            "required": [
+              "enabled"
+            ],
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "controller": {
+            "required": [
+              "replicas"
+            ],
+            "properties": {
+              "replicas": {
+                "minimum": 2
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "controller": {
+            "properties": {
+              "replicas": {
+                "const": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "freeObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "storageClassParameters": {
+      "description": "StorageClass parameters. Arbitrary keys pass through verbatim, but the GF-Sprint 4 block-protocol knobs are validated here so an out-of-enum value is rejected at `helm install` instead of failing every CreateVolume at provision time. Values may be quoted strings (what Kubernetes stores) or bare YAML scalars.",
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      },
+      "properties": {
+        "iscsi/blocksize": {
+          "description": "iSCSI extent logical blocksize. IMMUTABLE for the life of a volume.",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "512",
+                "1024",
+                "2048",
+                "4096"
+              ]
+            },
+            {
+              "type": "integer",
+              "enum": [
+                512,
+                1024,
+                2048,
+                4096
+              ]
+            }
+          ]
+        },
+        "iscsi/pblocksize": {
+          "$ref": "#/definitions/storageClassBoolParameter"
+        },
+        "iscsi/queuedCommands": {
+          "description": "Per-target SCST queue depth (iscsi_parameters.QueuedCommands).",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "32",
+                "128"
+              ]
+            },
+            {
+              "type": "integer",
+              "enum": [
+                32,
+                128
+              ]
+            }
+          ]
+        },
+        "iscsi/insecureTpc": {
+          "$ref": "#/definitions/storageClassBoolParameter"
+        },
+        "iscsi/readOnly": {
+          "$ref": "#/definitions/storageClassBoolParameter"
+        },
+        "iscsi/stableSerial": {
+          "$ref": "#/definitions/storageClassBoolParameter"
+        },
+        "iscsi/availThreshold": {
+          "description": "Per-extent early-full warning percentage, 1-99.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^([1-9]|[1-9][0-9])$"
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 99
+            }
+          ]
+        },
+        "nvmeof/qidMax": {
+          "description": "Maximum NVMe I/O queue count, 1-65535 (a queue identifier is 16-bit).",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,4}$"
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          ]
+        },
+        "nvmeof/piEnable": {
+          "$ref": "#/definitions/storageClassBoolParameter"
+        },
+        "nvmeof/inlineDataSize": {
+          "description": "REJECTED as a per-StorageClass parameter: NVMe-oF port performance fields are install-wide (nvmeof.portPerf) because the port is shared across volumes.",
+          "not": {}
+        },
+        "nvmeof/maxQueueSize": {
+          "description": "REJECTED as a per-StorageClass parameter: NVMe-oF port performance fields are install-wide (nvmeof.portPerf) because the port is shared across volumes.",
+          "not": {}
+        },
+        "nvmeof/portPiEnable": {
+          "description": "REJECTED as a per-StorageClass parameter: NVMe-oF port performance fields are install-wide (nvmeof.portPerf) because the port is shared across volumes.",
+          "not": {}
+        }
+      }
+    },
+    "storageClassBoolParameter": {
+      "description": "A boolean StorageClass parameter. Kubernetes stores parameters as strings, so the quoted form is canonical; a bare YAML boolean is also accepted.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "kubernetesList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "sidecar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "securityContext": {
+          "$ref": "#/definitions/freeObject"
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeout": {
+          "type": "string",
+          "minLength": 2
+        },
+        "workerThreads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resources": {
+          "type": "object",
+          "default": {
+            "requests": {
+              "cpu": "10m",
+              "memory": "32Mi"
+            },
+            "limits": {
+              "memory": "128Mi"
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "nodeDriverRegistrar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "securityContext": {
+          "$ref": "#/definitions/freeObject"
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeout": {
+          "type": "string",
+          "minLength": 2
+        },
+        "workerThreads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "healthProbe": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "default": {
+            "requests": {
+              "cpu": "10m",
+              "memory": "32Mi"
+            },
+            "limits": {
+              "memory": "128Mi"
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "storageClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "nfs",
+            "iscsi",
+            "nvmeof"
+          ]
+        },
+        "snapshotRestoreMode": {
+          "type": "string",
+          "enum": [
+            "clone",
+            "detached"
+          ]
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "reclaimPolicy": {
+          "type": "string",
+          "enum": [
+            "Delete",
+            "Retain"
+          ]
+        },
+        "allowVolumeExpansion": {
+          "type": "boolean"
+        },
+        "volumeBindingMode": {
+          "type": "string",
+          "enum": [
+            "Immediate",
+            "WaitForFirstConsumer"
+          ]
+        },
+        "mountOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "extraParameters": {
+          "$ref": "#/definitions/storageClassParameters"
+        },
+        "chapSecretName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chapSecretNamespace": {
+          "type": "string"
+        },
+        "encryptionSecretName": {
+          "description": "Name of the per-StorageClass Kubernetes Secret holding the ZFS-native encryption passphrase (GF-Sprint 1). Setting it emits the encryption parameter and the provisioner/controller-publish/node-stage CSI secret refs. The chart references the Secret by name/namespace only; the passphrase never appears in the chart. Encryption is create-time only and cannot be combined with a content-source restore.",
+          "type": "string",
+          "minLength": 1
+        },
+        "encryptionSecretNamespace": {
+          "description": "Namespace of the encryption Secret. Defaults to the release namespace when unset.",
+          "type": "string"
+        },
+        "nfsSecurity": {
+          "description": "Per-class sharing.nfs security list. Rendered as the comma-joined nfsSecurity parameter.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "SYS",
+              "KRB5",
+              "KRB5I",
+              "KRB5P"
+            ]
+          }
+        },
+        "nfsExposeSnapshots": {
+          "description": "Per-class expose_snapshots override (read-only .zfs/snapshot over NFS).",
+          "type": "boolean"
+        },
+        "nfsReadOnly": {
+          "description": "Per-class read-only export override.",
+          "type": "boolean"
+        },
+        "nfsMaprootUser": {
+          "description": "Per-class maproot_user override. An EMPTY STRING is meaningful and is emitted: it clears the driver's default root squash, which is how a class escapes the maproot/mapall exclusivity when it sets nfsMapallUser.",
+          "type": "string"
+        },
+        "nfsMaprootGroup": {
+          "description": "Per-class maproot_group override. An EMPTY STRING is meaningful and is emitted (clears the default).",
+          "type": "string"
+        },
+        "nfsMapallUser": {
+          "description": "Per-class mapall_user override. Mutually exclusive with maproot_* in the EFFECTIVE payload, so a class that sets this normally also sets nfsMaprootUser: \"\" and nfsMaprootGroup: \"\".",
+          "type": "string"
+        },
+        "nfsMapallGroup": {
+          "description": "Per-class mapall_group override. Mutually exclusive with maproot_* in the effective payload.",
+          "type": "string"
+        },
+        "nfsAllowedNetworks": {
+          "description": "Per-class export network allowlist (CIDRs), rendered as the comma-joined nfsAllowedNetworks parameter. Rejected at CreateVolume under fencing.mode=strict, which owns the allowlist.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "nfsAllowedHosts": {
+          "description": "Per-class export host allowlist, rendered as the comma-joined nfsAllowedHosts parameter. Rejected at CreateVolume under fencing.mode=strict, which owns the allowlist.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "nfsACLMode": {
+          "description": "Per-class dataset aclmode. RESTRICTED is the only ZFS lever that stops a chmod (including an fsGroup chown/chmod) from rewriting a driver-applied NFSv4 ACL. Requires nfsACLTemplate or nfsACL. DISCARD is deliberately not offered.",
+          "type": "string",
+          "enum": [
+            "PASSTHROUGH",
+            "RESTRICTED"
+          ]
+        },
+        "zfsPerformanceClass": {
+          "description": "Curated ZFS property preset applied to newly provisioned volumes. volblocksize/logbias/primarycache/secondarycache are CREATE-ONLY; changing the class on an existing PVC is rejected.",
+          "type": "string",
+          "enum": [
+            "database",
+            "media",
+            "vm",
+            "backup",
+            "general"
+          ]
+        },
+        "nfsACLTemplate": {
+          "description": "Builtin TrueNAS NFS4 ACL template applied to newly provisioned volumes. Mutually exclusive with nfsACL. See the fsGroupPolicy interaction in docs/reference/storageclass.md.",
+          "type": "string",
+          "enum": [
+            "NFS4_OPEN",
+            "NFS4_RESTRICTED",
+            "NFS4_HOME",
+            "NFS4_DOMAIN_HOME",
+            "NFS4_ADMIN"
+          ]
+        },
+        "nfsACL": {
+          "description": "Explicit NFSv4 dacl applied to newly provisioned volumes, rendered as JSON. Mutually exclusive with nfsACLTemplate.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "tag"
+            ],
+            "properties": {
+              "tag": {
+                "type": "string",
+                "enum": [
+                  "owner@",
+                  "group@",
+                  "everyone@",
+                  "USER",
+                  "GROUP"
+                ]
+              },
+              "id": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ALLOW",
+                  "DENY"
+                ]
+              },
+              "perms": {
+                "type": "object"
+              },
+              "flags": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "csiDriverName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "csidriver": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fsGroupPolicy": {
+          "description": "CSIDriver.spec.fsGroupPolicy. Default File (unchanged). Set None only for installations committed to driver-applied NFSv4 ACLs; the field is effectively immutable on a live CSIDriver.",
+          "type": "string",
+          "enum": [
+            "File",
+            "None",
+            "ReadWriteOnceWithFSType"
+          ]
+        }
+      }
+    },
+    "backendHealth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Run the read-only pool-health poller that drives per-PVC VolumeCondition and the scale_csi_pool_* gauges. Requires controller.replicas=1 because the poller has no leader-election gate; the Deployment guard also documents termination/eviction overlap as a residual. Default off.",
+          "type": "boolean"
+        },
+        "interval": {
+          "description": "Poll cadence, clamped to 30s-2m; an out-of-range value is clamped with one startup warning, never rejected. The 2m ceiling keeps a hysteresis-CONFIRMED VolumeCondition flip (up to 2 x interval PLUS one 30s backend call timeout, so up to 4m30s) inside the 5m ScaleCSIPoolDegraded hold WHILE SUCCESSFUL SAMPLES KEEP ARRIVING - it bounds cadence, not wall-clock publication, and it does not make the raw gauges, the debounced condition and the alert agree at every instant. It in fact creates the alert-hold divergence, in which the condition is already abnormal while the alert is still pending. SCOPE: 4m30s bounds DRIVER-SIDE PUBLICATION only - the CSI read, external-health-monitor refresh (healthMonitor.interval has no maximum here), the Prometheus scrape (the ServiceMonitor interval has no maximum either) and rule evaluation are all downstream of it and unbounded, so it is NOT a deadline for a PVC becoming abnormal. The staleness TTL is 3 x the effective clamped value. See docs/production.md#backend-health. The full, canonical taxonomy is seven numbered classes: 1. confirmation lag (BOUNDED), 2. alert hold (BOUNDED), 3. recovery (BOUNDED), 4. poll stall (UNBOUNDED - it lasts until a successful USABLE sample arrives; a reply is not a usable sample, since a valid pool.query that does not list the pool returns 'pool ... not found' and is still a failed sample), 5. observer lag (UNBOUNDED - Prometheus scrape and rule-evaluation cadence, which this chart does not limit; compare the driver-owned scale_csi_pool_health_last_success_timestamp_seconds, never timestamp(), which returns the scrape time), 6. cold start (UNBOUNDED - before the first successful sample of a process the raw scale_csi_pool_* series do not exist at all, and the stale gauge cannot tell a missing or renamed pool from an unreachable one), 7. replica skew (UNBOUNDED - a producer-identity difference: every replica polls and a fencing-off rollout can overlap processes, so max by (pool) merges independently sampled histories; detect it with count by (pool) on the last-success timestamp, alert ScaleCSIPoolHealthProducerSkew).",
+          "type": "string",
+          "minLength": 2
+        }
+      }
+    },
+    "encryption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Opt the controller into ZFS-native encryption-at-rest management (GF-Sprint 1): create-time folding, publish-time unlock, the locked-volume reconciler, and the locked VolumeCondition signal. Strictly opt-in; with this false (default) nothing encryption-related renders into the ConfigMap and every volume provisions plaintext. The passphrase is supplied per-StorageClass via encryptionSecretName, never here. Encryption is an availability hazard: a nas01 reboot locks every encrypted volume until the reconciler re-unlocks it, and a lost Secret is permanent data loss. See docs/reference/storageclass.md.",
+          "type": "boolean"
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cacheTTL": {
+          "description": "HTTP health-check cache TTL. Default 5s preserves historical behavior; both bundled Kubernetes probes run every 10s, so raising this toward or past that period trades freshness for reduced backend load. Set 0s to disable reuse.",
+          "type": "string",
+          "pattern": "^([0-9]+(ms|s|m|h))+$"
+        }
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "forImmediateBinding": {
+          "type": "boolean"
+        },
+        "reportMaximumVolumeSize": {
+          "type": "boolean"
+        },
+        "gaugeEnabled": {
+          "type": "boolean"
+        },
+        "gaugeInterval": {
+          "type": "string",
+          "pattern": "^([0-9]+(ms|s|m|h))+$",
+          "not": {
+            "pattern": "^(0+(ms|s|m|h))+$"
+          }
+        }
+      }
+    },
+    "driverInstanceId": {
+      "type": "string"
+    },
+    "fencing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "startupReconcileTimeout",
+        "staleRecordGracePeriod"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "additive",
+            "strict"
+          ]
+        },
+        "startupReconcileTimeout": {
+          "type": "string",
+          "minLength": 2
+        },
+        "staleRecordGracePeriod": {
+          "type": "string",
+          "minLength": 2
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "priorityClassName": {
+          "type": "string"
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "minAvailable": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "maxUnavailable": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          "not": {
+            "allOf": [
+              {
+                "required": [
+                  "minAvailable"
+                ],
+                "properties": {
+                  "minAvailable": {
+                    "not": {
+                      "const": ""
+                    }
+                  }
+                }
+              },
+              {
+                "required": [
+                  "maxUnavailable"
+                ],
+                "properties": {
+                  "maxUnavailable": {
+                    "not": {
+                      "const": ""
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "containerSecurityContext": {
+          "$ref": "#/definitions/freeObject"
+        },
+        "resources": {
+          "type": "object",
+          "default": {
+            "requests": {
+              "cpu": "10m",
+              "memory": "32Mi"
+            },
+            "limits": {
+              "memory": "256Mi"
+            }
+          },
+          "additionalProperties": true
+        },
+        "nodeSelector": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "tolerations": {
+          "$ref": "#/definitions/kubernetesList"
+        },
+        "affinity": {
+          "$ref": "#/definitions/freeObject"
+        },
+        "extraEnv": {
+          "$ref": "#/definitions/kubernetesList"
+        },
+        "extraVolumeMounts": {
+          "$ref": "#/definitions/kubernetesList"
+        },
+        "extraVolumes": {
+          "$ref": "#/definitions/kubernetesList"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "priorityClassName": {
+          "type": "string"
+        },
+        "sessionCleanupDelay": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxVolumesPerNode": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "object",
+          "default": {
+            "requests": {
+              "cpu": "10m",
+              "memory": "32Mi"
+            },
+            "limits": {
+              "memory": "256Mi"
+            }
+          },
+          "additionalProperties": true
+        },
+        "nodeSelector": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "tolerations": {
+          "$ref": "#/definitions/kubernetesList"
+        },
+        "affinity": {
+          "$ref": "#/definitions/freeObject"
+        },
+        "extraEnv": {
+          "$ref": "#/definitions/kubernetesList"
+        },
+        "extraVolumeMounts": {
+          "$ref": "#/definitions/kubernetesList"
+        },
+        "extraVolumes": {
+          "$ref": "#/definitions/kubernetesList"
+        }
+      }
+    },
+    "kubeletDir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "truenas": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "secure": {
+          "type": "boolean"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "caCert": {
+          "type": "string"
+        },
+        "caCertFile": {
+          "type": "string"
+        },
+        "apiKey": {
+          "type": "string"
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "requestTimeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "connectTimeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "writeTimeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxConcurrentRequests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxConnections": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 16
+        }
+      },
+      "not": {
+        "allOf": [
+          {
+            "properties": {
+              "apiKey": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "apiKey"
+            ]
+          },
+          {
+            "properties": {
+              "existingSecret": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "existingSecret"
+            ]
+          }
+        ]
+      }
+    },
+    "zfs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parentDataset"
+      ],
+      "properties": {
+        "parentDataset": {
+          "type": "string"
+        },
+        "datasetProperties": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "zvolBlocksize": {
+          "type": "string",
+          "minLength": 1
+        },
+        "zvolEnableReservation": {
+          "type": "boolean"
+        },
+        "enforceQuota": {
+          "type": "boolean"
+        },
+        "detachedVolumesFromSnapshots": {
+          "type": "boolean",
+          "default": false
+        },
+        "zvolReadyTimeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "destroyForeignSnapshotsOnDelete": {
+          "type": "boolean"
+        },
+        "holdCsiSnapshots": {
+          "type": "boolean",
+          "default": false
+        },
+        "snapshotSchedule": {
+          "type": "string",
+          "default": ""
+        },
+        "snapshotRetention": {
+          "type": "string",
+          "default": ""
+        },
+        "promoteRestoredClones": {
+          "type": "boolean",
+          "default": false
+        },
+        "reportVolumeUsage": {
+          "type": "boolean",
+          "default": false
+        },
+        "dedup": {
+          "type": "boolean",
+          "description": "Deprecated compatibility value; use datasetProperties."
+        },
+        "compression": {
+          "type": "boolean",
+          "description": "Deprecated compatibility value; use datasetProperties."
+        },
+        "compressionAlgorithm": {
+          "type": "string",
+          "description": "Deprecated compatibility value; use datasetProperties."
+        }
+      }
+    },
+    "nfs": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "title": "KRB5 share security is coupled to krbEnabled",
+          "description": "KRB5/KRB5I/KRB5P require Kerberos on the TrueNAS NFS service (nfs.config v4_krb plus a keytab). Without nfs.krbEnabled=true the only selectable mode is SYS: a krb-only export on a box with no KDC or keytab makes every mount fail, and nfs.shareSecurity is stamped on EVERY newly created export. The driver enforces the same rule at config load, because a hand-written ConfigMap bypasses this schema.",
+          "if": {
+            "properties": {
+              "krbEnabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "krbEnabled"
+            ]
+          },
+          "then": true,
+          "else": {
+            "properties": {
+              "shareSecurity": {
+                "items": {
+                  "enum": [
+                    "SYS"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "maproot_* and mapall_* are mutually exclusive",
+          "description": "TrueNAS rejects a sharing.nfs.create payload that carries both squash mappings. Setting nfs.shareMapallUser/Group requires clearing nfs.shareMaprootUser/Group. Scoped to nfs.enabled, mirroring the driver: with NFS disabled these keys build no payload at all, and an install that was inert on 1.4.1 must not fail a 1.5.0 upgrade over them.",
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "shareMapallUser": {
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "shareMapallUser"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "shareMapallGroup": {
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "shareMapallGroup"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "shareMaprootUser": {
+                "maxLength": 0
+              },
+              "shareMaprootGroup": {
+                "maxLength": 0
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "server": {
+          "type": "string"
+        },
+        "shareAllowedNetworks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "shareMaprootUser": {
+          "type": "string"
+        },
+        "shareMaprootGroup": {
+          "type": "string"
+        },
+        "shareMapallUser": {
+          "type": "string"
+        },
+        "shareMapallGroup": {
+          "type": "string"
+        },
+        "shareSecurity": {
+          "description": "Default sharing.nfs security list. Empty (default) omits the field, keeping the TrueNAS default (AUTH_SYS).",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "SYS",
+              "KRB5",
+              "KRB5I",
+              "KRB5P"
+            ]
+          }
+        },
+        "shareExposeSnapshots": {
+          "description": "Publish the dataset's read-only .zfs/snapshot tree through new exports.",
+          "type": "boolean"
+        },
+        "krbEnabled": {
+          "description": "Acknowledge that nfs.config v4_krb plus a keytab are configured. Required before KRB5* share security is accepted.",
+          "type": "boolean"
+        },
+        "versionPreflight": {
+          "description": "Validate a StorageClass's pinned NFS version against the global nfs.config protocols.",
+          "type": "boolean"
+        },
+        "ensureProtocols": {
+          "description": "HARD RULE, opt-in: mutate the GLOBAL TrueNAS NFS service so these major versions are enabled. Affects every export on the appliance.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "NFSV3",
+              "NFSV4"
+            ]
+          }
+        }
+      }
+    },
+    "iscsi": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "portal": {
+          "type": "string"
+        },
+        "portalPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "extentBlocksize": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "extentDisablePhysicalBlocksize": {
+          "type": "boolean"
+        },
+        "extentRpm": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "extentAvailThreshold": {
+          "description": "DEPRECATED, ignored. Retained only so old values files pass validation.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "deviceWaitTimeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "serviceReloadDebounce": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "tag": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mutual": {
+              "type": "boolean"
+            }
+          }
+        },
+        "targetGroups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "portal": {
+                "type": "integer"
+              },
+              "initiator": {
+                "type": "integer"
+              },
+              "authMethod": {
+                "type": "string"
+              },
+              "auth": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "portal",
+              "initiator"
+            ]
+          }
+        }
+      }
+    },
+    "nvmeof": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "transport": {
+          "type": "string",
+          "enum": [
+            "tcp",
+            "rdma"
+          ]
+        },
+        "address": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "subsystemHosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subsystemAllowAnyHost": {
+          "type": "boolean"
+        },
+        "portPerf": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inlineDataSize": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "maxQueueSize": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "piEnable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "multipath": {
+          "type": "boolean"
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commandTimeout": {
+          "description": "DEPRECATED, ignored; the nvme CLI timeout is commandTimeouts.nvme. Retained only so old values files pass validation.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "storageClasses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/storageClass"
+      }
+    },
+    "storageClass": {
+      "$ref": "#/definitions/storageClass"
+    },
+    "snapshotClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deletionPolicy": {
+          "type": "string",
+          "enum": [
+            "Delete",
+            "Retain"
+          ]
+        },
+        "labels": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "annotations": {
+          "$ref": "#/definitions/stringMap"
+        }
+      }
+    },
+    "sidecars": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "securityContext": {
+          "$ref": "#/definitions/freeObject"
+        },
+        "leaderElection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "leaseDuration": {
+              "type": "string",
+              "minLength": 2
+            },
+            "renewDeadline": {
+              "type": "string",
+              "minLength": 2
+            },
+            "retryPeriod": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        },
+        "provisioner": {
+          "$ref": "#/definitions/sidecar"
+        },
+        "attacher": {
+          "$ref": "#/definitions/sidecar"
+        },
+        "resizer": {
+          "$ref": "#/definitions/sidecar"
+        },
+        "snapshotter": {
+          "$ref": "#/definitions/sidecar"
+        },
+        "nodeDriverRegistrar": {
+          "$ref": "#/definitions/nodeDriverRegistrar"
+        },
+        "livenessProbe": {
+          "$ref": "#/definitions/sidecar"
+        },
+        "healthMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "securityContext": {
+              "$ref": "#/definitions/freeObject"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "image": {
+              "type": "string",
+              "minLength": 1
+            },
+            "interval": {
+              "type": "string",
+              "pattern": "^([0-9]+(ms|s|m|h))+$",
+              "not": {
+                "pattern": "^(0+(ms|s|m|h))+$"
+              }
+            },
+            "resources": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "annotations": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "controllerName": {
+          "type": "string"
+        },
+        "nodeName": {
+          "type": "string"
+        }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        }
+      }
+    },
+    "podSecurityContext": {
+      "$ref": "#/definitions/freeObject"
+    },
+    "securityContext": {
+      "$ref": "#/definitions/freeObject"
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/stringMap"
+            }
+          }
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "labels": {
+              "$ref": "#/definitions/stringMap"
+            },
+            "interval": {
+              "type": "string",
+              "minLength": 2
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "additionalLabels": {
+              "$ref": "#/definitions/stringMap"
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "poolUsageThreshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "dashboards": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "annotations": {
+              "$ref": "#/definitions/stringMap"
+            }
+          }
+        }
+      }
+    },
+    "reconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "interval": {
+          "type": "string",
+          "pattern": "^([0-9]+(s|m|h))+$",
+          "not": {
+            "pattern": "^(0+(s|m|h))+$"
+          }
+        },
+        "minOrphanAge": {
+          "type": "string",
+          "minLength": 2
+        },
+        "alertAfter": {
+          "type": "string",
+          "minLength": 2
+        },
+        "spentRestore": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "delete": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "schedule": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxPerRun": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 5
+            }
+          }
+        },
+        "bookkeeping": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "cleanupParent": {
+              "type": "boolean"
+            }
+          }
+        },
+        "tombstoneReaper": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scanFallback": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sessionGC": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "interval": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gracePeriod": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "runOnStartup": {
+          "type": "boolean"
+        },
+        "startupDelay": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "iscsiEnabled": {
+          "type": "boolean"
+        },
+        "nvmeofEnabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "resilience": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "circuitBreaker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "retry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "initialDelay": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxDelay": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "backoffMultiplier": {
+              "type": "number",
+              "minimum": 1
+            }
+          }
+        },
+        "rateLimiting": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxConcurrentRequests": {
+              "description": "DEPRECATED, ignored. Retained only so old values files pass validation; the API concurrency limit is truenas.maxConcurrentRequests.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxConcurrentLogins": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "commandTimeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "iscsi": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "nvme": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

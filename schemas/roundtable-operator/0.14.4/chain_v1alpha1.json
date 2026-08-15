@@ -1,0 +1,542 @@
+{
+  "description": "Chain is the Schema for the chains API.\nA Chain represents a declarative multi-knight task pipeline in the Round Table,\nwith support for parallel fan-out, sequential dependencies, data passing between\nsteps, and optional cron scheduling.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of Chain",
+      "properties": {
+        "description": {
+          "description": "description is a human-readable summary of what this chain accomplishes.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input": {
+          "description": "input provides initial data passed to the first step(s) as JSON.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "missionRef": {
+          "description": "missionRef is set by the mission controller when creating mission-scoped chains.\nThe chain controller uses this to resolve NATS config from the mission's RoundTable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notify": {
+          "additionalProperties": false,
+          "description": "notify configures a completion notification fired exactly once per run\nwhen the chain reaches a terminal phase (Succeeded, Failed,\nPartiallySucceeded).",
+          "properties": {
+            "webhook": {
+              "additionalProperties": false,
+              "description": "webhook posts a roundtable.notify/v1 JSON payload to an HTTP endpoint.\nThe URL must match one of the operator's allowed URL prefixes\n(notify.allowedURLPrefixes Helm value); non-matching URLs are rejected\nwith a NotificationSent=False condition and a warning Event.",
+              "properties": {
+                "context": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "context is an opaque map echoed verbatim in the payload, letting the\ncaller correlate the completion back to its origin (e.g. a chat\nsession or channel).",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "tokenSecretRef": {
+                  "additionalProperties": false,
+                  "description": "tokenSecretRef references a Secret key (in the resource's namespace)\nholding a bearer token sent in the Authorization header. Never inline\ntokens in the spec.",
+                  "properties": {
+                    "key": {
+                      "description": "The key of the secret to select from.  Must be a valid secret key.",
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "optional": {
+                      "description": "Specify whether the Secret or its key must be defined",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                },
+                "url": {
+                  "description": "url is the endpoint to POST the completion payload to.",
+                  "minLength": 1,
+                  "pattern": "^https?://",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "outputKnight": {
+          "default": "gawain",
+          "description": "outputKnight is the knight responsible for writing chain artifacts when steps have outputPath set.\nDefaults to \"gawain\" if not specified.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retryPolicy": {
+          "additionalProperties": false,
+          "description": "retryPolicy configures retry behavior for failed steps.",
+          "properties": {
+            "backoffSeconds": {
+              "default": 30,
+              "description": "backoffSeconds is the delay between retries in seconds.",
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "maxRetries": {
+              "default": 0,
+              "description": "maxRetries is the maximum number of retries per step.",
+              "format": "int32",
+              "maximum": 5,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "roundTableRef": {
+          "description": "roundTableRef references the RoundTable this chain belongs to.\nIf omitted, the chain operates in the default namespace NATS prefix.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schedule": {
+          "description": "schedule is an optional cron expression to trigger this chain on a recurring basis.\nUses standard cron syntax (e.g., \"0 */6 * * *\").",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startingDeadlineSeconds": {
+          "description": "startingDeadlineSeconds bounds catch-up of missed scheduled runs.\nIf the controller was down when a scheduled run should have fired, the\nrun is triggered late only if fewer than this many seconds have passed\nsince the missed schedule time. If not set, a missed run is always\ncaught up (at most one catch-up run is triggered).",
+          "format": "int64",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "steps": {
+          "description": "steps defines the ordered list of pipeline steps.\nSteps execute sequentially unless parallel grouping is used via `parallel`.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ChainStep defines a single step in the pipeline.",
+            "properties": {
+              "continueOnFailure": {
+                "default": false,
+                "description": "continueOnFailure allows downstream steps to proceed even if this step fails.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "dependsOn": {
+                "description": "dependsOn lists step names that must complete successfully before this step runs.\nIf empty, the step runs immediately (or after the previous step in sequence).",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "knightRef": {
+                "description": "knightRef is the name of the Knight to execute this step.",
+                "type": "string"
+              },
+              "name": {
+                "description": "name is a unique identifier for this step within the chain.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "outputKey": {
+                "description": "outputKey is the key name under which this step's output is stored for downstream steps.\nDefaults to the step name if not specified.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "outputPath": {
+                "description": "outputPath is an optional file path where this step's output should be written.\nSupports Go template variables: {{ .Date }} (YYYY-MM-DD), {{ .Chain }} (chain name), {{ .Step }} (step name).\nWhen set, the controller dispatches a write task to the outputKnight after the step succeeds.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry": {
+                "additionalProperties": false,
+                "description": "retry configures per-step retry behavior, overriding the chain-level retryPolicy.",
+                "properties": {
+                  "backoffSeconds": {
+                    "default": 30,
+                    "description": "backoffSeconds is the delay between retries in seconds.",
+                    "format": "int32",
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "maxAttempts": {
+                    "default": 0,
+                    "description": "maxAttempts is the maximum number of retry attempts for this step.",
+                    "format": "int32",
+                    "maximum": 10,
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "task": {
+                "description": "task is the task prompt or instruction to send to the knight.\nSupports Go template syntax with access to prior step outputs: {{ .Steps.step_name.Output }}",
+                "type": "string"
+              },
+              "timeout": {
+                "default": 120,
+                "description": "timeout is the per-step timeout in seconds. Overrides the knight's default taskTimeout.",
+                "format": "int32",
+                "maximum": 3600,
+                "minimum": 10,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "knightRef",
+              "name",
+              "task"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "suspended": {
+          "default": false,
+          "description": "suspended, if true, prevents scheduled runs and disallows new executions.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "timeout": {
+          "default": 600,
+          "description": "timeout is the overall chain timeout in seconds. The entire chain is failed if exceeded.",
+          "format": "int32",
+          "maximum": 86400,
+          "minimum": 30,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "steps"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status defines the observed state of Chain",
+      "properties": {
+        "completedAt": {
+          "description": "completedAt is when the current chain run finished.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conditions": {
+          "description": "conditions represent the current state of the Chain resource.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "lastScheduledAt": {
+          "description": "lastScheduledAt is when the chain was last triggered by its cron schedule.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "observedGeneration is the most recent generation observed by the controller.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "phase is the current lifecycle phase of the chain.",
+          "enum": [
+            "Idle",
+            "Running",
+            "Succeeded",
+            "Failed",
+            "Suspended",
+            "PartiallySucceeded"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runId": {
+          "description": "runId uniquely identifies the current (or most recent) chain run.\nIt is embedded in task IDs and NATS KV entries so results produced by\na previous run can never be attributed to the current one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runsCompleted": {
+          "description": "runsCompleted is the total number of successful chain runs.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "runsFailed": {
+          "description": "runsFailed is the total number of failed chain runs.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "description": "startedAt is when the current chain run began.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stepStatuses": {
+          "description": "stepStatuses tracks the status of each step.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ChainStepStatus tracks the execution status of an individual step.",
+            "properties": {
+              "completedAt": {
+                "description": "completedAt is when the step finished execution.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error": {
+                "description": "error contains the error message if the step failed.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "name matches the step name from the spec.",
+                "type": "string"
+              },
+              "output": {
+                "description": "output is the result data from this step (truncated if large).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phase": {
+                "description": "phase is the current execution phase of this step.",
+                "enum": [
+                  "Pending",
+                  "Running",
+                  "Succeeded",
+                  "Failed",
+                  "Skipped"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retries": {
+                "description": "retries is the number of retry attempts made.",
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "startedAt": {
+                "description": "startedAt is when the step began execution.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "taskId": {
+                "description": "taskID is the unique NATS task identifier for this step's current execution.\nUsed to poll for the exact result message, preventing stale result replay.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
