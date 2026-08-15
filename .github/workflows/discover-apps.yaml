@@ -10,6 +10,11 @@ on:
         description: "Ignore charts run by fewer than this many clusters"
         required: false
         default: "3"
+      dry_run:
+        description: "Log the PRs that would be opened, without pushing or opening any"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,6 +65,7 @@ jobs:
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           git config user.name "${APP_SLUG}[bot]"
           git config user.email "200541989+${APP_SLUG}[bot]@users.noreply.github.com"
@@ -76,6 +82,13 @@ jobs:
 
             CLUSTERS="$(grep -oP '(?<=referenced by )\d+' "$f" || echo '?')"
             CHART="$(yq -r '.helm.chartUrl' "$f")"
+
+            # Before the push: a branch pushed without a PR would still trip the
+            # ls-remote guard above and suppress the app on every later run.
+            if [ "$DRY_RUN" = true ]; then
+              echo "would open $BRANCH -- $CHART ($CLUSTERS clusters)"
+              continue
+            fi
 
             git checkout -q -b "$BRANCH" origin/main
             git add "$f"
