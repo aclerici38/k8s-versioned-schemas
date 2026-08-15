@@ -3,8 +3,10 @@
 set -euo pipefail
 # Usage: mise run gen-schemas apps/kgateway.yaml apps/cilium.yaml
 # Usage: mise run gen-schemas
+# Apps are independent and the work is nearly all network wait, so they run
+# JOBS at a time (default 8). Each app tallies its schema count here.
 
-[ "$#" -gt 0 ] || set -- apps/*.yaml
+export TALLY="${TALLY:-$(mktemp -d)}"
 
 # Given a GitHub tree URL (https://github.com/owner/repo/tree/ref/path/to/dir),
 # fetch all YAML files in that directory and output them as a single multidoc stream.
@@ -31,8 +33,8 @@ filter_crds() {
   rm -f "$tmp"
 }
 
-COUNT=0
-for app_file in "$@"; do
+process_app() {
+  app_file="$1"
   VERSION="$(yq '.version' "$app_file")"
   APP_NAME="$(basename "$app_file" .yaml)"
   SCHEMAS_DIR="schemas/${APP_NAME}/${VERSION#v}"
@@ -120,7 +122,22 @@ for app_file in "$@"; do
     echo "ERROR: no schemas generated for $APP_NAME. To debug, run: mise run gen-schemas $app_file" >&2
     exit 1
   fi
-  COUNT=$((COUNT + GENERATED))
-done
+  echo "$GENERATED" >"$TALLY/$APP_NAME"
+}
 
-echo "# schemas generated: $COUNT"
+# Worker: one app per process.
+if [ "${1:-}" = "--app" ]; then
+  LOG="$(mktemp)"
+  exec 3>&1
+  exec >"$LOG" 2>&1
+  trap 'cat "$LOG" >&3; rm -f "$LOG"' EXIT
+  process_app "$2"
+  exit
+fi
+
+[ "$#" -gt 0 ] || set -- apps/*.yaml
+trap 'rm -rf "$TALLY"' EXIT
+
+printf '%s\n' "$@" | xargs -P "${JOBS:-8}" -I{} "$0" --app {}
+
+echo "# schemas generated: $(cat "$TALLY"/* | awk '{n+=$1} END{print n+0}')"
