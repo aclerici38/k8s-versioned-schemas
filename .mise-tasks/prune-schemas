@@ -4,12 +4,21 @@ set -euo pipefail
 shopt -s nullglob
 
 keep="${KEEP:-5}"
+# Also delete the GitHub release + tag for each pruned version. Needs GH_TOKEN.
+prune_releases="${PRUNE_RELEASES:-false}"
 
 for app_dir in schemas/*/; do
   # Newest first, then skip the ones being kept.
   for old in $(printf '%s\n' "$app_dir"*/ | sort -rV | tail -n +$((keep + 1))); do
     rel="${old#schemas/}"
-    echo "Pruning ${rel%/}"
+    # The release tag is the app/version path itself; see release-schemas.
+    tag="${rel%/}"
+    echo "Pruning $tag"
     rm -rf "schemas/$rel" "crds/$rel"
+
+    if [ "$prune_releases" = "true" ] && gh release view "$tag" >/dev/null 2>&1; then
+      echo "Deleting release $tag"
+      gh release delete "$tag" --yes --cleanup-tag
+    fi
   done
 done
