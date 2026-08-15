@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="Delete all but the 5 most recent versions of each app (override with KEEP)"
+set -euo pipefail
+shopt -s nullglob
+
+keep="${KEEP:-5}"
+
+for app_dir in schemas/*/; do
+  # Newest first, then skip the ones being kept.
+  for old in $(printf '%s\n' "$app_dir"*/ | sort -rV | tail -n +$((keep + 1))); do
+    rel="${old#schemas/}"
+    echo "Pruning ${rel%/}"
+    rm -rf "schemas/$rel" "crds/$rel"
+  done
+done

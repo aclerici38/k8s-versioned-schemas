@@ -104,6 +104,7 @@ Every tool whose version affects the generated schemas (helm, yq, kustomize, crd
 | `mise run gen-schemas [apps/foo.yaml ...]` | Fetch each app's upstream CRDs into `crds/` and generate JSON schemas into `schemas/`. Defaults to every app in `apps/`. |
 | `mise run build-site` | Build the Cloudflare Pages bundle in `schemas/` — `_redirects.json`, `_worker.js`, and the `index.html` UI. Run `gen-schemas` first. |
 | `mise run release-schemas` | Create the `app/version` tag and GitHub release, with a CRD diff, for every schema version that doesn't have one. Needs `GH_TOKEN`. |
+| `mise run prune-schemas` | Delete all but the 5 most recent versions of each app, from both `schemas/` and `crds/`. `KEEP=n` to change the count. |
 | `mise run clean` | Delete the generated `crds/` and `schemas/` trees. |
 
 `mise tasks` lists them, `mise run` with no arguments picks one interactively.
