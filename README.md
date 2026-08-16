@@ -108,6 +108,7 @@ Every tool whose version affects the generated schemas (helm, yq, kustomize, crd
 | `mise run discover:repos` | List every repo carrying the [k8s-at-home](https://github.com/topics/k8s-at-home) or [kubesearch](https://github.com/topics/kubesearch) topic, one `<owner/repo> <branch>` per line. Needs `GH_TOKEN`. |
 | `mise run discover:apps` | Pull every OCI chart those repos run and write an `apps/*.yaml` for each one that would add CRDs or a values schema this repo lacks. `MIN_REPOS=n` to ignore charts fewer than n clusters run. |
 | `mise run discover:crds` | Render those repos with [flate](https://github.com/home-operations/flate) and write `crd-report.tsv`, the CRD groups at least `MIN_REPOS` clusters install that have no schema here. Catches what `discover:apps` cannot: a chart reached through a templated or `postBuild`-substituted ref, and CRDs applied straight from a Kustomization. |
+| `mise run delete-app <app> [app ...]` | Stop tracking an app: delete its `apps/<app>.yaml`, `crds/<app>/` and `schemas/<app>/`, then commit and force push the current branch. Also deletes the app's `app/version` tags and GitHub releases (needs `GH_TOKEN`; `DELETE_RELEASES=false` keeps them). Prompts first; `YES=1` skips it. |
 | `mise run clean` | Delete the generated `crds/` and `schemas/` trees. |
 
 `mise tasks` lists them, `mise run` with no arguments picks one interactively.

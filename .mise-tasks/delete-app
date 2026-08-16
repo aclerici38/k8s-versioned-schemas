@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#MISE description="Remove an app: its apps/ entry, crds/ and schemas/ trees, then commit and force push the current branch"
+set -euo pipefail
+shopt -s nullglob
+# Usage: mise run delete-app gateway-addons-helm [another-app ...]
+# Set YES=1 to skip the confirmation prompt.
+# Deletes the app/version tags + GitHub releases too (needs GH_TOKEN);
+# DELETE_RELEASES=false leaves them in place.
+
+[ "$#" -gt 0 ] || {
+  echo "Usage: mise run delete-app <app> [app ...]" >&2
+  exit 1
+}
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+delete_releases="${DELETE_RELEASES:-true}"
+
+# gh failures below are swallowed to skip versions with no release, so an
+# unauthenticated gh would silently leave every release behind.
+if [ "$delete_releases" = "true" ] && ! gh auth status >/dev/null 2>&1; then
+  echo "ERROR: gh is not authenticated, so releases cannot be deleted." >&2
+  echo "Set GH_TOKEN, or pass DELETE_RELEASES=false to keep them." >&2
+  exit 1
+fi
+
+apps=()
+for app in "$@"; do
+  app="$(basename "$app" .yaml)"
+  if [ ! -e "apps/${app}.yaml" ] && [ ! -d "schemas/$app" ] && [ ! -d "crds/$app" ]; then
+    echo "ERROR: no apps/${app}.yaml, schemas/${app}/ or crds/${app}/ found" >&2
+    exit 1
+  fi
+  apps+=("$app")
+done
+
+echo "Deleting: ${apps[*]}"
+echo "  apps/<app>.yaml, crds/<app>/, schemas/<app>/"
+[ "$delete_releases" = "true" ] && echo "  plus every <app>/<version> tag and GitHub release"
+echo "Then committing and force pushing to $branch."
+
+if [ "${YES:-}" != "1" ]; then
+  read -r -p "Continue? [y/N] " reply
+  case "$reply" in
+  y | Y | yes | YES) ;;
+  *)
+    echo "Aborted."
+    exit 1
+    ;;
+  esac
+fi
+
+for app in "${apps[@]}"; do
+  if [ "$delete_releases" = "true" ]; then
+    for version_dir in "schemas/$app"/*/; do
+      tag="${app}/$(basename "$version_dir")"
+      if gh release view "$tag" >/dev/null 2>&1; then
+        echo "Deleting release $tag"
+        gh release delete "$tag" --yes --cleanup-tag
+      fi
+    done
+  fi
+
+  # crds/ and schemas/ are gitignored but force-added, so drop them from the
+  # index explicitly rather than relying on `git add -A`.
+  git rm -r -q --ignore-unmatch "apps/${app}.yaml" "crds/$app" "schemas/$app"
+  rm -rf "crds/$app" "schemas/$app"
+done
+
+if [ -z "$(git status --porcelain)" ]; then
+  echo "Nothing to commit."
+  exit 0
+fi
+
+git commit -q -m "chore: remove ${apps[*]}"
+git push --force-with-lease origin "HEAD:$branch"
+echo "Pushed to $branch."
