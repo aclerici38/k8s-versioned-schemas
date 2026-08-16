@@ -15,11 +15,19 @@ shopt -s nullglob
 branch="$(git rev-parse --abbrev-ref HEAD)"
 delete_releases="${DELETE_RELEASES:-true}"
 
+# gen-schemas uses GITHUB_TOKEN for plain API reads, and that token is often a
+# fine-grained PAT without the Contents: write needed to delete a release. gh
+# prefers it over the logged-in account, so drop it here unless GH_TOKEN (what
+# CI sets) is explicitly provided.
+if [ -z "${GH_TOKEN:-}" ]; then
+  unset GITHUB_TOKEN
+fi
+
 # gh failures below are swallowed to skip versions with no release, so an
 # unauthenticated gh would silently leave every release behind.
 if [ "$delete_releases" = "true" ] && ! gh auth status >/dev/null 2>&1; then
   echo "ERROR: gh is not authenticated, so releases cannot be deleted." >&2
-  echo "Set GH_TOKEN, or pass DELETE_RELEASES=false to keep them." >&2
+  echo "Run 'gh auth login', set GH_TOKEN, or pass DELETE_RELEASES=false." >&2
   exit 1
 fi
 
