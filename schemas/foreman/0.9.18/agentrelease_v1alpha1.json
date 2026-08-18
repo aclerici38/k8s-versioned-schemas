@@ -1,0 +1,419 @@
+{
+  "description": "AgentRelease describes a fleet-wide rollout of a new agent binary version.\nIt is cluster-scoped because agent releases span the entire fleet; there is\nno meaningful namespace boundary for a node-level binary update. The\ncontroller (added in a subsequent PR) will use this resource to drive a\nrolling, approval-gated, health-checked upgrade across all matching\nFleetNodes.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec describes the desired rollout configuration.",
+      "properties": {
+        "agentKind": {
+          "description": "AgentKind identifies which agent binary this release targets. The\ncontroller uses this to filter FleetNodes by their reported AgentKind.",
+          "enum": [
+            "foreman-agent",
+            "metal-agent"
+          ],
+          "type": "string"
+        },
+        "approved": {
+          "default": false,
+          "description": "Approved is the human-approval gate. When false (the default) the\ncontroller waits in AwaitingApproval before beginning any rollout.\nSet to true to allow the rollout to proceed.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "artifacts": {
+          "description": "Artifacts is the list of platform-specific binaries for this release.\nThe controller selects the appropriate artifact for each FleetNode\nbased on its reported OS and architecture.",
+          "items": {
+            "additionalProperties": false,
+            "description": "AgentReleaseArtifact describes a single platform-specific binary artifact\nfor an agent release. The operator uses OS and Arch to select the correct\nartifact for each target FleetNode.",
+            "properties": {
+              "arch": {
+                "description": "Arch is the target CPU architecture for this artifact.",
+                "enum": [
+                  "amd64",
+                  "arm64"
+                ],
+                "type": "string"
+              },
+              "os": {
+                "description": "OS is the target operating system for this artifact.",
+                "enum": [
+                  "darwin",
+                  "linux"
+                ],
+                "type": "string"
+              },
+              "sha256": {
+                "description": "SHA256 is the lowercase hex-encoded SHA-256 digest of the artifact\nbinary. This is the trust anchor: the operator verifies the download\nagainst this digest before dispatching the update to any node.",
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "url": {
+                "description": "URL is the download location for this artifact. The operator will\nfetch it on behalf of target nodes unless a pre-placement mechanism\nis in use.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "arch",
+              "os",
+              "sha256",
+              "url"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "concurrency": {
+          "default": 1,
+          "description": "Concurrency is the maximum number of nodes that may be updating\nsimultaneously. Defaults to 1 (one node at a time).",
+          "format": "int32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "healthGate": {
+          "additionalProperties": false,
+          "description": "HealthGate configures the post-update health check parameters applied\nafter each node is updated.",
+          "properties": {
+            "minHealthySeconds": {
+              "default": 60,
+              "description": "MinHealthySeconds is how long a freshly-updated node must report a\nfresh heartbeat continuously before the controller considers it healthy.\nDefaults to 60 seconds.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "timeoutSeconds": {
+              "default": 600,
+              "description": "TimeoutSeconds is the maximum time the controller waits for a node to\npass the health gate before marking the node Failed. Defaults to 600\nseconds (10 minutes).",
+              "format": "int32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "paused": {
+          "default": false,
+          "description": "Paused suspends all further rollout activity when true. Nodes that are\nalready Updating continue to completion; no new nodes are picked up.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "selector": {
+          "additionalProperties": false,
+          "description": "Selector restricts the rollout to FleetNodes whose labels match. When\nnil, all FleetNodes of the given AgentKind are targeted.",
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "items": {
+                "additionalProperties": false,
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "matchLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
+        },
+        "version": {
+          "description": "Version is the target agent version string (e.g. \"v0.9.0\"). The\ncontroller matches this against FleetNode.status.agentVersion to\ndetermine which nodes require an update.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agentKind",
+        "version"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status is the controller's observed rollout state. Do not edit manually.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions is the set of standard Kubernetes conditions for this\nrelease. The controller uses the types Approved, Progressing, and\nComplete.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "desiredVersion": {
+          "description": "DesiredVersion mirrors spec.version at the time of last reconciliation,\nallowing status readers to identify version drift without reading spec.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inFlightNodes": {
+          "description": "InFlightNodes lists the names of FleetNodes that are currently being\nupdated (Phase=Updating). The length of this list is bounded by\nspec.concurrency.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "nodeStatuses": {
+          "description": "NodeStatuses is the per-node breakdown of rollout progress.",
+          "items": {
+            "additionalProperties": false,
+            "description": "AgentReleaseNodeStatus is the per-node rollout state within a release.",
+            "properties": {
+              "dispatchedAt": {
+                "description": "DispatchedAt is the time the controller wrote the UpdateRequest onto the\nFleetNode. The timeout clock (HealthGate.TimeoutSeconds) is measured\nfrom this timestamp. Set at dispatch; not updated thereafter.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastTransitionTime": {
+                "description": "LastTransitionTime is the time the node first reported the target agent\nversion (i.e. the soak clock start). The health-gate soak window\n(HealthGate.MinHealthySeconds) is measured from this timestamp.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "Message is a human-readable reason for the current Phase (particularly\nuseful when Phase is Failed).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name is the FleetNode name (metadata.name of the FleetNode CR).",
+                "type": "string"
+              },
+              "observedVersion": {
+                "description": "ObservedVersion is the agent version last reported by this node's\nFleetNode heartbeat. Empty until the node starts reporting version\ninformation.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phase": {
+                "description": "Phase is this node's position in the update lifecycle.",
+                "enum": [
+                  "Pending",
+                  "Updating",
+                  "Updated",
+                  "Failed"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "Reason is a machine-readable explanation for why Phase is Failed.\nSet only when Phase==Failed; empty otherwise.",
+                "enum": [
+                  "NodeUpdateTimeout",
+                  "NoMatchingArtifact"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the metadata.generation of the AgentRelease spec\nthat was most recently reconciled. Used to detect pending spec changes.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase is the overall rollout lifecycle state.",
+          "enum": [
+            "Pending",
+            "AwaitingApproval",
+            "InProgress",
+            "Paused",
+            "Succeeded",
+            "Failed"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targetNodes": {
+          "description": "TargetNodes is the total number of FleetNodes that match this release's\nselector and AgentKind.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "updatedNodes": {
+          "description": "UpdatedNodes is the count of nodes that have been successfully updated\nand passed the health gate.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

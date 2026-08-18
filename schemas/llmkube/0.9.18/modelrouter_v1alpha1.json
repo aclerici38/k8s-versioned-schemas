@@ -1,0 +1,1211 @@
+{
+  "description": "ModelRouter is the Schema for the modelrouters API. It exposes a single\nOpenAI-compatible HTTP endpoint that dispatches requests across multiple\nInferenceService backends and external providers per declarative routing\nrules. See docs/site/concepts/model-router.md (Phase 1) for usage.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of ModelRouter",
+      "properties": {
+        "backends": {
+          "description": "Backends are the candidate destinations the router can dispatch to.\nOrder is not significant; selection is rule-driven. At least one\nbackend must be declared.",
+          "items": {
+            "additionalProperties": false,
+            "description": "RouterBackend is one candidate destination for routed requests.\nExactly one of InferenceServiceRef or External must be set.",
+            "properties": {
+              "capabilities": {
+                "description": "Capabilities advertised by this backend. Rules can require\ncapabilities (e.g. [\"tools\", \"vision\", \"long-context\"]) to filter\ncandidates.",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "costPerMillionTokens": {
+                "additionalProperties": false,
+                "description": "CostPerMillionTokens is informational. Used for cost-aware routing\nmetrics and audit-log enrichment. Values are USD.",
+                "properties": {
+                  "completionUSD": {
+                    "description": "CompletionUSD is the cost per million completion (output) tokens,\nin USD.",
+                    "pattern": "^[0-9]+(\\.[0-9]+)?$",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "promptUSD": {
+                    "description": "PromptUSD is the cost per million prompt (input) tokens, in USD.",
+                    "pattern": "^[0-9]+(\\.[0-9]+)?$",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "displayName": {
+                "description": "DisplayName is an optional freeform label published as the model id\non /v1/models and used by BackendNameMatch to resolve a request's\nmodel field to a backend. When unset, Name is used for both\npurposes (current behavior). This lets the k8s-safe Name differ\nfrom the user-facing model identifier (e.g. Name \"claude-opus-4\"\nwith DisplayName \"claude-opus-4-20250514\").",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "external": {
+                "additionalProperties": false,
+                "description": "External describes an out-of-cluster provider (Anthropic, OpenAI,\nor a LiteLLM proxy). Mutually exclusive with InferenceServiceRef.",
+                "properties": {
+                  "credentialsSecretRef": {
+                    "additionalProperties": false,
+                    "description": "CredentialsSecretRef points to a Kubernetes Secret containing the\nprovider credentials. Conventional keys: ANTHROPIC_API_KEY,\nOPENAI_API_KEY, LITELLM_MASTER_KEY. The router-proxy reads these as\nenvironment variables.",
+                    "properties": {
+                      "name": {
+                        "default": "",
+                        "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "x-kubernetes-map-type": "atomic"
+                  },
+                  "model": {
+                    "description": "Model is the upstream model identifier passed through to the\nprovider (e.g. \"claude-opus-4-7\", \"gpt-5\", a LiteLLM model alias).",
+                    "type": "string"
+                  },
+                  "provider": {
+                    "description": "Provider identifies the upstream API surface. For \"litellm\", URL must\npoint at a running LiteLLM proxy speaking OpenAI-compatible API.\nFor first-party providers, URL is optional (provider defaults apply).",
+                    "enum": [
+                      "anthropic",
+                      "openai",
+                      "bedrock",
+                      "vertex_ai",
+                      "litellm"
+                    ],
+                    "type": "string"
+                  },
+                  "url": {
+                    "description": "URL is the base URL for the provider. Required for \"litellm\";\noptional for first-party providers, which use their published default.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "model",
+                  "provider"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "healthCheck": {
+                "additionalProperties": false,
+                "description": "HealthCheck overrides the default health probe applied to this\nbackend by the router-proxy.",
+                "properties": {
+                  "intervalSeconds": {
+                    "default": 10,
+                    "description": "IntervalSeconds is how often the router-proxy probes the backend.",
+                    "format": "int32",
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "path": {
+                    "description": "Path is the HTTP path probed for health. Defaults to \"/health\" for\nlocal backends and to the provider's documented health route for\nexternal providers.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "timeoutSeconds": {
+                    "default": 2,
+                    "description": "TimeoutSeconds is the maximum time a single probe may take.",
+                    "format": "int32",
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "inferenceServiceRef": {
+                "additionalProperties": false,
+                "description": "InferenceServiceRef references an in-cluster InferenceService.\nMutually exclusive with External.",
+                "properties": {
+                  "name": {
+                    "default": "",
+                    "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-map-type": "atomic"
+              },
+              "name": {
+                "description": "Name is the stable identifier used by rules and observability labels.\nMust be lowercase alphanumeric or '-'.",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+                "type": "string"
+              },
+              "tier": {
+                "default": "local",
+                "description": "Tier classifies the backend for rule matching. \"local\" backends are\nserved from inside the cluster; \"cloud\" backends egress the cluster\nboundary. Fail-closed rules can only route to local-tier backends.",
+                "enum": [
+                  "local",
+                  "cloud"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timeout": {
+                "description": "Timeout caps how long the proxy waits for this backend to begin\nsending response headers. When set it overrides the proxy\ndefault for dispatches that target this backend. Resolution\norder at dispatch time: rule.timeout || backend.timeout ||\nproxy default (ModelRouter.spec.proxy.responseHeaderTimeout).\nUseful when backends in the same router have wildly different\nP99 envelopes (in-cluster vLLM vs Anthropic global LB).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "weight": {
+                "description": "Weight is used for the \"weighted\" routing strategy. Higher values\nreceive proportionally more traffic. Ignored for other strategies.\nDefault 1 when unset.",
+                "format": "int32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "dataPlane": {
+          "default": "Proxy",
+          "description": "DataPlane selects how this ModelRouter serves traffic.\n\n\"Proxy\" (default) provisions the managed router-proxy Deployment +\nService and routes in-process per the rules below (today's behavior,\nfully back-compat).\n\n\"Gateway\" compiles the backends and rules onto a pre-installed Envoy AI\nGateway: a Backend + AIServiceBackend per InferenceServiceRef backend, a\nmulti-rule AIGatewayRoute, and a retry/failover BackendTrafficPolicy. In\nGateway mode the router-proxy is NOT provisioned. Requires the aigw CRDs\nto be installed; when they are absent the gateway resources are not\ngenerated and a condition explains why.",
+          "enum": [
+            "Proxy",
+            "Gateway"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "defaultRoute": {
+          "description": "DefaultRoute names a backend used when no rule matches.\nMust reference the Name of an entry in Backends.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "defaultRouteStrategy": {
+          "default": "Static",
+          "description": "DefaultRouteStrategy decides what happens when no rule matches.\n\"Static\" (default) routes to DefaultRoute. \"BackendNameMatch\" first\ntries to match the request's model to a backend Name, falling back to\nDefaultRoute only if none matches. BackendNameMatch makes every backend,\nincluding cloud-tier ones, directly addressable by name; sensitive-data\nprotection still relies on a matching failClosed rule, which is evaluated\nfirst and therefore continues to gate before any name match.",
+          "enum": [
+            "Static",
+            "BackendNameMatch"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "endpoint": {
+          "additionalProperties": false,
+          "description": "Endpoint defines the Kubernetes Service the router-proxy is exposed\nthrough. Mirrors the shape used by InferenceService.",
+          "properties": {
+            "gateway": {
+              "additionalProperties": false,
+              "description": "Gateway opts this InferenceService into Envoy AI Gateway exposure. When\nset and Enabled, the operator generates the Backend / AIServiceBackend /\nAIGatewayRoute resources that front this service through a pre-installed\nEnvoy AI Gateway. nil (the default) preserves today's behavior (no\ngateway resources). The Envoy AI Gateway stack and the referenced Gateway\nare a documented prerequisite; LLMKube does not install or own them.",
+              "properties": {
+                "enabled": {
+                  "description": "Enabled is the opt-in switch. When false (or when Gateway is nil), the\noperator generates no gateway resources for this InferenceService.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "gatewayRef": {
+                  "additionalProperties": false,
+                  "description": "GatewayRef identifies the pre-installed Gateway (gateway.networking.k8s.io)\nthe generated AIGatewayRoute attaches to. The Gateway typically lives in a\ndedicated gateway namespace; cross-namespace attachment requires the\nGateway listener's allowedRoutes.namespaces to permit this\nInferenceService's namespace (a documented prerequisite for the MVP; the\noperator does not generate ReferenceGrants or touch the listener).",
+                  "properties": {
+                    "name": {
+                      "description": "Name is the Gateway's name.",
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "description": "Namespace is the Gateway's namespace. Empty means the InferenceService's\nown namespace.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "modelName": {
+                  "description": "ModelName is the OpenAI \"model\" string clients send, matched by the\ngenerated route rule (the x-ai-eg-model header the gateway's ext_proc\npopulates from the request body). Defaults to ModelRef, falling back to\nthe InferenceService name when ModelRef is empty.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "gatewayRef"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "nodePort": {
+              "description": "NodePort is the specific NodePort to pin when endpoint.type is NodePort.\nIf set, the Service will use this exact port instead of auto-assigning\nfrom the 30000-32767 range. This provides a stable external endpoint\nacross redeployments.",
+              "format": "int32",
+              "maximum": 32767,
+              "minimum": 30000,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "path": {
+              "default": "/v1/chat/completions",
+              "description": "Path is the HTTP path for the inference endpoint",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "port": {
+              "default": 8080,
+              "description": "Port is the service port",
+              "format": "int32",
+              "maximum": 65535,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "type": {
+              "default": "ClusterIP",
+              "description": "Type is the Kubernetes service type (ClusterIP, NodePort, LoadBalancer)",
+              "enum": [
+                "ClusterIP",
+                "NodePort",
+                "LoadBalancer"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "gatewayRef": {
+          "additionalProperties": false,
+          "description": "GatewayRef identifies the pre-installed Gateway (gateway.networking.k8s.io)\nthe generated AIGatewayRoute attaches to when DataPlane is \"Gateway\".\nRequired in Gateway mode; ignored in Proxy mode. The Gateway and the Envoy\nAI Gateway stack are a documented prerequisite; LLMKube does not install\nor own them. Cross-namespace attachment requires the Gateway listener's\nallowedRoutes.namespaces to permit this ModelRouter's namespace.",
+          "properties": {
+            "name": {
+              "description": "Name is the Gateway's name.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "Namespace is the Gateway's namespace. Empty means the InferenceService's\nown namespace.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mcpServer": {
+          "additionalProperties": false,
+          "description": "MCPServer optionally exposes this router as a Model Context Protocol\nendpoint. Inactive until the Phase 3 MCP feature lands; the field is\nreserved in the schema for forward compatibility.",
+          "properties": {
+            "enabled": {
+              "description": "Enabled toggles MCP exposure. Default false. When true (after Phase\n3 lands), the router-proxy serves an MCP endpoint at /mcp using\nStreamable HTTP transport and OAuth 2.1.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "policy": {
+          "additionalProperties": false,
+          "description": "Policy holds cross-cutting controls (budgets, classification, audit).",
+          "properties": {
+            "auditLog": {
+              "additionalProperties": false,
+              "description": "AuditLog controls structured audit emission. Auditing is always on;\nthis field tunes the destination and verbosity.",
+              "properties": {
+                "filePath": {
+                  "description": "FilePath is the destination when Sink=file. Must be writable inside\nthe router-proxy container. Defaults to \"/var/log/mlx-router/audit.log\".",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "includeRequestBody": {
+                  "description": "IncludeRequestBody, when true, includes the OpenAI request body in\nevery audit entry. Disabled by default for size and privacy.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "sink": {
+                  "default": "stdout",
+                  "description": "Sink selects the audit-log destination.\n\"stdout\" (default) emits one JSON object per line to the proxy\n  container stdout, where it can be collected by the cluster log\n  stack.\n\"file\" writes to FilePath inside the proxy container.\n\"otlp\" forwards entries to an OTel collector as log records.",
+                  "enum": [
+                    "stdout",
+                    "file",
+                    "otlp"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "auth": {
+              "additionalProperties": false,
+              "description": "Auth configures request authentication. In dataPlane: Gateway mode it\ncompiles to an Envoy AI Gateway SecurityPolicy that validates inbound JWTs\nand maps a verified claim onto a trusted header before any model dispatch.\nnil means no authentication is enforced. Authentication only; per-team\nmodel allowlists (authorization) are a separate surface.",
+              "properties": {
+                "allowlists": {
+                  "description": "Allowlists restricts which verified team may reach which model\n(authorization), as a sibling of JWT (authentication). Each entry grants a\nteam the models it may reach. JWT proves identity; Allowlists decide what\nthat identity is permitted to do.\n\nEmpty or nil means NO authorization is enforced: any authenticated request\nreaches any model (the authentication-only behavior of slice 2d-core, so\nadding this field cannot retroactively lock out an existing router). A\nnon-empty Allowlists flips the generated SecurityPolicy to default-Deny:\nonly the named teams (and, per entry, only their listed models) are\nallowed, and every other verified team is rejected with HTTP 403.\n\nAuthorization requires authentication: Allowlists set without JWT is\nrejected fail-loud (you cannot authorize on an unverified claim), as is an\nentry with an empty Team or a duplicate Team. In dataPlane: Gateway mode\nthese compile to the authorization block of the SAME SecurityPolicy JWT\ngenerates: one Allow rule per entry whose principal matches the verified\nTeamClaim value (and, when the entry lists models, the resolved\nx-ai-eg-model header).",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "TeamModelAllowlist grants one verified team access to a set of models. It is\nthe unit of the router's authorization surface (RouterAuthSpec.Allowlists),\ncompiled into one Allow rule of the SecurityPolicy authorization block in\ndataPlane: Gateway mode.",
+                    "properties": {
+                      "models": {
+                        "description": "Models is the set of model names this team may reach. Empty means the\nteam may reach all models (identity-only allow). Each value matches the\nresolved model name (the x-ai-eg-model header), the same value\nspec.rules[].match.models route on.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      },
+                      "team": {
+                        "description": "Team is the verified teamClaim value this entry grants access to.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "team"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "jwt": {
+                  "additionalProperties": false,
+                  "description": "JWT enables JSON Web Token validation. When set (in dataPlane: Gateway\nmode) the gateway rejects requests without a valid token with HTTP 401\nbefore any model dispatch, and maps the configured claim onto a trusted\nheader.",
+                  "properties": {
+                    "headerKey": {
+                      "description": "HeaderKey is the request header the verified TeamClaim value lands in.\nDownstream team-scoped budgets key on this header. Defaults to\n\"x-llmkube-team\", matching the budget default.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "issuer": {
+                      "description": "Issuer is the OIDC issuer URL that must match the token's \"iss\" claim.",
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "jwksURI": {
+                      "description": "JWKSURI is the remote JWKS endpoint the gateway fetches signing keys from\nto verify token signatures.",
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "provider": {
+                      "description": "Provider is a short name for the JWT provider (e.g. \"keycloak\"). It labels\nthe provider in the generated SecurityPolicy.",
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "teamClaim": {
+                      "description": "TeamClaim is the JWT claim that identifies the tenant (e.g. \"team\"). Its\nverified value is copied into HeaderKey.",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "issuer",
+                    "jwksURI",
+                    "provider",
+                    "teamClaim"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "budgets": {
+              "description": "Budgets caps token and dollar consumption per scope over a rolling\nwindow. Empty list means no budget enforcement.",
+              "items": {
+                "additionalProperties": false,
+                "description": "BudgetSpec defines a token or dollar cap over a rolling window.",
+                "properties": {
+                  "headerKey": {
+                    "description": "HeaderKey is the request header carrying the team identifier when\nScope=team. Defaults to \"x-llmkube-team\".",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "maxTokens": {
+                    "description": "MaxTokens caps total tokens (prompt + completion) over the window.\nEither MaxTokens or MaxUSD (or both) must be set.",
+                    "format": "int64",
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "maxUSD": {
+                    "description": "MaxUSD caps total estimated cost in USD over the window. Cost is\ncomputed from RouterBackend.CostPerMillionTokens.",
+                    "pattern": "^[0-9]+(\\.[0-9]+)?$",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "description": "Name identifies this budget for metrics, status, and audit logs.",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+                    "type": "string"
+                  },
+                  "ruleName": {
+                    "description": "RuleName is required when Scope=rule. References a RouterRule.Name.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "scope": {
+                    "description": "Scope determines what the budget applies to.\n\"router\" caps all traffic through this ModelRouter.\n\"rule\" caps traffic matching a single named rule (see RuleName).\n\"team\" caps traffic identified by a request header (see HeaderKey).",
+                    "enum": [
+                      "router",
+                      "rule",
+                      "team"
+                    ],
+                    "type": "string"
+                  },
+                  "windowSeconds": {
+                    "default": 3600,
+                    "description": "WindowSeconds is the rolling window over which the cap is evaluated.",
+                    "format": "int32",
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "scope"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "classification": {
+              "additionalProperties": false,
+              "description": "Classification configures how the router determines the data\nclassification of an inbound request.",
+              "properties": {
+                "headerKey": {
+                  "description": "HeaderKey is the request header carrying the classification.\nDefaults to \"x-llmkube-classification\".",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "mode": {
+                  "default": "header-only",
+                  "description": "Mode determines how the router determines a request's\nclassification.\n\"header-only\" (default) trusts the request header\n  (HeaderKey, defaults to x-llmkube-classification).\n\"detector\" runs the bundled in-proxy detector.\n\"hybrid\" prefers the header, falling back to the detector when no\n  header is present.",
+                  "enum": [
+                    "header-only",
+                    "detector",
+                    "hybrid"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sensitiveClassifications": {
+                  "description": "SensitiveClassifications are the classification values that trigger\nfail-closed validation: any rule matching one of these values must\nhave FailClosed=true and reference only local-tier backends.\nDefaults to [\"pii\", \"phi\"].",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "proxy": {
+          "additionalProperties": false,
+          "description": "Proxy configures the managed router-proxy Deployment (replicas,\nimage override for air-gapped sites, resources). Sensible defaults\napply when omitted.",
+          "properties": {
+            "image": {
+              "description": "Image overrides the default router-proxy container image. Useful\nfor air-gapped clusters that pin to an internal registry digest.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "imagePullSecrets": {
+              "description": "ImagePullSecrets are passed through to the router-proxy pod spec.",
+              "items": {
+                "additionalProperties": false,
+                "description": "LocalObjectReference contains enough information to let you locate the\nreferenced object inside the same namespace.",
+                "properties": {
+                  "name": {
+                    "default": "",
+                    "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object",
+                "x-kubernetes-map-type": "atomic"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "nodeSelector": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "NodeSelector pins the router-proxy pod to nodes matching these labels.\nUse it when the proxy image is only present on specific nodes (for\nexample a node-local registry) or to co-locate the proxy with its\nbackends. Passthrough to the Pod spec.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "quarantineDuration": {
+              "description": "QuarantineDuration controls how long the proxy keeps a backend in\nthe \"skip\" state after a 5xx or network error before allowing a\nhalf-open probe. Default 15s when unset. Shorter windows make the\nproxy recover faster from transient blips; longer windows reduce\nprobe load on genuinely-down upstreams. Tests can shrink this to\nsub-second to verify recovery without sleeping the full default.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "replicas": {
+              "description": "Replicas is the desired number of router-proxy pods. Defaults to 1.\nThe proxy is stateless for routing decisions; budget and SLO\ncounters live in memory and reset on pod restart until the\npersistence feature lands.\n\nWhen any backend resolves to a ModelPool member, the operator pins\nthis to 1 regardless of the value set here: ModelPool activation\nserializes swaps through a single in-process lock, so a second proxy\nreplica would race it and thrash the shared GPU slot. Multi-replica\npooled routers need cross-replica swap coordination (a lease), tracked\nas a follow-up.",
+              "format": "int32",
+              "maximum": 10,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "resources": {
+              "additionalProperties": false,
+              "description": "Resources sets the pod's compute resource requests and limits.",
+              "properties": {
+                "claims": {
+                  "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                    "properties": {
+                      "name": {
+                        "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                        "type": "string"
+                      },
+                      "request": {
+                        "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "x-kubernetes-list-map-keys": [
+                    "name"
+                  ],
+                  "x-kubernetes-list-type": "map"
+                },
+                "limits": {
+                  "additionalProperties": {
+                    "oneOf": [
+                      {
+                        "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ],
+                    "x-kubernetes-int-or-string": true
+                  },
+                  "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "requests": {
+                  "additionalProperties": {
+                    "oneOf": [
+                      {
+                        "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ],
+                    "x-kubernetes-int-or-string": true
+                  },
+                  "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "responseHeaderTimeout": {
+              "description": "ResponseHeaderTimeout caps how long the proxy waits for the\nupstream to begin sending response headers. For non-streaming\nchat completions this is effectively a max-generation-time\ncap; for streaming dispatches the first SSE chunk arrives well\ninside the window so the cap is invisible. Default 120s when\nunset. Per-rule and per-backend timeouts (see RouterRule.Timeout\nand RouterBackend.Timeout) tighten this on a per-request basis\nbut cannot extend it beyond this cap.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "revisionHistoryLimit": {
+              "description": "RevisionHistoryLimit caps how many old ReplicaSets the proxy Deployment\nkeeps for rollback. Unset uses the Kubernetes default (10); 0 keeps none.\nUseful to bound ReplicaSet buildup, since the proxy re-rolls on every\nconfig change.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "rules": {
+          "description": "Rules are evaluated in declaration order. The first matching rule wins.\nIf no rule matches, the fallback is governed by DefaultRouteStrategy,\nending at DefaultRoute. If nothing resolves, the request is rejected\nwith HTTP 503.",
+          "items": {
+            "additionalProperties": false,
+            "description": "RouterRule pairs a match expression with a routing action.",
+            "properties": {
+              "failClosed": {
+                "description": "FailClosed: when true, if no backend in Route.Backends is healthy\nor otherwise eligible, the router rejects the request with HTTP 503\nrather than falling through to DefaultRoute or subsequent rules.\nThis is the regulated-data gate: a fail-closed rule guarantees that\nmatched requests are never served by any other route.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "match": {
+                "additionalProperties": false,
+                "description": "Match groups all match conditions. All declared conditions must be\ntrue for the rule to fire (AND semantics). If Match is omitted the\nrule always matches (useful as a catch-all before DefaultRoute).",
+                "properties": {
+                  "dataClassification": {
+                    "description": "DataClassification matches if the inbound request carries any of\nthese classifications. The classification source depends on\nPolicy.Classification.Mode: a request header\n(x-llmkube-classification by default), the bundled detector, or\nboth. Common values: \"public\", \"internal\", \"confidential\", \"pii\",\n\"phi\".",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Headers performs exact-match equality on inbound HTTP headers\n(case-insensitive header name comparison).",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "latencySLOMs": {
+                    "description": "LatencySLOMs is a P95 first-token-latency target in milliseconds.\nWhen set, if the rolling P95 for the primary backend exceeds this\nvalue the rule promotes its declared fallback. Honored only by the\n\"primary-fallback\" strategy.",
+                    "format": "int32",
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "models": {
+                    "description": "Models matches against the OpenAI-style \"model\" field in the\nrequest body. Glob patterns are supported (e.g. \"qwen3-*\").",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "requiredCapabilities": {
+                    "description": "RequiredCapabilities filters backends. The rule only matches if at\nleast one backend in Route.Backends advertises every listed\ncapability.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "taskComplexity": {
+                    "description": "TaskComplexity matches the inbound complexity hint (header\nx-llmkube-task-complexity).",
+                    "enum": [
+                      "simple",
+                      "moderate",
+                      "complex"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name is used in audit logs and metrics labels.",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+                "type": "string"
+              },
+              "route": {
+                "additionalProperties": false,
+                "description": "Route is the action taken when this rule matches.",
+                "properties": {
+                  "backends": {
+                    "description": "Backends is an ordered list of RouterBackend.Name values. For the\n\"primary-fallback\" strategy, the first entry is the primary and\nsubsequent entries are tried in order on failure. For \"weighted\",\ntraffic is distributed across all entries by Backend.Weight. For\n\"shadow\", the first entry serves the response and subsequent entries\nreceive mirrored requests for evaluation only.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "strategy": {
+                    "default": "primary-fallback",
+                    "description": "Strategy selects how multiple backends are used.",
+                    "enum": [
+                      "primary-fallback",
+                      "weighted",
+                      "shadow"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "backends"
+                ],
+                "type": "object"
+              },
+              "timeout": {
+                "description": "Timeout caps how long the proxy waits for the upstream to begin\nsending response headers on dispatches matched by this rule.\nWhen set it overrides RouterBackend.Timeout and the proxy\ndefault. Resolution order at dispatch time:\nrule.timeout || backend.timeout || proxy default.\nUseful for tightening regulated-data rules (sub-10s strict\nfail-fast) or extending long-reasoning rules (120s+).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "route"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "backends"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status defines the observed state of ModelRouter",
+      "properties": {
+        "activeRules": {
+          "description": "ActiveRules is the count of rules that successfully validated\nagainst current backend state.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "backends": {
+          "description": "Backends reports the resolved address and current health of every\ndeclared backend.",
+          "items": {
+            "additionalProperties": false,
+            "description": "BackendStatus reports the runtime state of one declared backend.",
+            "properties": {
+              "address": {
+                "description": "Address is the resolved upstream URL the router-proxy dispatches to.\nFor local backends this is the InferenceService's cluster URL; for\nexternal backends it is the provider's base URL.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "healthy": {
+                "description": "Healthy reflects the most recent probe result.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "lastProbeTime": {
+                "description": "LastProbeTime is when the proxy last completed a health probe for\nthis backend.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "Message provides extra context, especially when Healthy is false\n(e.g. \"InferenceService not Ready\", \"Secret missing key\nANTHROPIC_API_KEY\").",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name matches RouterBackend.Name.",
+                "type": "string"
+              },
+              "tier": {
+                "description": "Tier mirrors RouterBackend.Tier for convenience.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "budgetUtilization": {
+          "description": "BudgetUtilization summarises current budget consumption.",
+          "items": {
+            "additionalProperties": false,
+            "description": "BudgetStatus reports current consumption against a declared budget.",
+            "properties": {
+              "name": {
+                "description": "Name matches BudgetSpec.Name.",
+                "type": "string"
+              },
+              "tokensUsed": {
+                "description": "TokensUsed is the rolling-window token count.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "usdUsed": {
+                "description": "USDUsed is the rolling-window estimated cost in USD.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "utilization": {
+                "description": "Utilization is the fraction of the budget consumed, 0.0 to 1.0.\nWhen both MaxTokens and MaxUSD are set this is the maximum of the\ntwo utilizations.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "conditions": {
+          "description": "conditions represent the current state of the ModelRouter resource.\n\nStandard condition types:\n- \"Validated\":     the spec passed static validation\n- \"BackendsReady\": all referenced backends are reachable and healthy\n- \"Available\":     the router-proxy is serving traffic\n- \"Degraded\":      at least one backend is unhealthy but the router\n                   can still serve other routes\n- \"GatewayReady\":  (dataPlane: Gateway) the gateway resources reconciled",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "endpoint": {
+          "description": "Endpoint is the in-cluster URL clients should hit. Populated once\nthe router-proxy Service is ready.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gateway": {
+          "additionalProperties": false,
+          "description": "Gateway reports the observed state of dataPlane: Gateway exposure: whether\nthe AIGatewayRoute (and its backing Backend / AIServiceBackend /\nBackendTrafficPolicy) reconciled, and the resolved gateway endpoint. nil\nin Proxy mode. Also surfaced via the GatewayReady condition.",
+          "properties": {
+            "authEnabled": {
+              "description": "AuthEnabled indicates a SecurityPolicy enforcing JWT authentication was\ncompiled for this route (ModelRouter policy.auth.jwt). Set by the\nModelRouter dataPlane: Gateway path; false when no auth is configured.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "endpoint": {
+              "description": "Endpoint is the gateway address clients send OpenAI requests to. Set by\nthe ModelRouter dataPlane: Gateway path (resolved from the referenced\nGateway); empty for the InferenceService path.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modelName": {
+              "description": "ModelName is the resolved model-name match value clients send as the\nOpenAI \"model\" string to reach this InferenceService through the gateway.\nSet by the InferenceService path; empty for ModelRouter (which fronts\nmany model names).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "routeReady": {
+              "description": "RouteReady indicates the AIGatewayRoute (and its backing Backend +\nAIServiceBackend) were reconciled successfully against the gateway.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lastUpdated": {
+          "description": "LastUpdated is the timestamp of the last status reconciliation.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase is a coarse summary of the router's state.\nPossible values: Pending, Provisioning, Ready, Degraded, Failed.",
+          "enum": [
+            "Pending",
+            "Provisioning",
+            "Ready",
+            "Degraded",
+            "Failed"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
