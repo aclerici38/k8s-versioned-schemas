@@ -142,6 +142,16 @@
                       "null"
                     ]
                   },
+                  "cimdUrlAllowlist": {
+                    "description": "CIMDURLAllowlist restricts which https URLs may be used as OAuth Client ID Metadata\nDocuments. Entries are callback-URL patterns (wildcards allowed). A non-empty list\nenables CIMD; leaving it empty keeps the feature off.\nThe operator automatically sets UI_CONFIG_DISABLED=true when this field is set.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "containerSecurityContext": {
                     "additionalProperties": false,
                     "description": "Container security context",
@@ -620,7 +630,7 @@
                   },
                   "encryptionKey": {
                     "additionalProperties": false,
-                    "description": "Encryption Key\nRequired since Pocket-ID v2 when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
+                    "description": "Encryption Key\nRequired when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
                     "properties": {
                       "value": {
                         "description": "Plain text value",
@@ -1496,7 +1506,7 @@
                     ]
                   },
                   "image": {
-                    "default": "ghcr.io/pocket-id/pocket-id:v2.12.0-distroless@sha256:b2fad8a82fab26fe4c11797dd13ea55aa6c7d6ea93fe829a139f2e28be2d339d",
+                    "default": "ghcr.io/pocket-id/pocket-id:v2.14.0-distroless@sha256:e0f83a42a78d0759b6d2d8c7380ef0fa8a4c95dfa01ad88740a073ae9cc4ba94",
                     "description": "Container image to run. Defaults to the latest distroless version at time of operator release",
                     "type": [
                       "string",
@@ -2089,6 +2099,14 @@
                         ],
                         "type": [
                           "string",
+                          "null"
+                        ]
+                      },
+                      "queryArgs": {
+                        "default": false,
+                        "description": "Include SQL query parameter values in traces and in the query logs emitted\nat the debug level. These values may contain sensitive data.",
+                        "type": [
+                          "boolean",
                           "null"
                         ]
                       }
@@ -3619,6 +3637,41 @@
                       "null"
                     ]
                   },
+                  "tls": {
+                    "additionalProperties": false,
+                    "description": "TLS terminates HTTPS in the Pocket-ID pod from a mounted certificate Secret.",
+                    "properties": {
+                      "secretRef": {
+                        "additionalProperties": false,
+                        "description": "SecretRef names a kubernetes.io/tls Secret in the instance's namespace holding\ntls.crt and tls.key.",
+                        "properties": {
+                          "name": {
+                            "default": "",
+                            "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": "object",
+                        "x-kubernetes-map-type": "atomic"
+                      }
+                    },
+                    "required": [
+                      "secretRef"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "tls.secretRef.name is required",
+                        "rule": "size(self.secretRef.name) > 0"
+                      }
+                    ]
+                  },
                   "tracing": {
                     "additionalProperties": false,
                     "description": "OpenTelemetry tracing configuration\nWhen present, tracing is automatically enabled\nConfigure additional exporter-specific OTEL_* variables via the env escape hatch",
@@ -3772,6 +3825,46 @@
                       "boolean",
                       "null"
                     ]
+                  },
+                  "webauthn": {
+                    "additionalProperties": false,
+                    "description": "Passkey restrictions\nThe operator automatically sets UI_CONFIG_DISABLED=true when this section is configured",
+                    "properties": {
+                      "allowSyncedPasskeys": {
+                        "description": "Accept passkeys that are backup-eligible, i.e. synced to a cloud account\nsuch as iCloud Keychain or Google Password Manager",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "authenticatorAttachment": {
+                        "description": "Authenticator type accepted at registration: platform (device-bound),\ncross-platform (roaming security key), or any",
+                        "enum": [
+                          "any",
+                          "platform",
+                          "cross-platform"
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "userVerification": {
+                        "description": "Whether the authenticator must verify the user (PIN, biometric) during login",
+                        "enum": [
+                          "required",
+                          "preferred"
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
                   }
                 },
                 "type": "object",
@@ -3905,6 +3998,32 @@
                       },
                       "required": [
                         "name"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "customClaims": {
+                    "description": "CustomClaims are additional claims to attach to this user.\nUser claims take precedence over claims inherited from the user's groups.",
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "CustomClaim defines a custom claim key/value pair for a user or user group.",
+                      "properties": {
+                        "key": {
+                          "description": "Key is the claim key",
+                          "type": "string"
+                        },
+                        "value": {
+                          "description": "Value is the claim value",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "value"
                       ],
                       "type": "object"
                     },
@@ -4344,7 +4463,7 @@
                     "description": "CustomClaims are additional claims to attach to users in this group",
                     "items": {
                       "additionalProperties": false,
-                      "description": "CustomClaim defines a custom claim key/value pair for a user group.",
+                      "description": "CustomClaim defines a custom claim key/value pair for a user or user group.",
                       "properties": {
                         "key": {
                           "description": "Key is the claim key",
@@ -4543,6 +4662,17 @@
                 "additionalProperties": false,
                 "description": "spec defines the desired state of PocketIDOIDCClient",
                 "properties": {
+                  "accessTokenDurationMinutes": {
+                    "default": 60,
+                    "description": "How long access tokens issued to this client stay valid, in minutes",
+                    "format": "int64",
+                    "maximum": 525600,
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "allowedUserGroups": {
                     "description": "AllowedUserGroups restricts access to the listed user groups. Each entry names\neither a PocketIDUserGroup CR or, for groups managed outside this cluster, an\nexisting Pocket-ID group by name or ID.",
                     "items": {
@@ -4607,7 +4737,7 @@
                     "description": "APIAccess grants this client permission to request scoped access on the\nreferenced PocketIDAPIs. The client is the sole owner of its API access in\nPocket-ID: while this field is set the operator keeps the access in sync and\nclears it if the field is later emptied. When never set, existing API access\nconfigured out-of-band is left untouched.",
                     "items": {
                       "additionalProperties": false,
-                      "description": "OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.\nPermissions are referenced by their key; the controller resolves them to Pocket-ID\npermission IDs via the PocketIDAPI status.",
+                      "description": "OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.\nPermissions are referenced by their key; the controller resolves them to Pocket-ID\npermission IDs via the PocketIDAPI status.\nThe access flags exist to grant a flow that selects no permissions, so setting one to false\nalongside a permission list is rejected rather than silently ignoring the list.",
                       "properties": {
                         "apiRef": {
                           "additionalProperties": false,
@@ -4630,6 +4760,13 @@
                           ],
                           "type": "object"
                         },
+                        "clientAccess": {
+                          "description": "ClientAccess grants the client-credentials flow even with no permissions selected.\nDefaults to true when clientPermissions is non-empty, and requires a confidential client.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
                         "clientPermissions": {
                           "description": "ClientPermissions are permission keys granted for the client-credentials\n(machine-to-machine) flow. These require a confidential client.",
                           "items": {
@@ -4637,6 +4774,13 @@
                           },
                           "type": [
                             "array",
+                            "null"
+                          ]
+                        },
+                        "delegatedAccess": {
+                          "description": "DelegatedAccess grants the user-delegated flow even with no permissions selected,\ne.g. a client requesting a resource that doesn't need any scopes.\nDefaults to true when delegatedPermissions is non-empty.",
+                          "type": [
+                            "boolean",
                             "null"
                           ]
                         },
@@ -4654,7 +4798,17 @@
                       "required": [
                         "apiRef"
                       ],
-                      "type": "object"
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "delegatedAccess: false conflicts with delegatedPermissions; drop the permissions to revoke the flow, or remove the flag to grant them",
+                          "rule": "!has(self.delegatedAccess) || self.delegatedAccess || !has(self.delegatedPermissions) || size(self.delegatedPermissions) == 0"
+                        },
+                        {
+                          "message": "clientAccess: false conflicts with clientPermissions; drop the permissions to revoke the flow, or remove the flag to grant them",
+                          "rule": "!has(self.clientAccess) || self.clientAccess || !has(self.clientPermissions) || size(self.clientPermissions) == 0"
+                        }
+                      ]
                     },
                     "type": [
                       "array",
@@ -4672,17 +4826,30 @@
                     ]
                   },
                   "clientID": {
-                    "description": "ClientID is the optional OIDC client ID to use instead of a generated one\nThe Client ID is immutable and cannot be changed once the oidc client is created",
-                    "maxLength": 128,
+                    "description": "ClientID is the optional OIDC client ID to use instead of a generated one.\nThe Client ID is immutable and cannot be changed once the oidc client is created.\nAn https:// URL marks the client as an OAuth Client ID Metadata Document (CIMD)\nclient, which the operator adopts but never creates and only partially manages.",
+                    "maxLength": 512,
                     "minLength": 2,
                     "type": [
                       "string",
                       "null"
                     ]
                   },
+                  "clientSecretOverlap": {
+                    "description": "ClientSecretOverlap is how long the client-secret a replacement supersedes stays valid in\nPocket-ID, giving consumers that cached it time to pick up the new one. It covers every\nreplacement: scheduled rotations, the regenerate-client-secret annotation, and clientSecretRef updates.\n\nWhen unset or zero the previous secret is deleted as soon as the replacement is stored,\nso exactly one secret is ever valid. Must not exceed 168h, nor clientSecretRotation.interval if set.",
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "clientSecretOverlap must not exceed 168h (7 days)",
+                        "rule": "duration(self) <= duration('168h')"
+                      }
+                    ]
+                  },
                   "clientSecretRef": {
                     "additionalProperties": false,
-                    "description": "ClientSecretRef references a Kubernetes Secret key holding the client secret to set in\nPocket-ID, instead of letting the operator generate one. The value must be at least 16\nprintable ASCII characters. While set, the operator never generates or rotates the secret:\nclientSecretRotation cannot be enabled and the regenerate-client-secret annotation is\nignored. Requires Pocket-ID v2.12.0 or newer.",
+                    "description": "ClientSecretRef references a Kubernetes Secret key holding the client secret to set in\nPocket-ID, instead of letting the operator generate one. The value must be at least 16\nprintable ASCII characters. While set, the operator never generates or rotates the secret:\nclientSecretRotation cannot be enabled and the regenerate-client-secret annotation is\nignored.",
                     "properties": {
                       "key": {
                         "description": "The key of the secret to select from.  Must be a valid secret key.",
@@ -4821,6 +4988,14 @@
                           "description": "JWKS is the URL or JSON for the identity's JWKS",
                           "type": [
                             "string",
+                            "null"
+                          ]
+                        },
+                        "replayProtection": {
+                          "default": false,
+                          "description": "ReplayProtection requires client assertions to carry a jti and rejects replays",
+                          "type": [
+                            "boolean",
                             "null"
                           ]
                         },
@@ -4978,6 +5153,25 @@
                   "pkceEnabled": {
                     "default": false,
                     "description": "Enables PKCE for the client",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "refreshTokenDurationMinutes": {
+                    "default": 43200,
+                    "description": "How long refresh tokens issued to this client stay valid, in minutes",
+                    "format": "int64",
+                    "maximum": 525600,
+                    "minimum": 1,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "requiresPushedAuthorizationRequests": {
+                    "default": false,
+                    "description": "Requires the client to use pushed authorization requests (PAR)",
                     "type": [
                       "boolean",
                       "null"
@@ -5215,8 +5409,8 @@
                     "rule": "!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled || !has(self.secret) || !has(self.secret.storeClientSecret) || self.secret.storeClientSecret"
                   },
                   {
-                    "message": "clientPermissions require a confidential client (isPublic must be false)",
-                    "rule": "!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, !has(a.clientPermissions) || size(a.clientPermissions) == 0)"
+                    "message": "clientPermissions and clientAccess require a confidential client (isPublic must be false)",
+                    "rule": "!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) && (!has(a.clientAccess) || !a.clientAccess))"
                   },
                   {
                     "message": "clientSecretRef requires a confidential client (isPublic must be false)",
@@ -5225,6 +5419,30 @@
                   {
                     "message": "clientSecretRotation cannot be enabled when clientSecretRef is set",
                     "rule": "!has(self.clientSecretRef) || !has(self.clientSecretRotation) || !self.clientSecretRotation.enabled"
+                  },
+                  {
+                    "message": "clientID must be at most 128 characters unless it is a client ID metadata document URL",
+                    "rule": "!has(self.clientID) || self.clientID.startsWith('https://') || self.clientID.size() <= 128"
+                  },
+                  {
+                    "message": "name, callbackUrls, logoutCallbackUrls, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client",
+                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || (!has(self.name) && !has(self.callbackUrls) && !has(self.logoutCallbackUrls) && !has(self.federatedIdentities) && !self.isPublic && !self.pkceEnabled)"
+                  },
+                  {
+                    "message": "a CIMD client is always public and has no client secret, so clientSecretRef and clientSecretRotation are not supported",
+                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || (!has(self.clientSecretRef) && (!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled))"
+                  },
+                  {
+                    "message": "clientPermissions and clientAccess require a confidential client, and a CIMD client is always public",
+                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) && (!has(a.clientAccess) || !a.clientAccess))"
+                  },
+                  {
+                    "message": "clientSecretOverlap must not exceed clientSecretRotation.interval",
+                    "rule": "!has(self.clientSecretOverlap) || !has(self.clientSecretRotation) || !has(self.clientSecretRotation.interval) || duration(self.clientSecretOverlap) <= duration(self.clientSecretRotation.interval)"
+                  },
+                  {
+                    "message": "clientSecretOverlap requires a confidential client (isPublic must be false)",
+                    "rule": "!has(self.clientSecretOverlap) || !self.isPublic"
                   }
                 ]
               }
@@ -5264,6 +5482,13 @@
                 "additionalProperties": false,
                 "description": "spec defines the desired state of PocketIDAPI",
                 "properties": {
+                  "cimdAccess": {
+                    "description": "CIMDAccess grants every client registered through an OAuth Client ID Metadata\nDocument access to this API, so dynamically-registered clients do not each need an\nexplicit grant. Defaults to true when any permission sets cimdAccess. Set it to true\nexplicitly to grant access with no permissions, which is what a client requesting a\nresource without any scopes needs, or to false to revoke access while keeping the\nper-permission marks.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
                   "instanceSelector": {
                     "additionalProperties": false,
                     "description": "InstanceSelector selects the PocketIDInstance to reconcile against.\nIf omitted, the controller expects exactly one instance in the cluster.",
@@ -5338,6 +5563,13 @@
                       "additionalProperties": false,
                       "description": "APIPermission defines a single scoped permission offered by an API.",
                       "properties": {
+                        "cimdAccess": {
+                          "description": "CIMDAccess lets clients registered through a Client ID Metadata Document request\nthis permission. Only takes effect while spec.cimdAccess is true.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
                         "description": {
                           "description": "Description optionally explains what the permission grants.",
                           "maxLength": 500,
@@ -5533,6 +5765,16 @@
                 "format": "int32",
                 "type": [
                   "integer",
+                  "null"
+                ]
+              },
+              "cimdUrlAllowlist": {
+                "description": "CIMDURLAllowlist restricts which https URLs may be used as OAuth Client ID Metadata\nDocuments. Entries are callback-URL patterns (wildcards allowed). A non-empty list\nenables CIMD; leaving it empty keeps the feature off.\nThe operator automatically sets UI_CONFIG_DISABLED=true when this field is set.",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
                   "null"
                 ]
               },
@@ -6014,7 +6256,7 @@
               },
               "encryptionKey": {
                 "additionalProperties": false,
-                "description": "Encryption Key\nRequired since Pocket-ID v2 when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
+                "description": "Encryption Key\nRequired when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
                 "properties": {
                   "value": {
                     "description": "Plain text value",
@@ -6890,7 +7132,7 @@
                 ]
               },
               "image": {
-                "default": "ghcr.io/pocket-id/pocket-id:v2.12.0-distroless@sha256:b2fad8a82fab26fe4c11797dd13ea55aa6c7d6ea93fe829a139f2e28be2d339d",
+                "default": "ghcr.io/pocket-id/pocket-id:v2.14.0-distroless@sha256:e0f83a42a78d0759b6d2d8c7380ef0fa8a4c95dfa01ad88740a073ae9cc4ba94",
                 "description": "Container image to run. Defaults to the latest distroless version at time of operator release",
                 "type": [
                   "string",
@@ -7483,6 +7725,14 @@
                     ],
                     "type": [
                       "string",
+                      "null"
+                    ]
+                  },
+                  "queryArgs": {
+                    "default": false,
+                    "description": "Include SQL query parameter values in traces and in the query logs emitted\nat the debug level. These values may contain sensitive data.",
+                    "type": [
+                      "boolean",
                       "null"
                     ]
                   }
@@ -9013,6 +9263,41 @@
                   "null"
                 ]
               },
+              "tls": {
+                "additionalProperties": false,
+                "description": "TLS terminates HTTPS in the Pocket-ID pod from a mounted certificate Secret.",
+                "properties": {
+                  "secretRef": {
+                    "additionalProperties": false,
+                    "description": "SecretRef names a kubernetes.io/tls Secret in the instance's namespace holding\ntls.crt and tls.key.",
+                    "properties": {
+                      "name": {
+                        "default": "",
+                        "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": "object",
+                    "x-kubernetes-map-type": "atomic"
+                  }
+                },
+                "required": [
+                  "secretRef"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-validations": [
+                  {
+                    "message": "tls.secretRef.name is required",
+                    "rule": "size(self.secretRef.name) > 0"
+                  }
+                ]
+              },
               "tracing": {
                 "additionalProperties": false,
                 "description": "OpenTelemetry tracing configuration\nWhen present, tracing is automatically enabled\nConfigure additional exporter-specific OTEL_* variables via the env escape hatch",
@@ -9166,6 +9451,46 @@
                   "boolean",
                   "null"
                 ]
+              },
+              "webauthn": {
+                "additionalProperties": false,
+                "description": "Passkey restrictions\nThe operator automatically sets UI_CONFIG_DISABLED=true when this section is configured",
+                "properties": {
+                  "allowSyncedPasskeys": {
+                    "description": "Accept passkeys that are backup-eligible, i.e. synced to a cloud account\nsuch as iCloud Keychain or Google Password Manager",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "authenticatorAttachment": {
+                    "description": "Authenticator type accepted at registration: platform (device-bound),\ncross-platform (roaming security key), or any",
+                    "enum": [
+                      "any",
+                      "platform",
+                      "cross-platform"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "userVerification": {
+                    "description": "Whether the authenticator must verify the user (PIN, biometric) during login",
+                    "enum": [
+                      "required",
+                      "preferred"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             },
             "type": "object",
@@ -9299,6 +9624,32 @@
                   },
                   "required": [
                     "name"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "customClaims": {
+                "description": "CustomClaims are additional claims to attach to this user.\nUser claims take precedence over claims inherited from the user's groups.",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "CustomClaim defines a custom claim key/value pair for a user or user group.",
+                  "properties": {
+                    "key": {
+                      "description": "Key is the claim key",
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Value is the claim value",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "value"
                   ],
                   "type": "object"
                 },
@@ -9738,7 +10089,7 @@
                 "description": "CustomClaims are additional claims to attach to users in this group",
                 "items": {
                   "additionalProperties": false,
-                  "description": "CustomClaim defines a custom claim key/value pair for a user group.",
+                  "description": "CustomClaim defines a custom claim key/value pair for a user or user group.",
                   "properties": {
                     "key": {
                       "description": "Key is the claim key",
@@ -10029,6 +10380,13 @@
               "type": "boolean",
               "description": "Create a ServiceMonitor for the operator metrics",
               "default": false
+            },
+            "labels": {
+              "type": "object",
+              "description": "Additional labels for the ServiceMonitor resource",
+              "additionalProperties": {
+                "type": "string"
+              }
             }
           }
         },
