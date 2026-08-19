@@ -1,0 +1,264 @@
+{
+  "description": "KeycloakAuthenticationFlow manages a Keycloak authentication flow.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "KeycloakAuthenticationFlowSpec defines the desired state of KeycloakAuthenticationFlow",
+      "properties": {
+        "alias": {
+          "description": "Alias is the unique identifier for this flow within the realm.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "clusterRealmRef": {
+          "additionalProperties": false,
+          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm.\nOne of realmRef or clusterRealmRef must be specified.",
+          "properties": {
+            "name": {
+              "description": "Name of the cluster-scoped resource",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Description is a human-readable description of the flow.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "executions": {
+          "description": "Executions is the ordered list of executions for this flow as a JSON\narray. Each entry is either a leaf authenticator or a nested sub-flow.\n\nLeaf authenticator (object fields):\n\n  authenticator:        Keycloak provider ID, e.g. \"auth-cookie\".\n  requirement:          REQUIRED | ALTERNATIVE | DISABLED | CONDITIONAL.\n  authenticatorConfig:  optional map[string]string applied to the\n                        execution after creation.\n\nSub-flow (object fields):\n\n  subFlow:              { alias, providerId, description? } — the\n                        child flow definition. providerId is typically\n                        \"basic-flow\" or \"form-flow\"; \"form-flow\" is\n                        required when the children are FormAction\n                        providers (e.g. registration-user-creation).\n  requirement:          REQUIRED | ALTERNATIVE | DISABLED | CONDITIONAL.\n  executions:           ordered list of child executions, recursively\n                        using the same shape. As a convenience, child\n                        executions may also be placed inside\n                        subFlow.executions; if both are present, the\n                        inline list precedes the sibling list.\n\nNesting depth is unconstrained.",
+          "x-kubernetes-preserve-unknown-fields": true
+        },
+        "providerId": {
+          "description": "ProviderId is the top-level flow type. Keycloak ships with \"basic-flow\"\nand \"client-flow\"; sub-flows may additionally use \"form-flow\".",
+          "minLength": 1,
+          "type": "string"
+        },
+        "realmRef": {
+          "additionalProperties": false,
+          "description": "RealmRef is a reference to a KeycloakRealm.\nOne of realmRef or clusterRealmRef must be specified.",
+          "properties": {
+            "name": {
+              "description": "Name of the resource",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "alias",
+        "providerId"
+      ],
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "exactly one of realmRef or clusterRealmRef must be set",
+          "rule": "has(self.realmRef) != has(self.clusterRealmRef)"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "KeycloakAuthenticationFlowStatus defines the observed state of KeycloakAuthenticationFlow",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the latest available observations.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "flowID": {
+          "description": "FlowID is the Keycloak internal ID of the top-level flow.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "instance": {
+          "additionalProperties": false,
+          "description": "Instance contains the resolved instance reference.",
+          "properties": {
+            "clusterInstanceRef": {
+              "description": "ClusterInstanceRef is the name of the cluster instance",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "instanceRef": {
+              "description": "InstanceRef is the name of the namespaced instance",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "message": {
+          "description": "Message contains additional information.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the generation of the spec that was last processed.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ready": {
+          "description": "Ready indicates if the flow is synchronized with Keycloak.",
+          "type": "boolean"
+        },
+        "realm": {
+          "additionalProperties": false,
+          "description": "Realm contains the resolved realm reference.",
+          "properties": {
+            "clusterRealmRef": {
+              "description": "ClusterRealmRef is the name of the cluster realm",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "realmRef": {
+              "description": "RealmRef is the name of the namespaced realm",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "resourcePath": {
+          "description": "ResourcePath is the Keycloak API path for this flow.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "Status is a human-readable status message.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "ready"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
