@@ -38,7 +38,8 @@ spec:
               description: Cron schedule that fires `Snapshot` CRs from a `SnapshotPolicy`.
               properties:
                 deletion:
-                  description: Deletion semantics for the Snapshots this schedule produced.
+                  description: Deletion semantics for the Snapshots this schedule
+                    produced.
                   nullable: true
                   properties:
                     onScheduleDelete:
@@ -62,36 +63,49 @@ spec:
                   nullable: true
                   type: integer
                 policyRef:
-                  description: The single `SnapshotPolicy` this schedule invokes; mutually exclusive with `policySelector`.
+                  description: The single `SnapshotPolicy` this schedule invokes;
+                    mutually exclusive with `policySelector`.
                   nullable: true
                   properties:
                     name:
                       description: Name of the referenced `SnapshotPolicy`.
                       type: string
                     namespace:
-                      description: Namespace of the `SnapshotPolicy`; absent = same namespace as the referrer.
+                      description: Namespace of the `SnapshotPolicy`; absent = same
+                        namespace as the referrer.
                       nullable: true
                       type: string
                   required:
                     - name
                   type: object
                 policySelector:
-                  description: Label selector fanning out over `SnapshotPolicy` objects; mutually exclusive with `policyRef`.
+                  description: Label selector fanning out over `SnapshotPolicy` objects;
+                    mutually exclusive with `policyRef`.
                   nullable: true
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
                       items:
-                        description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                        description: A label selector requirement is a selector that
+                          contains values, a key, and an operator that relates the
+                          key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies to.
+                            description: key is the label key that the selector applies
+                              to.
                             type: string
                           operator:
-                            description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                            description: operator represents a key's relationship
+                              to a set of values. Valid operators are In, NotIn, Exists
+                              and DoesNotExist.
                             type: string
                           values:
-                            description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                            description: values is an array of string values. If the
+                              operator is In or NotIn, the values array must be non-empty.
+                              If the operator is Exists or DoesNotExist, the values
+                              array must be empty. This array is replaced during a
+                              strategic merge patch.
                             items:
                               type: string
                             type: array
@@ -103,15 +117,21 @@ spec:
                     matchLabels:
                       additionalProperties:
                         type: string
-                      description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      description: matchLabels is a map of {key,value} pairs. A single
+                        {key,value} in the matchLabels map is equivalent to an element
+                        of matchExpressions, whose key field is "key", the operator
+                        is "In", and the values array contains only "value". The requirements
+                        are ANDed.
                       type: object
                   type: object
                 schedule:
-                  description: Cron, jitter, timezone, and concurrency for the firing cadence.
+                  description: Cron, jitter, timezone, and concurrency for the firing
+                    cadence.
                   properties:
                     concurrencyPolicy:
                       default: Forbid
-                      description: How to handle a firing while a prior run is still in flight (default `Forbid`).
+                      description: How to handle a firing while a prior run is still
+                        in flight (default `Forbid`).
                       enum:
                         - Forbid
                         - Allow
@@ -121,15 +141,18 @@ spec:
                       description: Cron expression with Jenkins-style `H` substitution.
                       type: string
                     jitter:
-                      description: Deterministic jitter (Go-style duration), derived from `(scheduleUID, slot)`.
+                      description: Deterministic jitter (Go-style duration), derived
+                        from `(scheduleUID, slot)`.
                       nullable: true
                       type: string
                     runOnCreate:
                       default: false
-                      description: Whether to fire immediately on create (default `false`).
+                      description: Whether to fire immediately on create (default
+                        `false`).
                       type: boolean
                     startingDeadlineSeconds:
-                      description: If a slot is missed by more than this many seconds, skip it instead of firing late.
+                      description: If a slot is missed by more than this many seconds,
+                        skip it instead of firing late.
                       format: int64
                       nullable: true
                       type: integer
@@ -137,7 +160,8 @@ spec:
                       description: Skip future firings while true.
                       type: boolean
                     timezone:
-                      description: IANA timezone the cron is evaluated in; absent uses the controller's default.
+                      description: IANA timezone the cron is evaluated in; absent
+                        uses the controller's default.
                       nullable: true
                       type: string
                   required:
@@ -148,32 +172,49 @@ spec:
               type: object
               x-kubernetes-validations:
                 - message: exactly one of policyRef or policySelector
-                  rule: '[has(self.policyRef), has(self.policySelector)].filter(x, x).size() == 1'
+                  rule: '[has(self.policyRef), has(self.policySelector)].filter(x,
+                    x).size() == 1'
             status:
-              description: 'Observed state of a `SnapshotSchedule`: pinned firing slots and failure run.'
+              description: 'Observed state of a `SnapshotSchedule`: pinned firing
+                slots and failure run.'
               nullable: true
               properties:
                 conditions:
                   description: Standard Kubernetes conditions surfacing schedule health.
                   items:
-                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    description: Condition contains details for one aspect of the
+                      current state of this API Resource.
                     properties:
                       lastTransitionTime:
-                        description: lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        description: lastTransitionTime is the last time the condition
+                          transitioned from one status to another. This should be
+                          when the underlying condition changed.  If that is not known,
+                          then using the time when the API field changed is acceptable.
                         format: date-time
                         type: string
                       message:
-                        description: message is a human readable message indicating details about the transition. This may be an empty string.
+                        description: message is a human readable message indicating
+                          details about the transition. This may be an empty string.
                         type: string
                       observedGeneration:
-                        description: observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.
+                        description: observedGeneration represents the .metadata.generation
+                          that the condition was set based upon. For instance, if
+                          .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration
+                          is 9, the condition is out of date with respect to the current
+                          state of the instance.
                         format: int64
                         type: integer
                       reason:
-                        description: reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.
+                        description: reason contains a programmatic identifier indicating
+                          the reason for the condition's last transition. Producers
+                          of specific condition types may define expected values and
+                          meanings for this field, and whether the values are considered
+                          a guaranteed API. The value should be a CamelCase string.
+                          This field may not be empty.
                         type: string
                       status:
-                        description: status of the condition, one of True, False, Unknown.
+                        description: status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: type of condition in CamelCase or in foo.example.com/CamelCase.
@@ -196,15 +237,18 @@ spec:
                   nullable: true
                   properties:
                     at:
-                      description: The RFC3339 instant this slot fired (or is scheduled to); also accepts the `scheduledAt` alias.
+                      description: The RFC3339 instant this slot fired (or is scheduled
+                        to); also accepts the `scheduledAt` alias.
                       nullable: true
                       type: string
                     snapshotRef:
-                      description: The `Snapshot` CR this slot produced, when one was created.
+                      description: The `Snapshot` CR this slot produced, when one
+                        was created.
                       nullable: true
                       properties:
                         name:
-                          description: The `Snapshot`'s `metadata.name` (same namespace as the schedule).
+                          description: The `Snapshot`'s `metadata.name` (same namespace
+                            as the schedule).
                           type: string
                       required:
                         - name
@@ -225,15 +269,18 @@ spec:
                   nullable: true
                   properties:
                     at:
-                      description: The RFC3339 instant this slot fired (or is scheduled to); also accepts the `scheduledAt` alias.
+                      description: The RFC3339 instant this slot fired (or is scheduled
+                        to); also accepts the `scheduledAt` alias.
                       nullable: true
                       type: string
                     snapshotRef:
-                      description: The `Snapshot` CR this slot produced, when one was created.
+                      description: The `Snapshot` CR this slot produced, when one
+                        was created.
                       nullable: true
                       properties:
                         name:
-                          description: The `Snapshot`'s `metadata.name` (same namespace as the schedule).
+                          description: The `Snapshot`'s `metadata.name` (same namespace
+                            as the schedule).
                           type: string
                       required:
                         - name
@@ -250,19 +297,23 @@ spec:
                       type: string
                   type: object
                 nextSchedule:
-                  description: The next firing slot the controller has computed (cron + jitter, pinned).
+                  description: The next firing slot the controller has computed (cron
+                    + jitter, pinned).
                   nullable: true
                   properties:
                     at:
-                      description: The RFC3339 instant this slot fired (or is scheduled to); also accepts the `scheduledAt` alias.
+                      description: The RFC3339 instant this slot fired (or is scheduled
+                        to); also accepts the `scheduledAt` alias.
                       nullable: true
                       type: string
                     snapshotRef:
-                      description: The `Snapshot` CR this slot produced, when one was created.
+                      description: The `Snapshot` CR this slot produced, when one
+                        was created.
                       nullable: true
                       properties:
                         name:
-                          description: The `Snapshot`'s `metadata.name` (same namespace as the schedule).
+                          description: The `Snapshot`'s `metadata.name` (same namespace
+                            as the schedule).
                           type: string
                       required:
                         - name
@@ -279,7 +330,8 @@ spec:
                       type: string
                   type: object
                 observedGeneration:
-                  description: The `metadata.generation` this status reflects, for staleness detection.
+                  description: The `metadata.generation` this status reflects, for
+                    staleness detection.
                   format: int64
                   nullable: true
                   type: integer

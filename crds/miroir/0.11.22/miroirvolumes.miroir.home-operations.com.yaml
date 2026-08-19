@@ -101,7 +101,8 @@ spec:
                           (node-map override, else the Node's InternalIP).
                         type: string
                       node:
-                        description: Node is the Kubernetes node name consuming the volume remotely.
+                        description: Node is the Kubernetes node name consuming the
+                          volume remotely.
                         type: string
                       nodeID:
                         description: |-
@@ -115,7 +116,8 @@ spec:
                   maxItems: 2
                   type: array
                 drbd:
-                  description: DRBD is set by the controller when len(Replicas) > 1.
+                  description: DRBD is set by the controller when len(Replicas) >
+                    1.
                   properties:
                     bitmapGranularityBytes:
                       description: |-
@@ -223,7 +225,8 @@ spec:
                           membership reconciler when it completes the entry.
                         type: boolean
                       node:
-                        description: Node is the Kubernetes node name hosting this replica.
+                        description: Node is the Kubernetes node name hosting this
+                          replica.
                         type: string
                       nodeID:
                         description: |-
@@ -254,10 +257,13 @@ spec:
                   minimum: 1
                   type: integer
                   x-kubernetes-validations:
-                    - message: 'a volume cannot shrink in place: agents only grow the backing device and filesystem; restore a snapshot into a new, smaller volume instead'
+                    - message: 'a volume cannot shrink in place: agents only grow
+                        the backing device and filesystem; restore a snapshot into
+                        a new, smaller volume instead'
                       rule: self >= oldSelf
                 source:
-                  description: Source, if set, provisions content from a snapshot (CoW clone).
+                  description: Source, if set, provisions content from a snapshot
+                    (CoW clone).
                   properties:
                     padForMetadata:
                       description: |-
@@ -282,44 +288,79 @@ spec:
                 - sizeBytes
               type: object
               x-kubernetes-validations:
-                - message: replicated volumes (spec.drbd set) need 2-3 replicas; unreplicated exactly 1
-                  rule: 'has(self.drbd) ? (size(self.replicas) >= 2 && size(self.replicas) <= 3) : size(self.replicas) == 1'
-                - message: replicated volumes need at least 2 diskful (non-diskless) replicas
-                  rule: 'has(self.drbd) ? size(self.replicas.filter(r, !has(r.diskless) || !r.diskless)) >= 2 : true'
+                - message: replicated volumes (spec.drbd set) need 2-3 replicas; unreplicated
+                    exactly 1
+                  rule: 'has(self.drbd) ? (size(self.replicas) >= 2 && size(self.replicas)
+                    <= 3) : size(self.replicas) == 1'
+                - message: replicated volumes need at least 2 diskful (non-diskless)
+                    replicas
+                  rule: 'has(self.drbd) ? size(self.replicas.filter(r, !has(r.diskless)
+                    || !r.diskless)) >= 2 : true'
                 - message: diskless replicas are only valid on replicated volumes
-                  rule: '!has(self.drbd) ? !self.replicas.exists(r, has(r.diskless) && r.diskless) : true'
+                  rule: '!has(self.drbd) ? !self.replicas.exists(r, has(r.diskless)
+                    && r.diskless) : true'
                 - message: the first replica must be diskful (not a diskless tie-breaker)
-                  rule: 'size(self.replicas) > 0 ? !has(self.replicas[0].diskless) || !self.replicas[0].diskless : true'
-                - message: 'a diskful replica cannot become diskless in place; remove the replica and re-add it instead (diskless→diskful is allowed: the agent attaches a disk to the live leg)'
-                  rule: self.replicas.all(r, oldSelf.replicas.all(o, o.node != r.node || (has(o.diskless) && o.diskless) || !(has(r.diskless) && r.diskless)))
-                - message: 'a completed replica''s pool is immutable: the agent would realize a fresh device in the new pool and abandon the old one; remove the replica and re-add it in the target pool instead'
-                  rule: 'self.replicas.all(r, oldSelf.replicas.all(o, o.node != r.node || (has(o.diskless) && o.diskless) || !has(o.address) || (has(o.pool) ? o.pool : ''default'') == (has(r.pool) ? r.pool : ''default'')))'
-                - message: 'all diskful replicas must live in one pool: snapshots and restores are pool-local, so a mixed-pool volume''s snapshots would be unrestorable'
-                  rule: 'self.replicas.all(r, (has(r.diskless) && r.diskless) || !has(r.address) || self.replicas.all(o, (has(o.diskless) && o.diskless) || !has(o.address) || (has(r.pool) ? r.pool : ''default'') == (has(o.pool) ? o.pool : ''default'')))'
+                  rule: 'size(self.replicas) > 0 ? !has(self.replicas[0].diskless)
+                    || !self.replicas[0].diskless : true'
+                - message: 'a diskful replica cannot become diskless in place; remove
+                    the replica and re-add it instead (diskless→diskful is allowed:
+                    the agent attaches a disk to the live leg)'
+                  rule: self.replicas.all(r, oldSelf.replicas.all(o, o.node != r.node
+                    || (has(o.diskless) && o.diskless) || !(has(r.diskless) && r.diskless)))
+                - message: 'a completed replica''s pool is immutable: the agent would
+                    realize a fresh device in the new pool and abandon the old one;
+                    remove the replica and re-add it in the target pool instead'
+                  rule: 'self.replicas.all(r, oldSelf.replicas.all(o, o.node != r.node
+                    || (has(o.diskless) && o.diskless) || !has(o.address) || (has(o.pool)
+                    ? o.pool : ''default'') == (has(r.pool) ? r.pool : ''default'')))'
+                - message: 'all diskful replicas must live in one pool: snapshots
+                    and restores are pool-local, so a mixed-pool volume''s snapshots
+                    would be unrestorable'
+                  rule: 'self.replicas.all(r, (has(r.diskless) && r.diskless) || !has(r.address)
+                    || self.replicas.all(o, (has(o.diskless) && o.diskless) || !has(o.address)
+                    || (has(r.pool) ? r.pool : ''default'') == (has(o.pool) ? o.pool
+                    : ''default'')))'
                 - message: a volume cannot gain or lose its replication layer in place
                   rule: has(self.drbd) == has(oldSelf.drbd)
                 - message: client legs are only valid on replicated volumes
                   rule: '!has(self.clients) || has(self.drbd)'
                 - message: a client leg cannot share a node with a replica
-                  rule: '!has(self.clients) || self.clients.all(c, !self.replicas.exists(r, r.node == c.node))'
-                - message: an NFS-exported (RWX) volume is consumed over NFS and cannot have DRBD client legs
+                  rule: '!has(self.clients) || self.clients.all(c, !self.replicas.exists(r,
+                    r.node == c.node))'
+                - message: an NFS-exported (RWX) volume is consumed over NFS and cannot
+                    have DRBD client legs
                   rule: '!has(self.clients) || !has(self.export)'
                 - message: a volume cannot gain or lose its NFS export (RWX) in place
                   rule: has(self.export) == has(oldSelf.export)
-                - message: replicated RWX volumes must use freeze quorum (a rescheduled gateway under last-man-standing risks dual-primary split-brain)
-                  rule: '!(has(self.export) && has(self.drbd)) || self.quorumPolicy == ''freeze'''
-                - message: 'replica nodes must be unique: a node holds at most one leg of a volume'
-                  rule: self.replicas.all(r, self.replicas.exists_one(o, o.node == r.node))
+                - message: replicated RWX volumes must use freeze quorum (a rescheduled
+                    gateway under last-man-standing risks dual-primary split-brain)
+                  rule: '!(has(self.export) && has(self.drbd)) || self.quorumPolicy
+                    == ''freeze'''
+                - message: 'replica nodes must be unique: a node holds at most one
+                    leg of a volume'
+                  rule: self.replicas.all(r, self.replicas.exists_one(o, o.node ==
+                    r.node))
                 - message: client-leg nodes must be unique
-                  rule: '!has(self.clients) || self.clients.all(c, self.clients.exists_one(o, o.node == c.node))'
-                - message: 'drbd.port is immutable: it was allocated cluster-wide at creation and the allocator assumes existing volumes keep their ports'
-                  rule: '!has(self.drbd) || !has(oldSelf.drbd) || self.drbd.port == oldSelf.drbd.port'
-                - message: 'source is immutable: it records the snapshot and metadata padding this volume was cloned with'
-                  rule: has(self.source) == has(oldSelf.source) && (!has(self.source) || !has(oldSelf.source) || (self.source.snapshotName == oldSelf.source.snapshotName && (has(self.source.padForMetadata) && self.source.padForMetadata) == (has(oldSelf.source.padForMetadata) && oldSelf.source.padForMetadata)))
-                - message: 'export.fsType is immutable: the gateway formatted the volume with it at first start'
-                  rule: '!has(self.export) || !has(oldSelf.export) || self.export.fsType == oldSelf.export.fsType'
+                  rule: '!has(self.clients) || self.clients.all(c, self.clients.exists_one(o,
+                    o.node == c.node))'
+                - message: 'drbd.port is immutable: it was allocated cluster-wide
+                    at creation and the allocator assumes existing volumes keep their
+                    ports'
+                  rule: '!has(self.drbd) || !has(oldSelf.drbd) || self.drbd.port ==
+                    oldSelf.drbd.port'
+                - message: 'source is immutable: it records the snapshot and metadata
+                    padding this volume was cloned with'
+                  rule: has(self.source) == has(oldSelf.source) && (!has(self.source)
+                    || !has(oldSelf.source) || (self.source.snapshotName == oldSelf.source.snapshotName
+                    && (has(self.source.padForMetadata) && self.source.padForMetadata)
+                    == (has(oldSelf.source.padForMetadata) && oldSelf.source.padForMetadata)))
+                - message: 'export.fsType is immutable: the gateway formatted the
+                    volume with it at first start'
+                  rule: '!has(self.export) || !has(oldSelf.export) || self.export.fsType
+                    == oldSelf.export.fsType'
             status:
-              description: MiroirVolumeStatus is the observed state aggregated from node agents.
+              description: MiroirVolumeStatus is the observed state aggregated from
+                node agents.
               properties:
                 activated:
                   description: |-
@@ -331,9 +372,11 @@ spec:
                     which a raw-block volume never sets.
                   type: boolean
                 conditions:
-                  description: Conditions follow the standard Kubernetes condition conventions.
+                  description: Conditions follow the standard Kubernetes condition
+                    conventions.
                   items:
-                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    description: Condition contains details for one aspect of the
+                      current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -367,7 +410,8 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False, Unknown.
+                        description: status of the condition, one of True, False,
+                          Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -407,7 +451,8 @@ spec:
                   type: boolean
                 perNode:
                   additionalProperties:
-                    description: ReplicaStatus is the per-node observed state, written by that node's agent.
+                    description: ReplicaStatus is the per-node observed state, written
+                      by that node's agent.
                     properties:
                       connected:
                         description: |-
@@ -418,7 +463,8 @@ spec:
                           and replica removal). Always true for unreplicated volumes.
                         type: boolean
                       deviceCreated:
-                        description: DeviceCreated is true once the backing device exists on the node.
+                        description: DeviceCreated is true once the backing device
+                          exists on the node.
                         type: boolean
                       devicePath:
                         description: |-
@@ -485,7 +531,8 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: Message carries the last reconcile error, if any.
+                        description: Message carries the last reconcile error, if
+                          any.
                         type: string
                       pool:
                         description: |-
@@ -520,7 +567,8 @@ spec:
                   description: PerNode maps node name to that agent's observed state.
                   type: object
                 phase:
-                  description: Phase summarizes the volume state for the controller and humans.
+                  description: Phase summarizes the volume state for the controller
+                    and humans.
                   type: string
                 readyReplicas:
                   description: |-

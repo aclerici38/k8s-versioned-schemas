@@ -369,10 +369,28 @@ spec:
                   type: array
                   x-kubernetes-list-type: atomic
                   x-kubernetes-validations:
-                    - message: sectionName or port must be specified when parentRefs includes 2 or more references to the same parent
-                      rule: 'self.all(p1, self.all(p2, p1.group == p2.group && p1.kind == p2.kind && p1.name == p2.name && (((!has(p1.__namespace__) || p1.__namespace__ == '''') && (!has(p2.__namespace__) || p2.__namespace__ == '''')) || (has(p1.__namespace__) && has(p2.__namespace__) && p1.__namespace__ == p2.__namespace__)) ? ((!has(p1.sectionName) || p1.sectionName == '''') == (!has(p2.sectionName) || p2.sectionName == '''') && (!has(p1.port) || p1.port == 0) == (!has(p2.port) || p2.port == 0)): true))'
-                    - message: sectionName or port must be unique when parentRefs includes 2 or more references to the same parent
-                      rule: self.all(p1, self.exists_one(p2, p1.group == p2.group && p1.kind == p2.kind && p1.name == p2.name && (((!has(p1.__namespace__) || p1.__namespace__ == '') && (!has(p2.__namespace__) || p2.__namespace__ == '')) || (has(p1.__namespace__) && has(p2.__namespace__) && p1.__namespace__ == p2.__namespace__ )) && (((!has(p1.sectionName) || p1.sectionName == '') && (!has(p2.sectionName) || p2.sectionName == '')) || ( has(p1.sectionName) && has(p2.sectionName) && p1.sectionName == p2.sectionName)) && (((!has(p1.port) || p1.port == 0) && (!has(p2.port) || p2.port == 0)) || (has(p1.port) && has(p2.port) && p1.port == p2.port))))
+                    - message: sectionName or port must be specified when parentRefs
+                        includes 2 or more references to the same parent
+                      rule: 'self.all(p1, self.all(p2, p1.group == p2.group && p1.kind
+                        == p2.kind && p1.name == p2.name && (((!has(p1.__namespace__)
+                        || p1.__namespace__ == '''') && (!has(p2.__namespace__) ||
+                        p2.__namespace__ == '''')) || (has(p1.__namespace__) && has(p2.__namespace__)
+                        && p1.__namespace__ == p2.__namespace__)) ? ((!has(p1.sectionName)
+                        || p1.sectionName == '''') == (!has(p2.sectionName) || p2.sectionName
+                        == '''') && (!has(p1.port) || p1.port == 0) == (!has(p2.port)
+                        || p2.port == 0)): true))'
+                    - message: sectionName or port must be unique when parentRefs
+                        includes 2 or more references to the same parent
+                      rule: self.all(p1, self.exists_one(p2, p1.group == p2.group
+                        && p1.kind == p2.kind && p1.name == p2.name && (((!has(p1.__namespace__)
+                        || p1.__namespace__ == '') && (!has(p2.__namespace__) || p2.__namespace__
+                        == '')) || (has(p1.__namespace__) && has(p2.__namespace__)
+                        && p1.__namespace__ == p2.__namespace__ )) && (((!has(p1.sectionName)
+                        || p1.sectionName == '') && (!has(p2.sectionName) || p2.sectionName
+                        == '')) || ( has(p1.sectionName) && has(p2.sectionName) &&
+                        p1.sectionName == p2.sectionName)) && (((!has(p1.port) ||
+                        p1.port == 0) && (!has(p2.port) || p2.port == 0)) || (has(p1.port)
+                        && has(p2.port) && p1.port == p2.port))))
                 rules:
                   description: Rules are a list of GRPC matchers, filters and actions.
                   items:
@@ -470,7 +488,8 @@ spec:
                                         pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                                         type: string
                                       kind:
-                                        description: Kind is kind of the referent. For example "HTTPRoute" or "Service".
+                                        description: Kind is kind of the referent.
+                                          For example "HTTPRoute" or "Service".
                                         maxLength: 63
                                         minLength: 1
                                         pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
@@ -511,7 +530,9 @@ spec:
                                             GET /foo HTTP/1.1
                                             my-header: foo,bar,baz
                                         items:
-                                          description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                          description: HTTPHeader represents an HTTP
+                                            Header name and value as defined by RFC
+                                            7230.
                                           properties:
                                             name:
                                               description: |-
@@ -588,7 +609,9 @@ spec:
                                             GET /foo HTTP/1.1
                                             my-header: bar
                                         items:
-                                          description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                          description: HTTPHeader represents an HTTP
+                                            Header name and value as defined by RFC
+                                            7230.
                                           properties:
                                             name:
                                               description: |-
@@ -731,7 +754,8 @@ spec:
                                         type: object
                                         x-kubernetes-validations:
                                           - message: Must have port for Service reference
-                                            rule: '(size(self.group) == 0 && self.kind == ''Service'') ? has(self.port) : true'
+                                            rule: '(size(self.group) == 0 && self.kind
+                                              == ''Service'') ? has(self.port) : true'
                                       fraction:
                                         description: |-
                                           Fraction represents the fraction of requests that should be
@@ -753,7 +777,8 @@ spec:
                                           - numerator
                                         type: object
                                         x-kubernetes-validations:
-                                          - message: numerator must be less than or equal to denominator
+                                          - message: numerator must be less than or
+                                              equal to denominator
                                             rule: self.numerator <= self.denominator
                                       percent:
                                         description: |-
@@ -771,7 +796,8 @@ spec:
                                       - backendRef
                                     type: object
                                     x-kubernetes-validations:
-                                      - message: Only one of percent or fraction may be specified in HTTPRequestMirrorFilter
+                                      - message: Only one of percent or fraction may
+                                          be specified in HTTPRequestMirrorFilter
                                         rule: '!(has(self.percent) && has(self.fraction))'
                                   responseHeaderModifier:
                                     description: |-
@@ -799,7 +825,9 @@ spec:
                                             GET /foo HTTP/1.1
                                             my-header: foo,bar,baz
                                         items:
-                                          description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                          description: HTTPHeader represents an HTTP
+                                            Header name and value as defined by RFC
+                                            7230.
                                           properties:
                                             name:
                                               description: |-
@@ -876,7 +904,9 @@ spec:
                                             GET /foo HTTP/1.1
                                             my-header: bar
                                         items:
-                                          description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                          description: HTTPHeader represents an HTTP
+                                            Header name and value as defined by RFC
+                                            7230.
                                           properties:
                                             name:
                                               description: |-
@@ -948,30 +978,50 @@ spec:
                                   - type
                                 type: object
                                 x-kubernetes-validations:
-                                  - message: filter.requestHeaderModifier must be nil if the filter.type is not RequestHeaderModifier
-                                    rule: '!(has(self.requestHeaderModifier) && self.type != ''RequestHeaderModifier'')'
-                                  - message: filter.requestHeaderModifier must be specified for RequestHeaderModifier filter.type
-                                    rule: '!(!has(self.requestHeaderModifier) && self.type == ''RequestHeaderModifier'')'
-                                  - message: filter.responseHeaderModifier must be nil if the filter.type is not ResponseHeaderModifier
-                                    rule: '!(has(self.responseHeaderModifier) && self.type != ''ResponseHeaderModifier'')'
-                                  - message: filter.responseHeaderModifier must be specified for ResponseHeaderModifier filter.type
-                                    rule: '!(!has(self.responseHeaderModifier) && self.type == ''ResponseHeaderModifier'')'
-                                  - message: filter.requestMirror must be nil if the filter.type is not RequestMirror
-                                    rule: '!(has(self.requestMirror) && self.type != ''RequestMirror'')'
-                                  - message: filter.requestMirror must be specified for RequestMirror filter.type
-                                    rule: '!(!has(self.requestMirror) && self.type == ''RequestMirror'')'
-                                  - message: filter.extensionRef must be nil if the filter.type is not ExtensionRef
-                                    rule: '!(has(self.extensionRef) && self.type != ''ExtensionRef'')'
-                                  - message: filter.extensionRef must be specified for ExtensionRef filter.type
-                                    rule: '!(!has(self.extensionRef) && self.type == ''ExtensionRef'')'
+                                  - message: filter.requestHeaderModifier must be
+                                      nil if the filter.type is not RequestHeaderModifier
+                                    rule: '!(has(self.requestHeaderModifier) && self.type
+                                      != ''RequestHeaderModifier'')'
+                                  - message: filter.requestHeaderModifier must be
+                                      specified for RequestHeaderModifier filter.type
+                                    rule: '!(!has(self.requestHeaderModifier) && self.type
+                                      == ''RequestHeaderModifier'')'
+                                  - message: filter.responseHeaderModifier must be
+                                      nil if the filter.type is not ResponseHeaderModifier
+                                    rule: '!(has(self.responseHeaderModifier) && self.type
+                                      != ''ResponseHeaderModifier'')'
+                                  - message: filter.responseHeaderModifier must be
+                                      specified for ResponseHeaderModifier filter.type
+                                    rule: '!(!has(self.responseHeaderModifier) &&
+                                      self.type == ''ResponseHeaderModifier'')'
+                                  - message: filter.requestMirror must be nil if the
+                                      filter.type is not RequestMirror
+                                    rule: '!(has(self.requestMirror) && self.type
+                                      != ''RequestMirror'')'
+                                  - message: filter.requestMirror must be specified
+                                      for RequestMirror filter.type
+                                    rule: '!(!has(self.requestMirror) && self.type
+                                      == ''RequestMirror'')'
+                                  - message: filter.extensionRef must be nil if the
+                                      filter.type is not ExtensionRef
+                                    rule: '!(has(self.extensionRef) && self.type !=
+                                      ''ExtensionRef'')'
+                                  - message: filter.extensionRef must be specified
+                                      for ExtensionRef filter.type
+                                    rule: '!(!has(self.extensionRef) && self.type
+                                      == ''ExtensionRef'')'
                               maxItems: 16
                               type: array
                               x-kubernetes-list-type: atomic
                               x-kubernetes-validations:
-                                - message: RequestHeaderModifier filter cannot be repeated
-                                  rule: self.filter(f, f.type == 'RequestHeaderModifier').size() <= 1
-                                - message: ResponseHeaderModifier filter cannot be repeated
-                                  rule: self.filter(f, f.type == 'ResponseHeaderModifier').size() <= 1
+                                - message: RequestHeaderModifier filter cannot be
+                                    repeated
+                                  rule: self.filter(f, f.type == 'RequestHeaderModifier').size()
+                                    <= 1
+                                - message: ResponseHeaderModifier filter cannot be
+                                    repeated
+                                  rule: self.filter(f, f.type == 'ResponseHeaderModifier').size()
+                                    <= 1
                             group:
                               default: ""
                               description: |-
@@ -1057,7 +1107,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - message: Must have port for Service reference
-                              rule: '(size(self.group) == 0 && self.kind == ''Service'') ? has(self.port) : true'
+                              rule: '(size(self.group) == 0 && self.kind == ''Service'')
+                                ? has(self.port) : true'
                         maxItems: 16
                         type: array
                         x-kubernetes-list-type: atomic
@@ -1115,7 +1166,8 @@ spec:
                                   pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                                   type: string
                                 kind:
-                                  description: Kind is kind of the referent. For example "HTTPRoute" or "Service".
+                                  description: Kind is kind of the referent. For example
+                                    "HTTPRoute" or "Service".
                                   maxLength: 63
                                   minLength: 1
                                   pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
@@ -1156,7 +1208,8 @@ spec:
                                       GET /foo HTTP/1.1
                                       my-header: foo,bar,baz
                                   items:
-                                    description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                    description: HTTPHeader represents an HTTP Header
+                                      name and value as defined by RFC 7230.
                                     properties:
                                       name:
                                         description: |-
@@ -1233,7 +1286,8 @@ spec:
                                       GET /foo HTTP/1.1
                                       my-header: bar
                                   items:
-                                    description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                    description: HTTPHeader represents an HTTP Header
+                                      name and value as defined by RFC 7230.
                                     properties:
                                       name:
                                         description: |-
@@ -1376,7 +1430,8 @@ spec:
                                   type: object
                                   x-kubernetes-validations:
                                     - message: Must have port for Service reference
-                                      rule: '(size(self.group) == 0 && self.kind == ''Service'') ? has(self.port) : true'
+                                      rule: '(size(self.group) == 0 && self.kind ==
+                                        ''Service'') ? has(self.port) : true'
                                 fraction:
                                   description: |-
                                     Fraction represents the fraction of requests that should be
@@ -1398,7 +1453,8 @@ spec:
                                     - numerator
                                   type: object
                                   x-kubernetes-validations:
-                                    - message: numerator must be less than or equal to denominator
+                                    - message: numerator must be less than or equal
+                                        to denominator
                                       rule: self.numerator <= self.denominator
                                 percent:
                                   description: |-
@@ -1416,7 +1472,8 @@ spec:
                                 - backendRef
                               type: object
                               x-kubernetes-validations:
-                                - message: Only one of percent or fraction may be specified in HTTPRequestMirrorFilter
+                                - message: Only one of percent or fraction may be
+                                    specified in HTTPRequestMirrorFilter
                                   rule: '!(has(self.percent) && has(self.fraction))'
                             responseHeaderModifier:
                               description: |-
@@ -1444,7 +1501,8 @@ spec:
                                       GET /foo HTTP/1.1
                                       my-header: foo,bar,baz
                                   items:
-                                    description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                    description: HTTPHeader represents an HTTP Header
+                                      name and value as defined by RFC 7230.
                                     properties:
                                       name:
                                         description: |-
@@ -1521,7 +1579,8 @@ spec:
                                       GET /foo HTTP/1.1
                                       my-header: bar
                                   items:
-                                    description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+                                    description: HTTPHeader represents an HTTP Header
+                                      name and value as defined by RFC 7230.
                                     properties:
                                       name:
                                         description: |-
@@ -1593,30 +1652,44 @@ spec:
                             - type
                           type: object
                           x-kubernetes-validations:
-                            - message: filter.requestHeaderModifier must be nil if the filter.type is not RequestHeaderModifier
-                              rule: '!(has(self.requestHeaderModifier) && self.type != ''RequestHeaderModifier'')'
-                            - message: filter.requestHeaderModifier must be specified for RequestHeaderModifier filter.type
-                              rule: '!(!has(self.requestHeaderModifier) && self.type == ''RequestHeaderModifier'')'
-                            - message: filter.responseHeaderModifier must be nil if the filter.type is not ResponseHeaderModifier
-                              rule: '!(has(self.responseHeaderModifier) && self.type != ''ResponseHeaderModifier'')'
-                            - message: filter.responseHeaderModifier must be specified for ResponseHeaderModifier filter.type
-                              rule: '!(!has(self.responseHeaderModifier) && self.type == ''ResponseHeaderModifier'')'
-                            - message: filter.requestMirror must be nil if the filter.type is not RequestMirror
+                            - message: filter.requestHeaderModifier must be nil if
+                                the filter.type is not RequestHeaderModifier
+                              rule: '!(has(self.requestHeaderModifier) && self.type
+                                != ''RequestHeaderModifier'')'
+                            - message: filter.requestHeaderModifier must be specified
+                                for RequestHeaderModifier filter.type
+                              rule: '!(!has(self.requestHeaderModifier) && self.type
+                                == ''RequestHeaderModifier'')'
+                            - message: filter.responseHeaderModifier must be nil if
+                                the filter.type is not ResponseHeaderModifier
+                              rule: '!(has(self.responseHeaderModifier) && self.type
+                                != ''ResponseHeaderModifier'')'
+                            - message: filter.responseHeaderModifier must be specified
+                                for ResponseHeaderModifier filter.type
+                              rule: '!(!has(self.responseHeaderModifier) && self.type
+                                == ''ResponseHeaderModifier'')'
+                            - message: filter.requestMirror must be nil if the filter.type
+                                is not RequestMirror
                               rule: '!(has(self.requestMirror) && self.type != ''RequestMirror'')'
-                            - message: filter.requestMirror must be specified for RequestMirror filter.type
+                            - message: filter.requestMirror must be specified for
+                                RequestMirror filter.type
                               rule: '!(!has(self.requestMirror) && self.type == ''RequestMirror'')'
-                            - message: filter.extensionRef must be nil if the filter.type is not ExtensionRef
+                            - message: filter.extensionRef must be nil if the filter.type
+                                is not ExtensionRef
                               rule: '!(has(self.extensionRef) && self.type != ''ExtensionRef'')'
-                            - message: filter.extensionRef must be specified for ExtensionRef filter.type
+                            - message: filter.extensionRef must be specified for ExtensionRef
+                                filter.type
                               rule: '!(!has(self.extensionRef) && self.type == ''ExtensionRef'')'
                         maxItems: 16
                         type: array
                         x-kubernetes-list-type: atomic
                         x-kubernetes-validations:
                           - message: RequestHeaderModifier filter cannot be repeated
-                            rule: self.filter(f, f.type == 'RequestHeaderModifier').size() <= 1
+                            rule: self.filter(f, f.type == 'RequestHeaderModifier').size()
+                              <= 1
                           - message: ResponseHeaderModifier filter cannot be repeated
-                            rule: self.filter(f, f.type == 'ResponseHeaderModifier').size() <= 1
+                            rule: self.filter(f, f.type == 'ResponseHeaderModifier').size()
+                              <= 1
                       matches:
                         description: |-
                           Matches define conditions used for matching the rule against incoming
@@ -1713,13 +1786,15 @@ spec:
                                     type: string
                                   type:
                                     default: Exact
-                                    description: Type specifies how to match against the value of the header.
+                                    description: Type specifies how to match against
+                                      the value of the header.
                                     enum:
                                       - Exact
                                       - RegularExpression
                                     type: string
                                   value:
-                                    description: Value is the value of the gRPC Header to be matched.
+                                    description: Value is the value of the gRPC Header
+                                      to be matched.
                                     maxLength: 4096
                                     minLength: 1
                                     type: string
@@ -1768,12 +1843,20 @@ spec:
                                   type: string
                               type: object
                               x-kubernetes-validations:
-                                - message: One or both of 'service' or 'method' must be specified
-                                  rule: 'has(self.type) ? has(self.service) || has(self.method) : true'
-                                - message: service must only contain valid characters (matching ^(?i)\.?[a-z_][a-z_0-9]*(\.[a-z_][a-z_0-9]*)*$)
-                                  rule: '(!has(self.type) || self.type == ''Exact'') && has(self.service) ? self.service.matches(r"""^(?i)\.?[a-z_][a-z_0-9]*(\.[a-z_][a-z_0-9]*)*$"""): true'
-                                - message: method must only contain valid characters (matching ^[A-Za-z_][A-Za-z_0-9]*$)
-                                  rule: '(!has(self.type) || self.type == ''Exact'') && has(self.method) ? self.method.matches(r"""^[A-Za-z_][A-Za-z_0-9]*$"""): true'
+                                - message: One or both of 'service' or 'method' must
+                                    be specified
+                                  rule: 'has(self.type) ? has(self.service) || has(self.method)
+                                    : true'
+                                - message: service must only contain valid characters
+                                    (matching ^(?i)\.?[a-z_][a-z_0-9]*(\.[a-z_][a-z_0-9]*)*$)
+                                  rule: '(!has(self.type) || self.type == ''Exact'')
+                                    && has(self.service) ? self.service.matches(r"""^(?i)\.?[a-z_][a-z_0-9]*(\.[a-z_][a-z_0-9]*)*$"""):
+                                    true'
+                                - message: method must only contain valid characters
+                                    (matching ^[A-Za-z_][A-Za-z_0-9]*$)
+                                  rule: '(!has(self.type) || self.type == ''Exact'')
+                                    && has(self.method) ? self.method.matches(r"""^[A-Za-z_][A-Za-z_0-9]*$"""):
+                                    true'
                           type: object
                         maxItems: 64
                         type: array
@@ -1863,8 +1946,11 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-validations:
-                          - message: AbsoluteTimeout must be specified when cookie lifetimeType is Permanent
-                            rule: '!has(self.cookieConfig) || !has(self.cookieConfig.lifetimeType) || self.cookieConfig.lifetimeType != ''Permanent'' || has(self.absoluteTimeout)'
+                          - message: AbsoluteTimeout must be specified when cookie
+                              lifetimeType is Permanent
+                            rule: '!has(self.cookieConfig) || !has(self.cookieConfig.lifetimeType)
+                              || self.cookieConfig.lifetimeType != ''Permanent'' ||
+                              has(self.absoluteTimeout)'
                           - message: cookieConfig can only be set with type Cookie
                             rule: '!has(self.cookieConfig) || self.type == ''Cookie'''
                     type: object
@@ -1872,10 +1958,29 @@ spec:
                   type: array
                   x-kubernetes-list-type: atomic
                   x-kubernetes-validations:
-                    - message: While 16 rules and 64 matches per rule are allowed, the total number of matches across all rules in a route must be less than 128
-                      rule: '(self.size() > 0 ? (has(self[0].matches) ? self[0].matches.size() : 0) : 0) + (self.size() > 1 ? (has(self[1].matches) ? self[1].matches.size() : 0) : 0) + (self.size() > 2 ? (has(self[2].matches) ? self[2].matches.size() : 0) : 0) + (self.size() > 3 ? (has(self[3].matches) ? self[3].matches.size() : 0) : 0) + (self.size() > 4 ? (has(self[4].matches) ? self[4].matches.size() : 0) : 0) + (self.size() > 5 ? (has(self[5].matches) ? self[5].matches.size() : 0) : 0) + (self.size() > 6 ? (has(self[6].matches) ? self[6].matches.size() : 0) : 0) + (self.size() > 7 ? (has(self[7].matches) ? self[7].matches.size() : 0) : 0) + (self.size() > 8 ? (has(self[8].matches) ? self[8].matches.size() : 0) : 0) + (self.size() > 9 ? (has(self[9].matches) ? self[9].matches.size() : 0) : 0) + (self.size() > 10 ? (has(self[10].matches) ? self[10].matches.size() : 0) : 0) + (self.size() > 11 ? (has(self[11].matches) ? self[11].matches.size() : 0) : 0) + (self.size() > 12 ? (has(self[12].matches) ? self[12].matches.size() : 0) : 0) + (self.size() > 13 ? (has(self[13].matches) ? self[13].matches.size() : 0) : 0) + (self.size() > 14 ? (has(self[14].matches) ? self[14].matches.size() : 0) : 0) + (self.size() > 15 ? (has(self[15].matches) ? self[15].matches.size() : 0) : 0) <= 128'
+                    - message: While 16 rules and 64 matches per rule are allowed,
+                        the total number of matches across all rules in a route must
+                        be less than 128
+                      rule: '(self.size() > 0 ? (has(self[0].matches) ? self[0].matches.size()
+                        : 0) : 0) + (self.size() > 1 ? (has(self[1].matches) ? self[1].matches.size()
+                        : 0) : 0) + (self.size() > 2 ? (has(self[2].matches) ? self[2].matches.size()
+                        : 0) : 0) + (self.size() > 3 ? (has(self[3].matches) ? self[3].matches.size()
+                        : 0) : 0) + (self.size() > 4 ? (has(self[4].matches) ? self[4].matches.size()
+                        : 0) : 0) + (self.size() > 5 ? (has(self[5].matches) ? self[5].matches.size()
+                        : 0) : 0) + (self.size() > 6 ? (has(self[6].matches) ? self[6].matches.size()
+                        : 0) : 0) + (self.size() > 7 ? (has(self[7].matches) ? self[7].matches.size()
+                        : 0) : 0) + (self.size() > 8 ? (has(self[8].matches) ? self[8].matches.size()
+                        : 0) : 0) + (self.size() > 9 ? (has(self[9].matches) ? self[9].matches.size()
+                        : 0) : 0) + (self.size() > 10 ? (has(self[10].matches) ? self[10].matches.size()
+                        : 0) : 0) + (self.size() > 11 ? (has(self[11].matches) ? self[11].matches.size()
+                        : 0) : 0) + (self.size() > 12 ? (has(self[12].matches) ? self[12].matches.size()
+                        : 0) : 0) + (self.size() > 13 ? (has(self[13].matches) ? self[13].matches.size()
+                        : 0) : 0) + (self.size() > 14 ? (has(self[14].matches) ? self[14].matches.size()
+                        : 0) : 0) + (self.size() > 15 ? (has(self[15].matches) ? self[15].matches.size()
+                        : 0) : 0) <= 128'
                     - message: Rule name must be unique within the route
-                      rule: self.all(l1, !has(l1.name) || self.exists_one(l2, has(l2.name) && l1.name == l2.name))
+                      rule: self.all(l1, !has(l1.name) || self.exists_one(l2, has(l2.name)
+                        && l1.name == l2.name))
                 useDefaultGateways:
                   description: |-
                     UseDefaultGateways indicates the default Gateway scope to use for this
@@ -1941,7 +2046,8 @@ spec:
                           * The Route is of a type that the controller does not support.
                           * The Route is in a namespace to which the controller does not have access.
                         items:
-                          description: Condition contains details for one aspect of the current state of this API Resource.
+                          description: Condition contains details for one aspect of
+                            the current state of this API Resource.
                           properties:
                             lastTransitionTime:
                               description: |-
@@ -1975,7 +2081,8 @@ spec:
                               pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                               type: string
                             status:
-                              description: status of the condition, one of True, False, Unknown.
+                              description: status of the condition, one of True, False,
+                                Unknown.
                               enum:
                                 - "True"
                                 - "False"

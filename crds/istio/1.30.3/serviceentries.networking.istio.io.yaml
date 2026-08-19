@@ -29,7 +29,8 @@ spec:
           jsonPath: .spec.hosts
           name: Hosts
           type: string
-        - description: Whether the service is external to the mesh or part of the mesh (MESH_EXTERNAL or MESH_INTERNAL)
+        - description: Whether the service is external to the mesh or part of the
+            mesh (MESH_EXTERNAL or MESH_INTERNAL)
           jsonPath: .spec.location
           name: Location
           type: string
@@ -37,7 +38,11 @@ spec:
           jsonPath: .spec.resolution
           name: Resolution
           type: string
-        - description: 'CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC. Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+        - description: 'CreationTimestamp is a timestamp representing the server time
+            when this object was created. It is not guaranteed to be set in happens-before
+            order across separate operations. Clients may not set this value. It is
+            represented in RFC3339 form and is in UTC. Populated by the system. Read-only.
+            Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
           jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -46,7 +51,8 @@ spec:
         openAPIV3Schema:
           properties:
             spec:
-              description: 'Configuration affecting service registry. See more details at: https://istio.io/docs/reference/config/networking/service-entry.html'
+              description: 'Configuration affecting service registry. See more details
+                at: https://istio.io/docs/reference/config/networking/service-entry.html'
               properties:
                 addresses:
                   description: The virtual IP addresses associated with the service.
@@ -60,14 +66,17 @@ spec:
                   items:
                     properties:
                       address:
-                        description: Address associated with the network endpoint without the port.
+                        description: Address associated with the network endpoint
+                          without the port.
                         maxLength: 256
                         type: string
                         x-kubernetes-validations:
                           - message: UDS must be an absolute path or abstract socket
-                            rule: 'self.startsWith("unix://") ? (self.substring(7, 8) == "/" || self.substring(7, 8) == "@") : true'
+                            rule: 'self.startsWith("unix://") ? (self.substring(7,
+                              8) == "/" || self.substring(7, 8) == "@") : true'
                           - message: UDS may not be a dir
-                            rule: 'self.startsWith("unix://") ? !self.endsWith("/") : true'
+                            rule: 'self.startsWith("unix://") ? !self.endsWith("/")
+                              : true'
                       labels:
                         additionalProperties:
                           type: string
@@ -79,7 +88,8 @@ spec:
                         maxLength: 2048
                         type: string
                       network:
-                        description: Network enables Istio to group endpoints resident in the same L3 domain/network.
+                        description: Network enables Istio to group endpoints resident
+                          in the same L3 domain/network.
                         maxLength: 2048
                         type: string
                       ports:
@@ -97,11 +107,13 @@ spec:
                           - message: port name must be valid
                             rule: self.all(key, size(key) < 63 && key.matches("^[a-zA-Z0-9](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?$"))
                       serviceAccount:
-                        description: The service account associated with the workload if a sidecar is present in the workload.
+                        description: The service account associated with the workload
+                          if a sidecar is present in the workload.
                         maxLength: 253
                         type: string
                       weight:
-                        description: The load balancing weight associated with the endpoint.
+                        description: The load balancing weight associated with the
+                          endpoint.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
@@ -110,7 +122,8 @@ spec:
                       - message: Address is required
                         rule: has(self.address) || has(self.network)
                       - message: UDS may not include ports
-                        rule: '(has(self.address) ? self.address : "").startsWith("unix://") ? !has(self.ports) : true'
+                        rule: '(has(self.address) ? self.address : "").startsWith("unix://")
+                          ? !has(self.ports) : true'
                   maxItems: 4096
                   type: array
                 exportTo:
@@ -158,7 +171,8 @@ spec:
                         maxLength: 256
                         type: string
                       targetPort:
-                        description: The port number on the endpoint where the traffic will be received.
+                        description: The port number on the endpoint where the traffic
+                          will be received.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
@@ -190,7 +204,9 @@ spec:
                     - DYNAMIC_DNS
                   type: string
                 subjectAltNames:
-                  description: If specified, the proxy will verify that the server certificate's subject alternate name matches one of the specified values.
+                  description: If specified, the proxy will verify that the server
+                    certificate's subject alternate name matches one of the specified
+                    values.
                   items:
                     type: string
                   type: array
@@ -204,7 +220,8 @@ spec:
                         x-kubernetes-validations:
                           - message: wildcard is not supported in selector
                             rule: '!self.contains("*")'
-                      description: One or more labels that indicate a specific set of pods/VMs on which the configuration should be applied.
+                      description: One or more labels that indicate a specific set
+                        of pods/VMs on which the configuration should be applied.
                       maxProperties: 256
                       type: object
                   type: object
@@ -213,13 +230,20 @@ spec:
               type: object
               x-kubernetes-validations:
                 - message: only one of WorkloadSelector or Endpoints can be set
-                  rule: '(has(self.workloadSelector) ? 1 : 0) + (has(self.endpoints) ? 1 : 0) <= 1'
-                - message: CIDR addresses are allowed only for NONE/STATIC resolution types
-                  rule: '!((has(self.addresses) ? self.addresses : []).exists(k, k.contains("/")) && !((has(self.resolution) ? self.resolution : "NONE") in ["STATIC", "NONE"]))'
+                  rule: '(has(self.workloadSelector) ? 1 : 0) + (has(self.endpoints)
+                    ? 1 : 0) <= 1'
+                - message: CIDR addresses are allowed only for NONE/STATIC resolution
+                    types
+                  rule: '!((has(self.addresses) ? self.addresses : []).exists(k, k.contains("/"))
+                    && !((has(self.resolution) ? self.resolution : "NONE") in ["STATIC",
+                    "NONE"]))'
                 - message: NONE mode cannot set endpoints
-                  rule: '((has(self.resolution) ? self.resolution : "NONE") == "NONE") ? !has(self.endpoints) : true'
+                  rule: '((has(self.resolution) ? self.resolution : "NONE") == "NONE")
+                    ? !has(self.endpoints) : true'
                 - message: DNS_ROUND_ROBIN mode cannot have multiple endpoints
-                  rule: '((has(self.resolution) ? self.resolution : "") == "DNS_ROUND_ROBIN") ? ((has(self.endpoints) ? self.endpoints : []).size() <= 1) : true'
+                  rule: '((has(self.resolution) ? self.resolution : "") == "DNS_ROUND_ROBIN")
+                    ? ((has(self.endpoints) ? self.endpoints : []).size() <= 1) :
+                    true'
             status:
               properties:
                 conditions:
@@ -231,11 +255,13 @@ spec:
                         format: date-time
                         type: string
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       message:
-                        description: Human-readable message indicating details about last transition.
+                        description: Human-readable message indicating details about
+                          last transition.
                         type: string
                       observedGeneration:
                         anyOf:
@@ -244,7 +270,8 @@ spec:
                         description: Resource Generation to which the Condition refers.
                         x-kubernetes-int-or-string: true
                       reason:
-                        description: Unique, one-word, CamelCase reason for the condition's last transition.
+                        description: Unique, one-word, CamelCase reason for the condition's
+                          last transition.
                         type: string
                       status:
                         description: Status is the status of the condition.
@@ -260,11 +287,13 @@ spec:
                     - type: string
                   x-kubernetes-int-or-string: true
                 validationMessages:
-                  description: Includes any errors or warnings detected by Istio's analyzers.
+                  description: Includes any errors or warnings detected by Istio's
+                    analyzers.
                   items:
                     properties:
                       documentationUrl:
-                        description: A url pointing to the Istio documentation for this specific error type.
+                        description: A url pointing to the Istio documentation for
+                          this specific error type.
                         type: string
                       level:
                         description: |-
@@ -280,7 +309,8 @@ spec:
                       type:
                         properties:
                           code:
-                            description: A 7 character code matching `^IST[0-9]{4}$` intended to uniquely identify the message type.
+                            description: A 7 character code matching `^IST[0-9]{4}$`
+                              intended to uniquely identify the message type.
                             type: string
                           name:
                             description: A human-readable name for the message type.
@@ -302,7 +332,8 @@ spec:
           jsonPath: .spec.hosts
           name: Hosts
           type: string
-        - description: Whether the service is external to the mesh or part of the mesh (MESH_EXTERNAL or MESH_INTERNAL)
+        - description: Whether the service is external to the mesh or part of the
+            mesh (MESH_EXTERNAL or MESH_INTERNAL)
           jsonPath: .spec.location
           name: Location
           type: string
@@ -310,7 +341,11 @@ spec:
           jsonPath: .spec.resolution
           name: Resolution
           type: string
-        - description: 'CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC. Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+        - description: 'CreationTimestamp is a timestamp representing the server time
+            when this object was created. It is not guaranteed to be set in happens-before
+            order across separate operations. Clients may not set this value. It is
+            represented in RFC3339 form and is in UTC. Populated by the system. Read-only.
+            Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
           jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -319,7 +354,8 @@ spec:
         openAPIV3Schema:
           properties:
             spec:
-              description: 'Configuration affecting service registry. See more details at: https://istio.io/docs/reference/config/networking/service-entry.html'
+              description: 'Configuration affecting service registry. See more details
+                at: https://istio.io/docs/reference/config/networking/service-entry.html'
               properties:
                 addresses:
                   description: The virtual IP addresses associated with the service.
@@ -333,14 +369,17 @@ spec:
                   items:
                     properties:
                       address:
-                        description: Address associated with the network endpoint without the port.
+                        description: Address associated with the network endpoint
+                          without the port.
                         maxLength: 256
                         type: string
                         x-kubernetes-validations:
                           - message: UDS must be an absolute path or abstract socket
-                            rule: 'self.startsWith("unix://") ? (self.substring(7, 8) == "/" || self.substring(7, 8) == "@") : true'
+                            rule: 'self.startsWith("unix://") ? (self.substring(7,
+                              8) == "/" || self.substring(7, 8) == "@") : true'
                           - message: UDS may not be a dir
-                            rule: 'self.startsWith("unix://") ? !self.endsWith("/") : true'
+                            rule: 'self.startsWith("unix://") ? !self.endsWith("/")
+                              : true'
                       labels:
                         additionalProperties:
                           type: string
@@ -352,7 +391,8 @@ spec:
                         maxLength: 2048
                         type: string
                       network:
-                        description: Network enables Istio to group endpoints resident in the same L3 domain/network.
+                        description: Network enables Istio to group endpoints resident
+                          in the same L3 domain/network.
                         maxLength: 2048
                         type: string
                       ports:
@@ -370,11 +410,13 @@ spec:
                           - message: port name must be valid
                             rule: self.all(key, size(key) < 63 && key.matches("^[a-zA-Z0-9](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?$"))
                       serviceAccount:
-                        description: The service account associated with the workload if a sidecar is present in the workload.
+                        description: The service account associated with the workload
+                          if a sidecar is present in the workload.
                         maxLength: 253
                         type: string
                       weight:
-                        description: The load balancing weight associated with the endpoint.
+                        description: The load balancing weight associated with the
+                          endpoint.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
@@ -383,7 +425,8 @@ spec:
                       - message: Address is required
                         rule: has(self.address) || has(self.network)
                       - message: UDS may not include ports
-                        rule: '(has(self.address) ? self.address : "").startsWith("unix://") ? !has(self.ports) : true'
+                        rule: '(has(self.address) ? self.address : "").startsWith("unix://")
+                          ? !has(self.ports) : true'
                   maxItems: 4096
                   type: array
                 exportTo:
@@ -431,7 +474,8 @@ spec:
                         maxLength: 256
                         type: string
                       targetPort:
-                        description: The port number on the endpoint where the traffic will be received.
+                        description: The port number on the endpoint where the traffic
+                          will be received.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
@@ -463,7 +507,9 @@ spec:
                     - DYNAMIC_DNS
                   type: string
                 subjectAltNames:
-                  description: If specified, the proxy will verify that the server certificate's subject alternate name matches one of the specified values.
+                  description: If specified, the proxy will verify that the server
+                    certificate's subject alternate name matches one of the specified
+                    values.
                   items:
                     type: string
                   type: array
@@ -477,7 +523,8 @@ spec:
                         x-kubernetes-validations:
                           - message: wildcard is not supported in selector
                             rule: '!self.contains("*")'
-                      description: One or more labels that indicate a specific set of pods/VMs on which the configuration should be applied.
+                      description: One or more labels that indicate a specific set
+                        of pods/VMs on which the configuration should be applied.
                       maxProperties: 256
                       type: object
                   type: object
@@ -486,13 +533,20 @@ spec:
               type: object
               x-kubernetes-validations:
                 - message: only one of WorkloadSelector or Endpoints can be set
-                  rule: '(has(self.workloadSelector) ? 1 : 0) + (has(self.endpoints) ? 1 : 0) <= 1'
-                - message: CIDR addresses are allowed only for NONE/STATIC resolution types
-                  rule: '!((has(self.addresses) ? self.addresses : []).exists(k, k.contains("/")) && !((has(self.resolution) ? self.resolution : "NONE") in ["STATIC", "NONE"]))'
+                  rule: '(has(self.workloadSelector) ? 1 : 0) + (has(self.endpoints)
+                    ? 1 : 0) <= 1'
+                - message: CIDR addresses are allowed only for NONE/STATIC resolution
+                    types
+                  rule: '!((has(self.addresses) ? self.addresses : []).exists(k, k.contains("/"))
+                    && !((has(self.resolution) ? self.resolution : "NONE") in ["STATIC",
+                    "NONE"]))'
                 - message: NONE mode cannot set endpoints
-                  rule: '((has(self.resolution) ? self.resolution : "NONE") == "NONE") ? !has(self.endpoints) : true'
+                  rule: '((has(self.resolution) ? self.resolution : "NONE") == "NONE")
+                    ? !has(self.endpoints) : true'
                 - message: DNS_ROUND_ROBIN mode cannot have multiple endpoints
-                  rule: '((has(self.resolution) ? self.resolution : "") == "DNS_ROUND_ROBIN") ? ((has(self.endpoints) ? self.endpoints : []).size() <= 1) : true'
+                  rule: '((has(self.resolution) ? self.resolution : "") == "DNS_ROUND_ROBIN")
+                    ? ((has(self.endpoints) ? self.endpoints : []).size() <= 1) :
+                    true'
             status:
               properties:
                 conditions:
@@ -504,11 +558,13 @@ spec:
                         format: date-time
                         type: string
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       message:
-                        description: Human-readable message indicating details about last transition.
+                        description: Human-readable message indicating details about
+                          last transition.
                         type: string
                       observedGeneration:
                         anyOf:
@@ -517,7 +573,8 @@ spec:
                         description: Resource Generation to which the Condition refers.
                         x-kubernetes-int-or-string: true
                       reason:
-                        description: Unique, one-word, CamelCase reason for the condition's last transition.
+                        description: Unique, one-word, CamelCase reason for the condition's
+                          last transition.
                         type: string
                       status:
                         description: Status is the status of the condition.
@@ -533,11 +590,13 @@ spec:
                     - type: string
                   x-kubernetes-int-or-string: true
                 validationMessages:
-                  description: Includes any errors or warnings detected by Istio's analyzers.
+                  description: Includes any errors or warnings detected by Istio's
+                    analyzers.
                   items:
                     properties:
                       documentationUrl:
-                        description: A url pointing to the Istio documentation for this specific error type.
+                        description: A url pointing to the Istio documentation for
+                          this specific error type.
                         type: string
                       level:
                         description: |-
@@ -553,7 +612,8 @@ spec:
                       type:
                         properties:
                           code:
-                            description: A 7 character code matching `^IST[0-9]{4}$` intended to uniquely identify the message type.
+                            description: A 7 character code matching `^IST[0-9]{4}$`
+                              intended to uniquely identify the message type.
                             type: string
                           name:
                             description: A human-readable name for the message type.
@@ -575,7 +635,8 @@ spec:
           jsonPath: .spec.hosts
           name: Hosts
           type: string
-        - description: Whether the service is external to the mesh or part of the mesh (MESH_EXTERNAL or MESH_INTERNAL)
+        - description: Whether the service is external to the mesh or part of the
+            mesh (MESH_EXTERNAL or MESH_INTERNAL)
           jsonPath: .spec.location
           name: Location
           type: string
@@ -583,7 +644,11 @@ spec:
           jsonPath: .spec.resolution
           name: Resolution
           type: string
-        - description: 'CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC. Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+        - description: 'CreationTimestamp is a timestamp representing the server time
+            when this object was created. It is not guaranteed to be set in happens-before
+            order across separate operations. Clients may not set this value. It is
+            represented in RFC3339 form and is in UTC. Populated by the system. Read-only.
+            Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
           jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -592,7 +657,8 @@ spec:
         openAPIV3Schema:
           properties:
             spec:
-              description: 'Configuration affecting service registry. See more details at: https://istio.io/docs/reference/config/networking/service-entry.html'
+              description: 'Configuration affecting service registry. See more details
+                at: https://istio.io/docs/reference/config/networking/service-entry.html'
               properties:
                 addresses:
                   description: The virtual IP addresses associated with the service.
@@ -606,14 +672,17 @@ spec:
                   items:
                     properties:
                       address:
-                        description: Address associated with the network endpoint without the port.
+                        description: Address associated with the network endpoint
+                          without the port.
                         maxLength: 256
                         type: string
                         x-kubernetes-validations:
                           - message: UDS must be an absolute path or abstract socket
-                            rule: 'self.startsWith("unix://") ? (self.substring(7, 8) == "/" || self.substring(7, 8) == "@") : true'
+                            rule: 'self.startsWith("unix://") ? (self.substring(7,
+                              8) == "/" || self.substring(7, 8) == "@") : true'
                           - message: UDS may not be a dir
-                            rule: 'self.startsWith("unix://") ? !self.endsWith("/") : true'
+                            rule: 'self.startsWith("unix://") ? !self.endsWith("/")
+                              : true'
                       labels:
                         additionalProperties:
                           type: string
@@ -625,7 +694,8 @@ spec:
                         maxLength: 2048
                         type: string
                       network:
-                        description: Network enables Istio to group endpoints resident in the same L3 domain/network.
+                        description: Network enables Istio to group endpoints resident
+                          in the same L3 domain/network.
                         maxLength: 2048
                         type: string
                       ports:
@@ -643,11 +713,13 @@ spec:
                           - message: port name must be valid
                             rule: self.all(key, size(key) < 63 && key.matches("^[a-zA-Z0-9](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?$"))
                       serviceAccount:
-                        description: The service account associated with the workload if a sidecar is present in the workload.
+                        description: The service account associated with the workload
+                          if a sidecar is present in the workload.
                         maxLength: 253
                         type: string
                       weight:
-                        description: The load balancing weight associated with the endpoint.
+                        description: The load balancing weight associated with the
+                          endpoint.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
@@ -656,7 +728,8 @@ spec:
                       - message: Address is required
                         rule: has(self.address) || has(self.network)
                       - message: UDS may not include ports
-                        rule: '(has(self.address) ? self.address : "").startsWith("unix://") ? !has(self.ports) : true'
+                        rule: '(has(self.address) ? self.address : "").startsWith("unix://")
+                          ? !has(self.ports) : true'
                   maxItems: 4096
                   type: array
                 exportTo:
@@ -704,7 +777,8 @@ spec:
                         maxLength: 256
                         type: string
                       targetPort:
-                        description: The port number on the endpoint where the traffic will be received.
+                        description: The port number on the endpoint where the traffic
+                          will be received.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
@@ -736,7 +810,9 @@ spec:
                     - DYNAMIC_DNS
                   type: string
                 subjectAltNames:
-                  description: If specified, the proxy will verify that the server certificate's subject alternate name matches one of the specified values.
+                  description: If specified, the proxy will verify that the server
+                    certificate's subject alternate name matches one of the specified
+                    values.
                   items:
                     type: string
                   type: array
@@ -750,7 +826,8 @@ spec:
                         x-kubernetes-validations:
                           - message: wildcard is not supported in selector
                             rule: '!self.contains("*")'
-                      description: One or more labels that indicate a specific set of pods/VMs on which the configuration should be applied.
+                      description: One or more labels that indicate a specific set
+                        of pods/VMs on which the configuration should be applied.
                       maxProperties: 256
                       type: object
                   type: object
@@ -759,13 +836,20 @@ spec:
               type: object
               x-kubernetes-validations:
                 - message: only one of WorkloadSelector or Endpoints can be set
-                  rule: '(has(self.workloadSelector) ? 1 : 0) + (has(self.endpoints) ? 1 : 0) <= 1'
-                - message: CIDR addresses are allowed only for NONE/STATIC resolution types
-                  rule: '!((has(self.addresses) ? self.addresses : []).exists(k, k.contains("/")) && !((has(self.resolution) ? self.resolution : "NONE") in ["STATIC", "NONE"]))'
+                  rule: '(has(self.workloadSelector) ? 1 : 0) + (has(self.endpoints)
+                    ? 1 : 0) <= 1'
+                - message: CIDR addresses are allowed only for NONE/STATIC resolution
+                    types
+                  rule: '!((has(self.addresses) ? self.addresses : []).exists(k, k.contains("/"))
+                    && !((has(self.resolution) ? self.resolution : "NONE") in ["STATIC",
+                    "NONE"]))'
                 - message: NONE mode cannot set endpoints
-                  rule: '((has(self.resolution) ? self.resolution : "NONE") == "NONE") ? !has(self.endpoints) : true'
+                  rule: '((has(self.resolution) ? self.resolution : "NONE") == "NONE")
+                    ? !has(self.endpoints) : true'
                 - message: DNS_ROUND_ROBIN mode cannot have multiple endpoints
-                  rule: '((has(self.resolution) ? self.resolution : "") == "DNS_ROUND_ROBIN") ? ((has(self.endpoints) ? self.endpoints : []).size() <= 1) : true'
+                  rule: '((has(self.resolution) ? self.resolution : "") == "DNS_ROUND_ROBIN")
+                    ? ((has(self.endpoints) ? self.endpoints : []).size() <= 1) :
+                    true'
             status:
               properties:
                 conditions:
@@ -777,11 +861,13 @@ spec:
                         format: date-time
                         type: string
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       message:
-                        description: Human-readable message indicating details about last transition.
+                        description: Human-readable message indicating details about
+                          last transition.
                         type: string
                       observedGeneration:
                         anyOf:
@@ -790,7 +876,8 @@ spec:
                         description: Resource Generation to which the Condition refers.
                         x-kubernetes-int-or-string: true
                       reason:
-                        description: Unique, one-word, CamelCase reason for the condition's last transition.
+                        description: Unique, one-word, CamelCase reason for the condition's
+                          last transition.
                         type: string
                       status:
                         description: Status is the status of the condition.
@@ -806,11 +893,13 @@ spec:
                     - type: string
                   x-kubernetes-int-or-string: true
                 validationMessages:
-                  description: Includes any errors or warnings detected by Istio's analyzers.
+                  description: Includes any errors or warnings detected by Istio's
+                    analyzers.
                   items:
                     properties:
                       documentationUrl:
-                        description: A url pointing to the Istio documentation for this specific error type.
+                        description: A url pointing to the Istio documentation for
+                          this specific error type.
                         type: string
                       level:
                         description: |-
@@ -826,7 +915,8 @@ spec:
                       type:
                         properties:
                           code:
-                            description: A 7 character code matching `^IST[0-9]{4}$` intended to uniquely identify the message type.
+                            description: A 7 character code matching `^IST[0-9]{4}$`
+                              intended to uniquely identify the message type.
                             type: string
                           name:
                             description: A human-readable name for the message type.
