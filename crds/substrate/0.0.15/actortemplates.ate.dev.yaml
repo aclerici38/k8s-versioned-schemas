@@ -57,14 +57,12 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of ActorTemplate. This field
-                is immutable.
+              description: spec defines the desired state of ActorTemplate. This field is immutable.
               properties:
                 containers:
                   description: Containers is the workload definition.
                   items:
-                    description: A single application container that you want to run
-                      within a WorkerPool.
+                    description: A single application container that you want to run within a WorkerPool.
                     properties:
                       args:
                         description: |-
@@ -124,8 +122,7 @@ spec:
                         description: Image to use for the worker replicas.
                         type: string
                         x-kubernetes-validations:
-                          - message: All images must be pinned (changing the image
-                              invalidates snapshots)
+                          - message: All images must be pinned (changing the image invalidates snapshots)
                             rule: self.contains('@')
                       name:
                         description: Name of the container.
@@ -141,8 +138,7 @@ spec:
                           container's HTTP endpoint returns 200.
                         properties:
                           httpGet:
-                            description: HTTPGet specifies the HTTP request to perform
-                              against the container.
+                            description: HTTPGet specifies the HTTP request to perform against the container.
                             properties:
                               path:
                                 default: /readyz
@@ -188,11 +184,9 @@ spec:
                           - httpGet
                         type: object
                       volumeMounts:
-                        description: volumeMounts define the volumes to mount into
-                          this container.
+                        description: volumeMounts define the volumes to mount into this container.
                         items:
-                          description: VolumeMount describes a mounting of a Volume
-                            within a actor.
+                          description: VolumeMount describes a mounting of a Volume within a actor.
                           properties:
                             mountPath:
                               description: |-
@@ -202,14 +196,8 @@ spec:
                               maxLength: 4096
                               type: string
                               x-kubernetes-validations:
-                                - message: 'MountPath must be a clean absolute Unix
-                                    path: must start with ''/'', not be ''/'', and
-                                    contain no '':'', ''..'', ''.'', ''//'', trailing
-                                    ''/'', or control characters'
-                                  rule: self.startsWith('/') && size(self) > 1 &&
-                                    !self.endsWith('/') && !self.contains('//') &&
-                                    !self.contains(':') && !self.matches('[\x00-\x1f\x7f]')
-                                    && !self.matches('(^|/)[.][.]?(/|$)')
+                                - message: 'MountPath must be a clean absolute Unix path: must start with ''/'', not be ''/'', and contain no '':'', ''..'', ''.'', ''//'', trailing ''/'', or control characters'
+                                  rule: self.startsWith('/') && size(self) > 1 && !self.endsWith('/') && !self.contains('//') && !self.contains(':') && !self.matches('[\x00-\x1f\x7f]') && !self.matches('(^|/)[.][.]?(/|$)')
                             name:
                               description: This must match the Name of a Volume.
                               maxLength: 63
@@ -376,12 +364,9 @@ spec:
                   type: object
                   x-kubernetes-validations:
                     - message: onCommit must be a subset of onPause
-                      rule: '(has(self.onPause) ? self.onPause : ''Full'') == ''Full''
-                        || (has(self.onCommit) ? self.onCommit : ''Full'') == (has(self.onPause)
-                        ? self.onPause : ''Full'')'
+                      rule: '(has(self.onPause) ? self.onPause : ''Full'') == ''Full'' || (has(self.onCommit) ? self.onCommit : ''Full'') == (has(self.onPause) ? self.onPause : ''Full'')'
                 volumes:
-                  description: Volumes defines the volumes to mount into all containers
-                    in the actor.
+                  description: Volumes defines the volumes to mount into all containers in the actor.
                   items:
                     properties:
                       durableDir:
@@ -399,13 +384,11 @@ spec:
                             anyOf:
                               - type: integer
                               - type: string
-                            description: capacity specifies the size of the volume
-                              to create.
+                            description: capacity specifies the size of the volume to create.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClassName:
-                            description: storageClassName refers to the StorageClass
-                              to create the volume from.
+                            description: storageClassName refers to the StorageClass to create the volume from.
                             type: string
                         required:
                           - capacity
@@ -422,10 +405,8 @@ spec:
                       - name
                     type: object
                     x-kubernetes-validations:
-                      - message: exactly one of the fields in [durableDir externalVolumeTemplate]
-                          must be set
-                        rule: '[has(self.durableDir),has(self.externalVolumeTemplate)].filter(x,x==true).size()
-                          == 1'
+                      - message: exactly one of the fields in [durableDir externalVolumeTemplate] must be set
+                        rule: '[has(self.durableDir),has(self.externalVolumeTemplate)].filter(x,x==true).size() == 1'
                   maxItems: 32
                   type: array
                   x-kubernetes-list-map-keys:
@@ -440,16 +421,14 @@ spec:
                     never expand it.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements.
-                        The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies
-                              to.
+                            description: key is the label key that the selector applies to.
                             type: string
                           operator:
                             description: |-
@@ -488,39 +467,25 @@ spec:
               x-kubernetes-validations:
                 - message: Spec is immutable
                   rule: self == oldSelf
-                - message: All volumes defined in spec.volumes must be mounted by
-                    at least one container
-                  rule: '!has(self.volumes) || self.volumes.all(v, has(self.containers)
-                    && self.containers.exists(c, has(c.volumeMounts) && c.volumeMounts.exists(vm,
-                    vm.name == v.name)))'
-                - message: 'onResume.fromData: Golden is not supported when sandboxClass
-                    is ''gvisor'''
-                  rule: '(has(self.sandboxClass) && self.sandboxClass == ''microvm'')
-                    || !has(self.snapshotsConfig.onResume) || (has(self.snapshotsConfig.onResume.fromData)
-                    ? self.snapshotsConfig.onResume.fromData : ''ColdBoot'') != ''Golden'''
-                - message: spec.resources.requests is not supported; actors are sized
-                    by spec.resources.limits only
+                - message: All volumes defined in spec.volumes must be mounted by at least one container
+                  rule: '!has(self.volumes) || self.volumes.all(v, has(self.containers) && self.containers.exists(c, has(c.volumeMounts) && c.volumeMounts.exists(vm, vm.name == v.name)))'
+                - message: 'onResume.fromData: Golden is not supported when sandboxClass is ''gvisor'''
+                  rule: '(has(self.sandboxClass) && self.sandboxClass == ''microvm'') || !has(self.snapshotsConfig.onResume) || (has(self.snapshotsConfig.onResume.fromData) ? self.snapshotsConfig.onResume.fromData : ''ColdBoot'') != ''Golden'''
+                - message: spec.resources.requests is not supported; actors are sized by spec.resources.limits only
                   rule: '!has(self.resources) || !has(self.resources.requests)'
                 - message: spec.resources.claims is not supported
                   rule: '!has(self.resources) || !has(self.resources.claims)'
-                - message: For sandboxClass 'microvm', spec.resources.limits.memory
-                    must be at least 256Mi (128Mi VMM reserve + 128Mi guest minimum);
-                    below this the VM cannot boot
-                  rule: '!has(self.sandboxClass) || self.sandboxClass != ''microvm''
-                    || !has(self.resources) || !has(self.resources.limits) || !(''memory''
-                    in self.resources.limits) || !quantity(self.resources.limits[''memory'']).isLessThan(quantity(''256Mi''))'
+                - message: For sandboxClass 'microvm', spec.resources.limits.memory must be at least 256Mi (128Mi VMM reserve + 128Mi guest minimum); below this the VM cannot boot
+                  rule: '!has(self.sandboxClass) || self.sandboxClass != ''microvm'' || !has(self.resources) || !has(self.resources.limits) || !(''memory'' in self.resources.limits) || !quantity(self.resources.limits[''memory'']).isLessThan(quantity(''256Mi''))'
                 - message: All volume mounts must refer to a volume defined in spec.volumes
-                  rule: '!has(self.containers) || self.containers.all(c, !has(c.volumeMounts)
-                    || c.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v,
-                    v.name == vm.name)))'
+                  rule: '!has(self.containers) || self.containers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name)))'
             status:
               description: status is the observed state of ActorTemplate
               properties:
                 conditions:
                   description: conditions defines the status conditions array
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -554,8 +519,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"

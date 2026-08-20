@@ -20,8 +20,7 @@ spec:
           name: Status
           type: string
       deprecated: true
-      deprecationWarning: aigateway.envoyproxy.io/v1alpha1 is deprecated; use aigateway.envoyproxy.io/v1beta1
-        instead
+      deprecationWarning: aigateway.envoyproxy.io/v1alpha1 is deprecated; use aigateway.envoyproxy.io/v1beta1 instead
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -94,97 +93,15 @@ spec:
                   maxItems: 16
                   type: array
                 llmRequestCosts:
-                  description: "LLMRequestCosts specifies how to capture the cost
-                    of the LLM-related request, notably the token usage.\nThe AI Gateway
-                    filter will capture each specified number and store it in the
-                    Envoy's dynamic\nmetadata per HTTP request. The namespaced key
-                    is \"io.envoy.ai_gateway\".\n\nThese route-level costs override
-                    any global defaults defined in GatewayConfig.Spec.GlobalLLMRequestCosts\nfor
-                    the same metadataKey. If a metadataKey is not defined in either
-                    place, no cost is calculated for it.\n\nThis allows you to define
-                    common cost formulas once at the gateway level (e.g., via GatewayConfig)\nand
-                    only override them in specific routes when needed (e.g., premium
-                    routes with different pricing).\n\nFor example, let's say we have
-                    the following LLMRequestCosts configuration:\n```yaml\n\tllmRequestCosts:\n\t-
-                    metadataKey: llm_input_token\n\t  type: InputToken\n\t- metadataKey:
-                    llm_output_token\n\t  type: OutputToken\n\t- metadataKey: llm_total_token\n\t
-                    \ type: TotalToken\n\t- metadataKey: llm_cached_input_token\n\t
-                    \ type: CachedInputToken\n- metadataKey: llm_cache_creation_input_token\n
-                    \  type: CacheCreationInputToken\n```\nThen, with the following
-                    BackendTrafficPolicy of Envoy Gateway, you can have three\nrate
-                    limit buckets for each unique x-tenant-id header value. One bucket
-                    is for the input token,\nthe other is for the output token, and
-                    the last one is for the total token.\nEach bucket will be reduced
-                    by the corresponding token usage captured by the AI Gateway filter.\n\n```yaml\n\tapiVersion:
-                    gateway.envoyproxy.io/v1alpha1\n\tkind: BackendTrafficPolicy\n\tmetadata:\n\t
-                    \ name: some-example-token-rate-limit\n\t  namespace: default\n\tspec:\n\t
-                    \ targetRefs:\n\t  - group: gateway.networking.k8s.io\n\t     kind:
-                    HTTPRoute\n\t     name: usage-rate-limit\n\t  rateLimit:\n\t    type:
-                    Global\n\t    global:\n\t      rules:\n\t        - clientSelectors:\n\t
-                    \           # Do the rate limiting based on the x-tenant-id header.\n\t
-                    \           - headers:\n\t                - name: x-tenant-id\n\t
-                    \                 type: Distinct\n\t          limit:\n\t            #
-                    Configures the number of \"tokens\" allowed per hour.\n\t            requests:
-                    10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t
-                    \             from: Number\n\t              # Setting the request
-                    cost to zero allows to only check the rate limit budget,\n\t              #
-                    and not consume the budget on the request path.\n\t              number:
-                    0\n\t            # This specifies the cost of the response retrieved
-                    from the dynamic metadata set by the AI Gateway filter.\n\t            #
-                    The extracted value will be used to consume the rate limit budget,
-                    and subsequent requests will be rate limited\n\t            #
-                    if the budget is exhausted.\n\t            response:\n\t              from:
-                    Metadata\n\t              metadata:\n\t                namespace:
-                    io.envoy.ai_gateway\n\t                key: llm_input_token\n\t
-                    \       - clientSelectors:\n\t            - headers:\n\t                -
-                    name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t
-                    \           requests: 10000\n\t            unit: Hour\n\t          cost:\n\t
-                    \           request:\n\t              from: Number\n\t              number:
-                    0\n\t            response:\n\t              from: Metadata\n\t
-                    \             metadata:\n\t                namespace: io.envoy.ai_gateway\n\t
-                    \               key: llm_output_token\n\t        - clientSelectors:\n\t
-                    \           - headers:\n\t                - name: x-tenant-id\n\t
-                    \                 type: Distinct\n\t          limit:\n\t            requests:
-                    10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t
-                    \             from: Number\n\t              number: 0\n\t            response:\n\t
-                    \             from: Metadata\n\t              metadata:\n\t                namespace:
-                    io.envoy.ai_gateway\n\t                key: llm_total_token\n```\n\nNote
-                    that when multiple AIGatewayRoute resources are attached to the
-                    same Gateway, and\ndifferent costs are configured for the same
-                    metadata key, each route's rule is carried in\nthe filter configuration
-                    with the route identity; the data plane selects the matching rule\nper
-                    request (by route), so each route can define its own cost for
-                    the same metadata key."
+                  description: "LLMRequestCosts specifies how to capture the cost of the LLM-related request, notably the token usage.\nThe AI Gateway filter will capture each specified number and store it in the Envoy's dynamic\nmetadata per HTTP request. The namespaced key is \"io.envoy.ai_gateway\".\n\nThese route-level costs override any global defaults defined in GatewayConfig.Spec.GlobalLLMRequestCosts\nfor the same metadataKey. If a metadataKey is not defined in either place, no cost is calculated for it.\n\nThis allows you to define common cost formulas once at the gateway level (e.g., via GatewayConfig)\nand only override them in specific routes when needed (e.g., premium routes with different pricing).\n\nFor example, let's say we have the following LLMRequestCosts configuration:\n```yaml\n\tllmRequestCosts:\n\t- metadataKey: llm_input_token\n\t  type: InputToken\n\t- metadataKey: llm_output_token\n\t  type: OutputToken\n\t- metadataKey: llm_total_token\n\t  type: TotalToken\n\t- metadataKey: llm_cached_input_token\n\t  type: CachedInputToken\n- metadataKey: llm_cache_creation_input_token\n   type: CacheCreationInputToken\n```\nThen, with the following BackendTrafficPolicy of Envoy Gateway, you can have three\nrate limit buckets for each unique x-tenant-id header value. One bucket is for the input token,\nthe other is for the output token, and the last one is for the total token.\nEach bucket will be reduced by the corresponding token usage captured by the AI Gateway filter.\n\n```yaml\n\tapiVersion: gateway.envoyproxy.io/v1alpha1\n\tkind: BackendTrafficPolicy\n\tmetadata:\n\t  name: some-example-token-rate-limit\n\t  namespace: default\n\tspec:\n\t  targetRefs:\n\t  - group: gateway.networking.k8s.io\n\t     kind: HTTPRoute\n\t     name: usage-rate-limit\n\t  rateLimit:\n\t    type: Global\n\t    global:\n\t      rules:\n\t        - clientSelectors:\n\t            # Do the rate limiting based on the x-tenant-id header.\n\t            - headers:\n\t                - name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t            # Configures the number of \"tokens\" allowed per hour.\n\t            requests: 10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t              from: Number\n\t              # Setting the request cost to zero allows to only check the rate limit budget,\n\t              # and not consume the budget on the request path.\n\t              number: 0\n\t            # This specifies the cost of the response retrieved from the dynamic metadata set by the AI Gateway filter.\n\t            # The extracted value will be used to consume the rate limit budget, and subsequent requests will be rate limited\n\t            # if the budget is exhausted.\n\t            response:\n\t              from: Metadata\n\t              metadata:\n\t                namespace: io.envoy.ai_gateway\n\t                key: llm_input_token\n\t        - clientSelectors:\n\t            - headers:\n\t                - name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t            requests: 10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t              from: Number\n\t              number: 0\n\t            response:\n\t              from: Metadata\n\t              metadata:\n\t                namespace: io.envoy.ai_gateway\n\t                key: llm_output_token\n\t        - clientSelectors:\n\t            - headers:\n\t                - name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t            requests: 10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t              from: Number\n\t              number: 0\n\t            response:\n\t              from: Metadata\n\t              metadata:\n\t                namespace: io.envoy.ai_gateway\n\t                key: llm_total_token\n```\n\nNote that when multiple AIGatewayRoute resources are attached to the same Gateway, and\ndifferent costs are configured for the same metadata key, each route's rule is carried in\nthe filter configuration with the route identity; the data plane selects the matching rule\nper request (by route), so each route can define its own cost for the same metadata key."
                   items:
                     description: LLMRequestCost configures each request cost.
                     properties:
                       cel:
-                        description: "CEL is the CEL expression to calculate the cost
-                          of the request.\nThe CEL expression must return a signed
-                          or unsigned integer. If the\nreturn value is negative, it
-                          will be error.\n\nThe expression can use the following variables:\n\n\t*
-                          model: the model name extracted from the request content.
-                          Type: string.\n\t* backend: the backend name in the form
-                          of \"name.namespace\". Type: string.\n\t* input_tokens:
-                          the number of input tokens. Type: unsigned integer.\n\t*
-                          cached_input_tokens: the number of cached read input tokens.
-                          Type: unsigned integer.\n\t* cache_creation_input_tokens:
-                          the number of cache creation input tokens. Type: unsigned
-                          integer.\n\t* output_tokens: the number of output tokens.
-                          Type: unsigned integer.\n\t* total_tokens: the total number
-                          of tokens. Type: unsigned integer.\n\t* reasoning_tokens:
-                          the number of reasoning tokens. Type: unsigned integer.\n\nFor
-                          example, the following expressions are valid:\n\n\t* \"model
-                          == 'llama' ?  input_tokens + output_token * 0.5 : total_tokens\"\n\t*
-                          \"backend == 'foo.default' ?  input_tokens + output_tokens
-                          : total_tokens\"\n\t* \"backend == 'bar.default' ?  (input_tokens
-                          - cached_input_tokens) + cached_input_tokens * 0.1 + cache_creation_input_tokens
-                          * 1.25 + output_tokens : total_tokens\"\n\t* \"input_tokens
-                          + output_tokens + total_tokens\"\n\t* \"input_tokens * output_tokens\""
+                        description: "CEL is the CEL expression to calculate the cost of the request.\nThe CEL expression must return a signed or unsigned integer. If the\nreturn value is negative, it will be error.\n\nThe expression can use the following variables:\n\n\t* model: the model name extracted from the request content. Type: string.\n\t* backend: the backend name in the form of \"name.namespace\". Type: string.\n\t* input_tokens: the number of input tokens. Type: unsigned integer.\n\t* cached_input_tokens: the number of cached read input tokens. Type: unsigned integer.\n\t* cache_creation_input_tokens: the number of cache creation input tokens. Type: unsigned integer.\n\t* output_tokens: the number of output tokens. Type: unsigned integer.\n\t* total_tokens: the total number of tokens. Type: unsigned integer.\n\t* reasoning_tokens: the number of reasoning tokens. Type: unsigned integer.\n\nFor example, the following expressions are valid:\n\n\t* \"model == 'llama' ?  input_tokens + output_token * 0.5 : total_tokens\"\n\t* \"backend == 'foo.default' ?  input_tokens + output_tokens : total_tokens\"\n\t* \"backend == 'bar.default' ?  (input_tokens - cached_input_tokens) + cached_input_tokens * 0.1 + cache_creation_input_tokens * 1.25 + output_tokens : total_tokens\"\n\t* \"input_tokens + output_tokens + total_tokens\"\n\t* \"input_tokens * output_tokens\""
                         type: string
                       metadataKey:
-                        description: MetadataKey is the key of the metadata to store
-                          this cost of the request.
+                        description: MetadataKey is the key of the metadata to store this cost of the request.
                         type: string
                       type:
                         description: |-
@@ -382,8 +299,7 @@ spec:
                     HTTPRoute.spec.rules (one slot is reserved for a controller-injected catch-all rule). To
                     configure more rules on the same Gateway, split them across multiple AIGatewayRoute resources.
                   items:
-                    description: AIGatewayRouteRule is a rule that defines the routing
-                      behavior of the AIGatewayRoute.
+                    description: AIGatewayRouteRule is a rule that defines the routing behavior of the AIGatewayRoute.
                     properties:
                       backendRefs:
                         description: |-
@@ -465,8 +381,7 @@ spec:
                                         "service_tier": "scale"
                                       }
                                   items:
-                                    description: HTTPBodyField represents a JSON field
-                                      name and value for body mutation
+                                    description: HTTPBodyField represents a JSON field name and value for body mutation
                                     properties:
                                       path:
                                         description: |-
@@ -555,8 +470,7 @@ spec:
                                       GET /foo HTTP/1.1
                                       my-header: bar
                                   items:
-                                    description: HTTPHeader represents an HTTP Header
-                                      name and value as defined by RFC 7230.
+                                    description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
                                     properties:
                                       name:
                                         description: |-
@@ -655,12 +569,9 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - message: group and kind must be specified together
-                              rule: '!has(self.group) && !has(self.kind) || (has(self.group)
-                                && has(self.kind))'
-                            - message: only InferencePool from inference.networking.k8s.io
-                                group is supported
-                              rule: '!has(self.group) || (self.group == ''inference.networking.k8s.io''
-                                && self.kind == ''InferencePool'')'
+                              rule: '!has(self.group) && !has(self.kind) || (has(self.group) && has(self.kind))'
+                            - message: only InferencePool from inference.networking.k8s.io group is supported
+                              rule: '!has(self.group) || (self.group == ''inference.networking.k8s.io'' && self.kind == ''InferencePool'')'
                         maxItems: 128
                         type: array
                       matches:
@@ -826,22 +737,14 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-validations:
-                          - message: backendRequest timeout cannot be longer than
-                              request timeout
-                            rule: '!(has(self.request) && has(self.backendRequest)
-                              && duration(self.request) != duration(''0s'') && duration(self.backendRequest)
-                              > duration(self.request))'
+                          - message: backendRequest timeout cannot be longer than request timeout
+                            rule: '!(has(self.request) && has(self.backendRequest) && duration(self.request) != duration(''0s'') && duration(self.backendRequest) > duration(self.request))'
                     type: object
                     x-kubernetes-validations:
-                      - message: cannot mix InferencePool and AIServiceBackend references
-                          in the same rule
-                        rule: '!has(self.backendRefs) || size(self.backendRefs) ==
-                          0 || (self.backendRefs.all(ref, !has(ref.group) && !has(ref.kind))
-                          || self.backendRefs.all(ref, has(ref.group) && has(ref.kind)))'
+                      - message: cannot mix InferencePool and AIServiceBackend references in the same rule
+                        rule: '!has(self.backendRefs) || size(self.backendRefs) == 0 || (self.backendRefs.all(ref, !has(ref.group) && !has(ref.kind)) || self.backendRefs.all(ref, has(ref.group) && has(ref.kind)))'
                       - message: only one InferencePool backend is allowed per rule
-                        rule: '!has(self.backendRefs) || size(self.backendRefs) ==
-                          0 || !self.backendRefs.exists(ref, has(ref.group) && has(ref.kind))
-                          || size(self.backendRefs) == 1'
+                        rule: '!has(self.backendRefs) || size(self.backendRefs) == 0 || !self.backendRefs.exists(ref, has(ref.group) && has(ref.kind)) || size(self.backendRefs) == 1'
                   maxItems: 15
                   type: array
               required:
@@ -857,8 +760,7 @@ spec:
 
                     Known .status.conditions.type are: "Accepted", "NotAccepted".
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -892,8 +794,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -994,97 +895,15 @@ spec:
                   maxItems: 16
                   type: array
                 llmRequestCosts:
-                  description: "LLMRequestCosts specifies how to capture the cost
-                    of the LLM-related request, notably the token usage.\nThe AI Gateway
-                    filter will capture each specified number and store it in the
-                    Envoy's dynamic\nmetadata per HTTP request. The namespaced key
-                    is \"io.envoy.ai_gateway\".\n\nThese route-level costs override
-                    any global defaults defined in GatewayConfig.Spec.GlobalLLMRequestCosts\nfor
-                    the same metadataKey. If a metadataKey is not defined in either
-                    place, no cost is calculated for it.\n\nThis allows you to define
-                    common cost formulas once at the gateway level (e.g., via GatewayConfig)\nand
-                    only override them in specific routes when needed (e.g., premium
-                    routes with different pricing).\n\nFor example, let's say we have
-                    the following LLMRequestCosts configuration:\n```yaml\n\tllmRequestCosts:\n\t-
-                    metadataKey: llm_input_token\n\t  type: InputToken\n\t- metadataKey:
-                    llm_output_token\n\t  type: OutputToken\n\t- metadataKey: llm_total_token\n\t
-                    \ type: TotalToken\n\t- metadataKey: llm_cached_input_token\n\t
-                    \ type: CachedInputToken\n- metadataKey: llm_cache_creation_input_token\n
-                    \  type: CacheCreationInputToken\n```\nThen, with the following
-                    BackendTrafficPolicy of Envoy Gateway, you can have three\nrate
-                    limit buckets for each unique x-tenant-id header value. One bucket
-                    is for the input token,\nthe other is for the output token, and
-                    the last one is for the total token.\nEach bucket will be reduced
-                    by the corresponding token usage captured by the AI Gateway filter.\n\n```yaml\n\tapiVersion:
-                    gateway.envoyproxy.io/v1alpha1\n\tkind: BackendTrafficPolicy\n\tmetadata:\n\t
-                    \ name: some-example-token-rate-limit\n\t  namespace: default\n\tspec:\n\t
-                    \ targetRefs:\n\t  - group: gateway.networking.k8s.io\n\t     kind:
-                    HTTPRoute\n\t     name: usage-rate-limit\n\t  rateLimit:\n\t    type:
-                    Global\n\t    global:\n\t      rules:\n\t        - clientSelectors:\n\t
-                    \           # Do the rate limiting based on the x-tenant-id header.\n\t
-                    \           - headers:\n\t                - name: x-tenant-id\n\t
-                    \                 type: Distinct\n\t          limit:\n\t            #
-                    Configures the number of \"tokens\" allowed per hour.\n\t            requests:
-                    10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t
-                    \             from: Number\n\t              # Setting the request
-                    cost to zero allows to only check the rate limit budget,\n\t              #
-                    and not consume the budget on the request path.\n\t              number:
-                    0\n\t            # This specifies the cost of the response retrieved
-                    from the dynamic metadata set by the AI Gateway filter.\n\t            #
-                    The extracted value will be used to consume the rate limit budget,
-                    and subsequent requests will be rate limited\n\t            #
-                    if the budget is exhausted.\n\t            response:\n\t              from:
-                    Metadata\n\t              metadata:\n\t                namespace:
-                    io.envoy.ai_gateway\n\t                key: llm_input_token\n\t
-                    \       - clientSelectors:\n\t            - headers:\n\t                -
-                    name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t
-                    \           requests: 10000\n\t            unit: Hour\n\t          cost:\n\t
-                    \           request:\n\t              from: Number\n\t              number:
-                    0\n\t            response:\n\t              from: Metadata\n\t
-                    \             metadata:\n\t                namespace: io.envoy.ai_gateway\n\t
-                    \               key: llm_output_token\n\t        - clientSelectors:\n\t
-                    \           - headers:\n\t                - name: x-tenant-id\n\t
-                    \                 type: Distinct\n\t          limit:\n\t            requests:
-                    10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t
-                    \             from: Number\n\t              number: 0\n\t            response:\n\t
-                    \             from: Metadata\n\t              metadata:\n\t                namespace:
-                    io.envoy.ai_gateway\n\t                key: llm_total_token\n```\n\nNote
-                    that when multiple AIGatewayRoute resources are attached to the
-                    same Gateway, and\ndifferent costs are configured for the same
-                    metadata key, each route's rule is carried in\nthe filter configuration
-                    with the route identity; the data plane selects the matching rule\nper
-                    request (by route), so each route can define its own cost for
-                    the same metadata key."
+                  description: "LLMRequestCosts specifies how to capture the cost of the LLM-related request, notably the token usage.\nThe AI Gateway filter will capture each specified number and store it in the Envoy's dynamic\nmetadata per HTTP request. The namespaced key is \"io.envoy.ai_gateway\".\n\nThese route-level costs override any global defaults defined in GatewayConfig.Spec.GlobalLLMRequestCosts\nfor the same metadataKey. If a metadataKey is not defined in either place, no cost is calculated for it.\n\nThis allows you to define common cost formulas once at the gateway level (e.g., via GatewayConfig)\nand only override them in specific routes when needed (e.g., premium routes with different pricing).\n\nFor example, let's say we have the following LLMRequestCosts configuration:\n```yaml\n\tllmRequestCosts:\n\t- metadataKey: llm_input_token\n\t  type: InputToken\n\t- metadataKey: llm_output_token\n\t  type: OutputToken\n\t- metadataKey: llm_total_token\n\t  type: TotalToken\n\t- metadataKey: llm_cached_input_token\n\t  type: CachedInputToken\n- metadataKey: llm_cache_creation_input_token\n   type: CacheCreationInputToken\n```\nThen, with the following BackendTrafficPolicy of Envoy Gateway, you can have three\nrate limit buckets for each unique x-tenant-id header value. One bucket is for the input token,\nthe other is for the output token, and the last one is for the total token.\nEach bucket will be reduced by the corresponding token usage captured by the AI Gateway filter.\n\n```yaml\n\tapiVersion: gateway.envoyproxy.io/v1alpha1\n\tkind: BackendTrafficPolicy\n\tmetadata:\n\t  name: some-example-token-rate-limit\n\t  namespace: default\n\tspec:\n\t  targetRefs:\n\t  - group: gateway.networking.k8s.io\n\t     kind: HTTPRoute\n\t     name: usage-rate-limit\n\t  rateLimit:\n\t    type: Global\n\t    global:\n\t      rules:\n\t        - clientSelectors:\n\t            # Do the rate limiting based on the x-tenant-id header.\n\t            - headers:\n\t                - name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t            # Configures the number of \"tokens\" allowed per hour.\n\t            requests: 10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t              from: Number\n\t              # Setting the request cost to zero allows to only check the rate limit budget,\n\t              # and not consume the budget on the request path.\n\t              number: 0\n\t            # This specifies the cost of the response retrieved from the dynamic metadata set by the AI Gateway filter.\n\t            # The extracted value will be used to consume the rate limit budget, and subsequent requests will be rate limited\n\t            # if the budget is exhausted.\n\t            response:\n\t              from: Metadata\n\t              metadata:\n\t                namespace: io.envoy.ai_gateway\n\t                key: llm_input_token\n\t        - clientSelectors:\n\t            - headers:\n\t                - name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t            requests: 10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t              from: Number\n\t              number: 0\n\t            response:\n\t              from: Metadata\n\t              metadata:\n\t                namespace: io.envoy.ai_gateway\n\t                key: llm_output_token\n\t        - clientSelectors:\n\t            - headers:\n\t                - name: x-tenant-id\n\t                  type: Distinct\n\t          limit:\n\t            requests: 10000\n\t            unit: Hour\n\t          cost:\n\t            request:\n\t              from: Number\n\t              number: 0\n\t            response:\n\t              from: Metadata\n\t              metadata:\n\t                namespace: io.envoy.ai_gateway\n\t                key: llm_total_token\n```\n\nNote that when multiple AIGatewayRoute resources are attached to the same Gateway, and\ndifferent costs are configured for the same metadata key, each route's rule is carried in\nthe filter configuration with the route identity; the data plane selects the matching rule\nper request (by route), so each route can define its own cost for the same metadata key."
                   items:
                     description: LLMRequestCost configures each request cost.
                     properties:
                       cel:
-                        description: "CEL is the CEL expression to calculate the cost
-                          of the request.\nThe CEL expression must return a signed
-                          or unsigned integer. If the\nreturn value is negative, it
-                          will be error.\n\nThe expression can use the following variables:\n\n\t*
-                          model: the model name extracted from the request content.
-                          Type: string.\n\t* backend: the backend name in the form
-                          of \"name.namespace\". Type: string.\n\t* input_tokens:
-                          the number of input tokens. Type: unsigned integer.\n\t*
-                          cached_input_tokens: the number of cached read input tokens.
-                          Type: unsigned integer.\n\t* cache_creation_input_tokens:
-                          the number of cache creation input tokens. Type: unsigned
-                          integer.\n\t* output_tokens: the number of output tokens.
-                          Type: unsigned integer.\n\t* total_tokens: the total number
-                          of tokens. Type: unsigned integer.\n\t* reasoning_tokens:
-                          the number of reasoning tokens. Type: unsigned integer.\n\nFor
-                          example, the following expressions are valid:\n\n\t* \"model
-                          == 'llama' ?  input_tokens + output_token * 0.5 : total_tokens\"\n\t*
-                          \"backend == 'foo.default' ?  input_tokens + output_tokens
-                          : total_tokens\"\n\t* \"backend == 'bar.default' ?  (input_tokens
-                          - cached_input_tokens) + cached_input_tokens * 0.1 + cache_creation_input_tokens
-                          * 1.25 + output_tokens : total_tokens\"\n\t* \"input_tokens
-                          + output_tokens + total_tokens\"\n\t* \"input_tokens * output_tokens\""
+                        description: "CEL is the CEL expression to calculate the cost of the request.\nThe CEL expression must return a signed or unsigned integer. If the\nreturn value is negative, it will be error.\n\nThe expression can use the following variables:\n\n\t* model: the model name extracted from the request content. Type: string.\n\t* backend: the backend name in the form of \"name.namespace\". Type: string.\n\t* input_tokens: the number of input tokens. Type: unsigned integer.\n\t* cached_input_tokens: the number of cached read input tokens. Type: unsigned integer.\n\t* cache_creation_input_tokens: the number of cache creation input tokens. Type: unsigned integer.\n\t* output_tokens: the number of output tokens. Type: unsigned integer.\n\t* total_tokens: the total number of tokens. Type: unsigned integer.\n\t* reasoning_tokens: the number of reasoning tokens. Type: unsigned integer.\n\nFor example, the following expressions are valid:\n\n\t* \"model == 'llama' ?  input_tokens + output_token * 0.5 : total_tokens\"\n\t* \"backend == 'foo.default' ?  input_tokens + output_tokens : total_tokens\"\n\t* \"backend == 'bar.default' ?  (input_tokens - cached_input_tokens) + cached_input_tokens * 0.1 + cache_creation_input_tokens * 1.25 + output_tokens : total_tokens\"\n\t* \"input_tokens + output_tokens + total_tokens\"\n\t* \"input_tokens * output_tokens\""
                         type: string
                       metadataKey:
-                        description: MetadataKey is the key of the metadata to store
-                          this cost of the request.
+                        description: MetadataKey is the key of the metadata to store this cost of the request.
                         type: string
                       type:
                         description: |-
@@ -1282,8 +1101,7 @@ spec:
                     HTTPRoute.spec.rules (one slot is reserved for a controller-injected catch-all rule). To
                     configure more rules on the same Gateway, split them across multiple AIGatewayRoute resources.
                   items:
-                    description: AIGatewayRouteRule is a rule that defines the routing
-                      behavior of the AIGatewayRoute.
+                    description: AIGatewayRouteRule is a rule that defines the routing behavior of the AIGatewayRoute.
                     properties:
                       backendRefs:
                         description: |-
@@ -1365,8 +1183,7 @@ spec:
                                         "service_tier": "scale"
                                       }
                                   items:
-                                    description: HTTPBodyField represents a JSON field
-                                      name and value for body mutation
+                                    description: HTTPBodyField represents a JSON field name and value for body mutation
                                     properties:
                                       path:
                                         description: |-
@@ -1455,8 +1272,7 @@ spec:
                                       GET /foo HTTP/1.1
                                       my-header: bar
                                   items:
-                                    description: HTTPHeader represents an HTTP Header
-                                      name and value as defined by RFC 7230.
+                                    description: HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
                                     properties:
                                       name:
                                         description: |-
@@ -1555,12 +1371,9 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - message: group and kind must be specified together
-                              rule: '!has(self.group) && !has(self.kind) || (has(self.group)
-                                && has(self.kind))'
-                            - message: only InferencePool from inference.networking.k8s.io
-                                group is supported
-                              rule: '!has(self.group) || (self.group == ''inference.networking.k8s.io''
-                                && self.kind == ''InferencePool'')'
+                              rule: '!has(self.group) && !has(self.kind) || (has(self.group) && has(self.kind))'
+                            - message: only InferencePool from inference.networking.k8s.io group is supported
+                              rule: '!has(self.group) || (self.group == ''inference.networking.k8s.io'' && self.kind == ''InferencePool'')'
                         maxItems: 128
                         type: array
                       matches:
@@ -1726,22 +1539,14 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-validations:
-                          - message: backendRequest timeout cannot be longer than
-                              request timeout
-                            rule: '!(has(self.request) && has(self.backendRequest)
-                              && duration(self.request) != duration(''0s'') && duration(self.backendRequest)
-                              > duration(self.request))'
+                          - message: backendRequest timeout cannot be longer than request timeout
+                            rule: '!(has(self.request) && has(self.backendRequest) && duration(self.request) != duration(''0s'') && duration(self.backendRequest) > duration(self.request))'
                     type: object
                     x-kubernetes-validations:
-                      - message: cannot mix InferencePool and AIServiceBackend references
-                          in the same rule
-                        rule: '!has(self.backendRefs) || size(self.backendRefs) ==
-                          0 || (self.backendRefs.all(ref, !has(ref.group) && !has(ref.kind))
-                          || self.backendRefs.all(ref, has(ref.group) && has(ref.kind)))'
+                      - message: cannot mix InferencePool and AIServiceBackend references in the same rule
+                        rule: '!has(self.backendRefs) || size(self.backendRefs) == 0 || (self.backendRefs.all(ref, !has(ref.group) && !has(ref.kind)) || self.backendRefs.all(ref, has(ref.group) && has(ref.kind)))'
                       - message: only one InferencePool backend is allowed per rule
-                        rule: '!has(self.backendRefs) || size(self.backendRefs) ==
-                          0 || !self.backendRefs.exists(ref, has(ref.group) && has(ref.kind))
-                          || size(self.backendRefs) == 1'
+                        rule: '!has(self.backendRefs) || size(self.backendRefs) == 0 || !self.backendRefs.exists(ref, has(ref.group) && has(ref.kind)) || size(self.backendRefs) == 1'
                   maxItems: 15
                   type: array
               required:
@@ -1757,8 +1562,7 @@ spec:
 
                     Known .status.conditions.type are: "Accepted", "NotAccepted".
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -1792,8 +1596,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"

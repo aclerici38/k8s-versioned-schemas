@@ -41,8 +41,7 @@ spec:
       name: v1
       schema:
         openAPIV3Schema:
-          description: ResourceSetInputProvider is the Schema for the ResourceSetInputProviders
-            API.
+          description: ResourceSetInputProvider is the Schema for the ResourceSetInputProviders API.
           properties:
             apiVersion:
               description: |-
@@ -62,8 +61,7 @@ spec:
             metadata:
               type: object
             spec:
-              description: ResourceSetInputProviderSpec defines the desired state
-                of ResourceSetInputProvider
+              description: ResourceSetInputProviderSpec defines the desired state of ResourceSetInputProvider
               properties:
                 certSecretRef:
                   description: |-
@@ -92,8 +90,7 @@ spec:
                     response does not contain them.
                   type: object
                 filter:
-                  description: Filter defines the filter to apply to the input provider
-                    response.
+                  description: Filter defines the filter to apply to the input provider response.
                   properties:
                     excludeBranch:
                       description: |-
@@ -126,8 +123,7 @@ spec:
                         that the input provider should include.
                       type: string
                     labels:
-                      description: Labels specifies the list of labels to filter the
-                        input provider response.
+                      description: Labels specifies the list of labels to filter the input provider response.
                       items:
                         type: string
                       type: array
@@ -152,8 +148,7 @@ spec:
                     over plain HTTP without TLS. When not set, the URL must use HTTPS.
                   type: boolean
                 schedule:
-                  description: Schedule defines the schedules for the input provider
-                    to run.
+                  description: Schedule defines the schedules for the input provider to run.
                   items:
                     description: Schedule defines a schedule for something to run.
                     properties:
@@ -162,8 +157,7 @@ spec:
                         type: string
                       timeZone:
                         default: UTC
-                        description: TimeZone specifies the time zone for the cron
-                          schedule. Defaults to UTC.
+                        description: TimeZone specifies the time zone for the cron schedule. Defaults to UTC.
                         type: string
                       window:
                         default: 0s
@@ -200,20 +194,17 @@ spec:
                     Selectors specifies label selectors used to discover ExternalArtifact objects.
                     Required when spec.type is 'ExternalArtifact' and must not be set otherwise.
                   items:
-                    description: ExternalArtifactSelector defines a selector for discovering
-                      ExternalArtifact objects.
+                    description: ExternalArtifactSelector defines a selector for discovering ExternalArtifact objects.
                     properties:
                       matchExpressions:
-                        description: matchExpressions is a list of label selector
-                          requirements. The requirements are ANDed.
+                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                         items:
                           description: |-
                             A label selector requirement is a selector that contains values, a key, and an operator that
                             relates the key and values.
                           properties:
                             key:
-                              description: key is the label key that the selector
-                                applies to.
+                              description: key is the label key that the selector applies to.
                               type: string
                             operator:
                               description: |-
@@ -272,8 +263,7 @@ spec:
                     of the operator (or any other environment authentication configuration).
                   type: string
                 skip:
-                  description: Skip defines whether we need to skip input provider
-                    response updates.
+                  description: Skip defines whether we need to skip input provider response updates.
                   properties:
                     labels:
                       description: |-
@@ -325,70 +315,41 @@ spec:
                   rule: self.type != 'Static' || !has(self.url)
                 - message: spec.url must be empty when spec.type is 'ExternalArtifact'
                   rule: self.type != 'ExternalArtifact' || !has(self.url)
-                - message: spec.url must not be empty when spec.type is not 'Static'
-                    or 'ExternalArtifact'
-                  rule: self.type == 'Static' || self.type == 'ExternalArtifact' ||
-                    has(self.url)
-                - message: spec.url must start with 'http://' or 'https://' when spec.type
-                    is a Git provider
+                - message: spec.url must not be empty when spec.type is not 'Static' or 'ExternalArtifact'
+                  rule: self.type == 'Static' || self.type == 'ExternalArtifact' || has(self.url)
+                - message: spec.url must start with 'http://' or 'https://' when spec.type is a Git provider
                   rule: '!self.type.startsWith(''Git'') || self.url.startsWith(''http'')'
-                - message: spec.url must start with 'http://' or 'https://' when spec.type
-                    is an AzureDevOps provider
-                  rule: '!self.type.startsWith(''AzureDevOps'') || self.url.startsWith(''http://'')
-                    || self.url.startsWith(''https://'')'
-                - message: spec.url must start with 'https://' when spec.type is a
-                    AWSCodeCommit provider
+                - message: spec.url must start with 'http://' or 'https://' when spec.type is an AzureDevOps provider
+                  rule: '!self.type.startsWith(''AzureDevOps'') || self.url.startsWith(''http://'') || self.url.startsWith(''https://'')'
+                - message: spec.url must start with 'https://' when spec.type is a AWSCodeCommit provider
                   rule: '!self.type.startsWith(''AWSCodeCommit'') || self.url.startsWith(''https://'')'
-                - message: spec.url must start with 'oci://' when spec.type is an
-                    OCI provider
+                - message: spec.url must start with 'oci://' when spec.type is an OCI provider
                   rule: '!self.type.endsWith(''ArtifactTag'') || self.url.startsWith(''oci'')'
-                - message: spec.url must include the repository path after the registry
-                    host when spec.type is an OCI provider
-                  rule: '!self.type.endsWith(''ArtifactTag'') || !self.url.startsWith(''oci://'')
-                    || self.url.substring(6).contains(''/'')'
-                - message: spec.url must start with 'http://' or 'https://' when spec.type
-                    is 'ExternalService'
+                - message: spec.url must include the repository path after the registry host when spec.type is an OCI provider
+                  rule: '!self.type.endsWith(''ArtifactTag'') || !self.url.startsWith(''oci://'') || self.url.substring(6).contains(''/'')'
+                - message: spec.url must start with 'http://' or 'https://' when spec.type is 'ExternalService'
                   rule: self.type != 'ExternalService' || self.url.startsWith('http')
-                - message: spec.insecure can only be set when spec.type is 'ExternalService'
-                    or 'OCIArtifactTag'
-                  rule: '!has(self.insecure) || !self.insecure || self.type == ''ExternalService''
-                    || self.type == ''OCIArtifactTag'''
+                - message: spec.insecure can only be set when spec.type is 'ExternalService' or 'OCIArtifactTag'
+                  rule: '!has(self.insecure) || !self.insecure || self.type == ''ExternalService'' || self.type == ''OCIArtifactTag'''
                 - message: spec.url must use 'https://' unless spec.insecure is true
-                  rule: self.type != 'ExternalService' || !self.url.startsWith('http://')
-                    || (has(self.insecure) && self.insecure)
-                - message: cannot specify spec.serviceAccountName when spec.type is
-                    not one of AzureDevOps*, AWSCodeCommit*, *ArtifactTag or ExternalArtifact
-                  rule: '!has(self.serviceAccountName) || self.type.startsWith(''AzureDevOps'')
-                    || self.type.startsWith(''AWSCodeCommit'') || self.type.endsWith(''ArtifactTag'')
-                    || self.type == ''ExternalArtifact'''
-                - message: cannot specify spec.certSecretRef when spec.type is one
-                    of Static, ExternalArtifact, AzureDevOps*, AWSCodeCommit*, ACRArtifactTag,
-                    ECRArtifactTag or GARArtifactTag
-                  rule: '!has(self.certSecretRef) || !(self.type == ''Static'' ||
-                    self.type == ''ExternalArtifact'' || self.type.startsWith(''AzureDevOps'')
-                    || self.type.startsWith(''AWSCodeCommit'') || (self.type.endsWith(''ArtifactTag'')
-                    && self.type != ''OCIArtifactTag''))'
-                - message: cannot specify spec.secretRef when spec.type is one of
-                    Static, ExternalArtifact, AWSCodeCommit*, ACRArtifactTag, ECRArtifactTag
-                    or GARArtifactTag
-                  rule: '!has(self.secretRef) || !(self.type == ''Static'' || self.type
-                    == ''ExternalArtifact'' || self.type.startsWith(''AWSCodeCommit'')
-                    || (self.type.endsWith(''ArtifactTag'') && self.type != ''OCIArtifactTag''))'
+                  rule: self.type != 'ExternalService' || !self.url.startsWith('http://') || (has(self.insecure) && self.insecure)
+                - message: cannot specify spec.serviceAccountName when spec.type is not one of AzureDevOps*, AWSCodeCommit*, *ArtifactTag or ExternalArtifact
+                  rule: '!has(self.serviceAccountName) || self.type.startsWith(''AzureDevOps'') || self.type.startsWith(''AWSCodeCommit'') || self.type.endsWith(''ArtifactTag'') || self.type == ''ExternalArtifact'''
+                - message: cannot specify spec.certSecretRef when spec.type is one of Static, ExternalArtifact, AzureDevOps*, AWSCodeCommit*, ACRArtifactTag, ECRArtifactTag or GARArtifactTag
+                  rule: '!has(self.certSecretRef) || !(self.type == ''Static'' || self.type == ''ExternalArtifact'' || self.type.startsWith(''AzureDevOps'') || self.type.startsWith(''AWSCodeCommit'') || (self.type.endsWith(''ArtifactTag'') && self.type != ''OCIArtifactTag''))'
+                - message: cannot specify spec.secretRef when spec.type is one of Static, ExternalArtifact, AWSCodeCommit*, ACRArtifactTag, ECRArtifactTag or GARArtifactTag
+                  rule: '!has(self.secretRef) || !(self.type == ''Static'' || self.type == ''ExternalArtifact'' || self.type.startsWith(''AWSCodeCommit'') || (self.type.endsWith(''ArtifactTag'') && self.type != ''OCIArtifactTag''))'
                 - message: spec.selectors must be set when spec.type is 'ExternalArtifact'
-                  rule: self.type != 'ExternalArtifact' || (has(self.selectors) &&
-                    size(self.selectors) > 0)
+                  rule: self.type != 'ExternalArtifact' || (has(self.selectors) && size(self.selectors) > 0)
                 - message: spec.selectors must not be set when spec.type is not 'ExternalArtifact'
                   rule: self.type == 'ExternalArtifact' || !has(self.selectors)
             status:
-              description: ResourceSetInputProviderStatus defines the observed state
-                of ResourceSetInputProvider.
+              description: ResourceSetInputProviderStatus defines the observed state of ResourceSetInputProvider.
               properties:
                 conditions:
-                  description: Conditions contains the readiness conditions of the
-                    object.
+                  description: Conditions contains the readiness conditions of the object.
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -422,8 +383,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -443,13 +403,11 @@ spec:
                     type: object
                   type: array
                 exportedInputs:
-                  description: ExportedInputs contains the list of inputs exported
-                    by the provider.
+                  description: ExportedInputs contains the list of inputs exported by the provider.
                   items:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
-                    description: ResourceSetInput defines the key-value pairs of the
-                      ResourceSet input.
+                    description: ResourceSetInput defines the key-value pairs of the ResourceSet input.
                     type: object
                   type: array
                 lastExportedRevision:
@@ -470,16 +428,14 @@ spec:
                     can be detected.
                   type: string
                 nextSchedule:
-                  description: NextSchedule is the next schedule when the input provider
-                    will run.
+                  description: NextSchedule is the next schedule when the input provider will run.
                   properties:
                     cron:
                       description: Cron specifies the cron expression for the schedule.
                       type: string
                     timeZone:
                       default: UTC
-                      description: TimeZone specifies the time zone for the cron schedule.
-                        Defaults to UTC.
+                      description: TimeZone specifies the time zone for the cron schedule. Defaults to UTC.
                       type: string
                     when:
                       description: When is the next time the schedule will run.

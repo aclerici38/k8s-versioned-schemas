@@ -64,16 +64,14 @@ spec:
                     would otherwise fail every reconcile.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements.
-                        The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies
-                              to.
+                            description: key is the label key that the selector applies to.
                             type: string
                           operator:
                             description: |-
@@ -107,13 +105,8 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                   x-kubernetes-validations:
-                    - message: 'matchExpressions: In/NotIn require values; Exists/DoesNotExist
-                        forbid them'
-                      rule: '!has(self.matchExpressions) || self.matchExpressions.all(e,
-                        ((e.operator == ''In'' || e.operator == ''NotIn'') && has(e.values)
-                        && size(e.values) > 0) || ((e.operator == ''Exists'' || e.operator
-                        == ''DoesNotExist'') && (!has(e.values) || size(e.values)
-                        == 0)))'
+                    - message: 'matchExpressions: In/NotIn require values; Exists/DoesNotExist forbid them'
+                      rule: '!has(self.matchExpressions) || self.matchExpressions.all(e, ((e.operator == ''In'' || e.operator == ''NotIn'') && has(e.values) && size(e.values) > 0) || ((e.operator == ''Exists'' || e.operator == ''DoesNotExist'') && (!has(e.values) || size(e.values) == 0)))'
                 template:
                   description: |-
                     Template is the MiroirNode spec applied to every member, with two
@@ -231,11 +224,8 @@ spec:
                           - name
                         type: object
                         x-kubernetes-validations:
-                          - message: 'exactly one backend block (lvmthin, zfs, or
-                              loopfile) must be set — lvmthin: {} when the VG already
-                              exists'
-                            rule: '[has(self.lvmthin), has(self.zfs), has(self.loopfile)].filter(x,
-                              x).size() == 1'
+                          - message: 'exactly one backend block (lvmthin, zfs, or loopfile) must be set — lvmthin: {} when the VG already exists'
+                            rule: '[has(self.lvmthin), has(self.zfs), has(self.loopfile)].filter(x, x).size() == 1'
                       maxItems: 32
                       minItems: 1
                       type: array
@@ -244,18 +234,11 @@ spec:
                       x-kubernetes-list-type: map
                       x-kubernetes-validations:
                         - message: no two pools may share a device
-                          rule: self.filter(p, has(p.lvmthin) && has(p.lvmthin.device)).map(p,
-                            p.lvmthin.device).all(d, self.filter(p, has(p.lvmthin)
-                            && has(p.lvmthin.device) && p.lvmthin.device == d).size()
-                            == 1)
+                          rule: self.filter(p, has(p.lvmthin) && has(p.lvmthin.device)).map(p, p.lvmthin.device).all(d, self.filter(p, has(p.lvmthin) && has(p.lvmthin.device) && p.lvmthin.device == d).size() == 1)
                         - message: no two pools may share a dataset
-                          rule: self.filter(p, has(p.zfs)).map(p, p.zfs.dataset).all(d,
-                            self.filter(p, has(p.zfs) && p.zfs.dataset == d).size()
-                            == 1)
+                          rule: self.filter(p, has(p.zfs)).map(p, p.zfs.dataset).all(d, self.filter(p, has(p.zfs) && p.zfs.dataset == d).size() == 1)
                         - message: no two pools may share a baseDir
-                          rule: self.filter(p, has(p.loopfile)).map(p, p.loopfile.baseDir).all(d,
-                            self.filter(p, has(p.loopfile) && p.loopfile.baseDir ==
-                            d).size() == 1)
+                          rule: self.filter(p, has(p.loopfile)).map(p, p.loopfile.baseDir).all(d, self.filter(p, has(p.loopfile) && p.loopfile.baseDir == d).size() == 1)
                     zone:
                       description: |-
                         Zone is an optional failure domain (rack, host group, AZ). When set,
@@ -271,20 +254,15 @@ spec:
                 - template
               type: object
               x-kubernetes-validations:
-                - message: 'address is a per-node fact: annotate the Node with miroir.home-operations.com/address,
-                    or author a direct MiroirNode'
-                  rule: '!has(self.template.address) || size(self.template.address)
-                    == 0'
+                - message: 'address is a per-node fact: annotate the Node with miroir.home-operations.com/address, or author a direct MiroirNode'
+                  rule: '!has(self.template.address) || size(self.template.address) == 0'
             status:
-              description: MiroirNodeGroupStatus reports the group's materialized
-                membership.
+              description: MiroirNodeGroupStatus reports the group's materialized membership.
               properties:
                 conditions:
-                  description: Conditions follow the standard Kubernetes condition
-                    conventions.
+                  description: Conditions follow the standard Kubernetes condition conventions.
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -318,8 +296,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -346,15 +323,13 @@ spec:
                     type: string
                   type: array
                 observedGeneration:
-                  description: ObservedGeneration is the spec generation this status
-                    reflects.
+                  description: ObservedGeneration is the spec generation this status reflects.
                   format: int64
                   type: integer
               type: object
           type: object
           x-kubernetes-validations:
-            - message: 'the group name becomes a label value on materialized MiroirNodes:
-                63 characters maximum'
+            - message: 'the group name becomes a label value on materialized MiroirNodes: 63 characters maximum'
               rule: size(self.metadata.name) <= 63
       served: true
       storage: true

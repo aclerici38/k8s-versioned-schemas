@@ -87,16 +87,14 @@ spec:
                         Only used when From is set to "Selector".
                       properties:
                         matchExpressions:
-                          description: matchExpressions is a list of label selector
-                            requirements. The requirements are ANDed.
+                          description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                           items:
                             description: |-
                               A label selector requirement is a selector that contains values, a key, and an operator that
                               relates the key and values.
                             properties:
                               key:
-                                description: key is the label key that the selector
-                                  applies to.
+                                description: key is the label key that the selector applies to.
                                 type: string
                               operator:
                                 description: |-
@@ -144,8 +142,7 @@ spec:
                       value:
                         type: string
                       valueFrom:
-                        description: ValueSource defines a source for configuration
-                          values from a Secret or ConfigMap
+                        description: ValueSource defines a source for configuration values from a Secret or ConfigMap
                         properties:
                           key:
                             description: The key of the ConfigMap or Secret.
@@ -170,8 +167,7 @@ spec:
                     type: object
                     x-kubernetes-validations:
                       - message: Exactly one of value or valueFrom must be specified
-                        rule: (has(self.value) && !has(self.valueFrom)) || (!has(self.value)
-                          && has(self.valueFrom))
+                        rule: (has(self.value) && !has(self.valueFrom)) || (!has(self.value) && has(self.valueFrom))
                   type: array
                 protocol:
                   default: STREAMABLE_HTTP
@@ -239,18 +235,11 @@ spec:
                   type: object
                   x-kubernetes-validations:
                     - message: caCertSecretKey requires caCertSecretRef
-                      rule: '!(has(self.caCertSecretKey) && size(self.caCertSecretKey)
-                        > 0 && (!has(self.caCertSecretRef) || size(self.caCertSecretRef)
-                        == 0))'
+                      rule: '!(has(self.caCertSecretKey) && size(self.caCertSecretKey) > 0 && (!has(self.caCertSecretRef) || size(self.caCertSecretRef) == 0))'
                     - message: caCertSecretRef requires caCertSecretKey
-                      rule: '!(has(self.caCertSecretRef) && size(self.caCertSecretRef)
-                        > 0 && (!has(self.caCertSecretKey) || size(self.caCertSecretKey)
-                        == 0))'
-                    - message: disableSystemCAs requires caCertSecretRef or disableVerify
-                        (trust-nothing config rejects every upstream)
-                      rule: '!(has(self.disableSystemCAs) && self.disableSystemCAs
-                        && (!has(self.disableVerify) || !self.disableVerify) && (!has(self.caCertSecretRef)
-                        || size(self.caCertSecretRef) == 0))'
+                      rule: '!(has(self.caCertSecretRef) && size(self.caCertSecretRef) > 0 && (!has(self.caCertSecretKey) || size(self.caCertSecretKey) == 0))'
+                    - message: disableSystemCAs requires caCertSecretRef or disableVerify (trust-nothing config rejects every upstream)
+                      rule: '!(has(self.disableSystemCAs) && self.disableSystemCAs && (!has(self.disableVerify) || !self.disableVerify) && (!has(self.caCertSecretRef) || size(self.caCertSecretRef) == 0))'
                 url:
                   minLength: 1
                   type: string
@@ -259,27 +248,16 @@ spec:
                 - url
               type: object
               x-kubernetes-validations:
-                - message: 'spec.tls must be unset when spec.url has http:// scheme:
-                    a TLS opinion contradicts a plaintext URL. Either drop spec.tls,
-                    or use https:// / a scheme-less URL.'
+                - message: 'spec.tls must be unset when spec.url has http:// scheme: a TLS opinion contradicts a plaintext URL. Either drop spec.tls, or use https:// / a scheme-less URL.'
                   rule: '!self.url.startsWith(''http://'') || !has(self.tls)'
-                - message: 'spec.allowedNamespaces must not permit cross-namespace
-                    access (from: All or from: Selector) when spec.tls.caCertSecretRef
-                    is set: a pinned CA Secret is mounted onto the consuming agent''s
-                    pod and Kubernetes resolves it in the agent''s namespace, not
-                    this RemoteMCPServer''s. Use from: Same (the default), or remove
-                    the CA Secret reference.'
-                  rule: '!(has(self.allowedNamespaces) && has(self.allowedNamespaces.from)
-                    && (self.allowedNamespaces.from == ''All'' || self.allowedNamespaces.from
-                    == ''Selector'') && has(self.tls) && has(self.tls.caCertSecretRef)
-                    && size(self.tls.caCertSecretRef) > 0)'
+                - message: 'spec.allowedNamespaces must not permit cross-namespace access (from: All or from: Selector) when spec.tls.caCertSecretRef is set: a pinned CA Secret is mounted onto the consuming agent''s pod and Kubernetes resolves it in the agent''s namespace, not this RemoteMCPServer''s. Use from: Same (the default), or remove the CA Secret reference.'
+                  rule: '!(has(self.allowedNamespaces) && has(self.allowedNamespaces.from) && (self.allowedNamespaces.from == ''All'' || self.allowedNamespaces.from == ''Selector'') && has(self.tls) && has(self.tls.caCertSecretRef) && size(self.tls.caCertSecretRef) > 0)'
             status:
               description: RemoteMCPServerStatus defines the observed state of RemoteMCPServer.
               properties:
                 conditions:
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -313,8 +291,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
