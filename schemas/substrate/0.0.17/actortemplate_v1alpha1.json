@@ -156,6 +156,74 @@
                   "null"
                 ]
               },
+              "securityContext": {
+                "additionalProperties": false,
+                "description": "securityContext holds security settings for this container. Unset leaves\nit with the default capability set.",
+                "properties": {
+                  "capabilities": {
+                    "additionalProperties": false,
+                    "description": "Capabilities adjusts this container's Linux capabilities relative to the\ndefault set.",
+                    "properties": {
+                      "add": {
+                        "description": "Add lists capabilities to grant on top of the default set.\n\n\"ALL\" is rejected: Kubernetes accepts it in the API and relies on\nPodSecurity admission to deny it, and there is no equivalent policy layer\nhere yet.",
+                        "items": {
+                          "description": "Capability is a Linux capability named without the \"CAP_\" prefix (e.g.\n\"NET_BIND_SERVICE\"), as in Kubernetes. The prefix is added when the OCI spec\nis written, and the prefixed spelling is rejected so a manifest copied from\nOCI docs fails at admission rather than granting nothing.",
+                          "maxLength": 63,
+                          "pattern": "^[A-Z][A-Z0-9_]*$",
+                          "type": "string",
+                          "x-kubernetes-validations": [
+                            {
+                              "message": "Capability must be named without the 'CAP_' prefix (e.g. 'NET_BIND_SERVICE', not 'CAP_NET_BIND_SERVICE')",
+                              "rule": "!self.startsWith('CAP_')"
+                            }
+                          ]
+                        },
+                        "maxItems": 64,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic",
+                        "x-kubernetes-validations": [
+                          {
+                            "message": "add does not accept 'ALL'; name the individual capabilities the container needs",
+                            "rule": "!self.exists(c, c == 'ALL')"
+                          }
+                        ]
+                      },
+                      "drop": {
+                        "description": "Drop lists capabilities to remove from the default set. \"ALL\" drops the\nwhole set, so drop+add expresses an exact set rather than a relative one.",
+                        "items": {
+                          "description": "Capability is a Linux capability named without the \"CAP_\" prefix (e.g.\n\"NET_BIND_SERVICE\"), as in Kubernetes. The prefix is added when the OCI spec\nis written, and the prefixed spelling is rejected so a manifest copied from\nOCI docs fails at admission rather than granting nothing.",
+                          "maxLength": 63,
+                          "pattern": "^[A-Z][A-Z0-9_]*$",
+                          "type": "string",
+                          "x-kubernetes-validations": [
+                            {
+                              "message": "Capability must be named without the 'CAP_' prefix (e.g. 'NET_BIND_SERVICE', not 'CAP_NET_BIND_SERVICE')",
+                              "rule": "!self.startsWith('CAP_')"
+                            }
+                          ]
+                        },
+                        "maxItems": 64,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic"
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "volumeMounts": {
                 "description": "volumeMounts define the volumes to mount into this container.",
                 "items": {
@@ -210,6 +278,86 @@
             "null"
           ]
         },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Resources declares the compute resources for each actor of this template.\nUnlike a pod, an actor is sized by its Limits: the sandbox is built to the\nCPU/memory limits (cgroup caps, and for the micro-VM the VM's vCPU count and\nmemory), the scheduler only places the actor on a worker whose capacity is\n\u003e= these limits, and the limits are supplied to the sandbox over the actor\nRPCs. Because the size is baked into snapshots, it is part of the immutable\nspec. Requests and claims are not supported (actors are sized by limits only).\nA zero or absent limit leaves the sandbox at the runtime default (unlimited\nfor gVisor, the kata config for the micro-VM).",
+          "properties": {
+            "claims": {
+              "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+              "items": {
+                "additionalProperties": false,
+                "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                "properties": {
+                  "name": {
+                    "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                    "type": "string"
+                  },
+                  "request": {
+                    "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "name"
+              ],
+              "x-kubernetes-list-type": "map"
+            },
+            "limits": {
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-kubernetes-int-or-string": true
+              },
+              "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "requests": {
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-kubernetes-int-or-string": true
+              },
+              "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "sandboxClass": {
           "default": "gvisor",
           "description": "SandboxClass selects the sandbox runtime family this template's actors run\non. Only worker pools whose SandboxClass matches are eligible. Snapshots are\nnot portable across classes, so this is a hard gate, AND'd with WorkerSelector\nand the actor's worker_selector. Defaults to gvisor.\n\n\n1) How does someone discover what classes are available, or what they mean?\n2) How does someone define a new sandbox class?\n3) Does a class mean the specific type of sandbox tech or does it include some aspect of config (e.g. can we have 2 different classes which both use gVisor with different config, or 2 classes which use different microvms)\n4) How does the default get set and who sets it?\n\nSee Also: WorkerPool SandboxClass",
@@ -233,7 +381,7 @@
             },
             "onCommit": {
               "default": "Full",
-              "description": "OnCommit specifies what to include in the snapshot when a commit is requested.\nIf not provided, the \"Full\" behavior is used by default.\nonCommit must be a subset of the onPause content.\n\nFor example:\n  - if onPause is \"Full\", then onCommit can be \"Full\" or \"Data\".\n  - if onPause is \"Data\", then onCommit must be \"Data\".",
+              "description": "OnCommit specifies what to include in the snapshot when a commit is requested.\nIf not provided, the \"Full\" behavior is used by default.\nonCommit must be a subset of the onPause content.\nNote: Data scope only captures DurableDir-typed volumes; external/CSI\nvolumes are not snapshotted as they persist independently.\n\nFor example:\n  - if onPause is \"Full\", then onCommit can be \"Full\" or \"Data\".\n  - if onPause is \"Data\", then onCommit must be \"Data\".",
               "enum": [
                 "Full",
                 "Data"
@@ -245,7 +393,7 @@
             },
             "onPause": {
               "default": "Full",
-              "description": "OnPause specifies what to include in the snapshot when the actor is paused.\nIf not provided, the \"Full\" behavior is used by default.",
+              "description": "OnPause specifies what to include in the snapshot when the actor is paused.\nIf not provided, the \"Full\" behavior is used by default.\nNote: Data scope only captures DurableDir-typed volumes; external/CSI\nvolumes are not snapshotted as they persist independently.",
               "enum": [
                 "Full",
                 "Data"
@@ -343,6 +491,104 @@
                     "rule": "!format.dns1123Label().validate(self).hasValue()"
                   }
                 ]
+              },
+              "systemInfo": {
+                "additionalProperties": false,
+                "description": "systemInfo configures a system information volume.",
+                "properties": {
+                  "dataSources": {
+                    "description": "DataSources is the list of data sources to place within the SystemInfo\nvolume.\n\nAt most one actorMetadata entry may appear; this is what keeps file\npaths unique across the whole volume (uniqueness within the entry is\nenforced on its items).",
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "SystemInfoDataSource is a container allowing you to pick a particular\nSystemInfo data source.\n\nExactly one member must be set.",
+                      "properties": {
+                        "actorMetadata": {
+                          "additionalProperties": false,
+                          "description": "ActorMetadataDataSource is a SystemInfo volume data source that projects the\nactor's identity fields (name, atespace, uid) to files, one per item —\nanalogous to the Kubernetes downwardAPI volume. Values are written raw with\nno trailing newline, and are fixed for the actor's lifetime across\nsuspend/resume/migration.",
+                          "properties": {
+                            "items": {
+                              "description": "Items is the list of fields to project and the file path each is\nwritten to.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "ActorMetadataItem projects one actor identity field to one file.",
+                                "properties": {
+                                  "field": {
+                                    "description": "Field selects which identity field to project.",
+                                    "enum": [
+                                      "name",
+                                      "atespace",
+                                      "uid"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "description": "Relative path from the root of the SystemInfo volume at which the\nfield's value is written. Must be a clean relative Unix path: must not\nstart or end with '/', and contain no ':', '..', '.', '//', or control\ncharacters.",
+                                    "maxLength": 255,
+                                    "minLength": 1,
+                                    "type": "string",
+                                    "x-kubernetes-validations": [
+                                      {
+                                        "message": "path must be a clean relative Unix path: must not start or end with '/', and contain no ':', '..', '.', '//', or control characters",
+                                        "rule": "!self.startsWith('/') \u0026\u0026 !self.endsWith('/') \u0026\u0026 !self.contains('//') \u0026\u0026 !self.contains(':') \u0026\u0026 !self.matches('[\\x00-\\x1f\\x7f]') \u0026\u0026 !self.matches('(^|/)[.][.]?(/|$)')"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "field",
+                                  "path"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 8,
+                              "minItems": 1,
+                              "type": "array",
+                              "x-kubernetes-validations": [
+                                {
+                                  "message": "items must not project the same field twice",
+                                  "rule": "self.all(x, self.exists_one(y, y.field == x.field))"
+                                },
+                                {
+                                  "message": "items must not contain duplicate paths",
+                                  "rule": "self.all(x, self.exists_one(y, y.path == x.path))"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "exactly one of the fields in [actorMetadata] must be set",
+                          "rule": "[has(self.actorMetadata)].filter(x,x==true).size() == 1"
+                        }
+                      ]
+                    },
+                    "maxItems": 32,
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "dataSources must contain at most one actorMetadata entry",
+                        "rule": "self.filter(x, has(x.actorMetadata)).size() \u003c= 1"
+                      }
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -351,8 +597,8 @@
             "type": "object",
             "x-kubernetes-validations": [
               {
-                "message": "exactly one of the fields in [durableDir externalVolumeTemplate] must be set",
-                "rule": "[has(self.durableDir),has(self.externalVolumeTemplate)].filter(x,x==true).size() == 1"
+                "message": "exactly one of the fields in [durableDir externalVolumeTemplate systemInfo] must be set",
+                "rule": "[has(self.durableDir),has(self.externalVolumeTemplate),has(self.systemInfo)].filter(x,x==true).size() == 1"
               }
             ]
           },
@@ -360,7 +606,11 @@
           "type": [
             "array",
             "null"
-          ]
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
         },
         "workerSelector": {
           "additionalProperties": false,
@@ -436,12 +686,24 @@
           "rule": "!has(self.volumes) || self.volumes.all(v, has(self.containers) \u0026\u0026 self.containers.exists(c, has(c.volumeMounts) \u0026\u0026 c.volumeMounts.exists(vm, vm.name == v.name)))"
         },
         {
-          "message": "ExternalVolumes are not supported when sandboxClass is 'microvm'",
-          "rule": "!has(self.sandboxClass) || self.sandboxClass != 'microvm' || !has(self.volumes) || !self.volumes.exists(v, has(v.externalVolumeTemplate))"
-        },
-        {
           "message": "onResume.fromData: Golden is not supported when sandboxClass is 'gvisor'",
           "rule": "(has(self.sandboxClass) \u0026\u0026 self.sandboxClass == 'microvm') || !has(self.snapshotsConfig.onResume) || (has(self.snapshotsConfig.onResume.fromData) ? self.snapshotsConfig.onResume.fromData : 'ColdBoot') != 'Golden'"
+        },
+        {
+          "message": "spec.resources.requests is not supported; actors are sized by spec.resources.limits only",
+          "rule": "!has(self.resources) || !has(self.resources.requests)"
+        },
+        {
+          "message": "spec.resources.claims is not supported",
+          "rule": "!has(self.resources) || !has(self.resources.claims)"
+        },
+        {
+          "message": "For sandboxClass 'microvm', spec.resources.limits.memory must be at least 256Mi (128Mi VMM reserve + 128Mi guest minimum); below this the VM cannot boot",
+          "rule": "!has(self.sandboxClass) || self.sandboxClass != 'microvm' || !has(self.resources) || !has(self.resources.limits) || !('memory' in self.resources.limits) || !quantity(self.resources.limits['memory']).isLessThan(quantity('256Mi'))"
+        },
+        {
+          "message": "All volume mounts must refer to a volume defined in spec.volumes",
+          "rule": "!has(self.containers) || self.containers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(vm, has(self.volumes) \u0026\u0026 self.volumes.exists(v, v.name == vm.name)))"
         }
       ]
     },
