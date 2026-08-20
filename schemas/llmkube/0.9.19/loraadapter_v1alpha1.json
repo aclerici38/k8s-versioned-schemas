@@ -1,0 +1,165 @@
+{
+  "description": "LoRAAdapter is the Schema for the loraadapters API.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of LoRAAdapter",
+      "properties": {
+        "inferenceServiceRef": {
+          "additionalProperties": false,
+          "description": "InferenceServiceRef names the InferenceService this adapter should\nbe loaded into. The reconciler resolves it; if it points at a\nnon-sglang runtime, Available=False with reason RuntimeMismatch.",
+          "properties": {
+            "name": {
+              "description": "Name is the name of the target InferenceService. Must exist in\nNamespace (or be omitted to default to this resource's namespace).",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "Namespace is the namespace of the target InferenceService. When\nomitted, defaults to the LoRAAdapter's namespace. Cross-namespace\nreferences are allowed; the controller only requires that the\noperator has RBAC to GET the referenced InferenceService.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "name": {
+          "description": "Name is the SGLang-side adapter handle. Operators quote this in\ninference requests to pick the adapter. Must be unique within the\ntarget InferenceService's loaded set; the SGLang HTTP API rejects\nduplicates with 409.",
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Path is the path on disk inside the SGLang container where the\nadapter weights are mounted. SGLang reads from this path when\n/load_lora_adapter is invoked, so it must be reachable from the\ninference pod (typically via a PVC exposed in\nInferenceService.spec.extraVolumes) at the path the operator\nchose. The controller does not auto-mount.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "inferenceServiceRef",
+        "name",
+        "path"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status defines the observed state of LoRAAdapter",
+      "properties": {
+        "conditions": {
+          "description": "conditions represent the current state of the LoRAAdapter\nresource.\n\nStandard condition types include:\n- \"Available\": the spec is well-formed and target InferenceService\n  exists with runtime == sglang.\n- \"Loaded\": the adapter has been POSTed to SGLang and SGLang\n  reported success (or, on teardown, acknowledged the unload).\n- \"Error\": a reconcile step failed; the message carries the\n  underlying reason (runtime mismatch, HTTP failure, etc.).\n\nThe status of each condition is one of True, False, or Unknown.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "lastLoadedAt": {
+          "description": "LastLoadedAt is when the adapter was last successfully loaded\ninto SGLang. Re-loads (after a SGLang pod restart, for example)\nupdate this field.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loadedPath": {
+          "description": "LoadedPath is the path SGLang has accepted for this adapter. Set\nafter a successful POST /load_lora_adapter response. Empty before\nthe first successful load.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

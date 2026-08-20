@@ -1,0 +1,267 @@
+{
+  "description": "ModelPool is the Schema for the modelpools API.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of ModelPool",
+      "properties": {
+        "default": {
+          "description": "Default names the member to warm on a cold pool (before any request has\npicked an owner). When empty, the first request to arrive selects the\nowner. Must match one of the members' InferenceServiceRef names.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gpu": {
+          "default": 1,
+          "description": "GPU is the number of GPUs the shared slot occupies. Informational for the\npool invariant (members declare their own resource requests); recorded so\noperators can see the slot size at a glance.",
+          "format": "int32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "members": {
+          "description": "Members lists the InferenceServices that share the pool's GPU slot. Each\nmember is an ordinary single-model InferenceService with its own image,\ncontext size, and runtime.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ModelPoolMember names one InferenceService that shares the pool's GPU slot.",
+            "properties": {
+              "inferenceServiceRef": {
+                "additionalProperties": false,
+                "description": "InferenceServiceRef references the member InferenceService by name. The\nInferenceService must live in the same namespace as the ModelPool.",
+                "properties": {
+                  "name": {
+                    "default": "",
+                    "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object",
+                "x-kubernetes-map-type": "atomic"
+              }
+            },
+            "required": [
+              "inferenceServiceRef"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-list-type": "atomic"
+        },
+        "nodeSelector": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "NodeSelector pins the shared slot to a node (or node class). All members\nare expected to schedule onto the same node so they contend for the same\ndevice memory. Mirrors a standard Kubernetes node selector.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "swapBudget": {
+          "default": "300s",
+          "description": "SwapBudget bounds how long the router holds a cross-model request open\nwhile it drains the incumbent and cold-loads the target member. It is\ndeliberately decoupled from the router's response-header (generation)\ntimeout: a large model can take minutes to load without forcing operators\nto loosen the per-request generation cap for every request. When the\nbudget elapses before the target becomes resident, the held request is\nfailed with 503 + Retry-After (the caller can retry; the now-warm member\nserves the next request). Defaults to 300s.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "swapPolicy": {
+          "default": "sticky",
+          "description": "SwapPolicy selects how the slot owner is chosen when demand crosses model\nboundaries. \"sticky\" (default) keeps the incumbent until a different\nmember is requested. It is the only policy in v1; a priority-based reclaim\npolicy is a planned follow-up.",
+          "enum": [
+            "sticky"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "members"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status defines the observed state of ModelPool",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the current state of the ModelPool resource.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "members": {
+          "description": "Members reports the observed state of each pool member.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ModelPoolMemberStatus reports the observed state of one pool member.",
+            "properties": {
+              "name": {
+                "description": "Name is the member InferenceService name.",
+                "type": "string"
+              },
+              "phase": {
+                "description": "Phase mirrors the member InferenceService status.phase.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resident": {
+                "description": "Resident is true when this member currently owns the shared GPU slot.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the spec generation the status reflects.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pendingMember": {
+          "description": "PendingMember is the member being loaded during a swap, or empty when the\npool is not mid-swap.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase is the pool lifecycle phase: Pending, Ready, Swapping, or Degraded.",
+          "enum": [
+            "Pending",
+            "Ready",
+            "Swapping",
+            "Degraded"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "residentMember": {
+          "description": "ResidentMember is the member that currently owns the shared GPU slot, or\nempty when the pool is cold (no member resident).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,189 @@
+{
+  "description": "GPUQuota is the Schema for the gpuquotas API. It declares a multi-tenant\nGPU budget that admission logic enforces against InferenceService pods.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "GPUQuotaSpec defines the desired state of GPUQuota. Exactly one of\nSelector or NamespaceRef must be set; they are mutually exclusive.\nSelector targets pods by label across one or more namespaces;\nNamespaceRef pins the quota to a single namespace.",
+      "properties": {
+        "costBudgetRef": {
+          "description": "CostBudgetRef is the name of a CostBudget resource (future CRD)\nthat caps the dollar cost of GPU usage under this quota.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gpuCount": {
+          "description": "GPUCount is the maximum number of GPUs this quota allows.",
+          "format": "int32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minPriority": {
+          "description": "MinPriority is the minimum scheduling priority a pod must declare\nto be admitted under this quota. Pods with a lower priority are\ndenied regardless of available headroom.",
+          "enum": [
+            "critical",
+            "high",
+            "normal",
+            "low",
+            "batch"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "namespaceRef": {
+          "description": "NamespaceRef pins this quota to a single namespace.\nMutually exclusive with Selector.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selector": {
+          "additionalProperties": false,
+          "description": "Selector matches pods by label across one or more namespaces.\nMutually exclusive with NamespaceRef.",
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "items": {
+                "additionalProperties": false,
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "matchLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
+        },
+        "vramBytes": {
+          "description": "VRAMBytes is the maximum total VRAM (bytes) this quota allows.\nZero means no VRAM cap.",
+          "format": "int64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "gpuCount"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "exactly one of selector or namespaceRef must be set",
+          "rule": "has(self.selector) != has(self.namespaceRef)"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "GPUQuotaStatus defines the observed state of GPUQuota.",
+      "properties": {
+        "admissionDenials": {
+          "description": "AdmissionDenials is the cumulative count of pods denied by this quota.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "lastDenial": {
+          "description": "LastDenial is the timestamp of the most recent admission denial.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "usedGPUCount": {
+          "description": "UsedGPUCount is the number of GPUs currently allocated under this quota.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "usedVRAMBytes": {
+          "description": "UsedVRAMBytes is the total VRAM (bytes) currently allocated under this quota.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
