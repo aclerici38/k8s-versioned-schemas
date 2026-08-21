@@ -156,6 +156,74 @@
                   "null"
                 ]
               },
+              "securityContext": {
+                "additionalProperties": false,
+                "description": "securityContext holds security settings for this container. Unset leaves\nit with the default capability set.",
+                "properties": {
+                  "capabilities": {
+                    "additionalProperties": false,
+                    "description": "Capabilities adjusts this container's Linux capabilities relative to the\ndefault set.",
+                    "properties": {
+                      "add": {
+                        "description": "Add lists capabilities to grant on top of the default set.\n\n\"ALL\" is rejected: Kubernetes accepts it in the API and relies on\nPodSecurity admission to deny it, and there is no equivalent policy layer\nhere yet.",
+                        "items": {
+                          "description": "Capability is a Linux capability named without the \"CAP_\" prefix (e.g.\n\"NET_BIND_SERVICE\"), as in Kubernetes. The prefix is added when the OCI spec\nis written, and the prefixed spelling is rejected so a manifest copied from\nOCI docs fails at admission rather than granting nothing.",
+                          "maxLength": 63,
+                          "pattern": "^[A-Z][A-Z0-9_]*$",
+                          "type": "string",
+                          "x-kubernetes-validations": [
+                            {
+                              "message": "Capability must be named without the 'CAP_' prefix (e.g. 'NET_BIND_SERVICE', not 'CAP_NET_BIND_SERVICE')",
+                              "rule": "!self.startsWith('CAP_')"
+                            }
+                          ]
+                        },
+                        "maxItems": 64,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic",
+                        "x-kubernetes-validations": [
+                          {
+                            "message": "add does not accept 'ALL'; name the individual capabilities the container needs",
+                            "rule": "!self.exists(c, c == 'ALL')"
+                          }
+                        ]
+                      },
+                      "drop": {
+                        "description": "Drop lists capabilities to remove from the default set. \"ALL\" drops the\nwhole set, so drop+add expresses an exact set rather than a relative one.",
+                        "items": {
+                          "description": "Capability is a Linux capability named without the \"CAP_\" prefix (e.g.\n\"NET_BIND_SERVICE\"), as in Kubernetes. The prefix is added when the OCI spec\nis written, and the prefixed spelling is rejected so a manifest copied from\nOCI docs fails at admission rather than granting nothing.",
+                          "maxLength": 63,
+                          "pattern": "^[A-Z][A-Z0-9_]*$",
+                          "type": "string",
+                          "x-kubernetes-validations": [
+                            {
+                              "message": "Capability must be named without the 'CAP_' prefix (e.g. 'NET_BIND_SERVICE', not 'CAP_NET_BIND_SERVICE')",
+                              "rule": "!self.startsWith('CAP_')"
+                            }
+                          ]
+                        },
+                        "maxItems": 64,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic"
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "volumeMounts": {
                 "description": "volumeMounts define the volumes to mount into this container.",
                 "items": {
@@ -413,6 +481,30 @@
                   "null"
                 ]
               },
+              "image": {
+                "additionalProperties": false,
+                "description": "image represents the contents of an OCI image, mounted read-only.",
+                "properties": {
+                  "reference": {
+                    "description": "reference is the image to mount.",
+                    "maxLength": 512,
+                    "type": "string",
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "All images must be pinned (changing the image invalidates snapshots)",
+                        "rule": "self.contains('@')"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "reference"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "name": {
                 "description": "name of the volume.",
                 "maxLength": 63,
@@ -423,6 +515,104 @@
                     "rule": "!format.dns1123Label().validate(self).hasValue()"
                   }
                 ]
+              },
+              "systemInfo": {
+                "additionalProperties": false,
+                "description": "systemInfo configures a system information volume.",
+                "properties": {
+                  "dataSources": {
+                    "description": "DataSources is the list of data sources to place within the SystemInfo\nvolume.\n\nAt most one actorMetadata entry may appear; this is what keeps file\npaths unique across the whole volume (uniqueness within the entry is\nenforced on its items).",
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "SystemInfoDataSource is a container allowing you to pick a particular\nSystemInfo data source.\n\nExactly one member must be set.",
+                      "properties": {
+                        "actorMetadata": {
+                          "additionalProperties": false,
+                          "description": "ActorMetadataDataSource is a SystemInfo volume data source that projects the\nactor's identity fields (name, atespace, uid) to files, one per item —\nanalogous to the Kubernetes downwardAPI volume. Values are written raw with\nno trailing newline, and are fixed for the actor's lifetime across\nsuspend/resume/migration.",
+                          "properties": {
+                            "items": {
+                              "description": "Items is the list of fields to project and the file path each is\nwritten to.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "ActorMetadataItem projects one actor identity field to one file.",
+                                "properties": {
+                                  "field": {
+                                    "description": "Field selects which identity field to project.",
+                                    "enum": [
+                                      "name",
+                                      "atespace",
+                                      "uid"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "description": "Relative path from the root of the SystemInfo volume at which the\nfield's value is written. Must be a clean relative Unix path: must not\nstart or end with '/', and contain no ':', '..', '.', '//', or control\ncharacters.",
+                                    "maxLength": 255,
+                                    "minLength": 1,
+                                    "type": "string",
+                                    "x-kubernetes-validations": [
+                                      {
+                                        "message": "path must be a clean relative Unix path: must not start or end with '/', and contain no ':', '..', '.', '//', or control characters",
+                                        "rule": "!self.startsWith('/') \u0026\u0026 !self.endsWith('/') \u0026\u0026 !self.contains('//') \u0026\u0026 !self.contains(':') \u0026\u0026 !self.matches('[\\x00-\\x1f\\x7f]') \u0026\u0026 !self.matches('(^|/)[.][.]?(/|$)')"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "field",
+                                  "path"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 8,
+                              "minItems": 1,
+                              "type": "array",
+                              "x-kubernetes-validations": [
+                                {
+                                  "message": "items must not project the same field twice",
+                                  "rule": "self.all(x, self.exists_one(y, y.field == x.field))"
+                                },
+                                {
+                                  "message": "items must not contain duplicate paths",
+                                  "rule": "self.all(x, self.exists_one(y, y.path == x.path))"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "exactly one of the fields in [actorMetadata] must be set",
+                          "rule": "[has(self.actorMetadata)].filter(x,x==true).size() == 1"
+                        }
+                      ]
+                    },
+                    "maxItems": 32,
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "dataSources must contain at most one actorMetadata entry",
+                        "rule": "self.filter(x, has(x.actorMetadata)).size() \u003c= 1"
+                      }
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -431,8 +621,8 @@
             "type": "object",
             "x-kubernetes-validations": [
               {
-                "message": "exactly one of the fields in [durableDir externalVolumeTemplate] must be set",
-                "rule": "[has(self.durableDir),has(self.externalVolumeTemplate)].filter(x,x==true).size() == 1"
+                "message": "exactly one of the fields in [durableDir externalVolumeTemplate image systemInfo] must be set",
+                "rule": "[has(self.durableDir),has(self.externalVolumeTemplate),has(self.image),has(self.systemInfo)].filter(x,x==true).size() == 1"
               }
             ]
           },
