@@ -35,6 +35,18 @@
       "title": "deploymentAnnotations",
       "type": "object"
     },
+    "dnsConfig": {
+      "description": "Pod dnsConfig (templated). Kubelet's default `ndots:5` makes the resolver walk the pod's DNS search list for every probe hostname, so each check burns extra guaranteed-NXDOMAIN lookups; when an endpoint template sets `client.dns-resolver`, that walk goes to the external resolver and leaks internal `\u003cnamespace\u003e.svc.cluster.local` names to it. Setting `ndots: \"1\"` (example below) makes external hostnames resolve directly.",
+      "required": [],
+      "title": "dnsConfig",
+      "type": "object"
+    },
+    "dnsPolicy": {
+      "default": "",
+      "description": "Pod dnsPolicy (templated); empty leaves it to Kubernetes (ClusterFirst). Only needed alongside `dnsConfig` overrides that require a specific policy (e.g. `None`).",
+      "title": "dnsPolicy",
+      "type": "string"
+    },
     "fullnameOverride": {
       "default": "",
       "description": "Override the full release name.",
@@ -63,7 +75,7 @@
           "type": "object"
         },
         "envFrom": {
-          "description": "  - name: GOMEMLIMIT\n    value: \"200MiB\"\nSources of environment variables for the gatus container (templated), e.g. a Secret holding buddy.yaml Pushover tokens.",
+          "description": "Sources of environment variables for the gatus container (templated), e.g. a Secret holding buddy.yaml Pushover tokens.",
           "items": {
             "required": []
           },
@@ -71,7 +83,7 @@
           "type": "array"
         },
         "extraEnv": {
-          "description": "  TZ: UTC\nExtra environment variables for the gatus container, as a raw list (templated).",
+          "description": "Extra environment variables for the gatus container, as a raw list (templated).",
           "items": {
             "required": []
           },
@@ -80,12 +92,6 @@
         },
         "image": {
           "properties": {
-            "digest": {
-              "default": "",
-              "description": "Pin the gatus image by digest (sha256:…); when set, overrides the tag.",
-              "title": "digest",
-              "type": "string"
-            },
             "pullPolicy": {
               "default": "IfNotPresent",
               "description": "Gatus image pull policy.",
@@ -99,8 +105,8 @@
               "type": "string"
             },
             "tag": {
-              "default": "v5.36.0",
-              "description": "Gatus image tag (Renovate-managed). Also becomes the chart appVersion at package time.",
+              "default": "v5.36.0@sha256:c5f210d095fa78e6efaa20ffeb14803f2ba4f10615e16a6d12087697149617f0",
+              "description": "Gatus image tag, pinned as `tag",
               "title": "tag",
               "type": "string"
             }
@@ -192,7 +198,7 @@
           "type": "object"
         },
         "securityContext": {
-          "description": "  - secretRef:\n      name: gatus-secrets\nGatus container securityContext (no privilege escalation, read-only root filesystem, drops ALL capabilities).",
+          "description": "Gatus container securityContext (no privilege escalation, read-only root filesystem, drops ALL capabilities).",
           "properties": {
             "allowPrivilegeEscalation": {
               "default": false,
@@ -249,7 +255,7 @@
       "description": "Gateway API HTTPRoute — an alternative to `ingress` for clusters using the\nGateway API. Renders one HTTPRoute pointing at the app service port. Named\n`httpRoute` (not `route`) to avoid confusion with the OpenShift Route kind.",
       "properties": {
         "additionalRules": {
-          "description": " - gatus.example.com\nCustom rules prepended before the default rule (templated).",
+          "description": "Custom rules prepended before the default rule (templated).",
           "items": {
             "required": []
           },
@@ -283,7 +289,7 @@
           "type": "array"
         },
         "hostnames": {
-          "description": " - name: gateway\n   namespace: gateway\n   sectionName: https\nHostnames matched against the Host header (templated).",
+          "description": "Hostnames matched against the Host header (templated).",
           "items": {
             "required": []
           },
@@ -691,8 +697,8 @@
     "service": {
       "properties": {
         "port": {
-          "default": 80,
-          "description": "Service port (maps to the gatus web port; /metrics is served here too).",
+          "default": 8080,
+          "description": "Service port (matches the gatus web/container port; /metrics is served here too).",
           "title": "port",
           "type": "integer"
         },
@@ -751,6 +757,12 @@
           "default": "",
           "description": "Annotation key for enabling/disabling per-resource processing (--annotation-enabled); empty uses the sidecar default.",
           "title": "annotationEnabled",
+          "type": "string"
+        },
+        "clusterDomain": {
+          "default": "",
+          "description": "Cluster DNS domain used to fully qualify generated Service endpoint hostnames (--cluster-domain); empty uses the sidecar default (cluster.local).",
+          "title": "clusterDomain",
           "type": "string"
         },
         "defaultInterval": {
@@ -990,6 +1002,19 @@
       "title": "sidecar",
       "type": "object"
     },
+    "strategy": {
+      "description": "Deployment update strategy. Defaults to `Recreate` because gatus can be stateful: with `persistence` on (a single ReadWriteOnce PVC) a RollingUpdate would start the new pod before the old one releases the volume, which a RWO volume can't satisfy — deadlocking the rollout. Set `{type: RollingUpdate, rollingUpdate: {...}}` for a stateless deployment (persistence off, or an RWX volume).",
+      "properties": {
+        "type": {
+          "default": "Recreate",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "strategy",
+      "type": "object"
+    },
     "terminationGracePeriodSeconds": {
       "default": 30,
       "description": "Grace period for a clean shutdown (gatus drains in-flight checks and closes its servers on SIGTERM).",
@@ -1014,7 +1039,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a",
+              "default": "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13",
               "description": "`helm test` image, pinned as `tag",
               "title": "tag",
               "type": "string"
