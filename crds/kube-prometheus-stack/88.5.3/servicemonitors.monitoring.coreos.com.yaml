@@ -4,33 +4,33 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-    operator.prometheus.io/version: 0.93.0
-  name: podmonitors.monitoring.coreos.com
+    operator.prometheus.io/version: 0.93.1
+  name: servicemonitors.monitoring.coreos.com
 spec:
   group: monitoring.coreos.com
   names:
     categories:
       - prometheus-operator
-    kind: PodMonitor
-    listKind: PodMonitorList
-    plural: podmonitors
+    kind: ServiceMonitor
+    listKind: ServiceMonitorList
+    plural: servicemonitors
     shortNames:
-      - pmon
-    singular: podmonitor
+      - smon
+    singular: servicemonitor
   scope: Namespaced
   versions:
     - name: v1
       schema:
         openAPIV3Schema:
           description: |-
-            The `PodMonitor` custom resource definition (CRD) defines how `Prometheus` and `PrometheusAgent` can scrape metrics from a group of pods.
+            The `ServiceMonitor` custom resource definition (CRD) defines how `Prometheus` and `PrometheusAgent` can scrape metrics from a group of services.
             Among other things, it allows to specify:
-            * The pods to scrape via label selectors.
+            * The services to scrape via label selectors.
             * The container ports to scrape.
             * Authentication credentials to use.
             * Target and metric relabeling.
 
-            `Prometheus` and `PrometheusAgent` objects select `PodMonitor` objects using label and namespace selectors.
+            `Prometheus` and `PrometheusAgent` objects select `ServiceMonitor` objects using label and namespace selectors.
           properties:
             apiVersion:
               description: |-
@@ -50,14 +50,16 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the specification of desired Pod selection for target discovery by Prometheus.
+              description: |-
+                spec defines the specification of desired Service selection for target discovery by
+                Prometheus.
               properties:
                 attachMetadata:
                   description: |-
                     attachMetadata defines additional metadata which is added to the
                     discovered targets.
 
-                    It requires Prometheus >= v2.35.0.
+                    It requires Prometheus >= v2.37.0.
                   properties:
                     node:
                       description: |-
@@ -74,7 +76,7 @@ spec:
                   type: object
                 bodySizeLimit:
                   description: |-
-                    bodySizeLimit when defined specifies a job level limit on the size
+                    bodySizeLimit when defined, bodySizeLimit specifies a job level limit on the size
                     of uncompressed response body that will be accepted by Prometheus.
 
                     It requires Prometheus >= v2.28.0.
@@ -85,103 +87,14 @@ spec:
                     convertClassicHistogramsToNHCB defines whether to convert all scraped classic histograms into a native histogram with custom buckets.
                     It requires Prometheus >= v3.0.0.
                   type: boolean
-                fallbackScrapeProtocol:
+                endpoints:
                   description: |-
-                    fallbackScrapeProtocol defines the protocol to use if a scrape returns blank, unparseable, or otherwise invalid Content-Type.
-
-                    It requires Prometheus >= v3.0.0.
-                  enum:
-                    - PrometheusProto
-                    - OpenMetricsText0.0.1
-                    - OpenMetricsText1.0.0
-                    - PrometheusText0.0.4
-                    - PrometheusText1.0.0
-                  type: string
-                jobLabel:
-                  description: |-
-                    jobLabel defines the label to use to retrieve the job name from.
-                    `jobLabel` selects the label from the associated Kubernetes `Pod`
-                    object which will be used as the `job` label for all metrics.
-
-                    For example if `jobLabel` is set to `foo` and the Kubernetes `Pod`
-                    object is labeled with `foo: bar`, then Prometheus adds the `job="bar"`
-                    label to all ingested metrics.
-
-                    If the value of this field is empty, the `job` label of the metrics
-                    defaults to the namespace and name of the PodMonitor object (e.g. `<namespace>/<name>`).
-                  type: string
-                keepDroppedTargets:
-                  description: |-
-                    keepDroppedTargets defines the per-scrape limit on the number of targets dropped by relabeling
-                    that will be kept in memory. 0 means no limit.
-
-                    It requires Prometheus >= v2.47.0.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                labelLimit:
-                  description: |-
-                    labelLimit defines the per-scrape limit on number of labels that will be accepted for a sample.
-
-                    It requires Prometheus >= v2.27.0.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                labelNameLengthLimit:
-                  description: |-
-                    labelNameLengthLimit defines the per-scrape limit on length of labels name that will be accepted for a sample.
-
-                    It requires Prometheus >= v2.27.0.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                labelValueLengthLimit:
-                  description: |-
-                    labelValueLengthLimit defines the per-scrape limit on length of labels value that will be accepted for a sample.
-
-                    It requires Prometheus >= v2.27.0.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                namespaceSelector:
-                  description: |-
-                    namespaceSelector defines in which namespace(s) Prometheus should discover the pods.
-                    By default, the pods are discovered in the same namespace as the `PodMonitor` object but it is possible to select pods across different/all namespaces.
-                  properties:
-                    any:
-                      description: |-
-                        any defines the boolean describing whether all namespaces are selected in contrast to a
-                        list restricting them.
-                      type: boolean
-                    matchNames:
-                      description: matchNames defines the list of namespace names to select from.
-                      items:
-                        type: string
-                      type: array
-                  type: object
-                nativeHistogramBucketLimit:
-                  description: |-
-                    nativeHistogramBucketLimit defines ff there are more than this many buckets in a native histogram,
-                    buckets will be merged to stay within the limit.
-                    It requires Prometheus >= v2.45.0.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                nativeHistogramMinBucketFactor:
-                  anyOf:
-                    - type: integer
-                    - type: string
-                  description: |-
-                    nativeHistogramMinBucketFactor defines if the growth factor of one bucket to the next is smaller than this,
-                    buckets will be merged to increase the factor sufficiently.
-                    It requires Prometheus >= v2.50.0.
-                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                  x-kubernetes-int-or-string: true
-                podMetricsEndpoints:
-                  description: podMetricsEndpoints defines how to scrape metrics from the selected pods.
+                    endpoints defines the list of endpoints part of this ServiceMonitor.
+                    Defines how to scrape metrics from Kubernetes [Endpoints](https://kubernetes.io/docs/concepts/services-networking/service/#endpoints) objects.
+                    In most cases, an Endpoints object is backed by a Kubernetes [Service](https://kubernetes.io/docs/concepts/services-networking/service/) object with the same name and labels.
                   items:
                     description: |-
-                      PodMetricsEndpoint defines an endpoint serving Prometheus metrics to be scraped by
+                      Endpoint defines an endpoint serving Prometheus metrics to be scraped by
                       Prometheus.
                     properties:
                       authorization:
@@ -278,6 +191,12 @@ spec:
                             type: object
                             x-kubernetes-map-type: atomic
                         type: object
+                      bearerTokenFile:
+                        description: |-
+                          bearerTokenFile defines the file to read bearer token for scraping the target.
+
+                          Deprecated: use `authorization` instead.
+                        type: string
                       bearerTokenSecret:
                         description: |-
                           bearerTokenSecret defines a key of a Secret containing the bearer token
@@ -327,7 +246,7 @@ spec:
                         type: boolean
                       honorLabels:
                         description: |-
-                          honorLabels when true preserves the metric's labels when they collide
+                          honorLabels defines when true the metric's labels when they collide
                           with the target's labels.
                         type: boolean
                       honorTimestamps:
@@ -758,35 +677,11 @@ spec:
                         type: string
                       port:
                         description: |-
-                          port defines the `Pod` port name which exposes the endpoint.
+                          port defines the name of the Service port which this endpoint refers to
+                          (e.g. `.spec.ports[].name`).
 
-                          If the pod doesn't expose a port with the same name, it will result
-                          in no targets being discovered.
-
-                          If a `Pod` has multiple `Port`s with the same name (which is not
-                          recommended), one target instance per unique port number will be
-                          generated.
-
-                          It takes precedence over the `portNumber` and `targetPort` fields.
+                          It takes precedence over `targetPort`.
                         type: string
-                      portNumber:
-                        description: |-
-                          portNumber defines the `Pod` port number which exposes the endpoint.
-
-                          The `Pod` must declare the specified `Port` in its spec or the
-                          target will be dropped by Prometheus.
-
-                          This cannot be used to enable scraping of an undeclared port.
-                          To scrape targets on a port which isn't exposed, you need to use
-                          relabeling to override the `__address__` label (but beware of
-                          duplicate targets if the `Pod` has other declared ports).
-
-                          In practice Prometheus will select targets for which the
-                          matches the target's __meta_kubernetes_pod_container_port_number.
-                        format: int32
-                        maximum: 65535
-                        minimum: 1
-                        type: integer
                       proxyConnectHeader:
                         additionalProperties:
                           items:
@@ -924,7 +819,7 @@ spec:
                           type: object
                         type: array
                       scheme:
-                        description: scheme defines the HTTP scheme to use for scraping.
+                        description: scheme defines the HTTP scheme to use when scraping the metrics.
                         enum:
                           - http
                           - https
@@ -945,13 +840,13 @@ spec:
                           - type: integer
                           - type: string
                         description: |-
-                          targetPort defines the name or number of the target port of the `Pod` object behind the Service, the
-                          port must be specified with container port property.
-
-                          Deprecated: use 'port' or 'portNumber' instead.
+                          targetPort defines the name or number of a container port on Pods selected
+                          by the Service.
+                          If a name, it matches against `.spec.containers[].ports[].name` of the Pods.
+                          If a number, it matches against `.spec.containers[].ports[].containerPort` of the Pods.
                         x-kubernetes-int-or-string: true
                       tlsConfig:
-                        description: tlsConfig defines the TLS configuration used by the client.
+                        description: tlsConfig defines TLS configuration used by the client.
                         properties:
                           ca:
                             description: ca defines the Certificate authority used when verifying server certificates.
@@ -1001,6 +896,9 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                             type: object
+                          caFile:
+                            description: caFile defines the path to the CA cert in the Prometheus container to use for the targets.
+                            type: string
                           cert:
                             description: cert defines the Client certificate to present when doing client-authentication.
                             properties:
@@ -1049,9 +947,15 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                             type: object
+                          certFile:
+                            description: certFile defines the path to the client cert file in the Prometheus container for the targets.
+                            type: string
                           insecureSkipVerify:
                             description: insecureSkipVerify defines how to disable target certificate validation.
                             type: boolean
+                          keyFile:
+                            description: keyFile defines the path to the client key file in the Prometheus container for the targets.
+                            type: string
                           keySecret:
                             description: keySecret defines the Secret containing the client key file for the targets.
                             properties:
@@ -1110,6 +1014,98 @@ spec:
                         type: boolean
                     type: object
                   type: array
+                fallbackScrapeProtocol:
+                  description: |-
+                    fallbackScrapeProtocol defines the protocol to use if a scrape returns blank, unparseable, or otherwise invalid Content-Type.
+
+                    It requires Prometheus >= v3.0.0.
+                  enum:
+                    - PrometheusProto
+                    - OpenMetricsText0.0.1
+                    - OpenMetricsText1.0.0
+                    - PrometheusText0.0.4
+                    - PrometheusText1.0.0
+                  type: string
+                jobLabel:
+                  description: |-
+                    jobLabel selects the label from the associated Kubernetes `Service`
+                    object which will be used as the `job` label for all metrics.
+
+                    For example if `jobLabel` is set to `foo` and the Kubernetes `Service`
+                    object is labeled with `foo: bar`, then Prometheus adds the `job="bar"`
+                    label to all ingested metrics.
+
+                    If the value of this field is empty or if the label doesn't exist for
+                    the given Service, the `job` label of the metrics defaults to the name
+                    of the associated Kubernetes `Service`.
+                  type: string
+                keepDroppedTargets:
+                  description: |-
+                    keepDroppedTargets defines the per-scrape limit on the number of targets dropped by relabeling
+                    that will be kept in memory. 0 means no limit.
+
+                    It requires Prometheus >= v2.47.0.
+                  format: int64
+                  minimum: 0
+                  type: integer
+                labelLimit:
+                  description: |-
+                    labelLimit defines the per-scrape limit on number of labels that will be accepted for a sample.
+
+                    It requires Prometheus >= v2.27.0.
+                  format: int64
+                  minimum: 0
+                  type: integer
+                labelNameLengthLimit:
+                  description: |-
+                    labelNameLengthLimit defines the per-scrape limit on length of labels name that will be accepted for a sample.
+
+                    It requires Prometheus >= v2.27.0.
+                  format: int64
+                  minimum: 0
+                  type: integer
+                labelValueLengthLimit:
+                  description: |-
+                    labelValueLengthLimit defines the per-scrape limit on length of labels value that will be accepted for a sample.
+
+                    It requires Prometheus >= v2.27.0.
+                  format: int64
+                  minimum: 0
+                  type: integer
+                namespaceSelector:
+                  description: |-
+                    namespaceSelector defines in which namespace(s) Prometheus should discover the services.
+                    By default, the services are discovered in the same namespace as the `ServiceMonitor` object but it is possible to select pods across different/all namespaces.
+                  properties:
+                    any:
+                      description: |-
+                        any defines the boolean describing whether all namespaces are selected in contrast to a
+                        list restricting them.
+                      type: boolean
+                    matchNames:
+                      description: matchNames defines the list of namespace names to select from.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                nativeHistogramBucketLimit:
+                  description: |-
+                    nativeHistogramBucketLimit defines ff there are more than this many buckets in a native histogram,
+                    buckets will be merged to stay within the limit.
+                    It requires Prometheus >= v2.45.0.
+                  format: int64
+                  minimum: 0
+                  type: integer
+                nativeHistogramMinBucketFactor:
+                  anyOf:
+                    - type: integer
+                    - type: string
+                  description: |-
+                    nativeHistogramMinBucketFactor defines if the growth factor of one bucket to the next is smaller than this,
+                    buckets will be merged to increase the factor sufficiently.
+                    It requires Prometheus >= v2.50.0.
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
                 podTargetLabels:
                   description: |-
                     podTargetLabels defines the labels which are transferred from the
@@ -1167,7 +1163,7 @@ spec:
                   type: array
                   x-kubernetes-list-type: set
                 selector:
-                  description: selector defines the label selector to select the Kubernetes `Pod` objects to scrape metrics from.
+                  description: selector defines the label selector to select the Kubernetes `Endpoints` objects to scrape metrics from.
                   properties:
                     matchExpressions:
                       description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
@@ -1222,6 +1218,24 @@ spec:
                     - RelabelConfig
                     - RoleSelector
                   type: string
+                serviceDiscoveryRole:
+                  description: |-
+                    serviceDiscoveryRole defines the service discovery role used to discover targets.
+
+                    If set, the value should be either "Endpoints" or "EndpointSlice".
+                    Otherwise it defaults to the value defined in the
+                    Prometheus/PrometheusAgent resource.
+                  enum:
+                    - Endpoints
+                    - EndpointSlice
+                  type: string
+                targetLabels:
+                  description: |-
+                    targetLabels defines the labels which are transferred from the
+                    associated Kubernetes `Service` object onto the ingested metrics.
+                  items:
+                    type: string
+                  type: array
                 targetLimit:
                   description: |-
                     targetLimit defines a limit on the number of scraped targets that will
@@ -1230,6 +1244,7 @@ spec:
                   minimum: 0
                   type: integer
               required:
+                - endpoints
                 - selector
               type: object
             status:
@@ -1237,7 +1252,7 @@ spec:
                 status defines the status subresource. It is under active development and is updated only when the
                 "StatusForConfigurationResources" feature gate is enabled.
 
-                Most recent observed status of the PodMonitor. Read-only.
+                Most recent observed status of the ServiceMonitor. Read-only.
                 More info:
                 https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
               properties:
