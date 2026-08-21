@@ -4,22 +4,22 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: pocketidapis.pocketid.internal
+  name: pocketidusergroups.pocketid.internal
 spec:
   group: pocketid.internal
   names:
-    kind: PocketIDAPI
-    listKind: PocketIDAPIList
-    plural: pocketidapis
+    kind: PocketIDUserGroup
+    listKind: PocketIDUserGroupList
+    plural: pocketidusergroups
     shortNames:
-      - pidapi
-    singular: pocketidapi
+      - usergroup
+    singular: pocketidusergroup
   scope: Namespaced
   versions:
     - name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: PocketIDAPI is the Schema for the pocketidapis API
+          description: PocketIDUserGroup is the Schema for the pocketidusergroups API
           properties:
             apiVersion:
               description: |-
@@ -39,8 +39,47 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of PocketIDAPI
+              description: spec defines the desired state of PocketIDUserGroup
               properties:
+                allowedOIDCClients:
+                  description: |-
+                    AllowedOIDCClients lists PocketIDOIDCClient CRs that this group grants access to.
+                    The final set of allowed clients is the union of this field and any
+                    OIDCClients that reference this group in their allowedUserGroups.
+                  items:
+                    description: NamespacedOIDCClientReference references a PocketIDOIDCClient by name and namespace.
+                    properties:
+                      name:
+                        description: Name is the name of the PocketIDOIDCClient CR
+                        type: string
+                      namespace:
+                        description: |-
+                          Namespace is the namespace of the PocketIDOIDCClient CR
+                          Defaults to the referencing resource's namespace
+                        type: string
+                    type: object
+                  type: array
+                customClaims:
+                  description: CustomClaims are additional claims to attach to users in this group
+                  items:
+                    description: CustomClaim defines a custom claim key/value pair for a user or user group.
+                    properties:
+                      key:
+                        description: Key is the claim key
+                        type: string
+                      value:
+                        description: Value is the claim value
+                        type: string
+                    required:
+                      - key
+                      - value
+                    type: object
+                  type: array
+                friendlyName:
+                  description: FriendlyName is the display name for the user group
+                  maxLength: 50
+                  minLength: 2
+                  type: string
                 instanceSelector:
                   description: |-
                     InstanceSelector selects the PocketIDInstance to reconcile against.
@@ -88,71 +127,52 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 name:
-                  description: |-
-                    Name of the API to create in Pocket ID.
-                    If omitted, defaults to metadata.name of the API resource.
+                  description: Name of the user group. Defaults to the metadata.name
                   maxLength: 255
                   minLength: 2
                   type: string
-                permissions:
-                  description: |-
-                    Permissions are the scoped permissions offered by this API. The operator is
-                    the sole owner of the API: the permission set in Pocket-ID is reconciled to
-                    exactly this list, so permissions added out-of-band are removed.
-                  items:
-                    description: APIPermission defines a single scoped permission offered by an API.
-                    properties:
-                      description:
-                        description: Description optionally explains what the permission grants.
-                        maxLength: 500
+                users:
+                  description: Users defines the users to add to this group
+                  properties:
+                    userIDs:
+                      description: UserIDs are Pocket-ID user IDs to add directly to this group.
+                      items:
                         type: string
-                      key:
-                        description: |-
-                          Key is the permission identifier requested as a token scope, e.g. "read:orders".
-                          It must be a valid RFC 6749 scope token: printable ASCII with no space, double
-                          quote, or backslash. Reserved OIDC scope/claim names are rejected at the spec level.
-                        maxLength: 255
-                        minLength: 1
-                        pattern: ^[\x21\x23-\x5B\x5D-\x7E]+$
+                      type: array
+                    userRefs:
+                      description: UserRefs are PocketIDUser custom resources to add to this group
+                      items:
+                        description: NamespacedUserReference references a PocketIDUser by name and namespace.
+                        properties:
+                          name:
+                            description: Name is the name of the PocketIDUser CR
+                            type: string
+                          namespace:
+                            description: |-
+                              Namespace is the namespace of the PocketIDUser CR
+                              Defaults to the referencing resource's namespace
+                            type: string
+                        type: object
+                      type: array
+                    usernames:
+                      description: |-
+                        Usernames are Pocket-ID usernames to add to this group.
+                        The controller will look up the user ID from Pocket-ID by username.
+                      items:
                         type: string
-                      name:
-                        description: Name is a human-friendly label for the permission.
-                        maxLength: 255
-                        minLength: 1
-                        type: string
-                    required:
-                      - key
-                      - name
-                    type: object
-                  maxItems: 100
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - key
-                  x-kubernetes-list-type: map
-                resource:
-                  description: |-
-                    Resource is the audience identifier for tokens issued against this API
-                    (typically a URI). It is the permanent identifier used to adopt an existing
-                    API and is immutable once set.
-                  maxLength: 255
-                  minLength: 1
-                  type: string
-              required:
-                - resource
+                      type: array
+                  type: object
               type: object
-              x-kubernetes-validations:
-                - message: resource is immutable
-                  rule: self.resource == oldSelf.resource
-                - message: permission key is reserved by Pocket ID
-                  rule: '!has(self.permissions) || self.permissions.all(p, !(p.key.lowerAscii() in [''openid'',''profile'',''email'',''email_verified'',''groups'',''offline_access'']))'
             status:
-              description: status defines the observed state of PocketIDAPI
+              description: status defines the observed state of PocketIDUserGroup
               properties:
-                apiID:
-                  description: APIID is the ID assigned by Pocket-ID.
-                  type: string
+                allowedOIDCClientIDs:
+                  description: AllowedOIDCClientIDs are the resolved OIDC client IDs assigned to this group
+                  items:
+                    type: string
+                  type: array
                 conditions:
-                  description: Conditions represent the current state of the PocketIDAPI resource.
+                  description: Conditions represent the current state of the PocketIDUserGroup resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -211,38 +231,46 @@ spec:
                     - type
                   x-kubernetes-list-type: map
                 createdAt:
-                  description: CreatedAt is the creation timestamp from Pocket-ID.
+                  description: CreatedAt is the creation timestamp from Pocket-ID
                   type: string
-                name:
-                  description: Name is the resolved name from Pocket-ID.
-                  type: string
-                permissions:
-                  description: |-
-                    Permissions are the permissions resolved from Pocket-ID, including their IDs.
-                    This is the lookup table PocketIDOIDCClients use to resolve permission keys.
+                customClaims:
+                  description: CustomClaims are the resolved custom claims on the group
                   items:
-                    description: ObservedAPIPermission is a permission resolved from Pocket-ID, including its ID.
+                    description: CustomClaim defines a custom claim key/value pair for a user or user group.
                     properties:
-                      id:
-                        description: ID is the Pocket-ID identifier for the permission.
-                        type: string
                       key:
-                        description: Key is the permission identifier requested as a token scope.
+                        description: Key is the claim key
                         type: string
-                      name:
-                        description: Name is the human-friendly label from Pocket-ID.
+                      value:
+                        description: Value is the claim value
                         type: string
                     required:
-                      - id
                       - key
+                      - value
                     type: object
                   type: array
-                  x-kubernetes-list-map-keys:
-                    - key
-                  x-kubernetes-list-type: map
-                resource:
-                  description: Resource is the resolved audience identifier from Pocket-ID.
+                friendlyName:
+                  description: FriendlyName is the resolved display name from Pocket-ID
                   type: string
+                groupID:
+                  description: GroupID is the ID assigned by Pocket-ID
+                  type: string
+                ldapID:
+                  description: LdapID is the LDAP identifier if the group is managed via LDAP
+                  type: string
+                managedUserIDs:
+                  description: |-
+                    ManagedUserIDs are the Pocket-ID user IDs that the operator is actively managing.
+                    Users not in this list are considered externally managed and won't be removed.
+                  items:
+                    type: string
+                  type: array
+                name:
+                  description: Name is the resolved group name from Pocket-ID
+                  type: string
+                totalUserCount:
+                  description: TotalUserCount is the total number of users in the group including externally managed
+                  type: integer
               type: object
           type: object
       served: true
