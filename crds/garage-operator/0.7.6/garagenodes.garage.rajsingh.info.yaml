@@ -7,11 +7,11 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.20.1
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: garage-operator-0.7.1
+    helm.sh/chart: garage-operator-0.7.6
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.1"
+    app.kubernetes.io/version: "0.7.6"
     app.kubernetes.io/managed-by: Helm
   name: garagenodes.garage.rajsingh.info
 spec:
@@ -1000,9 +1000,8 @@ spec:
                   properties:
                     kubeConfigSecretRef:
                       description: |-
-                        KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                        Only needed for multi-cluster federation where the GarageCluster lives in a different
-                        Kubernetes cluster entirely (not just a different namespace).
+                        KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                        It is currently rejected by admission because the operator does not use it.
                       properties:
                         key:
                           description: The key of the secret to select from.  Must be a valid secret key.
@@ -1029,8 +1028,8 @@ spec:
                     namespace:
                       description: |-
                         Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
-                        Cross-namespace references require a GarageReferenceGrant in the target namespace.
-                        Not supported on GarageNode.
+                        Cross-namespace references require a GarageReferenceGrant where supported by
+                        the owning resource. GarageNode and GarageAdminToken reject them.
                       type: string
                   required:
                     - name
@@ -1440,13 +1439,15 @@ spec:
                       minimum: 1
                       type: integer
                     remoteClusterRef:
-                      description: RemoteClusterRef references a GarageCluster in another namespace/cluster
+                      description: |-
+                        RemoteClusterRef is retained for API compatibility but is not supported.
+                        Setting it is rejected because the operator has no remote-cluster client
+                        integration for GarageNode reconciliation.
                       properties:
                         kubeConfigSecretRef:
                           description: |-
-                            KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                            Only needed for multi-cluster federation where the GarageCluster lives in a different
-                            Kubernetes cluster entirely (not just a different namespace).
+                            KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                            It is currently rejected by admission because the operator does not use it.
                           properties:
                             key:
                               description: The key of the secret to select from.  Must be a valid secret key.
@@ -1473,8 +1474,8 @@ spec:
                         namespace:
                           description: |-
                             Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
-                            Cross-namespace references require a GarageReferenceGrant in the target namespace.
-                            Not supported on GarageNode.
+                            Cross-namespace references require a GarageReferenceGrant where supported by
+                            the owning resource. GarageNode and GarageAdminToken reject them.
                           type: string
                       required:
                         - name
@@ -1623,17 +1624,18 @@ spec:
                     assigned ingress IP automatically.
                   properties:
                     externalIP:
-                      description: ExternalIP configuration
+                      description: |-
+                        ExternalIP is retained for API compatibility but is not supported.
+                        Setting it is rejected because the operator does not consume the explicit
+                        address mapping or template.
                       properties:
                         addressTemplate:
-                          description: |-
-                            AddressTemplate uses go template to generate addresses from pod info
-                            Example: "garage-{{.Index}}.example.com"
+                          description: AddressTemplate is retained for API compatibility but is unsupported.
                           type: string
                         addresses:
                           additionalProperties:
                             type: string
-                          description: Addresses maps pod names to external IPs
+                          description: Addresses is retained for API compatibility but is unsupported.
                           type: object
                       type: object
                     loadBalancer:
@@ -2661,7 +2663,9 @@ spec:
                   description: Address is the node's address in the cluster
                   type: string
                 blockErrors:
-                  description: BlockErrors is the count of blocks with sync errors on this node
+                  description: |-
+                    BlockErrors is retained for API compatibility but is not currently populated;
+                    Garage's node-status API does not expose a per-node block error count.
                   format: int32
                   type: integer
                 clusterAdminEndpoint:
@@ -2809,10 +2813,14 @@ spec:
                       type: integer
                   type: object
                 dbEngine:
-                  description: DBEngine is the database engine used by this node (lmdb, sqlite, fjall)
+                  description: |-
+                    DBEngine is retained for API compatibility but is not currently populated;
+                    Garage's node-status API does not report the active database engine.
                   type: string
                 garageFeatures:
-                  description: GarageFeatures lists the enabled Cargo features on this node
+                  description: |-
+                    GarageFeatures is retained for API compatibility but is not currently
+                    populated because Garage's node-status API does not report build features.
                   items:
                     type: string
                   type: array
@@ -2830,6 +2838,46 @@ spec:
                   description: LayoutVersion is the layout version when this node was added
                   format: int64
                   type: integer
+                managedPVCs:
+                  description: |-
+                    ManagedPVCs records convention-named PVC reservations made by this
+                    controller. A pending entry contains only a one-way nonce commitment; a
+                    bound entry contains the exact server-assigned UID. Names and public
+                    annotations are not ownership proof. Legacy claims are pinned here once
+                    while their exact live StatefulSet and Pod still prove continuity.
+                  items:
+                    description: |-
+                      ManagedNodePVCStatus is the controller-owned identity reservation for one
+                      convention-named GarageNode PVC.
+                    properties:
+                      name:
+                        description: Name is the exact PersistentVolumeClaim name.
+                        type: string
+                      pendingReservationHash:
+                        description: |-
+                          PendingReservationHash is a SHA-256 commitment to a cryptographically
+                          random nonce stamped on a PVC before its UID can be observed. It closes
+                          the create/status-update crash window without making the public status
+                          value sufficient to forge a controller reservation.
+                          Exactly one of UID and PendingReservationHash is set.
+                        pattern: ^[a-f0-9]{64}$
+                        type: string
+                      uid:
+                        description: |-
+                          UID is the immutable API-server identity observed when the claim was
+                          created or safely migrated.
+                          Exactly one of UID and PendingReservationHash is set.
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-validations:
+                      - message: exactly one of uid and pendingReservationHash must be set
+                        rule: has(self.uid) != has(self.pendingReservationHash)
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
                 metadataPartition:
                   description: MetadataPartition contains disk space info for the metadata partition
                   properties:
@@ -2893,19 +2941,23 @@ spec:
                     - Unknown
                   type: string
                 repairInProgress:
-                  description: RepairInProgress indicates if a repair operation is running
+                  description: |-
+                    RepairInProgress is retained for API compatibility but is not currently
+                    populated because Garage's Admin API exposes no per-node repair status.
                   type: boolean
                 repairProgress:
-                  description: RepairProgress is a human-readable repair progress description
+                  description: RepairProgress is retained for API compatibility but is not currently populated.
                   type: string
                 repairType:
-                  description: RepairType is the type of repair operation in progress
+                  description: RepairType is retained for API compatibility but is not currently populated.
                   type: string
                 storedData:
                   anyOf:
                     - type: integer
                     - type: string
-                  description: StoredData is the amount of data stored on this node
+                  description: |-
+                    StoredData is retained for API compatibility but is not currently populated;
+                    Garage reports assigned partitions and disk free space, not per-node stored bytes.
                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                   x-kubernetes-int-or-string: true
                 tags:
