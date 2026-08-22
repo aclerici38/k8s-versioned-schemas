@@ -1,0 +1,1089 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "affinity": {
+      "description": "Affinity rules for pod scheduling.",
+      "required": [],
+      "title": "affinity",
+      "type": "object"
+    },
+    "config": {
+      "description": "konflate configuration (the non-secret KONFLATE_* environment variables).",
+      "properties": {
+        "appClientId": {
+          "default": "",
+          "description": "GitHub App client id (**GitHub only**) — the preferred write identity. With `secret.appPrivateKey`, konflate mints short-lived installation tokens instead of carrying a standing PAT; the installation is auto-detected from the repo.",
+          "title": "appClientId",
+          "type": "string"
+        },
+        "basePath": {
+          "default": "",
+          "description": "URL path prefix konflate is served under (e.g. /platform/konflate). Empty = root. Trailing slashes and surrounding whitespace are normalized to match the binary's behavior, and values the binary would reject at boot (missing leading /, traversal segments) fail at template time. The app serves every route on the main listener under this prefix; configure your ingress to forward requests with the prefix preserved.",
+          "title": "basePath",
+          "type": "string"
+        },
+        "cacheTtl": {
+          "default": "",
+          "description": "Advanced: prune source-cache entries unused longer than this (Go duration); bare git mirrors are kept. Empty = default (168h/7d); \"0\" disables the sweep.",
+          "title": "cacheTtl",
+          "type": "string"
+        },
+        "closedPrMax": {
+          "default": 25,
+          "description": "Cap on retained merged PRs (most-recent win); bounds disk + memory. 0 disables the cap (with `closedPrTtl: \"0\"`, merged diffs are kept forever).",
+          "title": "closedPrMax",
+          "type": "integer"
+        },
+        "closedPrTtl": {
+          "default": "336h",
+          "description": "How long a merged PR is kept (Go duration); 0 disables the age cap.",
+          "title": "closedPrTtl",
+          "type": "string"
+        },
+        "clusterPath": {
+          "default": "",
+          "description": "Directory flate renders from; empty = repo root (correct for the standard root-relative layout).",
+          "title": "clusterPath",
+          "type": "string"
+        },
+        "diffTimeout": {
+          "default": "",
+          "description": "Hard cap on a single PR render end-to-end (Go duration). Empty = default (10m); \"0\" disables. Lower on untrusted instances.",
+          "title": "diffTimeout",
+          "type": "string"
+        },
+        "extraEnv": {
+          "description": "Extra raw env vars merged into the container (advanced).",
+          "items": {
+            "required": []
+          },
+          "title": "extraEnv",
+          "type": "array"
+        },
+        "fetchTimeout": {
+          "default": "",
+          "description": "Advanced: cap on just the git fetch within a render (Go duration); a short bound stops one slow forge fetch from stalling every render. Empty = default (2m); \"0\" disables.",
+          "title": "fetchTimeout",
+          "type": "string"
+        },
+        "helmRenderCacheMb": {
+          "default": "",
+          "description": "Advanced: persistent on-disk Helm render cache in MiB, reused across renders/PRs/restarts. Empty = default (1024); \"0\" disables.",
+          "title": "helmRenderCacheMb",
+          "type": "string"
+        },
+        "helmTemplateCacheMb": {
+          "default": "",
+          "description": "Advanced: in-memory Helm template cache in MiB (the biggest CPU saver). Empty = auto (256 ÷ render concurrency, so it doesn't scale with the CPU limit); \"0\" disables.",
+          "title": "helmTemplateCacheMb",
+          "type": "string"
+        },
+        "imageVerifyTimeout": {
+          "default": "",
+          "description": "Timeout for a single registry existence check (see `verifyImages`). Empty = default (5s).",
+          "title": "imageVerifyTimeout",
+          "type": "string"
+        },
+        "kubeVersion": {
+          "default": "",
+          "description": "Kubernetes version charts see as `.Capabilities.KubeVersion`. Empty = the version bundled with the helm SDK konflate was built against, which may be newer than your cluster — a chart gated on the cluster version then renders differently here than in-cluster. Set `\"{{ .Capabilities.KubeVersion.Version }}\"` to track the cluster this release installs into, or pin a literal (e.g. `\"1.33.4\"`).",
+          "title": "kubeVersion",
+          "type": "string"
+        },
+        "logFormat": {
+          "default": "json",
+          "description": "Log format: json or text.",
+          "title": "logFormat",
+          "type": "string"
+        },
+        "logLevel": {
+          "default": "info",
+          "description": "Log level: debug, info, warn, or error.",
+          "title": "logLevel",
+          "type": "string"
+        },
+        "maxDiffConcurrency": {
+          "default": 0,
+          "description": "Max concurrent diff renders; 0 = auto (from the CPU limit, capped at 4).",
+          "title": "maxDiffConcurrency",
+          "type": "integer"
+        },
+        "maxDiffResources": {
+          "default": "",
+          "description": "Cap on resources fully rendered per diff (each carries highlighted rows — the main payload cost); a larger PR is truncated and flagged in the UI, while the impact banner still shows the true total. Empty = default (500); \"0\" disables.",
+          "title": "maxDiffResources",
+          "type": "string"
+        },
+        "mcp": {
+          "default": false,
+          "description": "Serve a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp` so an AI agent can query konflate's rendered-diff analysis (open PRs + their summaries). Read-only — the same data as the API, triggering no render or write. Off by default (it's a new surface); secure it at your ingress if you expose it.",
+          "title": "mcp",
+          "type": "boolean"
+        },
+        "mergeCommand": {
+          "default": "",
+          "description": "Optional Go text/template for the copy-to-merge command (only .Number / .Repo). Empty = forge default (gh/glab/tea). konflate never runs it.",
+          "title": "mergeCommand",
+          "type": "string"
+        },
+        "prCommentTemplate": {
+          "default": "",
+          "description": "Optional Go text/template for the PR-comment body, replacing the built-in summary. When set, the chart mounts it (a ConfigMap) and points `KONFLATE_PR_COMMENT_TEMPLATE_FILE` at it. The konflate marker is injected automatically. Context: `.PR`, `.Diff`, `.ReviewURL`, `.Summary` (the default body). Passed verbatim (NOT tpl'd) — it's konflate's own template. See the README.",
+          "title": "prCommentTemplate",
+          "type": "string"
+        },
+        "prComments": {
+          "default": false,
+          "description": "Opt-in: post (and update in place) a PR comment with the rendered summary on each successful render. Needs a write credential and stays off until both are set; independent of `statusChecks`.",
+          "title": "prComments",
+          "type": "boolean"
+        },
+        "prFilterExpr": {
+          "default": "",
+          "description": "CEL expression deciding which PRs konflate renders; must return a bool. Empty = `true` (every open PR). Forks are gated separately by `renderForkPrs`, so editing this can't enable forks. A PR it excludes is listed but hidden. e.g. `pr.labels.exists(l, l.name == \"cluster/production\") \u0026\u0026 !pr.draft`. See the README.",
+          "title": "prFilterExpr",
+          "type": "string"
+        },
+        "publicUrl": {
+          "default": "",
+          "description": "konflate's externally-reachable base URL (e.g. https://konflate.example.com); a posted status/comment links back to it. Empty = posted without a link. `basePath` is appended automatically when it is set and not already present.",
+          "title": "publicUrl",
+          "type": "string"
+        },
+        "refreshInterval": {
+          "default": "30m",
+          "description": "How often each open PR re-renders / the PR list reconciles, as a missed-webhook backstop (Go duration). \"0\" disables periodic refresh (webhooks only); positive values are floored to 1m.",
+          "title": "refreshInterval",
+          "type": "string"
+        },
+        "renderConcurrency": {
+          "default": "",
+          "description": "Advanced: cap on reconcile goroutines within one render. Empty/\"0\" = auto (NumCPU*4).",
+          "title": "renderConcurrency",
+          "type": "string"
+        },
+        "renderForkPrs": {
+          "default": false,
+          "description": "Render fork PRs. ⚠️ A fork runs untrusted external code through flate (SSRF / resource exhaustion). Off by default — forks are listed but hidden until you flip this. Kept separate from `prFilterExpr` so the filter can't accidentally enable them.",
+          "title": "renderForkPrs",
+          "type": "boolean"
+        },
+        "repo": {
+          "default": "",
+          "description": "(required) Forge URI of the repository to review (github://owner/repo, gitlab://group/repo, forgejo://host/owner/repo).",
+          "title": "repo",
+          "type": "string"
+        },
+        "rerenderInterval": {
+          "default": "",
+          "description": "Advanced: how often to re-render an open PR whose head is unchanged, to catch mutable-source drift (Go duration). Empty = default (6h); \"0\" falls back to refreshInterval. Raise it for fully digest-pinned repos.",
+          "title": "rerenderInterval",
+          "type": "string"
+        },
+        "restrictEgress": {
+          "default": "",
+          "description": "Override flate's SSRF egress guard on source fetches (it blocks dials to private / loopback / link-local / cloud-metadata addresses and rejects non-https/ssh git schemes). Empty = follow `renderForkPrs` (on while rendering untrusted forks, off otherwise). `\"true\"` guards every render; `\"false\"` permits private-network sources (e.g. an internal Gitea / OCI registry) even while rendering forks.",
+          "title": "restrictEgress",
+          "type": "string"
+        },
+        "sourceRetryAttempts": {
+          "default": "",
+          "description": "Advanced: tries per source fetch on transient network errors. Empty = default (3); \"1\" disables retry.",
+          "title": "sourceRetryAttempts",
+          "type": "string"
+        },
+        "statusCheckName": {
+          "default": "",
+          "description": "Name the commit status konflate posts under (the required-check name in branch-protection rules). Empty uses the default, \"Konflate\".",
+          "title": "statusCheckName",
+          "type": "string"
+        },
+        "statusChecks": {
+          "default": false,
+          "description": "Opt-in: post a commit status on each rendered PR head. Needs a write credential (`secret.writeToken`, or the GitHub App) and stays off until both are set.",
+          "title": "statusChecks",
+          "type": "boolean"
+        },
+        "verifyImages": {
+          "default": false,
+          "description": "Verify that each container image a PR newly references exists in its registry (a HEAD on the tag/digest), raising a caution for any that is absent — catching a typo'd or not-yet-pushed image before it ImagePullBackOffs in-cluster. Off by default. Only trusted (non-fork) PRs are checked: a fork's images are attacker-chosen (an SSRF vector). For private registries, mount a dockerconfigjson and point `DOCKER_CONFIG` at it via `config.extraEnv` + `volumes`/`volumeMounts` (go-containerregistry's keychain, host-scoped); konflate never reads a manifest's `imagePullSecrets`.",
+          "title": "verifyImages",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "config",
+      "type": "object"
+    },
+    "deploymentAnnotations": {
+      "description": "Annotations added to the Deployment object (e.g. `reloader.stakater.com/auto: \"true\"` to roll the pod when the mounted Secret / PR-comment-template ConfigMap changes). Pod-level annotations go in `podAnnotations`.",
+      "required": [],
+      "title": "deploymentAnnotations",
+      "type": "object"
+    },
+    "fullnameOverride": {
+      "default": "",
+      "description": "Override the full release name.",
+      "title": "fullnameOverride",
+      "type": "string"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "httpRoute": {
+      "description": "Gateway API HTTPRoute — an alternative to `ingress` for exposing the UI; renders one route to the UI service port. Named `httpRoute` (not `route`) to avoid confusion with the OpenShift Route kind.",
+      "properties": {
+        "additionalRules": {
+          "description": "Custom rules prepended before the default rule (templated).",
+          "items": {
+            "required": []
+          },
+          "title": "additionalRules",
+          "type": "array"
+        },
+        "annotations": {
+          "description": "HTTPRoute annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "apiVersion": {
+          "default": "",
+          "description": "HTTPRoute apiVersion; empty defaults to gateway.networking.k8s.io/v1.",
+          "title": "apiVersion",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Expose the UI via a Gateway API HTTPRoute (alternative to ingress).",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "filters": {
+          "description": "Filters applied to the default rule.",
+          "items": {
+            "required": []
+          },
+          "title": "filters",
+          "type": "array"
+        },
+        "hostnames": {
+          "description": "Hostnames matched against the Host header (templated).",
+          "items": {
+            "required": []
+          },
+          "title": "hostnames",
+          "type": "array"
+        },
+        "httpsRedirect": {
+          "default": false,
+          "description": "Redirect HTTP→HTTPS (301) instead of routing to the backend (needs HTTP+HTTPS listeners).",
+          "title": "httpsRedirect",
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "",
+          "description": "HTTPRoute kind; empty defaults to HTTPRoute.",
+          "title": "kind",
+          "type": "string"
+        },
+        "labels": {
+          "description": "HTTPRoute labels.",
+          "required": [],
+          "title": "labels",
+          "type": "object"
+        },
+        "matches": {
+          "description": "Match conditions for the default rule.",
+          "items": {
+            "anyOf": [
+              {
+                "properties": {
+                  "path": {
+                    "properties": {
+                      "type": {
+                        "default": "PathPrefix",
+                        "title": "type",
+                        "type": "string"
+                      },
+                      "value": {
+                        "default": "/",
+                        "title": "value",
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "title": "path",
+                    "type": "object"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "matches",
+          "type": "array"
+        },
+        "parentRefs": {
+          "description": "Gateways (and listeners) this route attaches to.",
+          "items": {
+            "required": []
+          },
+          "title": "parentRefs",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "httpRoute",
+      "type": "object"
+    },
+    "image": {
+      "properties": {
+        "digest": {
+          "default": "",
+          "description": "Pin the image by digest (sha256:…); when set, overrides the tag.",
+          "title": "digest",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Image pull policy.",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "repository": {
+          "default": "ghcr.io/home-operations/konflate",
+          "description": "Image repository.",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Overrides the image tag; defaults to the chart appVersion.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "image",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "description": "Image pull secrets for private registries.",
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "ingress": {
+      "properties": {
+        "annotations": {
+          "description": "Ingress annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "className": {
+          "default": "",
+          "description": "IngressClass name.",
+          "title": "className",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Expose the UI via an Ingress.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "hosts": {
+          "description": "Ingress hosts and their paths.",
+          "items": {
+            "anyOf": [
+              {
+                "properties": {
+                  "host": {
+                    "default": "konflate.example.com",
+                    "title": "host",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "path": {
+                              "default": "/",
+                              "title": "path",
+                              "type": "string"
+                            },
+                            "pathType": {
+                              "default": "Prefix",
+                              "title": "pathType",
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "type": "object"
+                        }
+                      ],
+                      "required": []
+                    },
+                    "title": "paths",
+                    "type": "array"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "hosts",
+          "type": "array"
+        },
+        "tls": {
+          "description": "Ingress TLS configuration.",
+          "items": {
+            "required": []
+          },
+          "title": "tls",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "ingress",
+      "type": "object"
+    },
+    "livenessProbe": {
+      "description": "Liveness probe. Targets /healthz on the main http port, so it works regardless of the metrics toggle.",
+      "properties": {
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/healthz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "http",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "initialDelaySeconds": {
+          "default": 10,
+          "title": "initialDelaySeconds",
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "default": 20,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "livenessProbe",
+      "type": "object"
+    },
+    "monitoring": {
+      "properties": {
+        "serviceMonitor": {
+          "properties": {
+            "annotations": {
+              "description": "ServiceMonitor annotations.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Create a Prometheus Operator ServiceMonitor (requires its CRDs).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "30s",
+              "description": "Scrape interval.",
+              "title": "interval",
+              "type": "string"
+            },
+            "labels": {
+              "description": "ServiceMonitor labels.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "metricRelabelings": {
+              "description": "Prometheus metric relabelings.",
+              "items": {
+                "required": []
+              },
+              "title": "metricRelabelings",
+              "type": "array"
+            },
+            "path": {
+              "default": "/metrics",
+              "description": "Metrics path.",
+              "title": "path",
+              "type": "string"
+            },
+            "relabelings": {
+              "description": "Prometheus relabelings.",
+              "items": {
+                "required": []
+              },
+              "title": "relabelings",
+              "type": "array"
+            },
+            "scrapeTimeout": {
+              "default": "10s",
+              "description": "Scrape timeout.",
+              "title": "scrapeTimeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceMonitor",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "monitoring",
+      "type": "object"
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "Override the chart name used in resource names.",
+      "title": "nameOverride",
+      "type": "string"
+    },
+    "networkPolicy": {
+      "description": "NetworkPolicy for konflate (off by default). konflate must reach the forge API\nplus the OCI/Helm/git sources a PR declares to render, so the policy *shapes*\negress to DNS + HTTPS rather than locking it down — still blocking lateral\naccess to other cluster services on other ports — and limits ingress to\nkonflate's own HTTP + metrics ports. Pick the flavor matching your CNI; the\nCilium/Calico variants render that CNI's CRD, so validate against your cluster.",
+      "properties": {
+        "allowDNS": {
+          "default": true,
+          "description": "Allow DNS egress (UDP/TCP 53). konflate must resolve forge/registry/git hosts to render, so leave this on unless DNS is handled out-of-band.",
+          "title": "allowDNS",
+          "type": "boolean"
+        },
+        "egressPorts": {
+          "description": "TCP ports konflate may egress to fetch sources during a render (forge API + git/OCI/Helm over HTTPS). Add 80 / 22 for plain-HTTP or SSH git sources.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              }
+            ],
+            "required": []
+          },
+          "title": "egressPorts",
+          "type": "array"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Create a NetworkPolicy for konflate.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "type": {
+          "default": "default",
+          "description": "Policy flavor for your CNI: \"default\" (networking.k8s.io/v1 NetworkPolicy), \"cilium\" (CiliumNetworkPolicy), or \"calico\" (projectcalico.org/v3 NetworkPolicy).",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "networkPolicy",
+      "type": "object"
+    },
+    "nodeSelector": {
+      "description": "Node selector for pod scheduling.",
+      "required": [],
+      "title": "nodeSelector",
+      "type": "object"
+    },
+    "persistence": {
+      "description": "Persist konflate's state across restarts: the flate source caches, the bare git mirror, and the rendered diffs themselves. With diffs persisted, open PRs reload showing their last render (re-rendering only if the head advanced) and the recently-merged shelf survives at all (see `config.closedPr*`). Disabled, everything lives in an emptyDir and is rebuilt or lost on each restart. Recommended for any non-trivial repo.",
+      "properties": {
+        "accessModes": {
+          "description": "PVC access modes.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              }
+            ],
+            "required": []
+          },
+          "title": "accessModes",
+          "type": "array"
+        },
+        "annotations": {
+          "description": "PVC annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Persist caches, the git mirror, and rendered diffs across restarts: open PRs reload instantly and the merged shelf survives. Recommended for any non-trivial repo.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "existingClaim": {
+          "default": "",
+          "description": "Use an existing PVC instead of creating one.",
+          "title": "existingClaim",
+          "type": "string"
+        },
+        "size": {
+          "default": "5Gi",
+          "description": "PVC size.",
+          "title": "size",
+          "type": "string"
+        },
+        "storageClass": {
+          "default": "",
+          "description": "StorageClass for the created PVC.",
+          "title": "storageClass",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "persistence",
+      "type": "object"
+    },
+    "podAnnotations": {
+      "description": "Annotations added to the pod.",
+      "required": [],
+      "title": "podAnnotations",
+      "type": "object"
+    },
+    "podDisruptionBudget": {
+      "description": "konflate runs a single replica (in-memory state; see replicaCount), so this guards only against *voluntary* disruption — node drains, autoscaler scale-down.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Create a PodDisruptionBudget. ⚠️ With a single replica, the default `minAvailable: 1` makes a node drain block until you delete the pod yourself; set `maxUnavailable: 1` instead to let drains proceed. Off by default.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "maxUnavailable": {
+          "default": "",
+          "description": "Maximum pods that may be unavailable, as a count or percentage; takes precedence over `minAvailable` when set.",
+          "required": [],
+          "title": "maxUnavailable",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "minAvailable": {
+          "default": 1,
+          "description": "Minimum pods that must stay available, as a count or percentage. Used unless `maxUnavailable` is set.",
+          "required": [],
+          "title": "minAvailable",
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      },
+      "required": [],
+      "title": "podDisruptionBudget",
+      "type": "object"
+    },
+    "podLabels": {
+      "description": "Labels added to the pod.",
+      "required": [],
+      "title": "podLabels",
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "description": "Pod-level securityContext (runs as non-root uid/gid 65532 with the RuntimeDefault seccomp profile).",
+      "properties": {
+        "fsGroup": {
+          "default": 65532,
+          "title": "fsGroup",
+          "type": "integer"
+        },
+        "fsGroupChangePolicy": {
+          "default": "OnRootMismatch",
+          "title": "fsGroupChangePolicy",
+          "type": "string"
+        },
+        "runAsGroup": {
+          "default": 65532,
+          "title": "runAsGroup",
+          "type": "integer"
+        },
+        "runAsNonRoot": {
+          "default": true,
+          "title": "runAsNonRoot",
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "default": 65532,
+          "title": "runAsUser",
+          "type": "integer"
+        },
+        "seccompProfile": {
+          "properties": {
+            "type": {
+              "default": "RuntimeDefault",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "seccompProfile",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "podSecurityContext",
+      "type": "object"
+    },
+    "priorityClassName": {
+      "default": "",
+      "description": "PriorityClass for the pod, so konflate is less likely to be preempted/evicted under node pressure. Empty uses the cluster default.",
+      "title": "priorityClassName",
+      "type": "string"
+    },
+    "readinessProbe": {
+      "description": "Readiness probe. Targets /readyz on the main http port.",
+      "properties": {
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/readyz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "http",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "initialDelaySeconds": {
+          "default": 5,
+          "title": "initialDelaySeconds",
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "default": 10,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "readinessProbe",
+      "type": "object"
+    },
+    "replicaCount": {
+      "default": 1,
+      "description": "Replica count; konflate is single-instance, so 0 or 1 only (a value \u003e1 is rejected at render time).",
+      "title": "replicaCount",
+      "type": "integer"
+    },
+    "resources": {
+      "description": "Pod resource requests/limits. The memory limit is the hard ceiling: it drives GOMEMLIMIT (90%) so the GC reclaims before the kernel OOM-kills a runaway render. Default bounds memory out of the box; raise it for very large clusters.",
+      "properties": {
+        "limits": {
+          "properties": {
+            "memory": {
+              "default": "1Gi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "limits",
+          "type": "object"
+        },
+        "requests": {
+          "properties": {
+            "cpu": {
+              "default": "50m",
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "256Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "requests",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "resources",
+      "type": "object"
+    },
+    "secret": {
+      "description": "Sensitive settings — a forge read token, inbound webhook/push secrets, and the optional write-back credential (all empty = anonymous, read-only mode).",
+      "properties": {
+        "appPrivateKey": {
+          "default": "",
+          "description": "GitHub App PEM private key (**GitHub only**); the preferred GitHub write credential, used with `config.appClientId`.",
+          "title": "appPrivateKey",
+          "type": "string"
+        },
+        "existingSecret": {
+          "default": "",
+          "description": "Existing Secret holding the KONFLATE_* keys; takes precedence over the inline values below.",
+          "title": "existingSecret",
+          "type": "string"
+        },
+        "pushToken": {
+          "default": "",
+          "description": "Push token; enables POST /api/prs/{n}/refresh (authenticated mode).",
+          "title": "pushToken",
+          "type": "string"
+        },
+        "token": {
+          "default": "",
+          "description": "Forge API token. Empty = anonymous, read-only mode.",
+          "title": "token",
+          "type": "string"
+        },
+        "webhookSecret": {
+          "default": "",
+          "description": "Webhook secret; enables POST /hooks (authenticated mode).",
+          "title": "webhookSecret",
+          "type": "string"
+        },
+        "writeToken": {
+          "default": "",
+          "description": "Write credential for status write-back (commit statuses), separate from `token` so it carries only write scope. The universal option and the only one on GitLab/Forgejo. Needs `config.statusChecks: true` to take effect.",
+          "title": "writeToken",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "secret",
+      "type": "object"
+    },
+    "securityContext": {
+      "description": "Container securityContext (no privilege escalation, read-only root filesystem, drops ALL capabilities).",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "default": false,
+          "title": "allowPrivilegeEscalation",
+          "type": "boolean"
+        },
+        "capabilities": {
+          "properties": {
+            "drop": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  }
+                ],
+                "required": []
+              },
+              "title": "drop",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "capabilities",
+          "type": "object"
+        },
+        "readOnlyRootFilesystem": {
+          "default": true,
+          "title": "readOnlyRootFilesystem",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "securityContext",
+      "type": "object"
+    },
+    "service": {
+      "properties": {
+        "metricsEnabled": {
+          "default": true,
+          "description": "Expose Prometheus metrics at /metrics on metricsPort (KONFLATE_METRICS_ENABLED). Disabling removes the metrics listener, container port, and Service port entirely; health probes are unaffected (they target the http port).",
+          "title": "metricsEnabled",
+          "type": "boolean"
+        },
+        "metricsPort": {
+          "default": 8081,
+          "description": "Metrics listen port (/metrics only), kept off the public port.",
+          "title": "metricsPort",
+          "type": "integer"
+        },
+        "port": {
+          "default": 8080,
+          "description": "UI / API / websocket port; also serves the /healthz and /readyz probes.",
+          "title": "port",
+          "type": "integer"
+        },
+        "type": {
+          "default": "ClusterIP",
+          "description": "Service type.",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "service",
+      "type": "object"
+    },
+    "serviceAccount": {
+      "properties": {
+        "annotations": {
+          "description": "Annotations for the ServiceAccount.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "automount": {
+          "default": false,
+          "description": "Automount the ServiceAccount API token (off by default: konflate talks to forges, not the cluster API).",
+          "title": "automount",
+          "type": "boolean"
+        },
+        "create": {
+          "default": true,
+          "description": "Create a ServiceAccount.",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "ServiceAccount name; generated from the release name if empty.",
+          "title": "name",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "serviceAccount",
+      "type": "object"
+    },
+    "startupProbe": {
+      "description": "Startup probe (optional). Gates liveness/readiness while konflate starts — useful when a large persisted store (see `persistence`) makes the cold start slow, since it loads before serving. Empty disables it.",
+      "required": [],
+      "title": "startupProbe",
+      "type": "object"
+    },
+    "strategy": {
+      "description": "Deployment update strategy. **Keep `Recreate`** — konflate is a single instance with in-memory PR/diff state and a ReadWriteOnce cache PVC, so a RollingUpdate (which surges a second pod even at replicaCount 1) diverges the in-memory stores and/or wedges on the volume's Multi-Attach error. Exposed only for parity with the other charts; `RollingUpdate` is unsupported here.",
+      "properties": {
+        "type": {
+          "default": "Recreate",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "strategy",
+      "type": "object"
+    },
+    "terminationGracePeriodSeconds": {
+      "default": 30,
+      "description": "Grace period for a clean shutdown. konflate drains in-flight renders and closes the HTTP/websocket servers on SIGTERM (it caps its own shutdown near 15s), so the default is ample; raise it only if you expect longer drains.",
+      "title": "terminationGracePeriodSeconds",
+      "type": "integer"
+    },
+    "tests": {
+      "description": "Config for the chart's `helm test` hook — a one-shot pod that curls the Service's /readyz to prove the release serves. Used only by `helm test`, never the workload.",
+      "properties": {
+        "image": {
+          "properties": {
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "`helm test` image pull policy.",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "mirror.gcr.io/curlimages/curl",
+              "description": "`helm test` connection-pod image; a gcr-mirrored curl, so the test never pulls from Docker Hub.",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13",
+              "description": "`helm test` image, pinned as `tag",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "tests",
+      "type": "object"
+    },
+    "tls": {
+      "description": "Trust extra CA certificates — a self-signed forge (GitLab/Forgejo/Gitea) or\nregistry. Entries are PEM certs, mounted at /etc/ssl/konflate and picked up\nthrough Go's SSL_CERT_DIR: additive, the image's public-CA bundle keeps\nworking (SSL_CERT_DIR overrides only the default cert *directories*, never\nthe bundle file). Every TLS path in konflate — forge API, git fetch, Helm\nrepos/OCI, image verification — goes through Go's trust store, so this one\nknob covers them all.",
+      "properties": {
+        "extraCaCertsConfigMap": {
+          "default": "",
+          "description": "ConfigMap whose entries are extra PEM CA certificates to trust.",
+          "title": "extraCaCertsConfigMap",
+          "type": "string"
+        },
+        "extraCaCertsSecret": {
+          "default": "",
+          "description": "Secret whose entries are extra PEM CA certificates to trust (e.g. a cert-manager CA secret). Combines with the ConfigMap when both are set.",
+          "title": "extraCaCertsSecret",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "tls",
+      "type": "object"
+    },
+    "tolerations": {
+      "description": "Tolerations for pod scheduling.",
+      "items": {
+        "required": []
+      },
+      "title": "tolerations",
+      "type": "array"
+    },
+    "volumeMounts": {
+      "description": "Additional volume mounts on the container.",
+      "items": {
+        "required": []
+      },
+      "title": "volumeMounts",
+      "type": "array"
+    },
+    "volumes": {
+      "description": "Additional volumes on the Deployment.",
+      "items": {
+        "required": []
+      },
+      "title": "volumes",
+      "type": "array"
+    }
+  },
+  "required": [],
+  "type": "object"
+}
