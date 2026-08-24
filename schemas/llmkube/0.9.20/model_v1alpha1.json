@@ -1,0 +1,661 @@
+{
+  "description": "Model is the Schema for the models API",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of Model",
+      "properties": {
+        "files": {
+          "description": "Files lists model weight artifacts to stage from Source. Entries are\nrepo-relative for repository sources. The first entry is the primary model\nfile passed to the runtime. When Files is empty, Source must name a single\nobject directly.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "format": {
+          "default": "gguf",
+          "description": "Format specifies the model file format.\n\"gguf\" is used with the llama-server runtime; \"mlx\" is used with the oMLX runtime;\n\"safetensors\", \"pytorch\", and \"custom\" are used with the generic runtime.",
+          "enum": [
+            "gguf",
+            "mlx",
+            "safetensors",
+            "pytorch",
+            "custom"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hardware": {
+          "additionalProperties": false,
+          "description": "Hardware specifies hardware acceleration preferences",
+          "properties": {
+            "accelerator": {
+              "default": "cpu",
+              "description": "Accelerator specifies the type of hardware acceleration.\n\"vulkan\" covers AMD and Intel GPUs using the Vulkan runtime\n(gpu.vendor: amd/intel + gpu.runtime: vulkan). When set to\n\"vulkan\" the readiness-check path uses devic.es/dri-render as\nthe GPU resource name instead of amd.com/gpu or nvidia.com/gpu.\n\"rocm\" is the HIP compute tier for AMD GPUs (LLMKube's own\nhardware-validated ROCm llama.cpp image, see #701); like \"vulkan\"\nit resolves to devic.es/dri-render rather than amd.com/gpu, since\nthe two runtimes share the same physical device on single-GPU AMD\nnodes. The tiers differ only in the container image they select.",
+              "enum": [
+                "cpu",
+                "metal",
+                "cuda",
+                "rocm",
+                "intel",
+                "vulkan"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "gpu": {
+              "additionalProperties": false,
+              "description": "GPU specifies GPU device requirements",
+              "properties": {
+                "count": {
+                  "description": "Count specifies the number of GPUs required\nSupports multi-GPU for model sharding (future feature)",
+                  "format": "int32",
+                  "maximum": 8,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "enabled": {
+                  "description": "Enabled indicates whether GPU acceleration is enabled",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "layers": {
+                  "description": "Layers specifies layer offloading configuration for multi-GPU\nFormat: number of layers to offload to GPU (e.g., 32 for full offload on 7B model)\n-1 means auto-detect optimal layer split",
+                  "format": "int32",
+                  "minimum": -1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "memory": {
+                  "description": "Memory specifies minimum GPU memory required per GPU (e.g., \"8Gi\", \"16Gi\")",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "resourceClaims": {
+                  "description": "ResourceClaims defines DRA (Dynamic Resource Allocation) claims for GPU devices.\nUses resource.k8s.io/v1 PodResourceClaim format. Each claim must have exactly\none of resourceClaimName or resourceClaimTemplateName set.\nMutually exclusive with resourceName.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "PodResourceClaim references exactly one ResourceClaim, either directly\nor by naming a ResourceClaimTemplate which is then turned into a ResourceClaim\nfor the pod.\n\nIt adds a name to it that uniquely identifies the ResourceClaim inside the Pod.\nContainers that need access to the ResourceClaim reference it with this name.\n\nWhen the DRAWorkloadResourceClaims feature gate is enabled and this Pod\nbelongs to a PodGroup, a PodResourceClaim is matched to a\nPodGroupResourceClaim if all of their fields are equal (Name,\nResourceClaimName, and ResourceClaimTemplateName). A matched claim references\na single ResourceClaim shared across all Pods in the PodGroup, reserved for\nthe PodGroup in ResourceClaimStatus.ReservedFor rather than for individual\nPods.",
+                    "properties": {
+                      "name": {
+                        "description": "Name uniquely identifies this resource claim inside the pod.\nThis must be a DNS_LABEL.",
+                        "type": "string"
+                      },
+                      "resourceClaimName": {
+                        "description": "ResourceClaimName is the name of a ResourceClaim object in the same\nnamespace as this pod.\n\nExactly one of ResourceClaimName and ResourceClaimTemplateName must\nbe set.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "resourceClaimTemplateName": {
+                        "description": "ResourceClaimTemplateName is the name of a ResourceClaimTemplate\nobject in the same namespace as this pod.\n\nThe template will be used to create a new ResourceClaim, which will\nbe bound to this pod. When this pod is deleted, the ResourceClaim\nwill also be deleted. The pod name and resource name, along with a\ngenerated component, will be used to form a unique name for the\nResourceClaim, which will be recorded in pod.status.resourceClaimStatuses.\n\nWhen the DRAWorkloadResourceClaims feature gate is enabled and the pod\nbelongs to a PodGroup that defines a PodGroupResourceClaim with the same\nName and ResourceClaimTemplateName, this PodResourceClaim resolves to the\nResourceClaim generated for the PodGroup. All pods in the group that\ndefine an equivalent PodResourceClaim matching the\nPodGroupResourceClaim's Name and ResourceClaimTemplateName share the same\ngenerated ResourceClaim. ResourceClaims generated for a PodGroup are\nowned by the PodGroup and their lifecycles are tied to the PodGroup\ninstead of any individual pod.\n\nThis field is immutable and no changes will be made to the\ncorresponding ResourceClaim by the control plane after creating the\nResourceClaim.\n\nExactly one of ResourceClaimName and ResourceClaimTemplateName must\nbe set.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 16,
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "each claim must have exactly one of resourceClaimName or resourceClaimTemplateName",
+                      "rule": "self.size() == 0 || self.all(c, (has(c.resourceClaimName) \u0026\u0026 !has(c.resourceClaimTemplateName)) || (!has(c.resourceClaimName) \u0026\u0026 has(c.resourceClaimTemplateName)))"
+                    }
+                  ]
+                },
+                "resourceName": {
+                  "description": "ResourceName overrides the extended resource the operator requests for\nthis Model's pods. Defaults are derived from Vendor:\n  nvidia -\u003e nvidia.com/gpu\n  amd    -\u003e amd.com/gpu\n  intel  -\u003e gpu.intel.com/i915\nSet this for non-default device plugins (e.g. squat/generic-device-plugin\nadvertising `squat.ai/dri-render`, NVIDIA MIG slices). When set, this\nvalue also drives the GPU toleration unless TolerationKey is provided\nexplicitly.",
+                  "pattern": "^[a-z0-9.\\-]+/[a-z0-9._\\-]+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "runtime": {
+                  "description": "Runtime selects the GPU compute backend the operator schedules for this\nModel, independent of the Vendor field. It exists so `vendor: amd` is not\noverloaded to mean both \"ROCm\" and \"Vulkan\".\n\nFor the llama.cpp inference backend with `vendor: amd`:\n  - \"vulkan\": schedule LLMKube's Vulkan llama.cpp image and request the\n    generic-device-plugin resource `devic.es/dri-render` (unless\n    ResourceName overrides it). The plugin injects /dev/dri; the non-root\n    container still needs the host render group, supplied via\n    InferenceService.spec.podSecurityContext.supplementalGroups.\n  - \"rocm\": the HIP compute tier (#701). Schedules LLMKube's\n    hardware-validated ROCm llama.cpp image and requests the same\n    shared `devic.es/dri-render` resource as \"vulkan\" (unless\n    ResourceName overrides it): the two runtimes contend for the same\n    physical device on single-GPU AMD nodes, so they share one\n    device-plugin resource rather than each claiming their own. \"rocm\"\n    differs from \"vulkan\" only in the container image it selects.\n  - \"\" (empty): falls through to `amd.com/gpu` with the vendor-neutral\n    stock image, back-compatible with pre-#701 behavior, not the same\n    as \"rocm\".\n\nIgnored for non-AMD vendors and non-llama.cpp backends.",
+                  "enum": [
+                    "vulkan",
+                    "rocm"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sharding": {
+                  "additionalProperties": false,
+                  "description": "Sharding defines how to shard the model across multiple GPUs\nOnly applicable when Count \u003e 1",
+                  "properties": {
+                    "layerSplit": {
+                      "description": "LayerSplit defines custom layer splits per GPU\nExample: [0-15, 16-31] for 2-GPU split of 32-layer model\nIf empty, auto-calculate even split",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "strategy": {
+                      "default": "layer",
+                      "description": "Strategy defines the sharding approach for multi-GPU model execution.\n- \"layer\" (default): shard by transformer layers. llama.cpp --split-mode layer.\n- \"tensor\" (alias: \"row\"): true tensor parallelism. llama.cpp --split-mode row.\n  Splits each tensor operation across GPUs rather than assigning whole layers\n  to each. Performance varies by workload; typically better on compute-bound ops.\n- \"none\": disable multi-GPU sharding (single GPU). llama.cpp --split-mode none.\n- \"pipeline\": accepted for forward compatibility but currently falls back to\n  \"layer\" with a reconciler warning; llama.cpp has no pipeline split-mode.",
+                      "enum": [
+                        "layer",
+                        "tensor",
+                        "row",
+                        "pipeline",
+                        "none"
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "tolerationKey": {
+                  "description": "TolerationKey overrides the taint key the operator tolerates when\nscheduling GPU pods. Defaults to ResourceName (or the vendor default\nresource name when ResourceName is unset), so in most cases this can\nbe left empty.",
+                  "pattern": "^[a-z0-9.\\-]+/[a-z0-9._\\-]+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "vendor": {
+                  "default": "nvidia",
+                  "description": "Vendor specifies GPU vendor preference (nvidia, amd, intel)\nFuture-proof for multi-vendor support",
+                  "enum": [
+                    "nvidia",
+                    "amd",
+                    "intel"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "resourceClaims and resourceName are mutually exclusive: use one or the other for GPU scheduling",
+                  "rule": "!(has(self.resourceName) \u0026\u0026 has(self.resourceClaims) \u0026\u0026 self.resourceClaims.size() \u003e 0)"
+                }
+              ]
+            },
+            "memoryBudget": {
+              "description": "MemoryBudget is an absolute memory limit for the model process\n(e.g., \"24Gi\", \"8192Mi\"). When set, it takes precedence over\nMemoryFraction and the agent-level --memory-fraction flag.\nParsed via resource.ParseQuantity().",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "memoryFraction": {
+              "description": "MemoryFraction is the fraction of total system memory to budget for\nthis model's inference process (0.0–1.0). Takes precedence over the\nagent-level --memory-fraction flag but not MemoryBudget.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mmproj": {
+          "description": "Mmproj is an optional multimodal projector file to stage from Source and\npass to runtimes that support projector arguments.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prefetch": {
+          "description": "Prefetch, when true on a remote (http/https/hf) source, makes the\noperator eagerly download the artifact into the namespace's SHARED\nmodel cache PVC (llmkube-model-cache) via an owner-ref'd Job that\nreuses the serving init-container download stack, instead of waiting\nfor the first InferenceService to pull it at serve time. Progress is\nreflected in status (Downloading, then Ready with cacheKey set), so\nthe first serving pod starts from a cache hit. Fleets running\nmodelCache.mode=perService still download per-service at serve time:\nprefetch targets the shared cache only, and staging via a pvc://\nsource remains the alternative there. Ignored for local and pvc://\nsources, which need no remote fetch.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "prefetchTolerations": {
+          "description": "PrefetchTolerations are applied to the prefetch Job's pod, and govern\nnothing else: they say where the download may run, not where the model\nwill be served. A fleet whose GPU nodes are tainted needs the prefetch\ndownload to schedule onto those nodes when the shared cache lives on\nnode-local storage (#1621). Inheriting from an InferenceService would\nbe ill-defined here: prefetch runs before the first InferenceService\nexists by design.",
+          "items": {
+            "additionalProperties": false,
+            "description": "The pod this Toleration is attached to tolerates any taint that matches\nthe triple \u003ckey,value,effect\u003e using the matching operator \u003coperator\u003e.",
+            "properties": {
+              "effect": {
+                "description": "Effect indicates the taint effect to match. Empty means match all taint effects.\nWhen specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "description": "Key is the taint key that the toleration applies to. Empty means match all taint keys.\nIf the key is empty, operator must be Exists; this combination means to match all values and all keys.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "operator": {
+                "description": "Operator represents a key's relationship to the value.\nValid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.\nExists is equivalent to wildcard for value, so that a pod can\ntolerate all taints of a particular category.\nLt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tolerationSeconds": {
+                "description": "TolerationSeconds represents the period of time the toleration (which must be\nof effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,\nit is not set, which means tolerate the taint forever (do not evict). Zero and\nnegative values will be treated as 0 (evict immediately) by the system.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "value": {
+                "description": "Value is the taint value the toleration matches to.\nIf the operator is Exists, the value should be empty, otherwise just a regular string.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "quantization": {
+          "description": "Quantization describes the quantization level (e.g., Q4_0, Q5_K_M, F16)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "refreshPolicy": {
+          "default": "IfNotPresent",
+          "description": "RefreshPolicy controls whether a cached model file is re-fetched when the\nupstream source changes.\n\n- \"IfNotPresent\" (default): download only if the cached file is missing.\n  Upstream changes are still detected and surfaced via the SourceDrifted\n  condition, but the cached file is never re-fetched on its own. This\n  preserves the historical behavior so an operator upgrade triggers no\n  surprise re-pulls.\n- \"OnChange\": re-download when the upstream bytes differ from what was\n  cached (HTTP ETag/Content-Length for remote sources, file size/mtime for\n  local sources). The re-download overwrites the file in the existing cache\n  directory; the cache key is unchanged.",
+          "enum": [
+            "IfNotPresent",
+            "OnChange"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resources": {
+          "additionalProperties": false,
+          "description": "Resources defines resource requirements for running the model",
+          "properties": {
+            "cpu": {
+              "description": "CPU specifies CPU requirements (e.g., \"2\" or \"2000m\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "memory": {
+              "description": "Memory specifies memory requirements (e.g., \"4Gi\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sha256": {
+          "description": "SHA256 is the expected SHA256 hash of the model file for integrity verification.\nWhen set, the controller verifies the downloaded/copied file matches this hash.",
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "Source defines where to obtain the model.\nFor GGUF models: URL or path to a .gguf file.\nFor MLX models: local directory path containing the model (config.json, weights).\nSupported schemes: http://, https://, file://, pvc://, hf://, s3://, or absolute paths.\nExamples:\n  - https://huggingface.co/org/repo/resolve/main/model.gguf\n  - file:///mnt/models/model.gguf\n  - /mnt/models/model.gguf (air-gapped deployments)\n  - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)\n  - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)\n  - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)\n\nSource may also name a repository or bucket PREFIX rather than a single\nobject. In that case spec.files selects which artifacts to stage from it,\nand files[0] is the primary file handed to the runtime. This is how a\nsharded GGUF, an mmproj, or draft weights are expressed. Example:\n\n  source: s3://models/org/Repo-GGUF\n  files:\n    - Model-00001-of-00002.gguf\n    - Model-00002-of-00002.gguf\n\nfile:// caveat for hybrid topologies: the controller pod must be\nable to read the path. In Mac kind / k3s / GKE deployments where\nthe metal-agent runs on the host and the controller runs inside a\ncontainer, /Users/... and other host paths are invisible to the\ncontroller and will fail to fetch. The controller marks the Model\nFailed and backs off to a 5-minute requeue rather than retrying\ntightly (#405). Workaround: pre-stage on a pvc://, or use the\nequivalent https://huggingface.co/.../\u003cfilename\u003e.gguf URL which\nthe runtime/init container resolves at deploy time.",
+          "pattern": "^(https?|file|pvc|hf|s3)://.*|^/[^\\s]+$|^[a-zA-Z0-9][\\w\\-\\.\\/]+$",
+          "type": "string"
+        },
+        "sourceSecretRef": {
+          "additionalProperties": false,
+          "description": "SourceSecretRef names a Secret (in the Model's namespace) whose keys are\nwired as env into the model-downloader init container. Used by s3://\nsources for S3-compatible credentials/endpoint: AWS_ACCESS_KEY_ID,\nAWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_ENDPOINT_URL (path-style, e.g.\nhttps://minio.internal:9000 or https://s3.us-east-1.amazonaws.com).",
+          "properties": {
+            "name": {
+              "default": "",
+              "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status defines the observed state of Model",
+      "properties": {
+        "acceleratorReady": {
+          "description": "AcceleratorReady indicates if hardware acceleration is configured and ready",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "cacheKey": {
+          "description": "CacheKey is the SHA256 hash prefix of the source URL used for cache storage\nModels with the same source URL share the same cache entry",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conditions": {
+          "description": "conditions represent the current state of the Model resource.\nEach condition has a unique type and reflects the status of a specific aspect of the resource.\n\nStandard condition types include:\n- \"Available\": the model is downloaded and ready for use\n- \"Progressing\": the model is being downloaded or processed\n- \"Degraded\": the model download or setup failed\n- \"SourceDrifted\": the upstream source bytes differ from the cached copy\n\nThe status of each condition is one of True, False, or Unknown.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "gguf": {
+          "additionalProperties": false,
+          "description": "GGUF contains metadata extracted from the GGUF file header",
+          "properties": {
+            "architecture": {
+              "description": "Architecture is the model architecture (e.g., \"llama\", \"mistral\", \"phi\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "contextLength": {
+              "description": "ContextLength is the maximum context length (tokens)",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "embeddingSize": {
+              "description": "EmbeddingSize is the embedding dimension size",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fileVersion": {
+              "description": "FileVersion is the GGUF file format version",
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "headCount": {
+              "description": "HeadCount is the number of attention heads",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "layerCount": {
+              "description": "LayerCount is the number of transformer layers/blocks",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "license": {
+              "description": "License is the license identifier extracted from the GGUF file metadata",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modelName": {
+              "description": "ModelName is the model name as stored in the GGUF file",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "quantization": {
+              "description": "Quantization is the quantization type (e.g., \"Q4_K_M\", \"Q5_K_M\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tensorCount": {
+              "description": "TensorCount is the number of tensors in the model",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lastRevalidated": {
+          "description": "LastRevalidated is the timestamp of the last upstream revalidation check.\nRevalidation is cadence-gated so the controller does not issue a HEAD on\nevery reconcile.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastUpdated": {
+          "description": "LastUpdated is the timestamp of the last status update",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Path represents the local path where the model is stored",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase represents the current lifecycle phase of the model.\nPossible values: Pending, Downloading, Copying, Ready, Failed.",
+          "enum": [
+            "Pending",
+            "Downloading",
+            "Copying",
+            "Ready",
+            "Failed"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "description": "SHA256 is the computed SHA256 hash of the model file.\nPopulated after download/copy for integrity tracking.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "description": "Size represents the size of the downloaded model file",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceContentLength": {
+          "description": "SourceContentLength is the upstream size recorded at the last revalidation.\nFor http/https sources it is the Content-Length reported by a HEAD request;\nfor local sources it is the file size on disk. Used together with\nSourceETag (or mtime for local sources) to detect upstream changes.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sourceETag": {
+          "description": "SourceETag is the HTTP ETag recorded for the upstream source at the last\nrevalidation. Used to detect upstream changes for http/https sources\n(HuggingFace serves the blob SHA as the ETag, so a moved branch is caught).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stagedFiles": {
+          "description": "StagedFiles lists the repo-relative paths staged in the model cache.\nPopulated when spec.files or spec.mmproj are set.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

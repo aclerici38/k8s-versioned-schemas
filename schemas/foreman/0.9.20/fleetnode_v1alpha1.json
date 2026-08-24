@@ -1,0 +1,300 @@
+{
+  "description": "FleetNode is a worker the Foreman scheduler can dispatch tasks to. It is\ncluster-scoped because nodes are global to the fleet; the resource is\nowned and updated by the FleetAgent running on that node.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec is the small bit of identity the agent owns.",
+      "properties": {
+        "nodeName": {
+          "description": "NodeName is the human-readable identity of the WORKER — the agent\nprocess, not the machine it runs on (#1640). Conventionally matches\nmetadata.name; required for the scheduler to address it. For an\nin-cluster agent this is the pod name (the agent falls back to\nos.Hostname()); off-cluster agents set it via --fleet-node-name. The\nKubernetes node a pod is scheduled on is reported separately at\nstatus.kubernetesNode.",
+          "type": "string"
+        },
+        "roles": {
+          "description": "Roles label the node for capability-aware scheduling beyond raw\naccelerator type. Conventionally one or more of: \"worker\", \"verifier\".",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tailscaleAddr": {
+          "description": "TailscaleAddr is the Tailscale address (IP or MagicDNS name) the\nFleetAgent listens on. Optional; the operator does not connect to the\nagent directly in v0.1 (dispatch is via the agent's CRD watch).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "nodeName"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status is the agent's heartbeat-driven view of its host. The\nscheduler reads it; the agent writes it.",
+      "properties": {
+        "agentKind": {
+          "description": "AgentKind identifies which agent binary manages this FleetNode.\nmetal-agent does not register a FleetNode in v0.1, but the enum\ndocuments intent for future use.",
+          "enum": [
+            "foreman-agent",
+            "metal-agent"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "agentVersion": {
+          "description": "AgentVersion is the observed running version of the agent, reported\non heartbeat. Set by the foreman-agent using the binary's build-time\nversion string; empty for agents that predate this field.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arch": {
+          "description": "Arch is the CPU architecture reported by the agent on heartbeat\n(runtime.GOARCH). Used alongside OS for platform artifact selection.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability": {
+          "additionalProperties": false,
+          "description": "Capability is what this node advertises to the scheduler.",
+          "properties": {
+            "accelerator": {
+              "description": "Accelerator names the accelerator family available on this node.",
+              "enum": [
+                "metal",
+                "cuda",
+                "vulkan",
+                "none"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "availableRAMGB": {
+              "description": "AvailableRAMGB is the FleetAgent's estimate of RAM not currently\ncommitted to a running model or task. Refreshed on heartbeat.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "installedModels": {
+              "description": "InstalledModels is the list of Model CR names this node has locally\navailable (the model files are present and the runtime can load them).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "maxContextTokens": {
+              "description": "MaxContextTokens is the largest context window the loaded model\nsupports. Used by the scheduler to filter tasks with high\nMinContextTokens requirements.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "tokensPerSecond": {
+              "description": "TokensPerSecond is a coarse decode throughput estimate. v0.1 takes\nthis from configuration; v0.2 will benchmark on heartbeat.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "totalRAMGB": {
+              "description": "TotalRAMGB is the physical RAM in GiB.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "conditions": {
+          "description": "Conditions track standard health signals: Ready, Draining, etc.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "currentTask": {
+          "description": "CurrentTask is the namespaced name of the in-process AgenticTask this\nnode is reserved for, or empty if no reservation is held. The scheduler\nskips nodes with a non-empty CurrentTask when placing in-process work.\n\nEmpty does NOT mean idle. A Job-mode task (Agent\nspec.execution.mode=Job) runs in an ephemeral Job pod rather than on the\nnode, so the scheduler deliberately leaves CurrentTask untouched for it,\nand one agent supervises several such tasks concurrently (bounded by its\n--max-supervised-tasks). A node with an empty CurrentTask can therefore\nbe supervising coder Jobs; it is free for in-process work, not idle.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kubernetesNode": {
+          "description": "KubernetesNode is the Kubernetes node the agent pod is scheduled on,\nreported by the agent on heartbeat from the FLEET_NODE_NAME downward-API\nenv var (fieldRef: spec.nodeName). It is a PROPERTY of the worker, not\nits identity: FleetNode identity is the agent process (#1640), and\nspec.nodeName holds the worker's own name. Off-cluster agents (metal\nMacs) have no Kubernetes node and leave this empty.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastHeartbeatTime": {
+          "description": "LastHeartbeatTime is the most recent heartbeat the FleetAgent\nsuccessfully patched. The reconciler marks the phase NotReady if\nthis stalls (default threshold: 90 seconds).",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "os": {
+          "description": "OS is the operating system reported by the agent on heartbeat\n(runtime.GOOS). Used by the AgentReleaseReconciler to select the\ncorrect platform artifact for this node.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase is the heartbeat-driven health state. The scheduler treats\nonly Ready nodes as eligible.",
+          "enum": [
+            "Ready",
+            "Draining",
+            "NotReady",
+            "Unknown"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updateRequest": {
+          "additionalProperties": false,
+          "description": "UpdateRequest is written by the AgentReleaseReconciler when a new\nagent version is ready for this node to install. The agent reads\nthis field on each heartbeat (PR4) and performs the self-update.\nThe reconciler clears the field once the node reports the target\nversion and passes the health gate.",
+          "properties": {
+            "sha256": {
+              "description": "SHA256 is the lowercase hex-encoded SHA-256 digest of the artifact.",
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "targetVersion": {
+              "description": "TargetVersion is the version string the node should update to.",
+              "type": "string"
+            },
+            "url": {
+              "description": "URL is the download location for the agent binary artifact.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sha256",
+            "targetVersion",
+            "url"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

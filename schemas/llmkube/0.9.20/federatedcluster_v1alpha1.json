@@ -1,0 +1,151 @@
+{
+  "description": "FederatedCluster registers one edge site on the datacenter cluster.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "FederatedClusterSpec is admin-owned. displayName and dataResidencyTier are\nset at registration; the edge and the datacenter controller only write status.",
+      "properties": {
+        "dataResidencyTier": {
+          "description": "DataResidencyTier is recorded now and enforced later by the federation\nrouter (#1237). It is a free-form tier label (for example \"eu\", \"floor-3\").",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "displayName": {
+          "description": "DisplayName is a human label for the site.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "heartbeatIntervalSeconds": {
+          "default": 30,
+          "description": "HeartbeatIntervalSeconds is how often the edge is expected to push status.\nThe datacenter derives staleness thresholds from it (3x Stale, 10x Unreachable).",
+          "format": "int32",
+          "minimum": 5,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "FederatedClusterStatus has two writers. The edge writes everything except\nPhase, over an RBAC-scoped status-subresource client. The datacenter\ncontroller writes ONLY Phase, from LastHeartbeatTime staleness.",
+      "properties": {
+        "capacity": {
+          "additionalProperties": false,
+          "description": "Capacity is edge-owned node/GPU capacity.",
+          "properties": {
+            "gpusAllocatable": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "gpusTotal": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "nodes": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "gpusAllocatable",
+            "gpusTotal",
+            "nodes"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "inference": {
+          "additionalProperties": false,
+          "description": "Inference is edge-owned inference health.",
+          "properties": {
+            "models": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "servicesFailed": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "servicesReady": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "servicesTotal": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "models",
+            "servicesFailed",
+            "servicesReady",
+            "servicesTotal"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lastHeartbeatTime": {
+          "description": "LastHeartbeatTime is edge-owned: set to now on every successful push.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedVersion": {
+          "description": "ObservedVersion is edge-owned: the LLMKube/operator version on the site.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Phase is datacenter-owned: Connected, Stale, or Unreachable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
