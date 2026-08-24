@@ -1,120 +1,46 @@
 {
-  "description": "GrafanaNotificationPolicyRoute is the Schema for the grafananotificationpolicyroutes API",
+  "description": "GrafanaFolder is the Schema for the grafanafolders API",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
-      "description": "GrafanaNotificationPolicyRouteSpec defines the desired state of GrafanaNotificationPolicyRoute",
+      "additionalProperties": false,
+      "description": "GrafanaFolderSpec defines the desired state of GrafanaFolder",
       "properties": {
-        "active_time_intervals": {
-          "description": "active time intervals",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "allowCrossNamespaceImport": {
+          "default": false,
+          "description": "Allow the Operator to match this resource with Grafanas outside the current namespace",
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
-        "continue": {
-          "description": "continue",
-          "type": "boolean"
-        },
-        "group_by": {
-          "description": "group by",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "group_interval": {
-          "description": "group interval",
-          "type": "string"
-        },
-        "group_wait": {
-          "description": "group wait",
-          "type": "string"
-        },
-        "match_re": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "match re",
-          "type": "object"
-        },
-        "matchers": {
-          "description": "matchers",
-          "items": {
-            "properties": {
-              "isEqual": {
-                "description": "is equal",
-                "type": "boolean"
-              },
-              "isRegex": {
-                "description": "is regex",
-                "type": "boolean"
-              },
-              "name": {
-                "description": "name",
-                "type": "string"
-              },
-              "value": {
-                "description": "value",
-                "type": "string"
-              }
-            },
-            "required": [
-              "isRegex",
-              "value"
-            ],
-            "type": "object",
-            "additionalProperties": false
-          },
-          "type": "array"
-        },
-        "mute_time_intervals": {
-          "description": "mute time intervals",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "object_matchers": {
-          "description": "object matchers",
-          "items": {
-            "description": "ObjectMatcher ObjectMatcher is a matcher that can be used to filter alerts.\n\nswagger:model ObjectMatcher",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "type": "array"
-        },
-        "provenance": {
-          "description": "Deprecated: Does nothing",
-          "type": "string"
-        },
-        "receiver": {
-          "description": "receiver",
-          "minLength": 1,
-          "type": "string"
-        },
-        "repeat_interval": {
-          "description": "repeat interval",
-          "type": "string"
-        },
-        "routeSelector": {
-          "description": "selects GrafanaNotificationPolicyRoutes to merge in when specified\nmutually exclusive with Routes",
+        "instanceSelector": {
+          "additionalProperties": false,
+          "description": "Selects Grafana instances for import",
           "properties": {
             "matchExpressions": {
               "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
               "items": {
+                "additionalProperties": false,
                 "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
                 "properties": {
                   "key": {
@@ -130,7 +56,10 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-type": "atomic"
                   }
                 },
@@ -138,10 +67,12 @@
                   "key",
                   "operator"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
-              "type": "array",
+              "type": [
+                "array",
+                "null"
+              ],
               "x-kubernetes-list-type": "atomic"
             },
             "matchLabels": {
@@ -149,30 +80,114 @@
                 "type": "string"
               },
               "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
           "type": "object",
           "x-kubernetes-map-type": "atomic",
-          "additionalProperties": false
+          "x-kubernetes-validations": [
+            {
+              "message": "spec.instanceSelector is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
         },
-        "routes": {
-          "description": "routes, mutually exclusive with RouteSelector",
-          "x-kubernetes-preserve-unknown-fields": true
+        "parentFolderRef": {
+          "description": "Reference to an existing GrafanaFolder CR in the same namespace",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parentFolderUID": {
+          "description": "UID of the folder in which the current folder should be created",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permissions": {
+          "description": "Raw json with folder permissions, potentially exported from Grafana",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resyncPeriod": {
+          "description": "How often the resource is synced, defaults to 10m0s if not set",
+          "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suspend": {
+          "description": "Suspend pauses synchronizing attempts and tells the operator to ignore changes",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Display name of the folder in Grafana",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uid": {
+          "description": "Manually specify the UID the Folder is created with. Can be any string consisting of alphanumeric characters, - and _ with a maximum length of 40",
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9-_]+$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "spec.uid is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
         }
       },
       "required": [
-        "receiver"
+        "instanceSelector"
       ],
       "type": "object",
-      "additionalProperties": false
+      "x-kubernetes-validations": [
+        {
+          "message": "Only one of parentFolderUID or parentFolderRef can be set",
+          "rule": "(has(self.parentFolderUID) \u0026\u0026 !(has(self.parentFolderRef))) || (has(self.parentFolderRef) \u0026\u0026 !(has(self.parentFolderUID))) || !(has(self.parentFolderRef) \u0026\u0026 (has(self.parentFolderUID)))"
+        },
+        {
+          "message": "spec.uid is immutable",
+          "rule": "((!has(oldSelf.uid) \u0026\u0026 !has(self.uid)) || (has(oldSelf.uid) \u0026\u0026 has(self.uid)))"
+        },
+        {
+          "message": "disabling spec.allowCrossNamespaceImport requires a recreate to ensure desired state",
+          "rule": "!oldSelf.allowCrossNamespaceImport || (oldSelf.allowCrossNamespaceImport \u0026\u0026 self.allowCrossNamespaceImport)"
+        }
+      ]
     },
     "status": {
-      "description": "The most recent observed state of a Grafana resource",
+      "additionalProperties": false,
+      "description": "GrafanaFolderStatus defines the observed state of GrafanaFolder",
       "properties": {
+        "NoMatchingInstances": {
+          "description": "The folder instanceSelector can't find matching grafana instances",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "conditions": {
           "description": "Results when synchronizing resource with Grafana instances",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -189,7 +204,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -221,19 +239,32 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "hash": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "lastResync": {
           "description": "Last time the resource was synchronized with Grafana instances",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
