@@ -1,0 +1,353 @@
+{
+  "description": "MiroirNode declares one storage node's topology and publishes its pool\ncapacities. Named after the node; the spec is authored through the Helm\nchart's `nodes` values, the status is written by that node's agent, and\nthe controller reads both at placement.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "MiroirNodeSpec is one storage node's desired topology: its named pools\nplus node-level replication settings. Rendered by the Helm chart from\nthe release's `nodes` values; read by the controller for placement and\nby the node's agent for backend selection.",
+      "properties": {
+        "address": {
+          "description": "Address optionally pins the node's DRBD replication endpoint to a\ndedicated storage NIC/VLAN IP (IPv4 or IPv6); empty falls back to\nthe node's InternalIP. It applies to volumes created afterwards —\nexisting volumes keep the address persisted at creation. An explicit\nempty string means unset (0.10 values files carry them).",
+          "maxLength": 45,
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "address must be a plain IPv4 or IPv6 address",
+              "rule": "self == '' || isIP(self)"
+            }
+          ]
+        },
+        "autoEvict": {
+          "description": "AutoEvict, when explicitly false, exempts this node from auto-evict:\nits legs are never re-placed while its heartbeat is stale (a node\nwith known long outages). Absent means eligible.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "pools": {
+          "description": "Pools lists this node's storage pools, one entry per pool. Every\nnode in the topology carries at least one.",
+          "items": {
+            "additionalProperties": false,
+            "description": "MiroirNodePool is one named storage pool on a node. The backend is the\nconfiguration block that is present — exactly one of lvmthin/zfs/\nloopfile, even when it has nothing to say (lvmthin: {} when the VG\nalready exists). Pool names are cluster-wide identities — a\nStorageClass selects a pool by name and the controller places each\nreplica on a node carrying that pool.",
+            "properties": {
+              "loopfile": {
+                "additionalProperties": false,
+                "description": "Loopfile makes this a loopfile pool.",
+                "properties": {
+                  "baseDir": {
+                    "description": "BaseDir is the directory holding the sparse files, e.g.\n\"/var/lib/miroir\". Must be reflink-capable (XFS reflink=1 or btrfs)\nfor CoW snapshots; the agent refuses the pool otherwise.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "baseDir"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "lvmthin": {
+                "additionalProperties": false,
+                "description": "LVMThin makes this an lvmthin pool.",
+                "properties": {
+                  "device": {
+                    "description": "Device is the block device backing the pool's VG. Optional when the\nVG already exists (a pre-provisioned or shared VG); required for the\nagent to create it on first start.",
+                    "maxLength": 256,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "poolSize": {
+                    "description": "PoolSize bounds the thin pool (an lvm size spec, e.g. \"400g\");\nempty claims all free VG space.",
+                    "maxLength": 32,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name is the pool name (\"default\" for the pre-multi-pool single\npool). It becomes an LVM VG name suffix, a metric label value, and a\nStorageClass parameter, so it stays a short lowercase identifier.",
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$",
+                "type": "string"
+              },
+              "zfs": {
+                "additionalProperties": false,
+                "description": "ZFS makes this a zfs pool.",
+                "properties": {
+                  "compression": {
+                    "default": "lz4",
+                    "description": "Compression is the compression property for newly created zvols;\n\"inherit\" uses the parent dataset's setting. Existing zvols are not\nmutated, and snapshot clones retain their source properties. Empty\nmeans the default (lz4) — 0.10 values files carry explicit empty\nstrings, and the agent has always defaulted them.",
+                    "pattern": "^(|inherit|on|off|lz4|lzjb|zle|gzip(-[1-9])?|zstd(-([1-9]|1[0-9]))?|zstd-fast(-(10|[1-9]|[2-9]0|100|500|1000))?)$",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dataset": {
+                    "description": "Dataset is the parent dataset for zvols.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "volBlockSize": {
+                    "default": "4K",
+                    "description": "VolBlockSize is the volblocksize property for newly created zvols.\nEmpty means the default (4K), for the same 0.10 compatibility reason\nas Compression.",
+                    "enum": [
+                      "",
+                      "4K",
+                      "8K",
+                      "16K",
+                      "32K",
+                      "64K",
+                      "128K"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "dataset"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "exactly one backend block (lvmthin, zfs, or loopfile) must be set — lvmthin: {} when the VG already exists",
+                "rule": "[has(self.lvmthin), has(self.zfs), has(self.loopfile)].filter(x, x).size() == 1"
+              }
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-validations": [
+            {
+              "message": "no two pools may share a device",
+              "rule": "self.filter(p, has(p.lvmthin) \u0026\u0026 has(p.lvmthin.device)).map(p, p.lvmthin.device).all(d, self.filter(p, has(p.lvmthin) \u0026\u0026 has(p.lvmthin.device) \u0026\u0026 p.lvmthin.device == d).size() == 1)"
+            },
+            {
+              "message": "no two pools may share a dataset",
+              "rule": "self.filter(p, has(p.zfs)).map(p, p.zfs.dataset).all(d, self.filter(p, has(p.zfs) \u0026\u0026 p.zfs.dataset == d).size() == 1)"
+            },
+            {
+              "message": "no two pools may share a baseDir",
+              "rule": "self.filter(p, has(p.loopfile)).map(p, p.loopfile.baseDir).all(d, self.filter(p, has(p.loopfile) \u0026\u0026 p.loopfile.baseDir == d).size() == 1)"
+            }
+          ]
+        },
+        "zone": {
+          "description": "Zone is an optional failure domain (rack, host group, AZ). When set,\nthe controller spreads a volume's replicas across distinct zones;\nempty means unconstrained.",
+          "maxLength": 63,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "pools"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "MiroirNodeStatus is the pool capacity this node's agent publishes for\ncapacity-aware placement and overcommit guardrails.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions follow the standard Kubernetes condition conventions;\nPoolUsageHigh fires at the 80% data/metadata warn line (any pool).",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "drbdUtilsVersion": {
+          "description": "DRBDUtilsVersion is the drbd-utils userland version the agent\nprobed at startup (e.g. \"9.34.3\"). Unlike the kernel module the\nutils ship in the agent image, so this varies per agent rollout\nrather than per host.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "drbdVersion": {
+          "description": "DRBDVersion is the DRBD kernel module version the agent probed at\nstartup (e.g. \"9.3.2\"); absent on nodes without the module. The\nmodule ships with the host, not the agent image, so this is the\nper-node view that makes mixed clusters visible mid-upgrade.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedAt": {
+          "description": "ObservedAt is when these figures were last sampled; the controller\nignores stats older than a few poll intervals as unknown.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pools": {
+          "description": "Pools carries one capacity entry per storage pool on this node.",
+          "items": {
+            "additionalProperties": false,
+            "description": "MiroirNodePoolStatus is one pool's capacity figures.\nOn a shared pool (e.g. ZFS shared with OpenEBS) the figures are\npool-level, so a co-tenant's growth correctly shrinks miroir's headroom.",
+            "properties": {
+              "allocatedBytes": {
+                "description": "AllocatedBytes is the pool capacity currently used (all tenants).",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "capacityBytes": {
+                "description": "CapacityBytes is the total size of this node-local pool.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "Message carries the last stats-sampling error for this pool, if\nany — a pool whose backend cannot be read stays visible instead of\nsilently dropping out of the list.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metaUsedPercent": {
+                "description": "MetaUsedPercent is the dm-thin metadata usage (lvmthin only; 0\notherwise), rounded — exhausting metadata wedges the pool\nindependently of data space.",
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name is the pool name from the node map.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
