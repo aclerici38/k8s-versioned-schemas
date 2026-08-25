@@ -73,6 +73,15 @@ spec:
                   description: Audit log retention in days
                   format: int32
                   type: integer
+                cimdUrlAllowlist:
+                  description: |-
+                    CIMDURLAllowlist restricts which https URLs may be used as OAuth Client ID Metadata
+                    Documents. Entries are callback-URL patterns (wildcards allowed). A non-empty list
+                    enables CIMD; leaving it empty keeps the feature off.
+                    The operator automatically sets UI_CONFIG_DISABLED=true when this field is set.
+                  items:
+                    type: string
+                  type: array
                 containerSecurityContext:
                   description: Container security context
                   properties:
@@ -427,7 +436,7 @@ spec:
                 encryptionKey:
                   description: |-
                     Encryption Key
-                    Required since Pocket-ID v2 when deploying an instance; omit for external instances.
+                    Required when deploying an instance; omit for external instances.
                     See the official documentation for ENCRYPTION_KEY environment variable
                   properties:
                     value:
@@ -1024,8 +1033,9 @@ spec:
                     Defaults to true
                   type: boolean
                 image:
-                  default: ghcr.io/pocket-id/pocket-id:v2.12.0-distroless@sha256:b2fad8a82fab26fe4c11797dd13ea55aa6c7d6ea93fe829a139f2e28be2d339d
-                  description: Container image to run. Defaults to the latest distroless version at time of operator release
+                  description: |-
+                    Container image to run. When empty the operator supplies the latest distroless
+                    version tested against this release.
                   type: string
                 internalAppUrl:
                   description: Internal base URL for OIDC .well-known endpoints (for split-horizon DNS)
@@ -1396,6 +1406,12 @@ spec:
                         - warn
                         - error
                       type: string
+                    queryArgs:
+                      default: false
+                      description: |-
+                        Include SQL query parameter values in traces and in the query logs emitted
+                        at the debug level. These values may contain sensitive data.
+                      type: boolean
                   type: object
                 metrics:
                   description: |-
@@ -2458,7 +2474,9 @@ spec:
                 serviceTemplate:
                   description: |-
                     ServiceTemplate is merged with the operator-built Service spec.
-                    Operator-managed fields (the selector and the http/metrics ports) always take precedence.
+                    Operator-managed fields (the selector and the number, protocol and appProtocol of
+                    the http/metrics ports) always take precedence. A nodePort set on those ports is
+                    honoured, as are extra ports and every other field.
                   x-kubernetes-preserve-unknown-fields: true
                 smtp:
                   description: |-
@@ -2628,6 +2646,31 @@ spec:
                     Timezone for the Pocket-ID instance (e.g. "America/New_York")
                     Sets the TZ environment variable
                   type: string
+                tls:
+                  description: TLS terminates HTTPS in the Pocket-ID pod from a mounted certificate Secret.
+                  properties:
+                    secretRef:
+                      description: |-
+                        SecretRef names a kubernetes.io/tls Secret in the instance's namespace holding
+                        tls.crt and tls.key.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                  required:
+                    - secretRef
+                  type: object
+                  x-kubernetes-validations:
+                    - message: tls.secretRef.name is required
+                      rule: size(self.secretRef.name) > 0
                 tracing:
                   description: |-
                     OpenTelemetry tracing configuration
@@ -2717,6 +2760,32 @@ spec:
                   default: false
                   description: Disable GitHub version checks
                   type: boolean
+                webauthn:
+                  description: |-
+                    Passkey restrictions
+                    The operator automatically sets UI_CONFIG_DISABLED=true when this section is configured
+                  properties:
+                    allowSyncedPasskeys:
+                      description: |-
+                        Accept passkeys that are backup-eligible, i.e. synced to a cloud account
+                        such as iCloud Keychain or Google Password Manager
+                      type: boolean
+                    authenticatorAttachment:
+                      description: |-
+                        Authenticator type accepted at registration: platform (device-bound),
+                        cross-platform (roaming security key), or any
+                      enum:
+                        - any
+                        - platform
+                        - cross-platform
+                      type: string
+                    userVerification:
+                      description: Whether the authenticator must verify the user (PIN, biometric) during login
+                      enum:
+                        - required
+                        - preferred
+                      type: string
+                  type: object
               type: object
               x-kubernetes-validations:
                 - message: deploymentType is immutable

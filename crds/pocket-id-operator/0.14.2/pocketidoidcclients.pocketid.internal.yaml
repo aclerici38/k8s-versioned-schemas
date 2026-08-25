@@ -41,6 +41,13 @@ spec:
             spec:
               description: spec defines the desired state of PocketIDOIDCClient
               properties:
+                accessTokenDurationMinutes:
+                  default: 60
+                  description: How long access tokens issued to this client stay valid, in minutes
+                  format: int64
+                  maximum: 525600
+                  minimum: 1
+                  type: integer
                 allowedUserGroups:
                   description: |-
                     AllowedUserGroups restricts access to the listed user groups. Each entry names
@@ -98,6 +105,8 @@ spec:
                       OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.
                       Permissions are referenced by their key; the controller resolves them to Pocket-ID
                       permission IDs via the PocketIDAPI status.
+                      The access flags exist to grant a flow that selects no permissions, so setting one to false
+                      alongside a permission list is rejected rather than silently ignoring the list.
                     properties:
                       apiRef:
                         description: APIRef references the PocketIDAPI granting access.
@@ -113,6 +122,11 @@ spec:
                         required:
                           - name
                         type: object
+                      clientAccess:
+                        description: |-
+                          ClientAccess grants the client-credentials flow even with no permissions selected.
+                          Defaults to true when clientPermissions is non-empty, and requires a confidential client.
+                        type: boolean
                       clientPermissions:
                         description: |-
                           ClientPermissions are permission keys granted for the client-credentials
@@ -120,6 +134,12 @@ spec:
                         items:
                           type: string
                         type: array
+                      delegatedAccess:
+                        description: |-
+                          DelegatedAccess grants the user-delegated flow even with no permissions selected,
+                          e.g. a client requesting a resource that doesn't need any scopes.
+                          Defaults to true when delegatedPermissions is non-empty.
+                        type: boolean
                       delegatedPermissions:
                         description: |-
                           DelegatedPermissions are permission keys granted for the user-delegated
@@ -130,6 +150,11 @@ spec:
                     required:
                       - apiRef
                     type: object
+                    x-kubernetes-validations:
+                      - message: 'delegatedAccess: false conflicts with delegatedPermissions; drop the permissions to revoke the flow, or remove the flag to grant them'
+                        rule: '!has(self.delegatedAccess) || self.delegatedAccess || !has(self.delegatedPermissions) || size(self.delegatedPermissions) == 0'
+                      - message: 'clientAccess: false conflicts with clientPermissions; drop the permissions to revoke the flow, or remove the flag to grant them'
+                        rule: '!has(self.clientAccess) || self.clientAccess || !has(self.clientPermissions) || size(self.clientPermissions) == 0'
                   type: array
                 callbackUrls:
                   description: Callback URLs for the client
@@ -138,18 +163,32 @@ spec:
                   type: array
                 clientID:
                   description: |-
-                    ClientID is the optional OIDC client ID to use instead of a generated one
-                    The Client ID is immutable and cannot be changed once the oidc client is created
-                  maxLength: 128
+                    ClientID is the optional OIDC client ID to use instead of a generated one.
+                    The Client ID is immutable and cannot be changed once the oidc client is created.
+                    An https:// URL marks the client as an OAuth Client ID Metadata Document (CIMD)
+                    client, which the operator adopts but never creates and only partially manages.
+                  maxLength: 512
                   minLength: 2
                   type: string
+                clientSecretOverlap:
+                  description: |-
+                    ClientSecretOverlap is how long the client-secret a replacement supersedes stays valid in
+                    Pocket-ID, giving consumers that cached it time to pick up the new one. It covers every
+                    replacement: scheduled rotations, the regenerate-client-secret annotation, and clientSecretRef updates.
+
+                    When unset or zero the previous secret is deleted as soon as the replacement is stored,
+                    so exactly one secret is ever valid. Must not exceed 168h, nor clientSecretRotation.interval if set.
+                  type: string
+                  x-kubernetes-validations:
+                    - message: clientSecretOverlap must not exceed 168h (7 days)
+                      rule: duration(self) <= duration('168h')
                 clientSecretRef:
                   description: |-
                     ClientSecretRef references a Kubernetes Secret key holding the client secret to set in
                     Pocket-ID, instead of letting the operator generate one. The value must be at least 16
                     printable ASCII characters. While set, the operator never generates or rotates the secret:
                     clientSecretRotation cannot be enabled and the regenerate-client-secret annotation is
-                    ignored. Requires Pocket-ID v2.12.0 or newer.
+                    ignored.
                   properties:
                     key:
                       description: The key of the secret to select from.  Must be a valid secret key.
@@ -348,6 +387,13 @@ spec:
                   default: false
                   description: Enables PKCE for the client
                   type: boolean
+                refreshTokenDurationMinutes:
+                  default: 43200
+                  description: How long refresh tokens issued to this client stay valid, in minutes
+                  format: int64
+                  maximum: 525600
+                  minimum: 1
+                  type: integer
                 requiresPushedAuthorizationRequests:
                   default: false
                   description: Requires the client to use pushed authorization requests (PAR)
@@ -511,12 +557,24 @@ spec:
                   rule: has(self.clientID) == has(oldSelf.clientID) && (!has(self.clientID) || self.clientID == oldSelf.clientID)
                 - message: clientSecretRotation cannot be enabled when secret.storeClientSecret is false
                   rule: '!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled || !has(self.secret) || !has(self.secret.storeClientSecret) || self.secret.storeClientSecret'
-                - message: clientPermissions require a confidential client (isPublic must be false)
-                  rule: '!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, !has(a.clientPermissions) || size(a.clientPermissions) == 0)'
+                - message: clientPermissions and clientAccess require a confidential client (isPublic must be false)
+                  rule: '!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) && (!has(a.clientAccess) || !a.clientAccess))'
                 - message: clientSecretRef requires a confidential client (isPublic must be false)
                   rule: '!has(self.clientSecretRef) || !self.isPublic'
                 - message: clientSecretRotation cannot be enabled when clientSecretRef is set
                   rule: '!has(self.clientSecretRef) || !has(self.clientSecretRotation) || !self.clientSecretRotation.enabled'
+                - message: clientID must be at most 128 characters unless it is a client ID metadata document URL
+                  rule: '!has(self.clientID) || self.clientID.startsWith(''https://'') || self.clientID.size() <= 128'
+                - message: name, callbackUrls, logoutCallbackUrls, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client
+                  rule: '!(has(self.clientID) && self.clientID.startsWith(''https://'')) || (!has(self.name) && !has(self.callbackUrls) && !has(self.logoutCallbackUrls) && !has(self.federatedIdentities) && !self.isPublic && !self.pkceEnabled)'
+                - message: a CIMD client is always public and has no client secret, so clientSecretRef and clientSecretRotation are not supported
+                  rule: '!(has(self.clientID) && self.clientID.startsWith(''https://'')) || (!has(self.clientSecretRef) && (!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled))'
+                - message: clientPermissions and clientAccess require a confidential client, and a CIMD client is always public
+                  rule: '!(has(self.clientID) && self.clientID.startsWith(''https://'')) || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) && (!has(a.clientAccess) || !a.clientAccess))'
+                - message: clientSecretOverlap must not exceed clientSecretRotation.interval
+                  rule: '!has(self.clientSecretOverlap) || !has(self.clientSecretRotation) || !has(self.clientSecretRotation.interval) || duration(self.clientSecretOverlap) <= duration(self.clientSecretRotation.interval)'
+                - message: clientSecretOverlap requires a confidential client (isPublic must be false)
+                  rule: '!has(self.clientSecretOverlap) || !self.isPublic'
             status:
               description: status defines the observed state of PocketIDOIDCClient
               properties:
@@ -530,6 +588,15 @@ spec:
                   items:
                     type: string
                   type: array
+                cimdGrantedAPIs:
+                  description: |-
+                    CIMDGrantedAPIs are the API resources this client can reach because the API grants
+                    every Client ID Metadata Document client access, rather than because of spec.apiAccess.
+                    Removing an apiAccess entry does not revoke access listed here; that is turned off on
+                    the PocketIDAPI. Only ever set for a cimd client.
+                  items:
+                    type: string
+                  type: array
                 clientID:
                   description: ClientID is the ID assigned by Pocket-ID
                   type: string
@@ -538,6 +605,12 @@ spec:
                     ClientSecretSourceVersion identifies the spec.clientSecretRef source last pushed to
                     Pocket-ID. Pocket-ID stores the secret hashed and never returns it, so this is how the
                     operator detects that the referenced Secret changed and needs pushing again.
+                  type: string
+                clientType:
+                  description: |-
+                    ClientType is how the client was registered in Pocket-ID: "standard" or "cimd".
+                    For a "cimd" client the operator manages only the fields Pocket-ID persists on an
+                    admin update; the rest are owned by its OAuth Client ID Metadata Document.
                   type: string
                 conditions:
                   description: Conditions represent the current state of the PocketIDOIDCClient resource.
@@ -628,7 +701,11 @@ spec:
                   description: |-
                     ManagedAPIPermissionIDs are the Pocket-ID API permission IDs the operator last
                     pushed as this client's API access (both delegated and client-credentials).
-                    Used to detect when spec.apiAccess is emptied so the access can be cleared.
+                  items:
+                    type: string
+                  type: array
+                managedAPIs:
+                  description: ManagedAPIs are the Pocket-ID API IDs the operator last granted this client.
                   items:
                     type: string
                   type: array
