@@ -1,0 +1,382 @@
+{
+  "description": "Trigger is the duty roster: when an agent wakes, and with what context.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "TriggerSpec binds an event source to an agent behind deterministic gates.",
+      "properties": {
+        "agentRef": {
+          "additionalProperties": false,
+          "description": "AgentRef names the Agent woken by this trigger.",
+          "properties": {
+            "name": {
+              "description": "Name of the referenced object.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "allowSelfEvents": {
+          "description": "AllowSelfEvents lets this trigger react to events about Dispatch's own\nsession workloads. Off by default: a failing session Job raises a\nKubeJobFailed alert, and reacting to it creates another session that\nfails the same way (design §5 loop protection).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "budgetPolicy": {
+          "default": "deferIfExhausted",
+          "description": "BudgetPolicy says what to do when budgets or windows are exhausted.",
+          "enum": [
+            "deferIfExhausted",
+            "degradeModel",
+            "drop"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "debounce": {
+          "description": "Debounce delays dispatch to coalesce bursts.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dedupe": {
+          "additionalProperties": false,
+          "description": "Dedupe suppresses repeats within a cooldown.",
+          "properties": {
+            "cooldown": {
+              "description": "Cooldown is how long a fingerprint stays suppressed after firing.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "key": {
+              "description": "Key is a CEL expression over the normalized event yielding the dedupe\nfingerprint.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "priority": {
+          "default": "normal",
+          "description": "Priority orders this trigger's sessions in the queue.",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session": {
+          "additionalProperties": false,
+          "description": "Session shapes the created session.",
+          "properties": {
+            "prompt": {
+              "description": "Prompt is the task template; event payload fields are rendered into it\nfenced as untrusted data (design §9).",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "prompt"
+          ],
+          "type": "object"
+        },
+        "source": {
+          "additionalProperties": false,
+          "description": "Source selects the event source.",
+          "properties": {
+            "a2aMessage": {
+              "description": "A2AMessageSource fires on A2A messages addressed to the agent, e.g. tasks\nsent from t3.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "alertmanager": {
+              "description": "AlertmanagerSource receives Alertmanager webhook notifications.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "kubernetesEvent": {
+              "description": "KubernetesEventSource matches cluster Events watched by the gateway.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "schedule": {
+              "additionalProperties": false,
+              "description": "ScheduleSource fires on a cron schedule.",
+              "properties": {
+                "cron": {
+                  "description": "Cron is a standard five-field cron expression.",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "timezone": {
+                  "description": "Timezone is an IANA timezone name; UTC when empty.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "cron"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "webhook": {
+              "additionalProperties": false,
+              "description": "WebhookSource receives generic HMAC-verified webhooks, e.g. from GitHub.",
+              "properties": {
+                "hmacSecretRef": {
+                  "additionalProperties": false,
+                  "description": "HMACSecretRef names the Secret holding the shared HMAC key used to\nverify deliveries.",
+                  "properties": {
+                    "name": {
+                      "description": "Name of the referenced object.",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "path": {
+                  "description": "Path is the gateway HTTP path this webhook is served on.",
+                  "pattern": "^/",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "triage": {
+          "additionalProperties": false,
+          "description": "Triage optionally gates dispatch behind a cheap model call.",
+          "properties": {
+            "dailyBudgetUSD": {
+              "description": "DailyBudgetUSD caps triage spend per day for this trigger.",
+              "oneOf": [
+                {
+                  "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "enabled": {
+              "description": "Enabled turns triage on for this trigger.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "onBudgetExhausted": {
+              "description": "OnBudgetExhausted picks the deterministic fallback once the triage\nbudget is spent: allow dispatches without triage, deny suppresses.",
+              "enum": [
+                "allow",
+                "deny"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "question": {
+              "description": "Question is the classification question the triage model answers.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "when": {
+          "description": "When is a CEL expression over the normalized CloudEvent; the event is\ndropped unless it evaluates true. Zero tokens are spent here.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "agentRef",
+        "session",
+        "source"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "TriggerStatus is the observed state of a Trigger.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions describe the trigger's health.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "firedTotal": {
+          "description": "FiredTotal counts sessions this trigger created.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "lastFiredAt": {
+          "description": "LastFiredAt is when this trigger last created a session.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suppressedTotal": {
+          "description": "SuppressedTotal counts events vetoed by gates after matching.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}

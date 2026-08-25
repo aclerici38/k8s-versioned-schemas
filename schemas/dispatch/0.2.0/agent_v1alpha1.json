@@ -1,0 +1,380 @@
+{
+  "description": "Agent is a member of the Dispatch fleet: identity, defaults, and limits.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "AgentSpec defines who runs: model, credentials, workspace, and limits.",
+      "properties": {
+        "a2a": {
+          "additionalProperties": false,
+          "description": "A2A controls exposure on the A2A edge.",
+          "properties": {
+            "expose": {
+              "description": "Expose publishes an Agent Card at /.well-known/agent-card.json for this\nagent and accepts A2A messages for it.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "skills": {
+              "description": "Skills advertised on the card.",
+              "items": {
+                "additionalProperties": false,
+                "description": "A2ASkill is one advertised capability on the agent's A2A card.",
+                "properties": {
+                  "description": {
+                    "description": "Description is the human-readable skill summary.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "id": {
+                    "description": "ID is the skill identifier on the card.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "budgets": {
+          "additionalProperties": false,
+          "description": "Budgets are the agent's spend and concurrency guardrails.",
+          "properties": {
+            "daily": {
+              "additionalProperties": false,
+              "description": "Daily bounds the agent's spend per day.",
+              "properties": {
+                "maxCostUSD": {
+                  "description": "MaxCostUSD caps the day's estimated API-equivalent cost.",
+                  "oneOf": [
+                    {
+                      "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "x-kubernetes-int-or-string": true
+                },
+                "maxSessions": {
+                  "description": "MaxSessions caps sessions started per day.",
+                  "format": "int32",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "maxConcurrentSessions": {
+              "description": "MaxConcurrentSessions caps simultaneously running sessions for this\nagent; zero means unlimited.",
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "perSession": {
+              "additionalProperties": false,
+              "description": "PerSession bounds each individual session.",
+              "properties": {
+                "maxTurns": {
+                  "description": "MaxTurns caps agent turns within one session.",
+                  "format": "int32",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "timeout": {
+                  "description": "Timeout is the wall-clock bound for one session; the shim ends the\nsession cleanly before the Job deadline would kill it.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "subscriptionWindowReserve": {
+              "description": "SubscriptionWindowReserve is the fraction (0–1) of the provider's\ncurrent usage window kept free for interactive use; the scheduler\ndefers sessions that would eat into it.",
+              "oneOf": [
+                {
+                  "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Description is a human-readable summary of the agent's charter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "git": {
+          "additionalProperties": false,
+          "description": "Git is the agent's git identity and push policy.",
+          "properties": {
+            "author": {
+              "description": "Author is the commit author identity, \"Name \u003cemail\u003e\".",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pushBranches": {
+              "description": "PushBranches are glob patterns of branches the agent may push to;\neverything else is denied by the runner shim.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "models": {
+          "additionalProperties": false,
+          "description": "Models fixes the session and triage models.",
+          "properties": {
+            "session": {
+              "description": "Session is the model for dispatched sessions, e.g. claude-fable-5.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "triage": {
+              "description": "Triage is the cheap, API-billed model used when a Trigger enables\ntriage, e.g. claude-haiku-4-5.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "session"
+          ],
+          "type": "object"
+        },
+        "runner": {
+          "additionalProperties": false,
+          "description": "Runner selects image, CLI flavor, and credentials.",
+          "properties": {
+            "cli": {
+              "default": "claude",
+              "description": "CLI names the agent CLI flavor inside the image.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "credentialsRef": {
+              "additionalProperties": false,
+              "description": "CredentialsRef names the Secret with provider credentials. Its keys are\ninjected into runner pods as environment variables (e.g.\nCLAUDE_CODE_OAUTH_TOKEN for subscription auth) and the Secret is also\nmounted read-only at /credentials for file-shaped credentials\n(ADR-0003).",
+              "properties": {
+                "name": {
+                  "description": "Name of the referenced object.",
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "image": {
+              "description": "Image is the runner OCI image: the curated toolbelt plus a pinned agent\nCLI and the dispatch-run shim as entrypoint.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "credentialsRef",
+            "image"
+          ],
+          "type": "object"
+        },
+        "serviceAccountName": {
+          "description": "ServiceAccountName is the ServiceAccount runner pods use; grants should\nbe least-privilege and read-only toward the cluster by default.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workspaceRef": {
+          "additionalProperties": false,
+          "description": "WorkspaceRef names the Workspace this agent operates in.",
+          "properties": {
+            "name": {
+              "description": "Name of the referenced object.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "models",
+        "runner",
+        "workspaceRef"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "AgentStatus is the observed state of an Agent.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions describe the agent's readiness.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the last spec generation the operator acted on.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
