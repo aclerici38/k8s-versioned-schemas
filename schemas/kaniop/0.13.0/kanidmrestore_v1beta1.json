@@ -1,0 +1,339 @@
+{
+  "description": "Auto-generated derived type for KanidmRestoreSpec via `CustomResource`",
+  "properties": {
+    "spec": {
+      "additionalProperties": false,
+      "properties": {
+        "restoreImage": {
+          "type": "string"
+        },
+        "safetyBackup": {
+          "additionalProperties": false,
+          "nullable": true,
+          "properties": {
+            "repositoryRef": {
+              "additionalProperties": false,
+              "description": "Reference to the KanidmBackupRepository used for the pre-restore safety backup.",
+              "nullable": true,
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "skip": {
+              "default": false,
+              "description": "Skip the mandatory safety backup. Requires break-glass annotations.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "additionalProperties": false,
+          "properties": {
+            "backupRef": {
+              "additionalProperties": false,
+              "description": "Remote cataloged backup reference. Mutually exclusive with `local`.",
+              "nullable": true,
+              "properties": {
+                "name": {
+                  "description": "Name of a KanidmBackup resource in the same namespace representing a committed remote backup.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "local": {
+              "additionalProperties": false,
+              "description": "Local file source. Mutually exclusive with `backupRef`.",
+              "nullable": true,
+              "properties": {
+                "fileName": {
+                  "description": "Basename of a backup below /data/backups. Paths and traversal are rejected.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fileName"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object",
+          "x-kubernetes-validations": [
+            {
+              "message": "exactly one of local or backupRef must be set",
+              "rule": "(has(self.local) ? 1 : 0) + (has(self.backupRef) ? 1 : 0) == 1"
+            }
+          ]
+        },
+        "targetRef": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "uid": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "uid"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "restoreImage",
+        "source",
+        "targetRef"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "KanidmRestore spec is immutable",
+          "rule": "self == oldSelf"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "nullable": true,
+      "properties": {
+        "certificatesCleared": {
+          "default": false,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "conditions": {
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "databaseMutationStarted": {
+          "default": false,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "message": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "observedTargetUid": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "originalReplicas": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "replicas": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "group",
+              "replicas"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "phase": {
+          "default": "Pending",
+          "enum": [
+            "Pending",
+            "Validating",
+            "Quiescing",
+            "SafetyBackup",
+            "PreparingSource",
+            "RestoringPrimary",
+            "Verifying",
+            "RebuildingReplicas",
+            "Resuming",
+            "Completed",
+            "Failed"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phaseTimestamps": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "replicasCleared": {
+          "default": false,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "restoreJobName": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "safetyBackupExpectedBackupId": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "safetyBackupJobName": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "safetyBackupManifestKey": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "safetyBackupPayloadSha256": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "safetyBackupRef": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePrepJobName": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verifyJobName": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "title": "KanidmRestore",
+  "type": "object"
+}
