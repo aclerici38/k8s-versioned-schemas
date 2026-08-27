@@ -1,0 +1,353 @@
+{
+  "description": "MCPTelemetryConfig is the deprecated v1alpha1 version of the MCPTelemetryConfig resource.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "MCPTelemetryConfigSpec defines the desired state of MCPTelemetryConfig.\nThe spec uses a nested structure with openTelemetry and prometheus sub-objects\nfor clear separation of concerns.",
+      "properties": {
+        "openTelemetry": {
+          "additionalProperties": false,
+          "description": "OpenTelemetry defines OpenTelemetry configuration (OTLP endpoint, tracing, metrics)",
+          "properties": {
+            "caBundleRef": {
+              "additionalProperties": false,
+              "description": "CABundleRef references a ConfigMap containing a CA certificate bundle for the OTLP endpoint.\nWhen specified, the operator mounts the ConfigMap into the proxyrunner pod and configures\nthe OTLP exporters to trust the custom CA. This is useful when the OTLP collector uses\nTLS with certificates signed by an internal or private CA.",
+              "properties": {
+                "configMapRef": {
+                  "additionalProperties": false,
+                  "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nThe ConfigMap key is required by the API. If omitted in a stored object, it\ndefaults to \"ca.crt\" for backwards compatibility.",
+                  "properties": {
+                    "key": {
+                      "description": "The key to select.",
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "optional": {
+                      "description": "Specify whether the ConfigMap or its key must be defined",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "enabled": {
+              "default": false,
+              "description": "Enabled controls whether OpenTelemetry is enabled",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "endpoint": {
+              "description": "Endpoint is the OTLP endpoint URL for tracing and metrics",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "headers": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Headers contains authentication headers for the OTLP endpoint.\nFor secret-backed credentials, use sensitiveHeaders instead.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "insecure": {
+              "default": false,
+              "description": "Insecure indicates whether to use HTTP instead of HTTPS for the OTLP endpoint",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "metrics": {
+              "additionalProperties": false,
+              "description": "Metrics defines OpenTelemetry metrics-specific configuration",
+              "properties": {
+                "enabled": {
+                  "default": false,
+                  "description": "Enabled controls whether OTLP metrics are sent",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "resourceAttributes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "ResourceAttributes contains custom resource attributes to be added to all telemetry signals.\nThese become OTel resource attributes (e.g., deployment.environment, service.namespace).\nNote: service.name is intentionally excluded — it is set per-server via\nMCPTelemetryConfigReference.ServiceName.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "sensitiveHeaders": {
+              "description": "SensitiveHeaders contains headers whose values are stored in Kubernetes Secrets.\nUse this for credential headers (e.g., API keys, bearer tokens) instead of\nembedding secrets in the headers field.",
+              "items": {
+                "additionalProperties": false,
+                "description": "SensitiveHeader represents a header whose value is stored in a Kubernetes Secret.\nThis allows credential headers (e.g., API keys, bearer tokens) to be securely\nreferenced without embedding secrets inline in the MCPTelemetryConfig resource.",
+                "properties": {
+                  "name": {
+                    "description": "Name is the header name (e.g., \"Authorization\", \"X-API-Key\")",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "secretKeyRef": {
+                    "additionalProperties": false,
+                    "description": "SecretKeyRef is a reference to a Kubernetes Secret key containing the header value",
+                    "properties": {
+                      "key": {
+                        "description": "Key is the key within the secret",
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "Name is the name of the secret",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "name"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "name",
+                  "secretKeyRef"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "name"
+              ],
+              "x-kubernetes-list-type": "map"
+            },
+            "tracing": {
+              "additionalProperties": false,
+              "description": "Tracing defines OpenTelemetry tracing configuration",
+              "properties": {
+                "enabled": {
+                  "default": false,
+                  "description": "Enabled controls whether OTLP tracing is sent",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "samplingRate": {
+                  "default": "0.05",
+                  "description": "SamplingRate is the trace sampling rate (0.0-1.0)",
+                  "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "useLegacyAttributes": {
+              "default": true,
+              "description": "UseLegacyAttributes controls whether legacy attribute names are emitted alongside\nthe new MCP OTEL semantic convention names. Defaults to true for backward compatibility.\nThis will change to false in a future release and eventually be removed.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "a header name cannot appear in both headers and sensitiveHeaders",
+              "rule": "!has(self.headers) || !has(self.sensitiveHeaders) || self.sensitiveHeaders.all(sh, !(sh.name in self.headers))"
+            }
+          ]
+        },
+        "prometheus": {
+          "additionalProperties": false,
+          "description": "Prometheus defines Prometheus-specific configuration",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "description": "Enabled controls whether Prometheus metrics endpoint is exposed",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "metricsOnTransportPort": {
+              "description": "MetricsOnTransportPort controls whether /metrics is ALSO served on the main\ntransport port, in addition to the dedicated diagnostics port. It exists to\ngive deployments a migration window: while true, an existing scrape\nconfiguration aimed at the transport port keeps working, so a scraper can be\nmoved to the diagnostics port and verified before the old location goes away.\n\nLeave unset to follow the current default, which is true during the migration\nwindow and becomes false when it closes. Setting it explicitly opts out of\nthat change: an explicit value is honoured before and after the cutover.\n\nSee https://github.com/stacklok/toolhive/issues/6384 for the removal timeline.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "MCPTelemetryConfigStatus defines the observed state of MCPTelemetryConfig",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the latest available observations of the MCPTelemetryConfig's state",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "configHash": {
+          "description": "ConfigHash is a hash of the current configuration for change detection",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the most recent generation observed for this MCPTelemetryConfig.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}

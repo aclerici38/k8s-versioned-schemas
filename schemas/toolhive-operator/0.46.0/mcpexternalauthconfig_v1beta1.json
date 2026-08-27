@@ -1,0 +1,2148 @@
+{
+  "description": "MCPExternalAuthConfig is the Schema for the mcpexternalauthconfigs API.\nMCPExternalAuthConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources within the same namespace. Cross-namespace references\nare not supported for security and isolation reasons.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "MCPExternalAuthConfigSpec defines the desired state of MCPExternalAuthConfig.\nMCPExternalAuthConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources in the same namespace.",
+      "properties": {
+        "awsSts": {
+          "additionalProperties": false,
+          "description": "AWSSts configures AWS STS authentication with SigV4 request signing\nOnly used when Type is \"awsSts\"",
+          "properties": {
+            "fallbackRoleArn": {
+              "description": "FallbackRoleArn is the IAM role ARN to assume when no role mappings match\nUsed as the default role when RoleMappings is empty or no mapping matches\nAt least one of FallbackRoleArn or RoleMappings must be configured (enforced by webhook)",
+              "pattern": "^arn:(aws|aws-cn|aws-us-gov):iam::\\d{12}:role/[\\w+=,.@\\-_/]+$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "region": {
+              "description": "Region is the AWS region for the STS endpoint and service (e.g., \"us-east-1\", \"eu-west-1\")",
+              "minLength": 1,
+              "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+              "type": "string"
+            },
+            "roleClaim": {
+              "default": "groups",
+              "description": "RoleClaim is the JWT claim to use for role mapping evaluation\nDefaults to \"groups\" to match common OIDC group claims",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "roleMappings": {
+              "description": "RoleMappings defines claim-based role selection rules\nAllows mapping JWT claims (e.g., groups, roles) to specific IAM roles\nLower priority values are evaluated first (higher priority)",
+              "items": {
+                "additionalProperties": false,
+                "description": "RoleMapping defines a rule for mapping JWT claims to IAM roles.\nMappings are evaluated in priority order (lower number = higher priority), and the first\nmatching rule determines which IAM role to assume.\nExactly one of Claim or Matcher must be specified.",
+                "properties": {
+                  "claim": {
+                    "description": "Claim is a simple claim value to match against\nThe claim type is specified by AWSStsConfig.RoleClaim\nFor example, if RoleClaim is \"groups\", this would be a group name\nInternally compiled to a CEL expression: \"\u003cclaim_value\u003e\" in claims[\"\u003crole_claim\u003e\"]\nMutually exclusive with Matcher",
+                    "minLength": 1,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "matcher": {
+                    "description": "Matcher is a CEL expression for complex matching against JWT claims\nThe expression has access to a \"claims\" variable containing all JWT claims as map[string]any\nExamples:\n  - \"admins\" in claims[\"groups\"]\n  - claims[\"sub\"] == \"user123\" \u0026\u0026 !(\"act\" in claims)\nMutually exclusive with Claim",
+                    "minLength": 1,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "priority": {
+                    "description": "Priority determines evaluation order (lower values = higher priority)\nAllows fine-grained control over role selection precedence\nWhen omitted, this mapping has the lowest possible priority and\nconfiguration order acts as tie-breaker via stable sort",
+                    "format": "int32",
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "roleArn": {
+                    "description": "RoleArn is the IAM role ARN to assume when this mapping matches",
+                    "pattern": "^arn:(aws|aws-cn|aws-us-gov):iam::\\d{12}:role/[\\w+=,.@\\-_/]+$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "roleArn"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "service": {
+              "default": "aws-mcp",
+              "description": "Service is the AWS service name for SigV4 signing\nDefaults to \"aws-mcp\" for AWS MCP Server endpoints",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sessionDuration": {
+              "default": 3600,
+              "description": "SessionDuration is the duration in seconds for the STS session\nMust be between 900 (15 minutes) and 43200 (12 hours)\nDefaults to 3600 (1 hour) if not specified",
+              "format": "int32",
+              "maximum": 43200,
+              "minimum": 900,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "sessionNameClaim": {
+              "default": "sub",
+              "description": "SessionNameClaim is the JWT claim to use for role session name\nDefaults to \"sub\" to use the subject claim",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "subjectProviderName": {
+              "description": "SubjectProviderName is the name of the upstream provider whose access token\nis used as the web identity token for STS AssumeRoleWithWebIdentity.\nThis field is used exclusively by VirtualMCPServer, where there is no\nupstream swap middleware to replace the bearer token before the strategy runs.\nWhen left empty and an embedded authorization server is configured on the\nVirtualMCPServer, the controller automatically populates this field with\nthe first configured upstream provider name. Set it explicitly to override\nthat default or to select a specific provider when multiple upstreams are\nconfigured.\nWhen no embedded auth server is present, the bearer token from the incoming\nrequest's Authorization header is used instead.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "region"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "bearerToken": {
+          "additionalProperties": false,
+          "description": "BearerToken configures bearer token authentication\nOnly used when Type is \"bearerToken\"",
+          "properties": {
+            "tokenSecretRef": {
+              "additionalProperties": false,
+              "description": "TokenSecretRef references a Kubernetes Secret containing the bearer token",
+              "properties": {
+                "key": {
+                  "description": "Key is the key within the secret",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name is the name of the secret",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "tokenSecretRef"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "embeddedAuthServer": {
+          "additionalProperties": false,
+          "description": "EmbeddedAuthServer configures an embedded OAuth2/OIDC authorization server\nOnly used when Type is \"embeddedAuthServer\"",
+          "properties": {
+            "allowConfidentialClientRegistration": {
+              "default": false,
+              "description": "AllowConfidentialClientRegistration permits RFC 7591 Dynamic Client\nRegistration of confidential clients: when true, /oauth/register\naccepts token_endpoint_auth_method values client_secret_basic and\nclient_secret_post in addition to \"none\" (still the default on\nomission) and mints a client_secret returned exactly once.\nConfidential registrations are restricted to https non-loopback\nredirect URIs, and on the Redis storage backend all DCR-issued\nregistrations are evicted after 30 days of inactivity and must\nre-register. This gates registration only: disabling it does not\nrevoke or reject already-minted secrets at the token endpoint.\n\nSecurity: registration is unauthenticated, so enabling this lets any\ncaller who can reach the endpoint obtain a client credential.\nCombining it with insecureAllowHTTP is rejected at validation.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allowPrivateKeyJWTRegistration": {
+              "default": false,
+              "description": "AllowPrivateKeyJWTRegistration permits Dynamic Client Registration of\nclients using private_key_jwt authentication. Registration behavior is\nintentionally configured separately from confidential-client registration.\n\nSecurity: registration is unauthenticated, so enabling this lets any\ncaller who can reach the endpoint register a private_key_jwt client.\nUnlike allowConfidentialClientRegistration, this is NOT rejected when\ncombined with insecureAllowHTTP: registration never returns a secret\nfor a private_key_jwt client, so there is nothing for cleartext HTTP\nto expose.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "authorizationEndpointBaseUrl": {
+              "description": "AuthorizationEndpointBaseURL overrides the base URL used for the authorization_endpoint\nin the OAuth discovery document. When set, the discovery document will advertise\n`{authorizationEndpointBaseUrl}/oauth/authorize` instead of `{issuer}/oauth/authorize`.\nAll other endpoints (token, registration, JWKS) remain derived from the issuer.\nThis is useful when the browser-facing authorization endpoint needs to be on a\ndifferent host than the issuer used for backend-to-backend calls.\nMust be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts\nwhen insecureAllowHTTP is true) without query, fragment, or trailing slash.",
+              "pattern": "^https?://[^\\s?#]+[^/\\s?#]$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "baselineClientScopes": {
+              "description": "BaselineClientScopes is a baseline set of OAuth 2.0 scopes guaranteed to be\nincluded in every client registration. The embedded auth server unions these\nscopes into the registered set returned by RFC 7591 Dynamic Client\nRegistration, so a client that narrows the `scope` field at /oauth/register\ncan still request the baseline scopes at /oauth/authorize. All values must\nbe present in the upstream-derived scopesSupported set; the auth server\nfails to start if any value is missing.\n\nSecurity: every client registered via /oauth/register will gain the\nability to request these scopes at /oauth/authorize, regardless of what\nthe client itself requested. Keep the baseline narrow (typically\n\"openid\" and \"offline_access\"). Adding a privileged scope here — e.g.\n\"admin:read\" — would grant it to every DCR-registered client, including\npublic clients like Claude Code, Cursor, and VS Code.\nWhen cimd.enabled is true, every dynamically resolved CIMD client will\nalso gain the ability to request these scopes, including third-party\nclients resolved from arbitrary HTTPS URLs.",
+              "items": {
+                "minLength": 1,
+                "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$",
+                "type": "string"
+              },
+              "maxItems": 10,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "cimd": {
+              "additionalProperties": false,
+              "description": "CIMD configures Client ID Metadata Document support. When omitted, CIMD is disabled.",
+              "properties": {
+                "cacheFallbackTtl": {
+                  "description": "CacheFallbackTTL is the fixed TTL applied to every cached CIMD document.\nCache-Control header parsing is not yet implemented; all entries use this value.\nFormat: Go duration string (e.g. \"5m\", \"10m\", \"1h\").\nDefaults to 5 minutes when Enabled is true and this field is omitted.",
+                  "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cacheMaxSize": {
+                  "description": "CacheMaxSize is the maximum number of CIMD documents held in the LRU cache.\nDefaults to 256 when Enabled is true and this field is omitted.",
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "enabled": {
+                  "default": false,
+                  "description": "Enabled activates CIMD client lookup. When false (the default), the AS only\naccepts client_id values that were registered via DCR.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "delegateClients": {
+              "description": "DelegateClients configures pre-provisioned confidential clients for RFC 8693\ntoken exchange. Each secret is referenced from a Kubernetes Secret; no\nplaintext secret, redirect URI, or grant selection is accepted here. The\noperator always supplies the token-exchange grant when it converts this\nconfiguration to the runtime contract.\n\nThis is independent of allowConfidentialClientRegistration: it neither\nenables nor requires unauthenticated confidential dynamic client\nregistration.",
+              "items": {
+                "additionalProperties": false,
+                "description": "DelegateClientConfig configures a pre-provisioned confidential OAuth client\nfor RFC 8693 token exchange. Its secret is referenced from a Kubernetes\nSecret and is never represented inline.",
+                "properties": {
+                  "audiences": {
+                    "description": "Audiences is the narrowed set of RFC 8707 resources this client may request.",
+                    "items": {
+                      "maxLength": 2048,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "minItems": 1,
+                    "type": "array",
+                    "x-kubernetes-list-type": "atomic"
+                  },
+                  "clientId": {
+                    "description": "ClientID is the OAuth client_id presented at the token endpoint.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "clientSecretRef": {
+                    "additionalProperties": false,
+                    "description": "ClientSecretRef references the Kubernetes Secret key containing the client secret.",
+                    "properties": {
+                      "key": {
+                        "description": "Key is the key within the secret",
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "Name is the name of the secret",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "scopes": {
+                    "description": "Scopes is the narrowed set of OAuth scopes this client may request.",
+                    "items": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "minItems": 1,
+                    "type": "array",
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                },
+                "required": [
+                  "audiences",
+                  "clientId",
+                  "clientSecretRef",
+                  "scopes"
+                ],
+                "type": "object",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "clientSecretRef.name and clientSecretRef.key are required and must be non-empty",
+                    "rule": "has(self.clientSecretRef) \u0026\u0026 size(self.clientSecretRef.name) \u003e 0 \u0026\u0026 size(self.clientSecretRef.key) \u003e 0"
+                  }
+                ]
+              },
+              "maxItems": 10,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "disableUpstreamTokenInjection": {
+              "default": false,
+              "description": "DisableUpstreamTokenInjection prevents the embedded auth server from injecting\nupstream IdP tokens into requests forwarded to the backend MCP server.\nWhen true, the embedded auth server still handles OAuth flows for clients,\nbut instead of swapping ToolHive JWTs for upstream tokens the proxy STRIPS\nthe client's credential headers (Authorization, Cookie, Proxy-Authorization)\nafter validating the JWT — the backend receives an unauthenticated request.\nUse headerForward to attach static credentials (e.g. an API key) if the\nbackend needs them. Cannot be combined with token exchange or AWS STS,\nwhich would re-add credentials after the strip.\nThis is useful when the backend MCP server does not require authentication\n(e.g., public documentation servers) but you still want client authentication.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "forceConfidentialRedirectUris": {
+              "description": "ForceConfidentialRedirectURIs lists redirect URIs that must be\nregistered as confidential clients regardless of the\ntoken_endpoint_auth_method the DCR request declares. A registration\nwhose redirectUris contains an EXACT match for one of these entries is\nissued a real client_secret and reported back as\ntoken_endpoint_auth_method \"client_secret_post\", even if the request\nsaid \"none\" or omitted the field.\n\nIntended for MCP clients that declare themselves public\n(token_endpoint_auth_method: \"none\") per RFC 7591 but then refuse to\nproceed because the response carries no client_secret — a\nself-contradictory request. RFC 7591 §3.2.1 permits the server to\nsubstitute client metadata, so this takes such a client at its word\nthat it wants a secret. Remove an entry once the client is fixed to\nhandle \"none\" registrations correctly.\n\nExact matching is deliberate: an attacker who registers with someone\nelse's callback URI is issued a secret for a client whose\nauthorization codes are delivered to that someone else's redirect\nendpoint, not to the attacker, so this is not a way to obtain a usable\ncredential for another client.\n\nRequires allowConfidentialClientRegistration to be true. Every entry\nmust be an https non-loopback URI — a loopback client is a public\nclient by construction (OAuth 2.1 §2.1) and must not be issued a\nsecret; this is enforced at reconcile time since CEL cannot express\nthe loopback-hostname check.",
+              "items": {
+                "pattern": "^https://[^\\s?#]+$",
+                "type": "string"
+              },
+              "maxItems": 10,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "hmacSecretRefs": {
+              "description": "HMACSecretRefs references Kubernetes Secrets containing symmetric secrets for signing\nauthorization codes and refresh tokens (opaque tokens).\nCurrent secret must be at least 32 bytes and cryptographically random.\nSupports secret rotation via multiple entries (first is current, rest are for verification).\nIf not specified, an ephemeral secret will be auto-generated (development only -\nauth codes and refresh tokens will be invalid after restart).",
+              "items": {
+                "additionalProperties": false,
+                "description": "SecretKeyRef is a reference to a key within a Secret",
+                "properties": {
+                  "key": {
+                    "description": "Key is the key within the secret",
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is the name of the secret",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "insecureAllowConfidentialOverLoopbackHTTP": {
+              "default": false,
+              "description": "InsecureAllowConfidentialOverLoopbackHTTP opts in to confidential\nDynamic Client Registration (DCR) and delegate clients when issuer is a\nplain-HTTP loopback URL (e.g. \"http://localhost:8080\"). Without this\nflag, that combination is rejected at reconcile time: a loopback http://\nissuer is normally fine for local development since the traffic never\nleaves the machine, but confidential clients send secrets over cleartext.\nForcing TLS onto every loopback deployment instead would just push\noperators toward insecureAllowHTTP, which is worse: that also disables\nthe non-loopback host check. Has no effect when there are no confidential\nclients or issuer is https.\n\nprivate_key_jwt registration has no equivalent flag or transport\nrestriction: unlike confidential registration, it never returns a\nclient_secret (or any other secret) in the DCR response, so there is\nnothing here for cleartext HTTP to expose.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "insecureAllowHTTP": {
+              "default": false,
+              "description": "InsecureAllowHTTP permits an http:// issuer URL for non-localhost hosts.\nOnly set this for in-cluster Kubernetes deployments where traffic between\npods traverses a trusted network (e.g. the in-cluster service mesh).\nProduction deployments reachable outside the cluster MUST use https://.\n\nOn VirtualMCPServer: when false (the default), http:// issuers for non-localhost\nhosts are rejected at reconcile time with an AuthServerConfigValidated=False condition.\n\nOn MCPServer and MCPRemoteProxy (via MCPExternalAuthConfig): this field is\nstructurally present but enforcement is deferred to pod startup via Config.Validate();\na misconfigured issuer will cause the pod to crash at startup rather than surface\nas an operator condition.\n\nOne combination is rejected at admission on all three CRDs regardless of the\nabove: setting this field alongside allowConfidentialClientRegistration, which\nwould issue client secrets in cleartext over an unauthenticated registration\nendpoint (see the XValidation rule on EmbeddedAuthServerConfig).",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "issuer": {
+              "description": "Issuer is the issuer identifier for this authorization server.\nThis will be included in the \"iss\" claim of issued tokens.\nMust be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts when\ninsecureAllowHTTP is true) without query, fragment, or trailing slash (per RFC 8414).",
+              "pattern": "^https?://[^\\s?#]+[^/\\s?#]$",
+              "type": "string"
+            },
+            "primaryUpstreamProvider": {
+              "description": "PrimaryUpstreamProvider names the upstream IDP whose access token Cedar\nshould read claims from when authorising a request. Must match the name\nof one of the entries in UpstreamProviders. When empty, the controller\nauto-selects the first entry of UpstreamProviders.\n\nOnly meaningful on VirtualMCPServer, where multiple upstream providers\ncan be configured and Cedar needs to pick which token's claims to\nevaluate. The VirtualMCPServer controller validates this field against\nUpstreamProviders at admission and rejects unresolvable values.\n\nOn MCPServer and MCPRemoteProxy this field is structurally present (the\nEmbeddedAuthServerConfig struct is shared) but has no runtime effect:\nthose CRDs are restricted to a single upstream so there is no choice to\nmake. Setting it on those CRDs is silently ignored.",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "signingKeySecretRefs": {
+              "description": "SigningKeySecretRefs references Kubernetes Secrets containing signing keys for JWT operations.\nSupports key rotation by allowing multiple keys (oldest keys are used for verification only).\nIf not specified, an ephemeral signing key will be auto-generated (development only -\nJWTs will be invalid after restart).",
+              "items": {
+                "additionalProperties": false,
+                "description": "SecretKeyRef is a reference to a key within a Secret",
+                "properties": {
+                  "key": {
+                    "description": "Key is the key within the secret",
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Name is the name of the secret",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "maxItems": 5,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "storage": {
+              "additionalProperties": false,
+              "description": "Storage configures the storage backend for the embedded auth server.\nIf not specified, defaults to in-memory storage.",
+              "properties": {
+                "redis": {
+                  "additionalProperties": false,
+                  "description": "Redis configures the Redis storage backend.\nRequired when type is \"redis\".",
+                  "properties": {
+                    "aclUserConfig": {
+                      "additionalProperties": false,
+                      "description": "ACLUserConfig configures Redis ACL user authentication.",
+                      "properties": {
+                        "passwordSecretRef": {
+                          "additionalProperties": false,
+                          "description": "PasswordSecretRef references a Secret containing the Redis ACL password.",
+                          "properties": {
+                            "key": {
+                              "description": "Key is the key within the secret",
+                              "type": "string"
+                            },
+                            "name": {
+                              "description": "Name is the name of the secret",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "name"
+                          ],
+                          "type": "object"
+                        },
+                        "usernameSecretRef": {
+                          "additionalProperties": false,
+                          "description": "UsernameSecretRef references a Secret containing the Redis ACL username.\nWhen omitted, connections use legacy password-only AUTH. Omit for managed\nRedis tiers that do not support ACL users (e.g. GCP Memorystore Basic/Standard\nHA, Azure Cache for Redis). Set for services that support ACL users (e.g. AWS\nElastiCache non-cluster with Redis 6+ RBAC).",
+                          "properties": {
+                            "key": {
+                              "description": "Key is the key within the secret",
+                              "type": "string"
+                            },
+                            "name": {
+                              "description": "Name is the name of the secret",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "name"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "passwordSecretRef"
+                      ],
+                      "type": "object"
+                    },
+                    "addr": {
+                      "description": "Addr is the Redis server address (host:port). Required for standalone and cluster modes.\nUse for managed Redis services that expose a single endpoint (GCP Memorystore basic tier,\nAWS ElastiCache without cluster mode, or cluster-mode services when clusterMode is true).\nMutually exclusive with sentinelConfig.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "clusterMode": {
+                      "description": "ClusterMode enables the Redis Cluster protocol. Set to true when addr points to a\nRedis Cluster discovery endpoint (e.g., GCP Memorystore Cluster, AWS ElastiCache\ncluster mode enabled). Requires addr to be set.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "dialTimeout": {
+                      "default": "5s",
+                      "description": "DialTimeout is the timeout for establishing connections.\nFormat: Go duration string (e.g., \"5s\", \"1m\").",
+                      "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "readTimeout": {
+                      "default": "3s",
+                      "description": "ReadTimeout is the timeout for socket reads.\nFormat: Go duration string (e.g., \"3s\", \"1m\").",
+                      "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sentinelConfig": {
+                      "additionalProperties": false,
+                      "description": "SentinelConfig holds Redis Sentinel configuration.\nUse for self-managed Redis with Sentinel-based HA. Mutually exclusive with addr.",
+                      "properties": {
+                        "db": {
+                          "default": 0,
+                          "description": "DB is the Redis database number.",
+                          "format": "int32",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "masterName": {
+                          "description": "MasterName is the name of the Redis master monitored by Sentinel.",
+                          "type": "string"
+                        },
+                        "sentinelAddrs": {
+                          "description": "SentinelAddrs is a list of Sentinel host:port addresses.\nMutually exclusive with SentinelService.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "x-kubernetes-list-type": "atomic"
+                        },
+                        "sentinelService": {
+                          "additionalProperties": false,
+                          "description": "SentinelService enables automatic discovery from a Kubernetes Service.\nMutually exclusive with SentinelAddrs.",
+                          "properties": {
+                            "name": {
+                              "description": "Name of the Sentinel Service.",
+                              "type": "string"
+                            },
+                            "namespace": {
+                              "description": "Namespace of the Sentinel Service (defaults to same namespace).",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "port": {
+                              "default": 26379,
+                              "description": "Port of the Sentinel service.",
+                              "format": "int32",
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "masterName"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "sentinelTls": {
+                      "additionalProperties": false,
+                      "description": "SentinelTLS configures TLS for connections to Sentinel instances.\nOnly applies when sentinelConfig is set. Presence of this field enables TLS.",
+                      "properties": {
+                        "caCertSecretRef": {
+                          "additionalProperties": false,
+                          "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.",
+                          "properties": {
+                            "key": {
+                              "description": "Key is the key within the secret",
+                              "type": "string"
+                            },
+                            "name": {
+                              "description": "Name is the name of the secret",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "name"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "insecureSkipVerify": {
+                          "description": "InsecureSkipVerify skips TLS certificate verification.\nUse when connecting to services with self-signed certificates.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "tls": {
+                      "additionalProperties": false,
+                      "description": "TLS configures TLS for connections to the Redis/Valkey master or cluster nodes.\nPresence of this field enables TLS. Omit to use plaintext.",
+                      "properties": {
+                        "caCertSecretRef": {
+                          "additionalProperties": false,
+                          "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.",
+                          "properties": {
+                            "key": {
+                              "description": "Key is the key within the secret",
+                              "type": "string"
+                            },
+                            "name": {
+                              "description": "Name is the name of the secret",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "name"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "insecureSkipVerify": {
+                          "description": "InsecureSkipVerify skips TLS certificate verification.\nUse when connecting to services with self-signed certificates.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "writeTimeout": {
+                      "default": "3s",
+                      "description": "WriteTimeout is the timeout for socket writes.\nFormat: Go duration string (e.g., \"3s\", \"1m\").",
+                      "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "aclUserConfig"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "exactly one of addr or sentinelConfig must be set",
+                      "rule": "(has(self.addr) \u0026\u0026 self.addr.size() \u003e 0) != has(self.sentinelConfig)"
+                    },
+                    {
+                      "message": "clusterMode requires addr to be set",
+                      "rule": "!(has(self.clusterMode) \u0026\u0026 self.clusterMode) || (has(self.addr) \u0026\u0026 self.addr.size() \u003e 0)"
+                    }
+                  ]
+                },
+                "type": {
+                  "default": "memory",
+                  "description": "Type specifies the storage backend type.\nValid values: \"memory\" (default), \"redis\".",
+                  "enum": [
+                    "memory",
+                    "redis"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "tokenLifespans": {
+              "additionalProperties": false,
+              "description": "TokenLifespans configures the duration that various tokens are valid.\nIf not specified, defaults are applied (access: 1h, refresh: 7d, authCode: 10m).",
+              "properties": {
+                "accessTokenLifespan": {
+                  "description": "AccessTokenLifespan is the duration that access tokens are valid.\nFormat: Go duration string (e.g., \"1h\", \"30m\", \"24h\").\nIf empty, defaults to 1 hour.",
+                  "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "authCodeLifespan": {
+                  "description": "AuthCodeLifespan is the duration that authorization codes are valid.\nFormat: Go duration string (e.g., \"10m\", \"5m\").\nIf empty, defaults to 10 minutes.",
+                  "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "refreshTokenLifespan": {
+                  "description": "RefreshTokenLifespan is the duration that refresh tokens are valid.\nFormat: Go duration string (e.g., \"168h\", \"7d\" as \"168h\").\nIf empty, defaults to 7 days (168h).",
+                  "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "trustedIssuers": {
+              "description": "TrustedIssuers configures external OIDC issuers whose tokens are\naccepted as RFC 8693 subject tokens during token exchange, in addition\nto self-issued subject tokens. Empty (the default) means only\nself-issued subject tokens are accepted. See\ndocs/arch/17-token-exchange-delegation.md for the trust model.",
+              "items": {
+                "additionalProperties": false,
+                "description": "TrustedIssuerConfig configures an external OIDC issuer whose tokens are\naccepted as RFC 8693 subject tokens or RFC 7523 JWT-bearer assertions during\ntoken exchange. It mirrors tokenexchange.TrustedIssuer\n(pkg/authserver/server/tokenexchange), the runtime type the operator converts\nthis into directly — no secret is referenced by this type, so no SecretKeyRef\nindirection is needed, unlike DelegateClientConfig.\n\nexpectedAudience is exempted only for a grant-only issuer: jwtBearerGrant\npresent and none of actorClaim, actorMatcher, allowMayAct, or allowedActors\nset. Any RFC 8693 delegation field (actorClaim, actorMatcher, allowMayAct,\nallowedActors) still requires expectedAudience, even when combined with\njwtBearerGrant.\n\nThe allowedDelegateClients rule below mirrors validateDelegationPolicy\n(pkg/authserver/server/tokenexchange/multi_issuer_validator.go): it is\nkeyed on whether ANY delegation field is set (expectedAudience,\nactorClaim, actorMatcher, allowMayAct), not merely on whether\njwtBearerGrant is absent — an issuer can combine jwtBearerGrant with\nexpectedAudience for RFC 8693 delegation on the same issuer, and that\ncombination still requires allowedDelegateClients at the Go level.",
+                "properties": {
+                  "actorClaim": {
+                    "description": "ActorClaim names the claim identifying the client that requested the\nsubject token from this external issuer (used by allowedActors below).\nDefaults to \"azp\" when empty; use \"appid\" for Microsoft Entra v1, \"cid\"\nfor Okta. The special value \"client_id\" reads the subject token's\nclient_id claim instead.",
+                    "maxLength": 64,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "actorMatcher": {
+                    "description": "ActorMatcher is an admin-authored CEL expression evaluated against the\nsubject token's complete signature-verified claims map (bound as\n\"claims\") to authorize a class of external actors, in addition to (not\ninstead of) allowedActors — either signal is sufficient. Must evaluate\nto a boolean; a non-boolean result denies the token at evaluation time,\nnot at reconcile time. A syntactically invalid expression fails\nreconciliation (surfaced via the AuthServerConfigValidated condition),\nnot admission — there is no validating webhook for this field.",
+                    "maxLength": 4096,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "allowMayAct": {
+                    "default": false,
+                    "description": "AllowMayAct permits this external issuer's may_act claim to authorize\ndelegation. Defaults to false; external issuers must be opted in\nexplicitly because may_act bypasses allowedActors and actorMatcher.\nDoes not affect self-issued subject tokens. The wildcard is never\npermitted alongside specific allowedDelegateClients, regardless of\nthis setting.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "allowPrivateIPs": {
+                    "description": "AllowPrivateIPs permits OIDC discovery and JWKS fetches for THIS issuer\nto resolve to a private or loopback address. Use only when the issuer\nis hosted inside the same cluster and has no public endpoint. Requires\njwksUrl to be set explicitly (enforced at reconcile time), since\notherwise OIDC discovery — fetched from the external issuer itself —\nwould choose the private dial target.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "allowedActors": {
+                    "description": "AllowedActors is the allowlist of actorClaim values authorized to\nexchange a subject token from this issuer when it carries no\n\"may_act\" claim, in addition to (not instead of) actorMatcher below —\neither signal is sufficient. Empty denies every token unless\nactorMatcher is set, or allowMayAct is true and the token carries a\npermitted may_act claim.",
+                    "items": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 50,
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  },
+                  "allowedDelegateClients": {
+                    "description": "AllowedDelegateClients restricts which ToolHive client IDs may exchange\nan RFC 8693 subject token from this issuer. Required unless only\njwtBearerGrant is configured; set it to [\"*\"] to permit any confidential\nclient holding the token-exchange grant, or list specific client IDs to\nbind delegation to them.",
+                    "items": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 50,
+                    "minItems": 1,
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  },
+                  "expectedAudience": {
+                    "description": "ExpectedAudience is the expected \"aud\" claim value that must appear in\nan RFC 8693 subject token's audience list. It is not used by an RFC 7523\nJWT-bearer assertion, whose audience is the token endpoint.",
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "insecureAllowHTTP": {
+                    "description": "InsecureAllowHTTP permits plain-HTTP OIDC discovery and JWKS fetches\nfor THIS issuer only. Development and testing only — never set in\nproduction.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "issuerUrl": {
+                    "description": "IssuerURL is the expected \"iss\" claim value (exact match).",
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "jwksUrl": {
+                    "description": "JWKSURL is the URL to fetch the issuer's JSON Web Key Set from. If\nempty, it is resolved via OIDC discovery at\n{issuerUrl}/.well-known/openid-configuration.",
+                    "maxLength": 2048,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "jwtBearerGrant": {
+                    "additionalProperties": false,
+                    "description": "JWTBearerGrant enables the plain RFC 7523 JWT-bearer grant for this\nissuer. It is independent of RFC 8693 delegation policy.",
+                    "properties": {
+                      "acceptedAudiences": {
+                        "description": "AcceptedAudiences identifies this authorization server's accepted\nassertion audiences. When omitted, runtime validation defaults to the\ntoken endpoint.",
+                        "items": {
+                          "maxLength": 2048,
+                          "minLength": 1,
+                          "pattern": "^https?://[^[:space:]]+$",
+                          "type": "string"
+                        },
+                        "maxItems": 50,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic"
+                      },
+                      "maxAssertionAge": {
+                        "description": "MaxAssertionAge caps the exp-iat interval independently of exp.",
+                        "type": "string"
+                      },
+                      "subjectBindings": {
+                        "description": "SubjectBindings maps an exact external subject to allowed RFC 8707\nresources.",
+                        "items": {
+                          "additionalProperties": false,
+                          "description": "JWTBearerSubjectBinding configures the exact subject and allowed resources\nfor one RFC 7523 JWT-bearer assertion identity.",
+                          "properties": {
+                            "allowedResources": {
+                              "description": "AllowedResources is the exact set of RFC 8707 resources this subject may\nrequest.",
+                              "items": {
+                                "maxLength": 2048,
+                                "minLength": 1,
+                                "pattern": "^https?://[^[:space:]]+$",
+                                "type": "string"
+                              },
+                              "maxItems": 50,
+                              "minItems": 1,
+                              "type": "array",
+                              "x-kubernetes-list-type": "atomic"
+                            },
+                            "subject": {
+                              "description": "Subject is an exact assertion sub value. Wildcards are not supported.",
+                              "maxLength": 256,
+                              "minLength": 1,
+                              "pattern": "^[^*]+$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "allowedResources",
+                            "subject"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 50,
+                        "minItems": 1,
+                        "type": "array",
+                        "x-kubernetes-list-type": "atomic"
+                      }
+                    },
+                    "required": [
+                      "maxAssertionAge",
+                      "subjectBindings"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "maxAssertionAge must be greater than zero",
+                        "rule": "duration(self.maxAssertionAge) \u003e duration('0s')"
+                      },
+                      {
+                        "message": "subjectBindings must not contain duplicate subjects",
+                        "rule": "self.subjectBindings.all(binding, self.subjectBindings.filter(other, other.subject == binding.subject).size() == 1)"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "issuerUrl"
+                ],
+                "type": "object",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "allowedDelegateClients must not combine the wildcard \"*\" with specific client IDs",
+                    "rule": "!has(self.allowedDelegateClients) || !('*' in self.allowedDelegateClients) || size(self.allowedDelegateClients) == 1"
+                  },
+                  {
+                    "message": "allowMayAct must not be enabled when allowedDelegateClients contains the wildcard \"*\"",
+                    "rule": "!(has(self.allowMayAct) \u0026\u0026 self.allowMayAct \u0026\u0026 '*' in self.allowedDelegateClients)"
+                  },
+                  {
+                    "message": "actorClaim must name a readable claim; use client_id or a non-reserved claim such as azp, appid, or cid",
+                    "rule": "!has(self.actorClaim) || !(self.actorClaim in ['sub', 'iss', 'aud', 'exp', 'iat', 'nbf', 'jti', 'name', 'email', 'scope', 'scp', 'may_act'])"
+                  },
+                  {
+                    "message": "allowPrivateIPs requires jwksUrl to be set explicitly",
+                    "rule": "!(has(self.allowPrivateIPs) \u0026\u0026 self.allowPrivateIPs) || (has(self.jwksUrl) \u0026\u0026 self.jwksUrl != \"\")"
+                  },
+                  {
+                    "message": "expectedAudience is required unless jwtBearerGrant is configured without actorClaim, actorMatcher, allowMayAct, or allowedActors",
+                    "rule": "(has(self.jwtBearerGrant) \u0026\u0026 !((has(self.actorClaim) \u0026\u0026 size(self.actorClaim) \u003e 0) || (has(self.actorMatcher) \u0026\u0026 size(self.actorMatcher) \u003e 0) || (has(self.allowMayAct) \u0026\u0026 self.allowMayAct) || (has(self.allowedActors) \u0026\u0026 size(self.allowedActors) \u003e 0))) || (has(self.expectedAudience) \u0026\u0026 size(self.expectedAudience) \u003e 0)"
+                  },
+                  {
+                    "message": "allowedDelegateClients is required when expectedAudience, actorClaim, actorMatcher, or allowMayAct is set",
+                    "rule": "!((has(self.expectedAudience) \u0026\u0026 size(self.expectedAudience) \u003e 0) || (has(self.actorClaim) \u0026\u0026 size(self.actorClaim) \u003e 0) || (has(self.actorMatcher) \u0026\u0026 size(self.actorMatcher) \u003e 0) || (has(self.allowMayAct) \u0026\u0026 self.allowMayAct)) || (has(self.allowedDelegateClients) \u0026\u0026 size(self.allowedDelegateClients) \u003e 0)"
+                  }
+                ]
+              },
+              "maxItems": 20,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "upstreamProviders": {
+              "description": "UpstreamProviders configures connections to upstream Identity Providers.\nThe embedded auth server delegates authentication to these providers.\nMCPServer and MCPRemoteProxy support a single upstream; VirtualMCPServer supports multiple.",
+              "items": {
+                "additionalProperties": false,
+                "description": "UpstreamProviderConfig defines configuration for an upstream Identity Provider.\n\nExactly one of OIDCConfig or OAuth2Config must be set and must match the\ndeclared Type: oidc-typed providers set OIDCConfig, oauth2-typed providers\nset OAuth2Config. The CEL rule below enforces the pairing at admission; the\nmatching Go-level check in validateUpstreamProvider provides defense-in-depth\nfor stored objects.\n\nThe rule is structured as a chain of equality checks ending in an explicit\n`false`, so adding a new UpstreamProviderType value without extending this\nrule fails admission instead of silently demanding the OAuth2 shape. When\nadding a new type, extend both this rule and validateUpstreamProvider.",
+                "properties": {
+                  "name": {
+                    "description": "Name uniquely identifies this upstream provider.\nUsed for routing decisions and session binding in multi-upstream scenarios.\nMust be lowercase alphanumeric with hyphens (DNS-label-like).",
+                    "maxLength": 63,
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+                    "type": "string"
+                  },
+                  "oauth2Config": {
+                    "additionalProperties": false,
+                    "description": "OAuth2Config contains OAuth 2.0-specific configuration.\nRequired when Type is \"oauth2\", must be nil when Type is \"oidc\".",
+                    "properties": {
+                      "additionalAuthorizationParams": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "AdditionalAuthorizationParams are extra query parameters to include in\nauthorization requests sent to the upstream provider.\nThis is useful for providers that require custom parameters, such as\nGoogle's access_type=offline for obtaining refresh tokens.\nFramework-managed parameters (response_type, client_id, redirect_uri,\nscope, state, code_challenge, code_challenge_method, nonce) are not allowed.",
+                        "maxProperties": 16,
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "allowPrivateIPs": {
+                        "description": "AllowPrivateIPs permits the upstream provider's HTTP client to connect to\nprivate IP ranges (RFC-1918, link-local). Use only when the upstream is\nhosted inside the same cluster and has no public endpoint. HTTP-scheme\nrestrictions are unchanged — HTTPS is still required for non-localhost\nhosts unless InsecureAllowHTTP is set. Defaults to false.",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "authorizationEndpoint": {
+                        "description": "AuthorizationEndpoint is the URL for the OAuth authorization endpoint.",
+                        "pattern": "^https?://.*$",
+                        "type": "string"
+                      },
+                      "caBundleRef": {
+                        "additionalProperties": false,
+                        "description": "CABundleRef references a ConfigMap containing a CA bundle added to the\nsystem roots when connecting to this upstream; it does not restrict trust\nto this bundle or disable public-root trust. The selected key is projected\nas ca.crt.",
+                        "properties": {
+                          "configMapRef": {
+                            "additionalProperties": false,
+                            "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nThe ConfigMap key is required by the API. If omitted in a stored object, it\ndefaults to \"ca.crt\" for backwards compatibility.",
+                            "properties": {
+                              "key": {
+                                "description": "The key to select.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "default": "",
+                                "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "optional": {
+                                "description": "Specify whether the ConfigMap or its key must be defined",
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ],
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "x-kubernetes-map-type": "atomic"
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "clientId": {
+                        "description": "ClientID is the OAuth 2.0 client identifier registered with the upstream IDP.\nMutually exclusive with DCRConfig: when DCRConfig is set, ClientID is obtained\nat runtime via RFC 7591 Dynamic Client Registration and must be left empty.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "clientSecretRef": {
+                        "additionalProperties": false,
+                        "description": "ClientSecretRef references a Kubernetes Secret containing the OAuth 2.0 client secret.\nOptional for public clients using PKCE instead of client secret.",
+                        "properties": {
+                          "key": {
+                            "description": "Key is the key within the secret",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name is the name of the secret",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "dcrConfig": {
+                        "additionalProperties": false,
+                        "description": "DCRConfig enables RFC 7591 Dynamic Client Registration against the upstream\nauthorization server. When set, the client credentials are obtained at\nruntime rather than being pre-provisioned, and ClientID must be left empty.\nMutually exclusive with ClientID.",
+                        "properties": {
+                          "discoveryUrl": {
+                            "description": "DiscoveryURL is the RFC 8414 / OIDC Discovery document URL. The resolver\nissues a single GET against this URL (no well-known-path fallback) and\nreads registration_endpoint, authorization_endpoint, token_endpoint,\ntoken_endpoint_auth_methods_supported, and scopes_supported from the\nresponse.\nMutually exclusive with RegistrationEndpoint.\nHTTPS is required because the registration endpoint resolved from this\ndocument carries the initial access token and the issued client_secret\n(RFC 7591 §3, RFC 8414 §3). MaxLength is a defensive size cap (etcd\nobject budget, regex evaluation cost) and matches the conventional URL\nlength cap.",
+                            "maxLength": 2048,
+                            "pattern": "^https://[^\\s?#]+[^/\\s?#]$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "initialAccessTokenRef": {
+                            "additionalProperties": false,
+                            "description": "InitialAccessTokenRef is an optional reference to a Kubernetes Secret\ncarrying an RFC 7591 §3 initial access token. When set, the resolver\npresents the token value as a Bearer credential on the registration\nrequest. Mirrors the ClientSecretRef pattern.",
+                            "properties": {
+                              "key": {
+                                "description": "Key is the key within the secret",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name is the name of the secret",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "name"
+                            ],
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "registrationEndpoint": {
+                            "description": "RegistrationEndpoint is the RFC 7591 registration endpoint URL used\ndirectly, bypassing discovery. When using this field, the caller is\nexpected to also supply AuthorizationEndpoint, TokenEndpoint, and an\nexplicit Scopes list on the parent OAuth2UpstreamConfig.\nMutually exclusive with DiscoveryURL.\nHTTPS is required because the registration endpoint carries the initial\naccess token and the issued client_secret (RFC 7591 §3, RFC 8414 §3).\nMaxLength is a defensive size cap (etcd object budget, regex evaluation\ncost) and matches the conventional URL length cap.",
+                            "maxLength": 2048,
+                            "pattern": "^https://[^\\s?#]+[^/\\s?#]$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "softwareId": {
+                            "description": "SoftwareID is the RFC 7591 \"software_id\" registration metadata value,\nidentifying the client software independent of any particular\nregistration instance. Typically a UUID or short identifier.",
+                            "maxLength": 255,
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "softwareStatement": {
+                            "description": "SoftwareStatement is the RFC 7591 \"software_statement\" JWT asserting\nmetadata about the client software, signed by a party the authorization\nserver trusts.\n\nStored inline on the CR. The JWT is signed but not encrypted, so its\ncontents are visible to anyone with get/list/watch on this resource and\nappear in etcd backups in plaintext. Treat the value as non-confidential\n(signed attestation, not a secret). Operators that rotate software\nstatements like bearer credentials should keep them at the authorization\nserver side and rely on the registration endpoint's initial access\ntoken (see InitialAccessTokenRef) instead of placing them on the CR.\n\nBounded to 16384 characters as a defensive size cap (etcd object\nbudget, regex evaluation cost). Real-world signed statements with\nembedded x5c certificate chains, JWKS keys, or OIDC-Federation\ntrust-framework metadata routinely exceed 4 KB.",
+                            "maxLength": 16384,
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "x-kubernetes-validations": [
+                          {
+                            "message": "exactly one of discoveryUrl or registrationEndpoint must be set",
+                            "rule": "has(self.discoveryUrl) != has(self.registrationEndpoint)"
+                          }
+                        ]
+                      },
+                      "identityFromToken": {
+                        "additionalProperties": false,
+                        "description": "IdentityFromToken extracts user identity (subject, name, email) directly\nfrom the OAuth2 token-endpoint response body using gjson dot-notation paths.\nWhen set, the embedded auth server skips the userinfo HTTP call entirely\nand resolves identity from the token response. See IdentityFromTokenConfig\nfor trust-model and uniqueness considerations.",
+                        "properties": {
+                          "emailPath": {
+                            "description": "EmailPath is the dot-notation path to the email address field in the token response.\nIf not specified or if the path does not resolve to a string, the email is omitted.\nOmit the field entirely rather than setting it to an empty string.",
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "namePath": {
+                            "description": "NamePath is the dot-notation path to the display name field in the token response.\nIf not specified or if the path does not resolve to a string, the display name is omitted.\nOmit the field entirely rather than setting it to an empty string.",
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "subjectPath": {
+                            "description": "SubjectPath is the dot-notation path to the subject (user ID) field in the token response.\nWarning: claims read from the token response are trusted only via TLS, not\ncryptographically verified; prefer OIDC ID tokens when verifiable claims are required.\nExample: \"authed_user.id\" for Slack (top-level token-response field). For providers\nwhose token response embeds the access token as a JWT (e.g. Snowflake), use the\n\"@upstreamjwt\" modifier to decode the payload, e.g. \"access_token|@upstreamjwt|sub\".\nThe \"@upstreamjwt\" modifier performs no signature verification either.",
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "subjectPath"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "insecureAllowHTTP": {
+                        "description": "InsecureAllowHTTP permits plain-HTTP authorization and token endpoint URLs\nfor this upstream. Only for in-cluster development environments (e.g. an\nOAuth2 provider served over HTTP in a kind cluster) where TLS is not\navailable. Never set this in production.",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "redirectUri": {
+                        "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "scopes": {
+                        "description": "Scopes are the OAuth scopes to request from the upstream IdP.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic"
+                      },
+                      "tokenEndpoint": {
+                        "description": "TokenEndpoint is the URL for the OAuth token endpoint.",
+                        "pattern": "^https?://.*$",
+                        "type": "string"
+                      },
+                      "tokenResponseMapping": {
+                        "additionalProperties": false,
+                        "description": "TokenResponseMapping configures custom field extraction from non-standard token responses.\nSome OAuth providers (e.g., GovSlack) nest token fields under non-standard paths\ninstead of returning them at the top level. When set, ToolHive performs the token\nexchange HTTP call directly and extracts fields using the configured dot-notation paths.\nIf nil, standard OAuth 2.0 token response parsing is used.\nFor extracting user identity from the token response, see IdentityFromToken.",
+                        "properties": {
+                          "accessTokenPath": {
+                            "description": "AccessTokenPath is the dot-notation path to the access token in the response.\nExample: \"authed_user.access_token\"",
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "expiresInPath": {
+                            "description": "ExpiresInPath is the dot-notation path to the expires_in value (in seconds).\nIf not specified, defaults to \"expires_in\".",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "refreshTokenPath": {
+                            "description": "RefreshTokenPath is the dot-notation path to the refresh token in the response.\nIf not specified, defaults to \"refresh_token\".",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scopePath": {
+                            "description": "ScopePath is the dot-notation path to the scope string in the response.\nIf not specified, defaults to \"scope\".",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "accessTokenPath"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "userInfo": {
+                        "additionalProperties": false,
+                        "description": "UserInfo contains configuration for fetching user information from the upstream provider.\nWhen omitted and IdentityFromToken is also unset, the embedded auth server runs in\nsynthesis mode for this upstream: a non-PII subject derived from the access token, no\nName/Email. Use this shape for upstreams with no userinfo surface and no identity in\nthe token response (e.g., MCP authorization servers per the MCP spec). When\nIdentityFromToken is set instead, identity is resolved from the token response body\n(e.g., Snowflake's \"username\" field, Slack's \"authed_user.id\"); the userinfo HTTP call\nis skipped entirely.",
+                        "properties": {
+                          "additionalHeaders": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "description": "AdditionalHeaders contains extra headers to include in the userinfo request.\nUseful for providers that require specific headers (e.g., GitHub's Accept header).",
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "endpointUrl": {
+                            "description": "EndpointURL is the URL of the userinfo endpoint.",
+                            "pattern": "^https?://.*$",
+                            "type": "string"
+                          },
+                          "fieldMapping": {
+                            "additionalProperties": false,
+                            "description": "FieldMapping contains custom field mapping configuration for non-standard providers.\nIf nil, standard OIDC field names are used (\"sub\", \"name\", \"email\").",
+                            "properties": {
+                              "emailFields": {
+                                "description": "EmailFields is an ordered list of field names to try for the email address.\nThe first non-empty value found will be used.\nDefault: [\"email\"]",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "x-kubernetes-list-type": "atomic"
+                              },
+                              "nameFields": {
+                                "description": "NameFields is an ordered list of field names to try for the display name.\nThe first non-empty value found will be used.\nDefault: [\"name\"]",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "x-kubernetes-list-type": "atomic"
+                              },
+                              "subjectFields": {
+                                "description": "SubjectFields is an ordered list of field names to try for the user ID.\nThe first non-empty value found will be used.\nDefault: [\"sub\"]",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "x-kubernetes-list-type": "atomic"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "httpMethod": {
+                            "description": "HTTPMethod is the HTTP method to use for the userinfo request.\nIf not specified, defaults to GET.",
+                            "enum": [
+                              "GET",
+                              "POST"
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "endpointUrl"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "authorizationEndpoint",
+                      "tokenEndpoint"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "exactly one of clientId or dcrConfig must be set",
+                        "rule": "(has(self.clientId) \u0026\u0026 size(self.clientId) \u003e 0) ? !has(self.dcrConfig) : has(self.dcrConfig)"
+                      },
+                      {
+                        "message": "clientSecretRef must not be set when dcrConfig is set; the client_secret is obtained at runtime via Dynamic Client Registration",
+                        "rule": "!(has(self.dcrConfig) \u0026\u0026 has(self.clientSecretRef))"
+                      }
+                    ]
+                  },
+                  "oidcConfig": {
+                    "additionalProperties": false,
+                    "description": "OIDCConfig contains OIDC-specific configuration.\nRequired when Type is \"oidc\", must be nil when Type is \"oauth2\".",
+                    "properties": {
+                      "additionalAuthorizationParams": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "AdditionalAuthorizationParams are extra query parameters to include in\nauthorization requests sent to the upstream provider.\nThis is useful for providers that require custom parameters, such as\nGoogle's access_type=offline for obtaining refresh tokens.\nNote: when using access_type=offline, also set explicit scopes to avoid\nthe default offline_access scope being sent alongside it.\nFramework-managed parameters (response_type, client_id, redirect_uri,\nscope, state, code_challenge, code_challenge_method, nonce) are not allowed.",
+                        "maxProperties": 16,
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "allowPrivateIPs": {
+                        "description": "AllowPrivateIPs permits the upstream provider's HTTP client to connect to\nprivate IP ranges (RFC-1918, link-local). Use only when the upstream is\nhosted inside the same cluster and has no public endpoint.",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "caBundleRef": {
+                        "additionalProperties": false,
+                        "description": "CABundleRef references a ConfigMap containing a CA bundle added to the\nsystem roots when connecting to this upstream; it does not restrict trust\nto this bundle or disable public-root trust. The selected key is projected\nas ca.crt.",
+                        "properties": {
+                          "configMapRef": {
+                            "additionalProperties": false,
+                            "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nThe ConfigMap key is required by the API. If omitted in a stored object, it\ndefaults to \"ca.crt\" for backwards compatibility.",
+                            "properties": {
+                              "key": {
+                                "description": "The key to select.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "default": "",
+                                "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "optional": {
+                                "description": "Specify whether the ConfigMap or its key must be defined",
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ],
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "x-kubernetes-map-type": "atomic"
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "clientId": {
+                        "description": "ClientID is the OAuth 2.0 client identifier registered with the upstream IdP.",
+                        "type": "string"
+                      },
+                      "clientSecretRef": {
+                        "additionalProperties": false,
+                        "description": "ClientSecretRef references a Kubernetes Secret containing the OAuth 2.0 client secret.\nOptional for public clients using PKCE instead of client secret.",
+                        "properties": {
+                          "key": {
+                            "description": "Key is the key within the secret",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name is the name of the secret",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "issuerUrl": {
+                        "description": "IssuerURL is the OIDC issuer URL for automatic endpoint discovery.\nMust be a valid HTTPS URL.",
+                        "pattern": "^https://.*$",
+                        "type": "string"
+                      },
+                      "redirectUri": {
+                        "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "scopes": {
+                        "description": "Scopes are the OAuth scopes to request from the upstream IdP.\nIf not specified, defaults to [\"openid\", \"offline_access\"].\nWhen using additionalAuthorizationParams with provider-specific refresh token\nmechanisms (e.g., Google's access_type=offline), set explicit scopes to avoid\nsending both offline_access and the provider-specific parameter.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic"
+                      },
+                      "subjectClaim": {
+                        "description": "SubjectClaim names the validated ID-token claim to use as the upstream\nsubject. Defaults to \"sub\" when empty. Set it for IdPs where \"sub\" isn't\nstable per user — e.g. Entra/Azure AD, whose \"sub\" rotates per application\nand whose stable identifier is \"oid\".\n\nThe value is looked up verbatim as a top-level claim name, so it is\nconstrained to a claim-name shape: it must start with a letter or\nunderscore and contain only letters, digits, and underscores. This rejects\ndotted, colon-namespaced, or whitespace-containing values at admission\nrather than letting a typo silently miss the claim at login, and keeps the\nfield aligned with the directory service's per-issuer bindingClaim.\n\nChanging this on a live deployment re-keys existing users (the value\nresolves to the internal user ID), so treat it as immutable once users\nexist.\n\nPer-IdP notes:\n  - Entra/Azure AD: use \"oid\"; it is only emitted when the upstream scopes\n    include \"profile\". \"oid\" is unique within a single tenant — multi-tenant\n    apps need oid+tid, which this single-claim field cannot express.\n  - Okta: the org auth server already puts the stable id in \"sub\" (default\n    works). A custom auth server's \"sub\" is the mutable login/email and the\n    stable \"uid\" lives only in the access token, not the ID token — map a\n    custom ID-token claim and point subjectClaim at it.\nThe pattern matches the claim-name shape and allows empty (defaults to\n\"sub\"). Using Pattern rather than a CEL XValidation rule keeps this off the\nCRD's CEL cost budget — a single-field format check via CEL is rejected by\nthe apiserver as too expensive once multiplied across the upstreams list.",
+                        "maxLength": 128,
+                        "pattern": "^([a-zA-Z_][a-zA-Z0-9_]*)?$",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "userInfoOverride": {
+                        "additionalProperties": false,
+                        "description": "UserInfoOverride allows customizing UserInfo fetching behavior for OIDC providers.\nBy default, the UserInfo endpoint is discovered automatically via OIDC discovery.\nUse this to override the endpoint URL, HTTP method, or field mappings for providers\nthat return non-standard claim names in their UserInfo response.",
+                        "properties": {
+                          "additionalHeaders": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "description": "AdditionalHeaders contains extra headers to include in the userinfo request.\nUseful for providers that require specific headers (e.g., GitHub's Accept header).",
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "endpointUrl": {
+                            "description": "EndpointURL is the URL of the userinfo endpoint.",
+                            "pattern": "^https?://.*$",
+                            "type": "string"
+                          },
+                          "fieldMapping": {
+                            "additionalProperties": false,
+                            "description": "FieldMapping contains custom field mapping configuration for non-standard providers.\nIf nil, standard OIDC field names are used (\"sub\", \"name\", \"email\").",
+                            "properties": {
+                              "emailFields": {
+                                "description": "EmailFields is an ordered list of field names to try for the email address.\nThe first non-empty value found will be used.\nDefault: [\"email\"]",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "x-kubernetes-list-type": "atomic"
+                              },
+                              "nameFields": {
+                                "description": "NameFields is an ordered list of field names to try for the display name.\nThe first non-empty value found will be used.\nDefault: [\"name\"]",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "x-kubernetes-list-type": "atomic"
+                              },
+                              "subjectFields": {
+                                "description": "SubjectFields is an ordered list of field names to try for the user ID.\nThe first non-empty value found will be used.\nDefault: [\"sub\"]",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "x-kubernetes-list-type": "atomic"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "httpMethod": {
+                            "description": "HTTPMethod is the HTTP method to use for the userinfo request.\nIf not specified, defaults to GET.",
+                            "enum": [
+                              "GET",
+                              "POST"
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "endpointUrl"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "clientId",
+                      "issuerUrl"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "type": {
+                    "description": "Type specifies the provider type: \"oidc\" or \"oauth2\"",
+                    "enum": [
+                      "oidc",
+                      "oauth2"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "type"
+                ],
+                "type": "object",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "type must be 'oidc' or 'oauth2'; oidcConfig must be set when type is 'oidc' and oauth2Config must be set when type is 'oauth2' (and the other must not be set)",
+                    "rule": "self.type == 'oidc' ? (has(self.oidcConfig) \u0026\u0026 !has(self.oauth2Config)) : self.type == 'oauth2' ? (has(self.oauth2Config) \u0026\u0026 !has(self.oidcConfig)) : false"
+                  }
+                ]
+              },
+              "minItems": 1,
+              "type": "array",
+              "x-kubernetes-list-map-keys": [
+                "name"
+              ],
+              "x-kubernetes-list-type": "map"
+            }
+          },
+          "required": [
+            "issuer",
+            "upstreamProviders"
+          ],
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "allowConfidentialClientRegistration cannot be combined with insecureAllowHTTP; client secrets would be issued in cleartext over an unauthenticated endpoint",
+              "rule": "!(has(self.allowConfidentialClientRegistration) \u0026\u0026 self.allowConfidentialClientRegistration \u0026\u0026 has(self.insecureAllowHTTP) \u0026\u0026 self.insecureAllowHTTP)"
+            },
+            {
+              "message": "forceConfidentialRedirectUris requires allowConfidentialClientRegistration to be true",
+              "rule": "(!has(self.forceConfidentialRedirectUris) || size(self.forceConfidentialRedirectUris) == 0) || (has(self.allowConfidentialClientRegistration) \u0026\u0026 self.allowConfidentialClientRegistration)"
+            },
+            {
+              "message": "delegateClients with an HTTP issuer require insecureAllowConfidentialOverLoopbackHTTP to be explicitly enabled; the issuer must still be loopback",
+              "rule": "!has(self.delegateClients) || size(self.delegateClients) == 0 || !self.issuer.startsWith('http://') || (has(self.insecureAllowConfidentialOverLoopbackHTTP) \u0026\u0026 self.insecureAllowConfidentialOverLoopbackHTTP)"
+            }
+          ]
+        },
+        "headerInjection": {
+          "additionalProperties": false,
+          "description": "HeaderInjection configures custom HTTP header injection\nOnly used when Type is \"headerInjection\"",
+          "properties": {
+            "headerName": {
+              "description": "HeaderName is the name of the HTTP header to inject",
+              "minLength": 1,
+              "type": "string"
+            },
+            "valueSecretRef": {
+              "additionalProperties": false,
+              "description": "ValueSecretRef references a Kubernetes Secret containing the header value",
+              "properties": {
+                "key": {
+                  "description": "Key is the key within the secret",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name is the name of the secret",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "headerName",
+            "valueSecretRef"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "obo": {
+          "additionalProperties": false,
+          "description": "OBO configures On-Behalf-Of (OBO) authentication.\nOnly used when Type is \"obo\". Setting this field on an upstream-only build\ncauses the MCPExternalAuthConfig to transition to\nstatus.conditions[Valid] = False with Reason: EnterpriseRequired, because\nno OBO handler is registered. See OBOConfig for the field-to-runtime\ncontract mapping.",
+          "properties": {
+            "audience": {
+              "description": "Audience is the backend target identifier requested in the exchanged\ntoken. Used as the exchange target when Scopes is empty. At least one of\naudience or scopes must be set; the operator enforces that at reconcile\n(it is not an admission-time rule — see the type doc).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "authority": {
+              "description": "Authority overrides the default Entra login host\n(https://login.microsoftonline.com) for sovereign or national clouds, e.g.\nhttps://login.microsoftonline.us (US Gov) or\nhttps://login.partner.microsoftonline.cn (China). When set, the operator\nbuilds the token endpoint by joining \u003cauthority\u003e, \u003ctenantId\u003e, and the\nv2.0 token path. Must be an HTTPS URL with no userinfo, query, fragment,\nor trailing slash; a path IS permitted and is prefixed before the tenant\nsegment, as some sovereign / B2C / CIAM endpoints require. The OBO exchange\nPOSTs the client secret and the end-user assertion to this host, so it is a\ncredential trust boundary: HTTPS is required and userinfo (user@host) is\nrejected to prevent host confusion (per RFC 3986 the real host follows the\n\"@\", so https://login.microsoftonline.com@attacker.example targets\nattacker.example). This is intentionally stricter than the downstream\nexchanger's validateHTTPSURL, which also accepts http for loopback hosts\nand tolerates a trailing slash — rejecting those at admission is the safe\ndirection.",
+              "pattern": "^https://[^\\s?#@]+[^/\\s?#@]$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cacheSkew": {
+              "description": "CacheSkew overrides the OBO token cache's default expiry skew (the margin\nby which a cached token is treated as expired before its real expiry),\ne.g. \"30s\". The operator converts it to the runtime contract's\ninteger-seconds cacheSkewSeconds. Should not be negative, but the schema\ndoes not enforce that — metav1.Duration carries no numeric minimum — and\nupstream builds do not reject it. A negative value is rejected only by an\nenterprise build's OBO handler once that handler validates the converted\nparameters; it is not enforced at admission or in upstream-only builds.\nWhen omitted, the cache default applies.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "clientId": {
+              "description": "ClientID is the confidential client's application (client) ID registered\nin Entra. Emitted verbatim as the runtime contract's clientId.\nOptional at the CRD level so future client-authentication methods (e.g.\ncertificate or workload-identity credentials, planned fast-follows) can be\nadded without a breaking schema change. The operator enforces that clientId\nand clientSecretRef are both present for the v1 shared-secret flow.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "clientSecretRef": {
+              "additionalProperties": false,
+              "description": "ClientSecretRef references a Kubernetes Secret containing the confidential\nclient's secret. v1 supports a shared client secret only. The operator\ninjects the resolved value into the proxyrunner pod as an environment\nvariable and emits only that variable's name in the runtime contract, as\nclientSecretEnvVar — the secret value never travels in the contract.\nOptional at the CRD level for the same forward-compatibility reason as\nclientId (a certificate/workload-identity flow needs no client secret);\nthe operator enforces presence for the v1 shared-secret flow.",
+              "properties": {
+                "key": {
+                  "description": "Key is the key within the secret",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name is the name of the secret",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "scopes": {
+              "description": "Scopes are the delegated scopes to request for the exchanged token, e.g.\n[\"api://\u003cbackend\u003e/.default\"]. When non-empty they take precedence over\nAudience. At least one of audience or scopes must be set; the operator\nenforces that at reconcile. The MaxItems and per-item length caps are\ndefensive bounds on an otherwise unbounded list.",
+              "items": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 20,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "subjectTokenProviderName": {
+              "description": "SubjectTokenProviderName selects the source of the OBO subject (assertion)\ntoken from the request's authenticated Identity:\n  - Omitted: use the inbound end-user token the client presented\n    (Identity.Token) — the deployment with no embedded auth server, where\n    the client holds an Entra token directly.\n  - Set: use the named upstream provider's token\n    (Identity.UpstreamTokens[\u003cname\u003e]) — the embedded-auth-server\n    deployment, where the inbound token is the proxy's own session token.\n    The value must match a configured upstream provider name.\nThe subject is always sourced from the authenticated Identity, never from\nan inbound request header, so the upstream auth middleware must run first.",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tenantId": {
+              "description": "TenantID is the Microsoft Entra (Azure AD) directory (tenant) identifier.\nOptional at the CRD level (see the type doc); the operator enforces its\npresence, since an OBO confidential-client exchange must target a specific\ntenant. When set, it must be one of the two forms the Entra v2.0 token\nendpoint addresses: a directory GUID, or a verified domain name (e.g.\ncontoso.onmicrosoft.com). Well-known aliases such as \"common\",\n\"organizations\", and \"consumers\" are NOT accepted. The operator\ninterpolates it into the token endpoint\n(\u003cauthority\u003e/\u003ctenantId\u003e/oauth2/v2.0/token), so the value is constrained to\nthe GUID/domain shape (no path metacharacters); the pattern and 253-char\ncap mirror the enterprise exchanger's validateTenant, so any tenantId\nadmitted here is one the runtime can consume.",
+              "maxLength": 253,
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,})$",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "tokenExchange": {
+          "additionalProperties": false,
+          "description": "TokenExchange configures RFC-8693 OAuth 2.0 Token Exchange\nOnly used when Type is \"tokenExchange\"",
+          "properties": {
+            "audience": {
+              "description": "Audience is the target audience for the exchanged token",
+              "type": "string"
+            },
+            "clientId": {
+              "description": "ClientID is the OAuth 2.0 client identifier\nOptional for some token exchange flows (e.g., Google Cloud Workforce Identity)",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "clientSecretRef": {
+              "additionalProperties": false,
+              "description": "ClientSecretRef is a reference to a secret containing the OAuth 2.0 client secret\nOptional for some token exchange flows (e.g., Google Cloud Workforce Identity)",
+              "properties": {
+                "key": {
+                  "description": "Key is the key within the secret",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name is the name of the secret",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "externalTokenHeaderName": {
+              "description": "ExternalTokenHeaderName is the name of the custom header to use for the exchanged token.\nIf set, the exchanged token will be added to this custom header (e.g., \"X-Upstream-Token\").\nIf empty or not set, the exchanged token will replace the Authorization header (default behavior).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopes": {
+              "description": "Scopes is a list of OAuth 2.0 scopes to request for the exchanged token",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "subjectProviderName": {
+              "description": "SubjectProviderName is the name of the upstream provider whose token is used as the\nRFC 8693 subject token instead of identity.Token when performing token exchange.\nWhen left empty and an embedded authorization server is configured on the VirtualMCPServer,\nthe controller automatically populates this field with the first configured upstream\nprovider name. Set it explicitly to override that default or to select a specific\nprovider when multiple upstreams are configured.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "subjectTokenType": {
+              "description": "SubjectTokenType is the type of the incoming subject token.\nAccepts short forms: \"access_token\" (default), \"id_token\", \"jwt\"\nOr full URNs: \"urn:ietf:params:oauth:token-type:access_token\",\n              \"urn:ietf:params:oauth:token-type:id_token\",\n              \"urn:ietf:params:oauth:token-type:jwt\"\nFor Google Workload Identity Federation with OIDC providers (like Okta), use \"id_token\"",
+              "pattern": "^(access_token|id_token|jwt|urn:ietf:params:oauth:token-type:(access_token|id_token|jwt))?$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tokenUrl": {
+              "description": "TokenURL is the OAuth 2.0 token endpoint URL for token exchange",
+              "type": "string"
+            }
+          },
+          "required": [
+            "audience",
+            "tokenUrl"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "type": {
+          "description": "Type is the type of external authentication to configure.\nWhen set to \"obo\", the cluster must run a build that has registered an\nOBO handler via controllerutil.RegisterOBOHandler; upstream-only builds\nsurface status.conditions[Valid] = False with Reason: EnterpriseRequired\nfor obo-typed configs.",
+          "enum": [
+            "tokenExchange",
+            "headerInjection",
+            "bearerToken",
+            "unauthenticated",
+            "embeddedAuthServer",
+            "awsSts",
+            "upstreamInject",
+            "obo",
+            "xaa"
+          ],
+          "type": "string"
+        },
+        "upstreamInject": {
+          "additionalProperties": false,
+          "description": "UpstreamInject configures upstream token injection for backend requests.\nOnly used when Type is \"upstreamInject\".",
+          "properties": {
+            "providerName": {
+              "description": "ProviderName is the name of the upstream IdP provider whose access token\nshould be injected as the Authorization: Bearer header.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "providerName"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "xaa": {
+          "additionalProperties": false,
+          "description": "XAA configures XAA (Cross-Application Access) auth for backend requests.\nOnly used when Type is \"xaa\".",
+          "properties": {
+            "idpClientId": {
+              "description": "IDPClientID is the OAuth client ID at the IdP for IdP exchange.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "idpClientSecretRef": {
+              "additionalProperties": false,
+              "description": "IDPClientSecretRef references a Kubernetes Secret containing the IdP client secret.",
+              "properties": {
+                "key": {
+                  "description": "Key is the key within the secret",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name is the name of the secret",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "idpTokenUrl": {
+              "description": "IDPTokenURL is the IdP token endpoint for IdP exchange (RFC 8693).\nMust be a valid HTTPS URL.",
+              "pattern": "^https://.*$",
+              "type": "string"
+            },
+            "insecureTargetTokenUrl": {
+              "description": "InsecureTargetTokenURL allows plain HTTP for TargetTokenURL.\nWARNING: this is insecure and must only be set for in-cluster or\ndevelopment/testing endpoints — never in production.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "scopes": {
+              "description": "Scopes are the requested scopes for the XAA exchange (IdP exchange and target grant).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "subjectProviderName": {
+              "description": "SubjectProviderName selects which upstream provider's ID token to use.\nWhen left empty and an embedded authorization server is configured,\nthe controller automatically populates this field with the first configured\nupstream provider name.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "subjectTokenType": {
+              "description": "SubjectTokenType is the token-type URN of the upstream subject token\nused in IdP exchange. Defaults to \"urn:ietf:params:oauth:token-type:id_token\"\nwhen empty.",
+              "enum": [
+                "urn:ietf:params:oauth:token-type:id_token"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "targetAudience": {
+              "description": "TargetAudience is the resource AS URL for the ID-JAG audience claim.",
+              "type": "string"
+            },
+            "targetClientId": {
+              "description": "TargetClientID is the OAuth client ID at the target AS for target grant.\nID-JAG draft §9.1 RECOMMENDS confidential clients for target grant; most\nconformant target authorization servers will reject an unauthenticated\nJWT-bearer grant per the §4.4.1 client_id continuity requirement.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "targetClientSecretRef": {
+              "additionalProperties": false,
+              "description": "TargetClientSecretRef references a Kubernetes Secret for the target AS client secret.",
+              "properties": {
+                "key": {
+                  "description": "Key is the key within the secret",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name is the name of the secret",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "targetResource": {
+              "description": "TargetResource is the RFC 8707 resource indicator sent as the `resource`\nparameter in IdP exchange (RFC 8693, draft §4.3, OPTIONAL). It\nidentifies the target resource server — not the access-token audience, which\nis governed by TargetAudience. For MCP backends, set to the MCP server URL.\nSome authorization servers (e.g. Okta's early ID-JAG implementation) require\nthis parameter in practice despite the draft marking it optional — set it\nwhen your IdP needs it.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "targetTokenUrl": {
+              "description": "TargetTokenURL is the target AS token endpoint for target grant (RFC 7523).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "idpTokenUrl",
+            "targetAudience",
+            "targetTokenUrl"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "tokenExchange configuration must be set if and only if type is 'tokenExchange'",
+          "rule": "self.type == 'tokenExchange' ? has(self.tokenExchange) : !has(self.tokenExchange)"
+        },
+        {
+          "message": "headerInjection configuration must be set if and only if type is 'headerInjection'",
+          "rule": "self.type == 'headerInjection' ? has(self.headerInjection) : !has(self.headerInjection)"
+        },
+        {
+          "message": "bearerToken configuration must be set if and only if type is 'bearerToken'",
+          "rule": "self.type == 'bearerToken' ? has(self.bearerToken) : !has(self.bearerToken)"
+        },
+        {
+          "message": "embeddedAuthServer configuration must be set if and only if type is 'embeddedAuthServer'",
+          "rule": "self.type == 'embeddedAuthServer' ? has(self.embeddedAuthServer) : !has(self.embeddedAuthServer)"
+        },
+        {
+          "message": "awsSts configuration must be set if and only if type is 'awsSts'",
+          "rule": "self.type == 'awsSts' ? has(self.awsSts) : !has(self.awsSts)"
+        },
+        {
+          "message": "upstreamInject configuration must be set if and only if type is 'upstreamInject'",
+          "rule": "self.type == 'upstreamInject' ? has(self.upstreamInject) : !has(self.upstreamInject)"
+        },
+        {
+          "message": "obo configuration must be set if and only if type is 'obo'",
+          "rule": "self.type == 'obo' ? has(self.obo) : !has(self.obo)"
+        },
+        {
+          "message": "xaa configuration must be set if and only if type is 'xaa'",
+          "rule": "self.type == 'xaa' ? has(self.xaa) : !has(self.xaa)"
+        },
+        {
+          "message": "no configuration must be set when type is 'unauthenticated'",
+          "rule": "self.type == 'unauthenticated' ? (!has(self.tokenExchange) \u0026\u0026 !has(self.headerInjection) \u0026\u0026 !has(self.bearerToken) \u0026\u0026 !has(self.embeddedAuthServer) \u0026\u0026 !has(self.awsSts) \u0026\u0026 !has(self.upstreamInject) \u0026\u0026 !has(self.obo) \u0026\u0026 !has(self.xaa)) : true"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "MCPExternalAuthConfigStatus defines the observed state of MCPExternalAuthConfig",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the latest available observations of the MCPExternalAuthConfig's state",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "configHash": {
+          "description": "ConfigHash is a hash of the current configuration for change detection",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the most recent generation observed for this MCPExternalAuthConfig.\nIt corresponds to the MCPExternalAuthConfig's generation, which is updated on mutation by the API Server.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
