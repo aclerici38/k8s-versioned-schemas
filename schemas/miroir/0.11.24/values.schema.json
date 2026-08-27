@@ -1,0 +1,1103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "agent": {
+      "description": "=============================================================================\nAgent (per-node DaemonSet: storage userland + CSI node service)\n=============================================================================",
+      "properties": {
+        "extraArgs": {
+          "description": "Extra arguments for the agent container.",
+          "items": {
+            "required": []
+          },
+          "title": "extraArgs",
+          "type": "array"
+        },
+        "extraEnv": {
+          "description": "Extra environment variables for the agent container.",
+          "items": {
+            "required": []
+          },
+          "title": "extraEnv",
+          "type": "array"
+        },
+        "image": {
+          "description": "Agent image (Debian + the lvm/zfs/drbd/mkfs userland the agent execs\non each storage node).",
+          "properties": {
+            "digest": {
+              "default": "",
+              "description": "Pins the image by digest (sha256:…); takes precedence over the tag.\nThe release pipeline fills this with the published image's digest.",
+              "title": "digest",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "ghcr.io/home-operations/miroir-agent",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "",
+              "description": "Overrides the image tag; defaults to the chart appVersion.",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "kubeletDir": {
+          "default": "/var/lib/kubelet",
+          "description": "Kubelet root on the nodes; CSI sockets and mounts hang off it.",
+          "title": "kubeletDir",
+          "type": "string"
+        },
+        "loopfileBaseDirs": {
+          "description": "Loopfile base directories to hostPath-mount into the agent\n(identity-mounted: host path == container path). Must list every\n`loopfile.baseDir` your MiroirNode specs use — the topology lives in\nCRs the chart cannot read at render time, but the mounts are pod spec.\nHarmless on nodes without a loopfile pool.",
+          "items": {
+            "pattern": "^/",
+            "type": "string"
+          },
+          "title": "loopfileBaseDirs",
+          "type": "array"
+        },
+        "podAnnotations": {
+          "description": "Extra annotations on the agent pods.",
+          "required": [],
+          "title": "podAnnotations",
+          "type": "object"
+        },
+        "podLabels": {
+          "description": "Extra labels on the agent pods.",
+          "required": [],
+          "title": "podLabels",
+          "type": "object"
+        },
+        "poolStatsInterval": {
+          "default": "60s",
+          "description": "Per-node backend selection comes from the node's MiroirNode custom\nresource (see the Storage topology section below).\n\nHow often each agent republishes its pool capacities to its MiroirNode\n(read by the controller for capacity-aware placement).",
+          "title": "poolStatsInterval",
+          "type": "string"
+        },
+        "registrar": {
+          "description": "kubelet plugin-registration sidecar riding the agent DaemonSet.",
+          "properties": {
+            "image": {
+              "default": "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0",
+              "title": "image",
+              "type": "string"
+            },
+            "resources": {
+              "description": "Registrar sidecar resources.",
+              "properties": {
+                "limits": {
+                  "properties": {
+                    "memory": {
+                      "default": "64Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "limits",
+                  "type": "object"
+                },
+                "requests": {
+                  "properties": {
+                    "cpu": {
+                      "default": "5m",
+                      "title": "cpu",
+                      "type": "string"
+                    },
+                    "memory": {
+                      "default": "16Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "requests",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "resources",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "registrar",
+          "type": "object"
+        },
+        "resources": {
+          "properties": {
+            "limits": {
+              "properties": {
+                "memory": {
+                  "default": "128Mi",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "limits",
+              "type": "object"
+            },
+            "requests": {
+              "properties": {
+                "cpu": {
+                  "default": "10m",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "32Mi",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "volumeWorkers": {
+          "default": 4,
+          "description": "Concurrent volume reconciles per agent. Per-volume work is\nserialized by controller-runtime regardless; this bounds how many\ndistinct volumes one agent works at once.",
+          "title": "volumeWorkers",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "agent",
+      "type": "object"
+    },
+    "autoDiskfulAfter": {
+      "default": "",
+      "description": "Convert a diskless leg (client or tie-breaker) that has stayed DRBD\nPrimary past this duration into a local diskful replica on its node, so a\nsettled consumer stops paying network I/O (LINSTOR's auto-diskful; Go\nduration, e.g. \"10m\"). Conversion needs a MiroirNode for the leg's node\nwith fresh pool stats and room for the volume's full size. Empty disables\nit.\nSee the root README, \"Auto-diskful\".",
+      "title": "autoDiskfulAfter",
+      "type": "string"
+    },
+    "autoEvictAfter": {
+      "default": "",
+      "description": "Re-place a dead storage node's legs once its heartbeat (MiroirNode\nstatus, refreshed ~60s) has been stale this long (LINSTOR's auto-evict;\nGo duration, e.g. \"60m\" — keep it well above any reboot or upgrade\nwindow). Each affected volume gets one atomic swap: the dead entry out,\na fresh replica in (full sync follows). The dead node keeps its teardown\nfinalizer as the record of its never-cleaned leg: deleting an evicted\nvolume still waits for that node, and when the node returns its agent\ntears the leftover leg down through the normal removal flow.\nIt never acts when more than one node looks dead, when a survivor still\nsees the node's DRBD links up, when the remaining legs are not clean,\nor when snapshots pin the volume. Needs a spare storage node carrying\nthe volume's pool; per-node opt-out via `spec.autoEvict: false` on its MiroirNode.\nEmpty disables it (the default: eviction discards the dead node's data).",
+      "title": "autoEvictAfter",
+      "type": "string"
+    },
+    "autoTieBreaker": {
+      "default": true,
+      "description": "Add a diskless tie-breaker replica to 2-replica freeze volumes when a\nspare storage node exists, so majority quorum survives a single node\nloss. Also retrofits existing freeze volumes at controller startup.",
+      "title": "autoTieBreaker",
+      "type": "boolean"
+    },
+    "drbd": {
+      "description": "=============================================================================\nDRBD replication tuning\n=============================================================================\nDRBD replication tuning applied cluster-wide through the common{} section of\nglobal_common.conf; every resource inherits it. Leave a value empty to use\nDRBD's built-in default. Tune to your replication network — see the LINBIT\n\"Tuning the DRBD Resync Controller\" guide.",
+      "properties": {
+        "alExtents": {
+          "default": "",
+          "description": "al-extents, the DRBD activity-log size (number of 4 MiB extents kept\n\"hot\"). DRBD's default (1237) forces frequent metadata updates under a\nscattered random-write workload; raising it (e.g. 6007) cuts that write\namplification at the cost of a longer resync of the active region after a\ncrash. Empty leaves DRBD's default. Must be a prime below 65534.",
+          "required": [],
+          "title": "alExtents",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "diskTimeout": {
+          "default": 0,
+          "description": "disk-timeout in 0.1s units: how long DRBD waits for a backing-device\nI/O before force-detaching, e.g. 600 (60s). At the DRBD default of 0\n(infinite) a failing backing disk can wedge a reboot in\ndrbd_md_sync_page_io; but DRBD's manual warns that aborting a request\nwhose completion later arrives can corrupt reused pages or panic the\nkernel, which is why upstream ships it disabled. Opt in deliberately\non hardware known to hang instead of erroring.",
+          "required": [],
+          "title": "diskTimeout",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "extraConfig": {
+          "description": "Free-form escape hatch for DRBD options the chart has no knob for:\nverbatim option lines (semicolons included) appended inside the matching\nsection of common{} in global_common.conf, inherited by every resource.\nOnly validated when an agent next runs drbdadm adjust, and a bad line\nbreaks every resource on the node — test on a throwaway cluster first.",
+          "properties": {
+            "disk": {
+              "default": "",
+              "description": "Extra lines for the disk {} section\n(e.g. \"read-balancing least-pending;\").",
+              "title": "disk",
+              "type": "string"
+            },
+            "handlers": {
+              "default": "",
+              "description": "Extra lines for the handlers {} section (e.g. fence handlers).",
+              "title": "handlers",
+              "type": "string"
+            },
+            "net": {
+              "default": "",
+              "description": "Extra lines for the net {} section (e.g. \"csums-alg crc32c;\").",
+              "title": "net",
+              "type": "string"
+            },
+            "options": {
+              "default": "",
+              "description": "Extra lines for the options {} section (resource options).",
+              "title": "options",
+              "type": "string"
+            },
+            "startup": {
+              "default": "",
+              "description": "Extra lines for the startup {} section.",
+              "title": "startup",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "extraConfig",
+          "type": "object"
+        },
+        "net": {
+          "properties": {
+            "maxBuffers": {
+              "default": "",
+              "description": "max-buffers, the DRBD receive-buffer count (e.g. \"36864\"); raises\nresync throughput on fast links.",
+              "title": "maxBuffers",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "net",
+          "type": "object"
+        },
+        "onIoError": {
+          "default": "detach",
+          "description": "How a diskful replica reacts to a backing-device I/O error. detach\n(the LINSTOR/DRBD-recommended default) drops the failing leg to\nDiskless and serves reads/writes via the peer instead of surfacing\nEIO into the pod. Set to pass_on to propagate errors instead.",
+          "title": "onIoError",
+          "type": "string"
+        },
+        "portBase": {
+          "default": 7000,
+          "description": "Lowest TCP port for DRBD replication links, one per replicated volume\nascending (7000, 7001, …). The agent runs hostNetwork so these bind on\nthe node's kernel. Ceph mgr dashboard's non-SSL default is also 7000;\nco-locating with Rook host-network Ceph requires moving one of them\n(see issue #148). Existing volumes keep their assigned ports.",
+          "maximum": 64000,
+          "minimum": 1024,
+          "title": "portBase",
+          "type": "integer"
+        },
+        "resync": {
+          "properties": {
+            "discardGranularity": {
+              "default": "",
+              "description": "rs-discard-granularity cluster-wide fallback: during a full resync,\nruns of zeroes are sent as discards of this size instead of written\nout (e.g. \"65536\"), keeping a re-added thin leg thin. Normally leave\nempty — the agent probes each lvmthin/zfs backing device and renders\nan exact per-leg value that overrides this (loopfile is never probed:\nloop devices mishandle it, so also leave this empty on clusters with\nloopfile-backed replicated volumes).",
+              "title": "discardGranularity",
+              "type": "string"
+            },
+            "fillTarget": {
+              "default": "",
+              "description": "c-fill-target, the resync controller's target fill level (e.g. \"1M\").",
+              "title": "fillTarget",
+              "type": "string"
+            },
+            "maxRate": {
+              "default": "",
+              "description": "c-max-rate, the resync bandwidth ceiling used when the link is idle (e.g. \"720M\").",
+              "title": "maxRate",
+              "type": "string"
+            },
+            "minRate": {
+              "default": "10M",
+              "description": "c-min-rate, the resync floor guaranteed even under application I/O.\nDefaulted to 10M: DRBD's kernel default (250 KiB/s) leaves a degraded\nvolume resyncing for days under load; 10 MiB/s heals a 100Gi leg in\nhours while still yielding most of a 1GbE link to applications. Lower\non a slow shared link.",
+              "title": "minRate",
+              "type": "string"
+            },
+            "planAhead": {
+              "default": "",
+              "description": "c-plan-ahead in 0.1s units; a value \u003e 0 enables DRBD's variable-rate resync controller.",
+              "title": "planAhead",
+              "type": "string"
+            },
+            "rate": {
+              "default": "",
+              "description": "resync-rate, the fixed rate used only when the controller is off (planAhead empty or 0).",
+              "title": "rate",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "resync",
+          "type": "object"
+        },
+        "verify": {
+          "properties": {
+            "algorithm": {
+              "default": "crc32c",
+              "description": "verify-alg, arming `drbdadm verify \u003cres\u003e` — the only cross-leg\nintegrity check (a zfs scrub only validates one leg against itself).\nDefaulted to crc32c: drbd.ko depends on libcrc32c so it is present on\nevery node, and it costs nothing until a verify runs. Empty disables\nverification, including the schedule below.",
+              "title": "algorithm",
+              "type": "string"
+            },
+            "schedule": {
+              "default": "",
+              "description": "Cron spec (5-field, agent-local/UTC time) for a scheduled online\nverify of every replicated volume. The agent initiates it once per\nvolume from the coordinator (first diskful replica), serialized per\nnode, skipping volumes that are resyncing or already verifying.\nFindings land in the volume's status (`lastVerifyOutOfSyncBytes`), the\n`miroir_volume_verify_*` metrics, and a `VerifyOutOfSync` event. Empty\n= no scheduled verify (run it by hand). Requires `algorithm` set.",
+              "title": "schedule",
+              "type": "string"
+            },
+            "suspend": {
+              "default": false,
+              "description": "Pause scheduled verify without dropping the schedule above.",
+              "title": "suspend",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "verify",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "drbd",
+      "type": "object"
+    },
+    "extraArgs": {
+      "description": "Extra arguments for the controller container.",
+      "items": {
+        "required": []
+      },
+      "title": "extraArgs",
+      "type": "array"
+    },
+    "extraEnv": {
+      "description": "Extra environment variables for the controller container.",
+      "items": {
+        "required": []
+      },
+      "title": "extraEnv",
+      "type": "array"
+    },
+    "freeSpaceRatio": {
+      "default": 20,
+      "description": "Physical-space guardrail: CreateVolume is refused when the request would\nexceed the pool's *free* bytes × this ratio. overcommitRatio alone bounds\nvirtual bytes, so a pool whose thin volumes have actually filled it can\nstill admit more; running a pool out of space surfaces as I/O errors under\nlive volumes rather than a clean refusal. 20× matches LINSTOR and BlockStor\nand only bites once a pool is ~90% full; lower it toward 1 to keep more\nphysical headroom in reserve.",
+      "title": "freeSpaceRatio",
+      "type": "integer"
+    },
+    "fullnameOverride": {
+      "default": "",
+      "description": "Override the fully qualified name prefix of every rendered object.",
+      "title": "fullnameOverride",
+      "type": "string"
+    },
+    "gateway": {
+      "description": "=============================================================================\nGateway (per-RWX-volume NFS share manager)\n=============================================================================\nThe controller spawns one gateway Deployment per RWX (ReadWriteMany)\nvolume: it mounts the volume's device on a replica node and exports it\nover NFSv4 (userspace NFS-Ganesha), which consumers on any node mount.\nThe image is the agent userland plus NFS-Ganesha.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Serve ReadWriteMany (and ReadOnlyMany) PVCs via per-volume NFS\ngateways. Opt-in: gateway pods run privileged in the release namespace,\nand any user who can create a PVC can cause one to be spawned, so\nenabling RWX is an explicit operator decision. While disabled the\ncontroller rejects RWX at provision time with a clear message, and the\ngateway ServiceAccount, RBAC, PodMonitor, and export alerts are not\ninstalled.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "image": {
+          "properties": {
+            "digest": {
+              "default": "",
+              "description": "Pins the image by digest (sha256:…); takes precedence over the tag.\nThe release pipeline fills this with the published image's digest.",
+              "title": "digest",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "ghcr.io/home-operations/miroir-gateway",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "",
+              "description": "Overrides the image tag; defaults to the chart appVersion.",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "gateway",
+      "type": "object"
+    },
+    "global": {
+      "description": "Fleet-wide defaults (kopiur layout). imagePullSecrets and commonLabels\nreach every pod/object; the scheduling globals apply to the controller —\nthe only freely schedulable workload (the agent DaemonSet must run on\nevery schedulable node for the CSI node service).",
+      "properties": {
+        "affinity": {
+          "required": [],
+          "title": "affinity",
+          "type": "object"
+        },
+        "commonLabels": {
+          "description": "Labels stamped on every rendered object (fleet-wide labelling).",
+          "required": [],
+          "title": "commonLabels",
+          "type": "object"
+        },
+        "imagePullSecrets": {
+          "description": "Pull secrets added to every pod (controller, agent, uninstall).",
+          "items": {
+            "required": []
+          },
+          "title": "imagePullSecrets",
+          "type": "array"
+        },
+        "nodeSelector": {
+          "description": "Controller scheduling defaults.",
+          "required": [],
+          "title": "nodeSelector",
+          "type": "object"
+        },
+        "tolerations": {
+          "items": {
+            "required": []
+          },
+          "title": "tolerations",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "groupSnapshots": {
+      "description": "Volume group snapshots: crash-consistent snapshots cut across several\nPVCs at once under one shared write barrier (VolumeGroupSnapshot API).\nOff by default because it needs cluster-side pieces the chart does not\nship: the groupsnapshot.storage.k8s.io v1 CRDs and a\nsnapshot-controller running with --feature-gates=CSIVolumeGroupSnapshot=true\n(the same gate this flag passes to the csi-snapshotter sidecar).\nOnly replicated volumes (replicas \u003e 1) can join a group — the DRBD\nwrite barrier is what makes the cut atomic across volumes.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "groupSnapshots",
+      "type": "object"
+    },
+    "image": {
+      "description": "=============================================================================\nController (root = controller, kopiur layout; components nest below)\n=============================================================================\nController image (distroless, no storage userland — the controller never\nexecs a storage CLI).",
+      "properties": {
+        "digest": {
+          "default": "",
+          "description": "Pins the image by digest (sha256:…); when set it takes precedence over the tag.\nThe release pipeline fills this with the published image's digest.",
+          "title": "digest",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "repository": {
+          "default": "ghcr.io/home-operations/miroir-controller",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Overrides the image tag; defaults to the chart appVersion so the chart and\nimage versions stay in lock-step (set to e.g. \"main\" to track the rolling tag).",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "image",
+      "type": "object"
+    },
+    "leaderElection": {
+      "description": "Leader election turns on by itself when replicaCount \u003e 1 — the\ncontroller and each CSI sidecar then elect through coordination.k8s.io\nLeases — so this key only customises it.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Elect even with a single replica (replicaCount \u003e 1 elects regardless;\nthis can never switch election off above one replica).",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "default": "",
+          "description": "Lease name; empty derives the release-scoped controller name so two\nreleases in one namespace never share a Lease. Keep it stable across\nupgrades.",
+          "title": "id",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "leaderElection",
+      "type": "object"
+    },
+    "logging": {
+      "description": "Both processes bind the controller-runtime zap flags.",
+      "properties": {
+        "format": {
+          "default": "json",
+          "description": "Encoder: json (structured, default) or console (human-readable).",
+          "title": "format",
+          "type": "string"
+        },
+        "level": {
+          "default": "info",
+          "description": "Log level: debug | info | error (or any zapcore level).",
+          "title": "level",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "logging",
+      "type": "object"
+    },
+    "monitoring": {
+      "description": "=============================================================================\nMonitoring\n=============================================================================\nRequires the Prometheus Operator CRDs (deployed separately).",
+      "properties": {
+        "dashboards": {
+          "properties": {
+            "annotations": {
+              "description": "Annotations added to the dashboard ConfigMap.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Render the Grafana dashboard ConfigMap (for grafana-operator or the kube-prometheus-stack sidecar).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "grafanaOperator": {
+              "properties": {
+                "allowCrossNamespaceImport": {
+                  "default": true,
+                  "description": "If true allows for a Grafana in any namespace to access this GrafanaDashboard.",
+                  "title": "allowCrossNamespaceImport",
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "default": false,
+                  "description": "Render a GrafanaDashboard CR (grafana-operator) instead of a sidecar ConfigMap.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "folder": {
+                  "default": "",
+                  "description": "Folder to create the dashboard in.",
+                  "title": "folder",
+                  "type": "string"
+                },
+                "matchLabels": {
+                  "description": "Selected labels for Grafana instance.",
+                  "required": [],
+                  "title": "matchLabels",
+                  "type": "object"
+                },
+                "resyncPeriod": {
+                  "default": "10m",
+                  "description": "Resync period for the Grafana operator to check for updates to the dashboard.",
+                  "title": "resyncPeriod",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "grafanaOperator",
+              "type": "object"
+            },
+            "labels": {
+              "description": "Labels added to the dashboard ConfigMap.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "namespace": {
+              "default": "",
+              "description": "Namespace for the dashboard objects; defaults to the release namespace.",
+              "title": "namespace",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "dashboards",
+          "type": "object"
+        },
+        "podMonitor": {
+          "properties": {
+            "annotations": {
+              "description": "PodMonitor annotations.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Create a Prometheus Operator PodMonitor (requires its CRDs) scraping\nthe controller and every agent pod on their metrics ports. The\nper-volume miroir_volume_* gauges are exported by the agents.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "30s",
+              "description": "Scrape interval.",
+              "title": "interval",
+              "type": "string"
+            },
+            "labels": {
+              "description": "PodMonitor labels.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "metricRelabelings": {
+              "description": "Prometheus metric relabelings.",
+              "items": {
+                "required": []
+              },
+              "title": "metricRelabelings",
+              "type": "array"
+            },
+            "path": {
+              "default": "/metrics",
+              "description": "Metrics path.",
+              "title": "path",
+              "type": "string"
+            },
+            "podTargetLabels": {
+              "description": "Pod target labels to copy from pods.",
+              "items": {
+                "required": []
+              },
+              "title": "podTargetLabels",
+              "type": "array"
+            },
+            "relabelings": {
+              "description": "Extra Prometheus relabelings (applied before scraping); a node\nlabel from the pod's node name is always added.",
+              "items": {
+                "required": []
+              },
+              "title": "relabelings",
+              "type": "array"
+            },
+            "scrapeTimeout": {
+              "default": "10s",
+              "description": "Scrape timeout.",
+              "title": "scrapeTimeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "podMonitor",
+          "type": "object"
+        },
+        "prometheusRule": {
+          "properties": {
+            "additionalRuleAnnotations": {
+              "description": "Extra annotations added to every alert rule.",
+              "required": [],
+              "title": "additionalRuleAnnotations",
+              "type": "object"
+            },
+            "additionalRuleLabels": {
+              "description": "Extra labels added to every alert rule.",
+              "required": [],
+              "title": "additionalRuleLabels",
+              "type": "object"
+            },
+            "annotations": {
+              "description": "PrometheusRule annotations.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Create a PrometheusRule with alerting rules (requires the Prometheus Operator CRDs).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "labels": {
+              "description": "PrometheusRule labels.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "overrides": {
+              "description": "Per-alert overrides keyed by alert name. Per entry: `disabled: true`\ndrops the rule, `for` replaces the rule's wait period, and `labels`\nmerge over the rule's own (set `severity` here to reclassify one\nalert). Example:\n  overrides:\n    MiroirVolumeOutOfSync: { disabled: true }\n    MiroirVolumeDisconnected:\n      for: 30m\n      labels: { severity: info }",
+              "required": [],
+              "title": "overrides",
+              "type": "object"
+            },
+            "verifyStaleDays": {
+              "default": 8,
+              "description": "Days since the last completed scheduled verify before\nMiroirVolumeVerifyStale fires. Size it to just over the schedule\nperiod (a weekly `drbd.verify.schedule` → 8). The rule is only\nrendered when `drbd.verify.schedule` is set.",
+              "title": "verifyStaleDays",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "prometheusRule",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "monitoring",
+      "type": "object"
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "Override the chart name used in labels and default object names.",
+      "title": "nameOverride",
+      "type": "string"
+    },
+    "overcommitRatio": {
+      "default": 2,
+      "description": "Thin-provisioning overcommit guardrail: CreateVolume is refused when a\nnode's provisioned total would exceed capacity × this ratio. 2× is the\nclassic CoW headroom; raise it only if you trust your usage to stay\nsparse, lower it toward 1 to provision conservatively.",
+      "title": "overcommitRatio",
+      "type": "integer"
+    },
+    "podAnnotations": {
+      "description": "Extra annotations on the controller pod.",
+      "required": [],
+      "title": "podAnnotations",
+      "type": "object"
+    },
+    "podLabels": {
+      "description": "Extra labels on the controller pod.",
+      "required": [],
+      "title": "podLabels",
+      "type": "object"
+    },
+    "priorityClassName": {
+      "default": "system-cluster-critical",
+      "description": "system-cluster-critical protects the single controller from eviction\nunder node pressure — while it is down, no volume can be provisioned,\nexpanded, or snapshotted.",
+      "title": "priorityClassName",
+      "type": "string"
+    },
+    "provisionTimeout": {
+      "default": "120s",
+      "description": "Wait for agents to realise a new volume. Keep sidecars.*.timeout at or\nabove this, or the sidecar RPC deadline fires before this one and the\nknob has no effect.",
+      "title": "provisionTimeout",
+      "type": "string"
+    },
+    "replicaCount": {
+      "default": 1,
+      "description": "Controller replicas. Anything above 1 automatically enables leader\nelection: the extras are warm standbys (failover is lease expiry, ~15s,\ninstead of a full pod reschedule), the rollout strategy switches to\nRollingUpdate, and a PodDisruptionBudget keeps one replica through\nvoluntary disruptions. Pointless on a single-node cluster (the node is\nthe failure domain); pair with global.affinity (pod anti-affinity) so\nreplicas land on different nodes.",
+      "title": "replicaCount",
+      "type": "integer"
+    },
+    "resources": {
+      "description": "Controller resources.",
+      "properties": {
+        "limits": {
+          "properties": {
+            "memory": {
+              "default": "128Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "limits",
+          "type": "object"
+        },
+        "requests": {
+          "properties": {
+            "cpu": {
+              "default": "10m",
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "32Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "requests",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "resources",
+      "type": "object"
+    },
+    "sidecars": {
+      "description": "=============================================================================\nCSI sidecars (upstream sig-storage images)\n=============================================================================",
+      "properties": {
+        "healthMonitor": {
+          "description": "external-health-monitor-controller: polls ControllerGetVolume and raises a\nPVC event when a volume reports split-brain/degraded/disk-failed (the same\nhealth the agents fold into status.phase). Off by default — the\nmiroir_volume_* metrics already carry this; enable for native PVC events.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "image": {
+              "default": "registry.k8s.io/sig-storage/csi-external-health-monitor-controller:v0.18.0",
+              "title": "image",
+              "type": "string"
+            },
+            "interval": {
+              "default": "1m",
+              "description": "How often the monitor re-checks every volume's condition.",
+              "title": "interval",
+              "type": "string"
+            },
+            "resources": {
+              "description": "Health-monitor sidecar resources.",
+              "properties": {
+                "limits": {
+                  "properties": {
+                    "memory": {
+                      "default": "128Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "limits",
+                  "type": "object"
+                },
+                "requests": {
+                  "properties": {
+                    "cpu": {
+                      "default": "10m",
+                      "title": "cpu",
+                      "type": "string"
+                    },
+                    "memory": {
+                      "default": "32Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "requests",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "resources",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "healthMonitor",
+          "type": "object"
+        },
+        "provisioner": {
+          "properties": {
+            "image": {
+              "default": "registry.k8s.io/sig-storage/csi-provisioner:v6.3.0",
+              "title": "image",
+              "type": "string"
+            },
+            "resources": {
+              "description": "Provisioner sidecar resources.",
+              "properties": {
+                "limits": {
+                  "properties": {
+                    "memory": {
+                      "default": "128Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "limits",
+                  "type": "object"
+                },
+                "requests": {
+                  "properties": {
+                    "cpu": {
+                      "default": "10m",
+                      "title": "cpu",
+                      "type": "string"
+                    },
+                    "memory": {
+                      "default": "32Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "requests",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "resources",
+              "type": "object"
+            },
+            "timeout": {
+              "default": "120s",
+              "description": "LVM/ZFS provisioning on a cold node can exceed the 10s sidecar\ndefault; the driver returns DeadlineExceeded and the provisioner\nretries, but a roomier timeout avoids churn.",
+              "title": "timeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "provisioner",
+          "type": "object"
+        },
+        "resizer": {
+          "properties": {
+            "image": {
+              "default": "registry.k8s.io/sig-storage/csi-resizer:v2.2.1",
+              "title": "image",
+              "type": "string"
+            },
+            "resources": {
+              "description": "Resizer sidecar resources.",
+              "properties": {
+                "limits": {
+                  "properties": {
+                    "memory": {
+                      "default": "128Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "limits",
+                  "type": "object"
+                },
+                "requests": {
+                  "properties": {
+                    "cpu": {
+                      "default": "10m",
+                      "title": "cpu",
+                      "type": "string"
+                    },
+                    "memory": {
+                      "default": "32Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "requests",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "resources",
+              "type": "object"
+            },
+            "timeout": {
+              "default": "120s",
+              "description": "Online grow can block on a rebooting node; keep \u003e= provisionTimeout.",
+              "title": "timeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "resizer",
+          "type": "object"
+        },
+        "snapshotter": {
+          "properties": {
+            "image": {
+              "default": "registry.k8s.io/sig-storage/csi-snapshotter:v8.6.0",
+              "title": "image",
+              "type": "string"
+            },
+            "resources": {
+              "description": "Snapshotter sidecar resources.",
+              "properties": {
+                "limits": {
+                  "properties": {
+                    "memory": {
+                      "default": "128Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "limits",
+                  "type": "object"
+                },
+                "requests": {
+                  "properties": {
+                    "cpu": {
+                      "default": "10m",
+                      "title": "cpu",
+                      "type": "string"
+                    },
+                    "memory": {
+                      "default": "32Mi",
+                      "title": "memory",
+                      "type": "string"
+                    }
+                  },
+                  "required": [],
+                  "title": "requests",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "resources",
+              "type": "object"
+            },
+            "timeout": {
+              "default": "120s",
+              "description": "CreateSnapshot returns fast (readiness is polled), so the default\nsuffices; raise if snapshot RPCs are slow.",
+              "title": "timeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "snapshotter",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "sidecars",
+      "type": "object"
+    },
+    "storageCapacity": {
+      "description": "Storage-capacity-aware scheduling. When enabled, the external-provisioner\npublishes CSIStorageCapacity objects from the driver's GetCapacity RPC\n(capacity × overcommitRatio − provisioned, per storage node) and the\nkube-scheduler steers a WaitForFirstConsumer pod onto a node whose pool can\nhold the volume — instead of landing there and having CreateVolume refuse it\nand reschedule. CreateVolume's own overcommit guard stays the authority.\nOff by default: it is a behavior change — with storageCapacity on, the\nscheduler treats a (node, class) pair with no published capacity as unfit, so\na freshly installed cluster waits for agents to publish pool stats (up to\nagent.poolStatsInterval) before the first pod schedules.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "storageCapacity",
+      "type": "object"
+    },
+    "uninstall": {
+      "description": "=============================================================================\nUninstall hook\n=============================================================================\n`helm uninstall` data handling. By default the release is removed but every\nMiroirVolume/MiroirSnapshot — and the data on the nodes — is left in place\n(the CRDs, installed from crds/, survive uninstall too, so a reinstall\nre-adopts everything). Destroying the data is opt-in via `confirmation`.",
+      "properties": {
+        "confirmation": {
+          "default": "",
+          "description": "Consent to destroy all volume data on `helm uninstall`: set to the\nliteral \"yes-really-destroy-data\" to render the pre-delete hook Job that\ndeletes every MiroirSnapshot and MiroirVolume — the agents then tear down\neach DRBD resource and backing device, including volumes whose PV\nreclaimPolicy is Retain. Hooks are baked into the release at\ninstall/upgrade time, so set this with a `helm upgrade` *before* running\n`helm uninstall`. Any other non-empty value fails the render.",
+          "title": "confirmation",
+          "type": "string"
+        },
+        "image": {
+          "default": "registry.k8s.io/kubectl:v1.37.0",
+          "description": "Image for the uninstall hook Job (needs only `kubectl`).",
+          "title": "image",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "uninstall",
+      "type": "object"
+    },
+    "unreachableNodeTolerationSeconds": {
+      "default": 5,
+      "description": "Seconds the controller pod stays bound to an unreachable node before\neviction. The Kubernetes default (300) leaves a single-replica controller\nunable to provision, expand, or snapshot for five minutes after its node\ndies; 5 reschedules it almost immediately (the controller is stateless).",
+      "title": "unreachableNodeTolerationSeconds",
+      "type": "integer"
+    }
+  },
+  "required": [],
+  "type": "object"
+}
