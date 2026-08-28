@@ -64,7 +64,8 @@ spec:
                   description: |-
                     Files lists model weight artifacts to stage from Source. Entries are
                     repo-relative for repository sources. The first entry is the primary model
-                    file passed to the runtime.
+                    file passed to the runtime. When Files is empty, Source must name a single
+                    object directly.
                   items:
                     type: string
                   type: array
@@ -330,6 +331,53 @@ spec:
                     source remains the alternative there. Ignored for local and pvc://
                     sources, which need no remote fetch.
                   type: boolean
+                prefetchTolerations:
+                  description: |-
+                    PrefetchTolerations are applied to the prefetch Job's pod, and govern
+                    nothing else: they say where the download may run, not where the model
+                    will be served. A fleet whose GPU nodes are tainted needs the prefetch
+                    download to schedule onto those nodes when the shared cache lives on
+                    node-local storage (#1621). Inheriting from an InferenceService would
+                    be ill-defined here: prefetch runs before the first InferenceService
+                    exists by design.
+                  items:
+                    description: |-
+                      The pod this Toleration is attached to tolerates any taint that matches
+                      the triple <key,value,effect> using the matching operator <operator>.
+                    properties:
+                      effect:
+                        description: |-
+                          Effect indicates the taint effect to match. Empty means match all taint effects.
+                          When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                        type: string
+                      key:
+                        description: |-
+                          Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                          If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                        type: string
+                      operator:
+                        description: |-
+                          Operator represents a key's relationship to the value.
+                          Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
+                          Exists is equivalent to wildcard for value, so that a pod can
+                          tolerate all taints of a particular category.
+                          Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
+                        type: string
+                      tolerationSeconds:
+                        description: |-
+                          TolerationSeconds represents the period of time the toleration (which must be
+                          of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                          it is not set, which means tolerate the taint forever (do not evict). Zero and
+                          negative values will be treated as 0 (evict immediately) by the system.
+                        format: int64
+                        type: integer
+                      value:
+                        description: |-
+                          Value is the taint value the toleration matches to.
+                          If the operator is Exists, the value should be empty, otherwise just a regular string.
+                        type: string
+                    type: object
+                  type: array
                 quantization:
                   description: Quantization describes the quantization level (e.g., Q4_0, Q5_K_M, F16)
                   type: string
@@ -381,6 +429,16 @@ spec:
                       - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)
                       - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)
                       - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)
+
+                    Source may also name a repository or bucket PREFIX rather than a single
+                    object. In that case spec.files selects which artifacts to stage from it,
+                    and files[0] is the primary file handed to the runtime. This is how a
+                    sharded GGUF, an mmproj, or draft weights are expressed. Example:
+
+                      source: s3://models/org/Repo-GGUF
+                      files:
+                        - Model-00001-of-00002.gguf
+                        - Model-00002-of-00002.gguf
 
                     file:// caveat for hybrid topologies: the controller pod must be
                     able to read the path. In Mac kind / k3s / GKE deployments where

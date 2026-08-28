@@ -26,7 +26,7 @@
       "description": "spec defines the desired state of Model",
       "properties": {
         "files": {
-          "description": "Files lists model weight artifacts to stage from Source. Entries are\nrepo-relative for repository sources. The first entry is the primary model\nfile passed to the runtime.",
+          "description": "Files lists model weight artifacts to stage from Source. Entries are\nrepo-relative for repository sources. The first entry is the primary model\nfile passed to the runtime. When Files is empty, Source must name a single\nobject directly.",
           "items": {
             "type": "string"
           },
@@ -270,6 +270,56 @@
             "null"
           ]
         },
+        "prefetchTolerations": {
+          "description": "PrefetchTolerations are applied to the prefetch Job's pod, and govern\nnothing else: they say where the download may run, not where the model\nwill be served. A fleet whose GPU nodes are tainted needs the prefetch\ndownload to schedule onto those nodes when the shared cache lives on\nnode-local storage (#1621). Inheriting from an InferenceService would\nbe ill-defined here: prefetch runs before the first InferenceService\nexists by design.",
+          "items": {
+            "additionalProperties": false,
+            "description": "The pod this Toleration is attached to tolerates any taint that matches\nthe triple \u003ckey,value,effect\u003e using the matching operator \u003coperator\u003e.",
+            "properties": {
+              "effect": {
+                "description": "Effect indicates the taint effect to match. Empty means match all taint effects.\nWhen specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "description": "Key is the taint key that the toleration applies to. Empty means match all taint keys.\nIf the key is empty, operator must be Exists; this combination means to match all values and all keys.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "operator": {
+                "description": "Operator represents a key's relationship to the value.\nValid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.\nExists is equivalent to wildcard for value, so that a pod can\ntolerate all taints of a particular category.\nLt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tolerationSeconds": {
+                "description": "TolerationSeconds represents the period of time the toleration (which must be\nof effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,\nit is not set, which means tolerate the taint forever (do not evict). Zero and\nnegative values will be treated as 0 (evict immediately) by the system.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "value": {
+                "description": "Value is the taint value the toleration matches to.\nIf the operator is Exists, the value should be empty, otherwise just a regular string.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "quantization": {
           "description": "Quantization describes the quantization level (e.g., Q4_0, Q5_K_M, F16)",
           "type": [
@@ -322,7 +372,7 @@
           ]
         },
         "source": {
-          "description": "Source defines where to obtain the model.\nFor GGUF models: URL or path to a .gguf file.\nFor MLX models: local directory path containing the model (config.json, weights).\nSupported schemes: http://, https://, file://, pvc://, hf://, s3://, or absolute paths.\nExamples:\n  - https://huggingface.co/org/repo/resolve/main/model.gguf\n  - file:///mnt/models/model.gguf\n  - /mnt/models/model.gguf (air-gapped deployments)\n  - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)\n  - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)\n  - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)\n\nfile:// caveat for hybrid topologies: the controller pod must be\nable to read the path. In Mac kind / k3s / GKE deployments where\nthe metal-agent runs on the host and the controller runs inside a\ncontainer, /Users/... and other host paths are invisible to the\ncontroller and will fail to fetch. The controller marks the Model\nFailed and backs off to a 5-minute requeue rather than retrying\ntightly (#405). Workaround: pre-stage on a pvc://, or use the\nequivalent https://huggingface.co/.../\u003cfilename\u003e.gguf URL which\nthe runtime/init container resolves at deploy time.",
+          "description": "Source defines where to obtain the model.\nFor GGUF models: URL or path to a .gguf file.\nFor MLX models: local directory path containing the model (config.json, weights).\nSupported schemes: http://, https://, file://, pvc://, hf://, s3://, or absolute paths.\nExamples:\n  - https://huggingface.co/org/repo/resolve/main/model.gguf\n  - file:///mnt/models/model.gguf\n  - /mnt/models/model.gguf (air-gapped deployments)\n  - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)\n  - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)\n  - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)\n\nSource may also name a repository or bucket PREFIX rather than a single\nobject. In that case spec.files selects which artifacts to stage from it,\nand files[0] is the primary file handed to the runtime. This is how a\nsharded GGUF, an mmproj, or draft weights are expressed. Example:\n\n  source: s3://models/org/Repo-GGUF\n  files:\n    - Model-00001-of-00002.gguf\n    - Model-00002-of-00002.gguf\n\nfile:// caveat for hybrid topologies: the controller pod must be\nable to read the path. In Mac kind / k3s / GKE deployments where\nthe metal-agent runs on the host and the controller runs inside a\ncontainer, /Users/... and other host paths are invisible to the\ncontroller and will fail to fetch. The controller marks the Model\nFailed and backs off to a 5-minute requeue rather than retrying\ntightly (#405). Workaround: pre-stage on a pvc://, or use the\nequivalent https://huggingface.co/.../\u003cfilename\u003e.gguf URL which\nthe runtime/init container resolves at deploy time.",
           "pattern": "^(https?|file|pvc|hf|s3)://.*|^/[^\\s]+$|^[a-zA-Z0-9][\\w\\-\\.\\/]+$",
           "type": "string"
         },

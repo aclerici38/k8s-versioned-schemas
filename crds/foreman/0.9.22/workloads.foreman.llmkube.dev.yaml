@@ -255,6 +255,24 @@ spec:
                       items:
                         type: string
                       type: array
+                    testLayout:
+                      description: |-
+                        TestLayout declares where this repository's tests live relative to the
+                        code they cover, so the reviewer's scope-overlap check can map a test
+                        file back to the module it covers. Leave unset when tests sit beside
+                        the code, which is the common case and the built-in behaviour.
+                      properties:
+                        sourceRoot:
+                          description: |-
+                            SourceRoot is the directory the code under test lives under,
+                            e.g. "src/main/java" for Maven/Gradle, or "lib" for Ruby.
+                          type: string
+                        testRoot:
+                          description: |-
+                            TestRoot is the directory tests live under, e.g. "src/test/java"
+                            for Maven/Gradle, or "spec" for a Ruby project.
+                          type: string
+                      type: object
                   type: object
                 intent:
                   description: |-
@@ -418,6 +436,24 @@ spec:
                             items:
                               type: string
                             type: array
+                          testLayout:
+                            description: |-
+                              TestLayout declares where this repository's tests live relative to the
+                              code they cover, so the reviewer's scope-overlap check can map a test
+                              file back to the module it covers. Leave unset when tests sit beside
+                              the code, which is the common case and the built-in behaviour.
+                            properties:
+                              sourceRoot:
+                                description: |-
+                                  SourceRoot is the directory the code under test lives under,
+                                  e.g. "src/main/java" for Maven/Gradle, or "lib" for Ruby.
+                                type: string
+                              testRoot:
+                                description: |-
+                                  TestRoot is the directory tests live under, e.g. "src/test/java"
+                                  for Maven/Gradle, or "spec" for a Ruby project.
+                                type: string
+                            type: object
                         type: object
                       kind:
                         description: Kind selects the AgenticTask kind to emit.
@@ -860,6 +896,21 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
+                contradictedTasks:
+                  description: |-
+                    ContradictedTasks counts child tasks whose terminal result
+                    carried a cross-stage contradiction
+                    (extra.crossStageContradictions non-empty). A contradiction means a
+                    stage (coder / gate / reviewer) asserted something the
+                    ground-truth branch facts contradict (e.g. the coder claims it
+                    edited files on an empty branch). It is surfaced here so a
+                    contradiction is countable and visible instead of being written
+                    to the AgenticTask and read by nobody (#1685). Orthogonal to
+                    success: a task can Succeeded and still contradict itself, so it
+                    is counted in addition to whatever terminal bucket it already
+                    matched and does not move the Workload to Failed.
+                  format: int32
+                  type: integer
                 failedTasks:
                   description: FailedTasks counts child tasks in phase Failed.
                   format: int32

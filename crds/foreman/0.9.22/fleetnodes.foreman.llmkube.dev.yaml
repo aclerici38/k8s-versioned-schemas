@@ -33,6 +33,9 @@ spec:
         - jsonPath: .status.currentTask
           name: Current Task
           type: string
+        - jsonPath: .status.kubernetesNode
+          name: K8s Node
+          type: string
         - jsonPath: .status.lastHeartbeatTime
           name: Heartbeat
           type: date
@@ -69,8 +72,13 @@ spec:
               properties:
                 nodeName:
                   description: |-
-                    NodeName is the human-readable identity of the worker. Conventionally
-                    matches metadata.name; required for the scheduler to address it.
+                    NodeName is the human-readable identity of the WORKER — the agent
+                    process, not the machine it runs on (#1640). Conventionally matches
+                    metadata.name; required for the scheduler to address it. For an
+                    in-cluster agent this is the pod name (the agent falls back to
+                    os.Hostname()); off-cluster agents set it via --fleet-node-name. The
+                    Kubernetes node a pod is scheduled on is reported separately at
+                    status.kubernetesNode.
                   type: string
                 roles:
                   description: |-
@@ -220,9 +228,25 @@ spec:
                   x-kubernetes-list-type: map
                 currentTask:
                   description: |-
-                    CurrentTask is the namespaced name of the AgenticTask the agent is
-                    running, or empty if idle. The scheduler skips nodes with a non-empty
-                    CurrentTask (v0.1 concurrency is one task per node).
+                    CurrentTask is the namespaced name of the in-process AgenticTask this
+                    node is reserved for, or empty if no reservation is held. The scheduler
+                    skips nodes with a non-empty CurrentTask when placing in-process work.
+
+                    Empty does NOT mean idle. A Job-mode task (Agent
+                    spec.execution.mode=Job) runs in an ephemeral Job pod rather than on the
+                    node, so the scheduler deliberately leaves CurrentTask untouched for it,
+                    and one agent supervises several such tasks concurrently (bounded by its
+                    --max-supervised-tasks). A node with an empty CurrentTask can therefore
+                    be supervising coder Jobs; it is free for in-process work, not idle.
+                  type: string
+                kubernetesNode:
+                  description: |-
+                    KubernetesNode is the Kubernetes node the agent pod is scheduled on,
+                    reported by the agent on heartbeat from the FLEET_NODE_NAME downward-API
+                    env var (fieldRef: spec.nodeName). It is a PROPERTY of the worker, not
+                    its identity: FleetNode identity is the agent process (#1640), and
+                    spec.nodeName holds the worker's own name. Off-cluster agents (metal
+                    Macs) have no Kubernetes node and leave this empty.
                   type: string
                 lastHeartbeatTime:
                   description: |-

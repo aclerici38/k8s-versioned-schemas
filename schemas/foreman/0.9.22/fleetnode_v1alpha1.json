@@ -26,7 +26,7 @@
       "description": "spec is the small bit of identity the agent owns.",
       "properties": {
         "nodeName": {
-          "description": "NodeName is the human-readable identity of the worker. Conventionally\nmatches metadata.name; required for the scheduler to address it.",
+          "description": "NodeName is the human-readable identity of the WORKER — the agent\nprocess, not the machine it runs on (#1640). Conventionally matches\nmetadata.name; required for the scheduler to address it. For an\nin-cluster agent this is the pod name (the agent falls back to\nos.Hostname()); off-cluster agents set it via --fleet-node-name. The\nKubernetes node a pod is scheduled on is reported separately at\nstatus.kubernetesNode.",
           "type": "string"
         },
         "roles": {
@@ -217,7 +217,14 @@
           "x-kubernetes-list-type": "map"
         },
         "currentTask": {
-          "description": "CurrentTask is the namespaced name of the AgenticTask the agent is\nrunning, or empty if idle. The scheduler skips nodes with a non-empty\nCurrentTask (v0.1 concurrency is one task per node).",
+          "description": "CurrentTask is the namespaced name of the in-process AgenticTask this\nnode is reserved for, or empty if no reservation is held. The scheduler\nskips nodes with a non-empty CurrentTask when placing in-process work.\n\nEmpty does NOT mean idle. A Job-mode task (Agent\nspec.execution.mode=Job) runs in an ephemeral Job pod rather than on the\nnode, so the scheduler deliberately leaves CurrentTask untouched for it,\nand one agent supervises several such tasks concurrently (bounded by its\n--max-supervised-tasks). A node with an empty CurrentTask can therefore\nbe supervising coder Jobs; it is free for in-process work, not idle.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kubernetesNode": {
+          "description": "KubernetesNode is the Kubernetes node the agent pod is scheduled on,\nreported by the agent on heartbeat from the FLEET_NODE_NAME downward-API\nenv var (fieldRef: spec.nodeName). It is a PROPERTY of the worker, not\nits identity: FleetNode identity is the agent process (#1640), and\nspec.nodeName holds the worker's own name. Off-cluster agents (metal\nMacs) have no Kubernetes node and leave this empty.",
           "type": [
             "string",
             "null"

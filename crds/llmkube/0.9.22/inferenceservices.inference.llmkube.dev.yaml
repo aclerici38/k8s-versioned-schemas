@@ -5062,30 +5062,85 @@ spec:
                     Maps to llama.cpp --spec-type and --spec-draft-n-max flags. Only the
                     "llamacpp" runtime supports this field; other runtimes must not set it.
                   properties:
+                    draftModel:
+                      description: |-
+                        DraftModel names a file already present in the target model's spec.files
+                        that holds the draft weights (e.g. the dflash-kquant.gguf companion
+                        drafter Meta ships next to the main GGUF for Muse Glimmer). The operator
+                        resolves its staged in-container path the same way it does for
+                        Model.mmproj and passes it to llama.cpp as -md, so the manifest never
+                        has to name a content-hash cache directory that is unknowable before the
+                        first reconcile and moves whenever the file set changes (#1495).
+
+                        Use DraftModel when the drafter is a companion file in the same Model and
+                        DraftModelRef when it is a separate Model CR; the two are mutually
+                        exclusive.
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                    draftModelRef:
+                      description: |-
+                        DraftModelRef names the Model CR holding the draft weights, resolved in
+                        the InferenceService's own namespace and mounted into the serving pod
+                        alongside the target model. Required for the draft-model types when the
+                        drafter ships as its own model rather than a companion file.
+
+                        Deliberately a Model reference rather than the raw in-container path
+                        SGLang's block uses (SpeculativeConfig.DraftModelPath): the operator
+                        downloads and caches the draft exactly like the target model, and a path
+                        has no readiness to gate on.
+                      type: string
                     nDraftMax:
                       description: |-
                         NDraftMax is the maximum number of draft tokens to propose per step
                         (--spec-draft-n-max). Only emitted when set; llama.cpp uses its own default
                         otherwise.
+
+                        The optimum is per-model and per-topology and must be measured, not
+                        copied. On two GB10 Sparks serving DeepSeek-V4-Flash MXFP4, 3 was optimal
+                        at 19.01 tok/s and 4 was worse than disabling speculation entirely
+                        (14.89 against a 16.13 baseline). See defilantech/LLMKube#1423.
                       format: int32
                       minimum: 1
                       type: integer
+                    pMin:
+                      description: |-
+                        PMin is the minimum probability a drafted token needs for the draft to
+                        continue (--spec-draft-p-min). Only emitted when set.
+                      maximum: 1
+                      minimum: 0
+                      type: number
                     type:
                       description: |-
-                        Type is the speculative decoding method (--spec-type). "mtp" maps to
-                        draft-mtp, "draft" maps to draft-simple, and "disabled" (or omitting the
-                        entire SpeculativeDecoding block) means no speculative decoding.
+                        Type is the speculative decoding method (--spec-type). The aliases map
+                        as: "mtp" to draft-mtp, "draft" to draft-simple, and "disabled" to no
+                        speculative decoding (as does omitting the whole block, or "none").
                       enum:
+                        - none
+                        - disabled
                         - mtp
                         - draft
-                        - disabled
+                        - draft-simple
+                        - draft-eagle3
+                        - draft-mtp
+                        - draft-dflash
+                        - draft-dspark
+                        - ngram-simple
+                        - ngram-map-k
+                        - ngram-map-k4v
+                        - ngram-mod
+                        - ngram-cache
                       type: string
                   required:
                     - type
                   type: object
                   x-kubernetes-validations:
-                    - message: 'type "draft" is not supported: there is no draft-model field to name the draft weights; use type "mtp" for self-speculation instead'
-                      rule: self.type != 'draft'
+                    - message: 'this speculative decoding type needs draft weights: set draftModelRef to a Model in the same namespace, or draftModel to a file in Model.files'
+                      rule: '!(self.type in [''draft'',''draft-simple'',''draft-eagle3'',''draft-dflash'',''draft-dspark'']) || ((has(self.draftModelRef) && self.draftModelRef.size() > 0) || (has(self.draftModel) && self.draftModel.size() > 0))'
+                    - message: draft weights (draftModelRef or draftModel) are only valid for the draft-model types (draft-simple, draft-eagle3, draft-dflash, draft-dspark, draft-mtp); the ngram types need no draft weights
+                      rule: (self.type in ['draft','draft-simple','draft-eagle3','draft-dflash','draft-dspark','draft-mtp']) || ((!has(self.draftModelRef) || self.draftModelRef.size() == 0) && (!has(self.draftModel) || self.draftModel.size() == 0))
+                    - message: set only one of draftModelRef (a separate Model CR) and draftModel (a file in Model.files), not both
+                      rule: '!((has(self.draftModelRef) && self.draftModelRef.size() > 0) && (has(self.draftModel) && self.draftModel.size() > 0))'
                 suspend:
                   default: false
                   description: |-
@@ -5604,6 +5659,37 @@ spec:
             status:
               description: status defines the observed state of InferenceService
               properties:
+                acceleration:
+                  description: |-
+                    Acceleration reports the offload result the serving engine (llama.cpp)
+                    produced at load time: which device actually served the model and how
+                    many of its layers were offloaded onto it. This makes a silent CPU
+                    fallback visible in the API: a service that requested an accelerator but
+                    ended up with zero offloaded layers is otherwise indistinguishable from
+                    a healthy GPU service in status. Optional and additive: an absent value
+                    means the offload result is unknown (e.g. CPU-only serving or a runtime
+                    that does not report it).
+                  properties:
+                    device:
+                      description: |-
+                        Device is the device that served the model, as the engine reported it,
+                        e.g. "Vulkan0 (AMD Radeon 8060S)" or "CPU". Empty when the offload
+                        result is unknown.
+                      type: string
+                    layersOffloaded:
+                      description: |-
+                        LayersOffloaded is how many of the model's layers the engine offloaded
+                        onto an accelerator. 0 means every layer ran on CPU, which is a silent
+                        fallback when an accelerator was requested.
+                      format: int32
+                      type: integer
+                    layersTotal:
+                      description: |-
+                        LayersTotal is the model's total layer count. Compared against
+                        LayersOffloaded to express the offload as a fraction (e.g. 63/63).
+                      format: int32
+                      type: integer
+                  type: object
                 conditions:
                   description: |-
                     conditions represent the current state of the InferenceService resource.
