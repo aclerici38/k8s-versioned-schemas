@@ -26,7 +26,7 @@
       "description": "spec is the small bit of identity the agent owns.",
       "properties": {
         "nodeName": {
-          "description": "NodeName is the human-readable identity of the worker. Conventionally\nmatches metadata.name; required for the scheduler to address it.",
+          "description": "NodeName is the human-readable identity of the WORKER — the agent\nprocess, not the machine it runs on (#1640). Conventionally matches\nmetadata.name; required for the scheduler to address it. For an\nin-cluster agent this is the pod name (the agent falls back to\nos.Hostname()); off-cluster agents set it via --fleet-node-name. The\nKubernetes node a pod is scheduled on is reported separately at\nstatus.kubernetesNode.",
           "type": "string"
         },
         "roles": {
@@ -217,7 +217,14 @@
           "x-kubernetes-list-type": "map"
         },
         "currentTask": {
-          "description": "CurrentTask is the namespaced name of the AgenticTask the agent is\nrunning, or empty if idle. The scheduler skips nodes with a non-empty\nCurrentTask (v0.1 concurrency is one task per node).",
+          "description": "CurrentTask is the namespaced name of the in-process AgenticTask this\nnode is reserved for, or empty if no reservation is held. The scheduler\nskips nodes with a non-empty CurrentTask when placing in-process work.\n\nEmpty does NOT mean idle. A Job-mode task (Agent\nspec.execution.mode=Job) runs in an ephemeral Job pod rather than on the\nnode, so the scheduler deliberately leaves CurrentTask untouched for it,\nand one agent supervises several such tasks concurrently (bounded by its\n--max-supervised-tasks). A node with an empty CurrentTask can therefore\nbe supervising coder Jobs; it is free for in-process work, not idle.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kubernetesNode": {
+          "description": "KubernetesNode is the Kubernetes node the agent pod is scheduled on,\nreported by the agent on heartbeat from the FLEET_NODE_NAME downward-API\nenv var (fieldRef: spec.nodeName). It is a PROPERTY of the worker, not\nits identity: FleetNode identity is the agent process (#1640), and\nspec.nodeName holds the worker's own name. Off-cluster agents (metal\nMacs) have no Kubernetes node and leave this empty.",
           "type": [
             "string",
             "null"
@@ -248,6 +255,33 @@
           ],
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "supervisionCapacity": {
+          "additionalProperties": false,
+          "description": "SupervisionCapacity is the node's Job-mode supervision budget,\npublished by the agent on heartbeat (#1639). It lets an operator\ntell \"the fleet is at capacity\" apart from \"something is broken\":\na node that is heartbeating normally but declining further Job-mode\ntasks because its supervision bound is full now reads as full from\nthe cluster instead of only in the agent's memory.\n\nThis is NOT the scheduler's placement signal in v0.1 -- the\nscheduler keeps reading CurrentTask for that (see above), and this\nfield is observability only until a later change makes it\nauthoritative. A Maximum of zero means the bound is unset (unbounded);\nan absent value means the agent did not report one (older agent, or\nthe node has never supervised a Job-mode task).",
+          "properties": {
+            "current": {
+              "description": "Current is the number of Job-mode tasks this node is currently\nsupervising. Reported on heartbeat; resets to zero when none are in\nflight.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "maximum": {
+              "description": "Maximum is the node's Job-mode supervision bound (--max-supervised-tasks,\ndefaulting to DefaultMaxSupervisedTasks). Zero means the bound is unset\n(unbounded); it is a pointer so an absent capacity renders as absent,\nnot as \"unbounded\".",
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
             "null"
           ]
         },

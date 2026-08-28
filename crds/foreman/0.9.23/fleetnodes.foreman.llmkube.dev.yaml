@@ -33,6 +33,15 @@ spec:
         - jsonPath: .status.currentTask
           name: Current Task
           type: string
+        - jsonPath: .status.supervisionCapacity.current
+          name: Supervising
+          type: integer
+        - jsonPath: .status.supervisionCapacity.maximum
+          name: Supervision
+          type: integer
+        - jsonPath: .status.kubernetesNode
+          name: K8s Node
+          type: string
         - jsonPath: .status.lastHeartbeatTime
           name: Heartbeat
           type: date
@@ -69,8 +78,13 @@ spec:
               properties:
                 nodeName:
                   description: |-
-                    NodeName is the human-readable identity of the worker. Conventionally
-                    matches metadata.name; required for the scheduler to address it.
+                    NodeName is the human-readable identity of the WORKER — the agent
+                    process, not the machine it runs on (#1640). Conventionally matches
+                    metadata.name; required for the scheduler to address it. For an
+                    in-cluster agent this is the pod name (the agent falls back to
+                    os.Hostname()); off-cluster agents set it via --fleet-node-name. The
+                    Kubernetes node a pod is scheduled on is reported separately at
+                    status.kubernetesNode.
                   type: string
                 roles:
                   description: |-
@@ -220,9 +234,25 @@ spec:
                   x-kubernetes-list-type: map
                 currentTask:
                   description: |-
-                    CurrentTask is the namespaced name of the AgenticTask the agent is
-                    running, or empty if idle. The scheduler skips nodes with a non-empty
-                    CurrentTask (v0.1 concurrency is one task per node).
+                    CurrentTask is the namespaced name of the in-process AgenticTask this
+                    node is reserved for, or empty if no reservation is held. The scheduler
+                    skips nodes with a non-empty CurrentTask when placing in-process work.
+
+                    Empty does NOT mean idle. A Job-mode task (Agent
+                    spec.execution.mode=Job) runs in an ephemeral Job pod rather than on the
+                    node, so the scheduler deliberately leaves CurrentTask untouched for it,
+                    and one agent supervises several such tasks concurrently (bounded by its
+                    --max-supervised-tasks). A node with an empty CurrentTask can therefore
+                    be supervising coder Jobs; it is free for in-process work, not idle.
+                  type: string
+                kubernetesNode:
+                  description: |-
+                    KubernetesNode is the Kubernetes node the agent pod is scheduled on,
+                    reported by the agent on heartbeat from the FLEET_NODE_NAME downward-API
+                    env var (fieldRef: spec.nodeName). It is a PROPERTY of the worker, not
+                    its identity: FleetNode identity is the agent process (#1640), and
+                    spec.nodeName holds the worker's own name. Off-cluster agents (metal
+                    Macs) have no Kubernetes node and leave this empty.
                   type: string
                 lastHeartbeatTime:
                   description: |-
@@ -247,6 +277,39 @@ spec:
                     - NotReady
                     - Unknown
                   type: string
+                supervisionCapacity:
+                  description: |-
+                    SupervisionCapacity is the node's Job-mode supervision budget,
+                    published by the agent on heartbeat (#1639). It lets an operator
+                    tell "the fleet is at capacity" apart from "something is broken":
+                    a node that is heartbeating normally but declining further Job-mode
+                    tasks because its supervision bound is full now reads as full from
+                    the cluster instead of only in the agent's memory.
+
+                    This is NOT the scheduler's placement signal in v0.1 -- the
+                    scheduler keeps reading CurrentTask for that (see above), and this
+                    field is observability only until a later change makes it
+                    authoritative. A Maximum of zero means the bound is unset (unbounded);
+                    an absent value means the agent did not report one (older agent, or
+                    the node has never supervised a Job-mode task).
+                  properties:
+                    current:
+                      description: |-
+                        Current is the number of Job-mode tasks this node is currently
+                        supervising. Reported on heartbeat; resets to zero when none are in
+                        flight.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    maximum:
+                      description: |-
+                        Maximum is the node's Job-mode supervision bound (--max-supervised-tasks,
+                        defaulting to DefaultMaxSupervisedTasks). Zero means the bound is unset
+                        (unbounded); it is a pointer so an absent capacity renders as absent,
+                        not as "unbounded".
+                      format: int32
+                      type: integer
+                  type: object
                 updateRequest:
                   description: |-
                     UpdateRequest is written by the AgentReleaseReconciler when a new
