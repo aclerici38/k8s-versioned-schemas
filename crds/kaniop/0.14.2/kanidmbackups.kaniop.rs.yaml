@@ -2,53 +2,45 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: kanidmrestores.kaniop.rs
+  name: kanidmbackups.kaniop.rs
 spec:
   group: kaniop.rs
   names:
     categories:
       - kaniop
-    kind: KanidmRestore
-    plural: kanidmrestores
+    kind: KanidmBackup
+    plural: kanidmbackups
     shortNames:
-      - idmrestore
-    singular: kanidmrestore
+      - kb
+    singular: kanidmbackup
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.targetRef.name
-          name: Target
+        - jsonPath: .spec.backupId
+          name: BackupID
+          type: string
+        - jsonPath: .spec.kanidmRef.name
+          name: Kanidm
           type: string
         - jsonPath: .status.phase
           name: Phase
           type: string
+        - jsonPath: .status.consistency
+          name: Consistency
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
-      name: v1beta1
+      name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for KanidmRestoreSpec via `CustomResource`
+          description: Auto-generated derived type for KanidmBackupSpec via `CustomResource`
           properties:
             spec:
               properties:
-                restoreImage:
-                  description: Exact Kanidm image used for restore. It must equal the target image and may not use latest.
+                backupId:
                   type: string
-                source:
-                  properties:
-                    local:
-                      properties:
-                        fileName:
-                          description: Basename of a backup below /data/backups. Paths and traversal are rejected.
-                          type: string
-                      required:
-                        - fileName
-                      type: object
-                  required:
-                    - local
-                  type: object
-                targetRef:
+                kanidmRef:
                   properties:
                     name:
                       type: string
@@ -58,13 +50,23 @@ spec:
                     - name
                     - uid
                   type: object
+                manifestKey:
+                  type: string
+                repositoryRef:
+                  properties:
+                    name:
+                      type: string
+                  required:
+                    - name
+                  type: object
               required:
-                - restoreImage
-                - source
-                - targetRef
+                - backupId
+                - kanidmRef
+                - manifestKey
+                - repositoryRef
               type: object
               x-kubernetes-validations:
-                - message: KanidmRestore spec is immutable
+                - message: KanidmBackup spec is immutable
                   rule: self == oldSelf
             status:
               nullable: true
@@ -101,48 +103,48 @@ spec:
                       - type
                     type: object
                   type: array
-                databaseMutationStarted:
-                  default: false
-                  description: |-
-                    Persisted before the restore Job may be created. Once true, finalizer cleanup
-                    fails closed until the restore has completed.
-                  type: boolean
-                message:
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                consistency:
+                  nullable: true
+                  type: string
+                createdAt:
+                  nullable: true
+                  type: string
+                imageDigest:
+                  nullable: true
+                  type: string
+                kanidmVersion:
                   nullable: true
                   type: string
                 observedGeneration:
                   format: int64
                   nullable: true
                   type: integer
-                observedTargetUid:
+                payloadSha256:
                   nullable: true
                   type: string
                 phase:
-                  default: Pending
+                  default: Discovering
                   enum:
-                    - Pending
-                    - Validating
-                    - Quiescing
-                    - RestoringPrimary
-                    - Verifying
-                    - RebuildingReplicas
-                    - Resuming
-                    - Completed
-                    - Failed
+                    - Discovering
+                    - Ready
+                    - Deleting
+                    - Deleted
+                    - Invalid
                   type: string
-                replicasCleared:
-                  default: false
-                  type: boolean
-                restoreJobName:
+                reason:
                   nullable: true
                   type: string
-                verifyJobName:
+                sizeBytes:
+                  type: integer
+                  minimum: 0.0
                   nullable: true
-                  type: string
               type: object
           required:
             - spec
-          title: KanidmRestore
+          title: KanidmBackup
           type: object
       served: true
       storage: true
