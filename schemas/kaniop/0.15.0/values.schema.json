@@ -50,6 +50,21 @@
         }
       }
     },
+    "dataMoverImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Data mover image used by restore Jobs for backup upload/download operations.",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Image repository for the data-mover binary."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag. Defaults to the operator version if not set."
+        }
+      }
+    },
     "imagePullSecrets": {
       "description": "ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec. If specified, these secrets will be passed to individual puller implementations for them to use. More info: https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod",
       "items": {
@@ -111,7 +126,22 @@
         "level": {
           "type": "string",
           "description": "Log level defined by RUST_LOG environment variable."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "description": "Log output format. JSON emits newline-delimited JSON with one object per event line."
         }
+      }
+    },
+    "extraArgs": {
+      "type": "array",
+      "description": "Additional CLI arguments passed to the operator container.",
+      "items": {
+        "type": "string"
       }
     },
     "idmReconcileIntervalSeconds": {
@@ -502,7 +532,22 @@
             "level": {
               "type": "string",
               "description": "Log level defined by RUST_LOG environment variable."
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "text",
+                "json"
+              ],
+              "description": "Log output format. JSON emits newline-delimited JSON with one object per event line."
             }
+          }
+        },
+        "extraArgs": {
+          "type": "array",
+          "description": "Additional CLI arguments passed to the webhook container.",
+          "items": {
+            "type": "string"
           }
         },
         "service": {
@@ -848,6 +893,51 @@
               "description": "Affinity settings for migration Job pods."
             }
           }
+        }
+      }
+    },
+    "crdApply": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "CRD apply hook ensures Helm upgrades apply current generated CRD schemas via server-side apply.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the CRD apply hook. When enabled, a pre-install/pre-upgrade hook server-side applies all generated CRDs and waits for them to become Established.",
+          "default": true
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "description": "Maximum duration in seconds for the CRD apply Job. A 120-second buffer is added for pod startup. Minimum 60 seconds.",
+          "default": 600
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Number of retries before marking the Job as failed.",
+          "default": 3
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for the CRD apply Job container."
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Node selector for CRD apply Job pods."
+        },
+        "tolerations": {
+          "type": "array",
+          "description": "Tolerations for CRD apply Job pods.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object",
+          "description": "Affinity settings for CRD apply Job pods."
         }
       }
     }
