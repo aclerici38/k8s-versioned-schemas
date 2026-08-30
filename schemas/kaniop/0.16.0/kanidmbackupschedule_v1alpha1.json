@@ -1,0 +1,370 @@
+{
+  "description": "Auto-generated derived type for KanidmBackupScheduleSpec via `CustomResource`",
+  "properties": {
+    "spec": {
+      "additionalProperties": false,
+      "properties": {
+        "concurrencyPolicy": {
+          "default": "Forbid",
+          "description": "Concurrency policy. Must be 'Forbid'.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jitterSeconds": {
+          "description": "Random jitter in seconds added to the schedule to avoid thundering herd.",
+          "minimum": 0,
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kanidmRef": {
+          "additionalProperties": false,
+          "description": "Reference to the Kanidm instance to back up. Only one KanidmBackupSchedule may target a given Kanidm at a time.\n\nThis field is immutable after creation. To target a different Kanidm, delete this Schedule and create a new one.\nExisting Backup CRs and remote S3 data are not affected by Schedule deletion.",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "localVersions": {
+          "default": 7,
+          "description": "Number of local backup versions to retain on the Kanidm PVC under /data/backups.",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repositoryRef": {
+          "additionalProperties": false,
+          "description": "Reference to the KanidmBackupRepository where backups will be stored.\n\nThis field is immutable after creation. To use a different repository, delete this Schedule and create a new one.\nExisting Backup CRs and remote S3 data are not affected by Schedule deletion.",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "retention": {
+          "additionalProperties": false,
+          "description": "Retention policy for remote backups in the repository. Applied at discovery time based on the current Schedule spec.\n\nThis field is immutable after creation. To change retention policy, delete this Schedule and create a new one.\nExisting Backup CRs and remote S3 data are not affected by Schedule deletion; retention is applied at discovery\ntime based on the current Schedule spec.",
+          "nullable": true,
+          "properties": {
+            "daily": {
+              "default": 7,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "keepLast": {
+              "default": 8,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "minAge": {
+              "default": "24h",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "monthly": {
+              "default": 12,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "weekly": {
+              "default": 4,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "keepLast must be between 1 and 3650",
+              "rule": "self.keepLast \u003e= 1 \u0026\u0026 self.keepLast \u003c= 3650"
+            },
+            {
+              "message": "daily must be between 0 and 3650",
+              "rule": "self.daily \u003e= 0 \u0026\u0026 self.daily \u003c= 3650"
+            },
+            {
+              "message": "weekly must be between 0 and 520",
+              "rule": "self.weekly \u003e= 0 \u0026\u0026 self.weekly \u003c= 520"
+            },
+            {
+              "message": "monthly must be between 0 and 120",
+              "rule": "self.monthly \u003e= 0 \u0026\u0026 self.monthly \u003c= 120"
+            }
+          ]
+        },
+        "schedule": {
+          "description": "Cron schedule for Kanidm's online backup. Kaniop renders this into Kanidm's [online_backup] configuration.\n\nThis field is immutable after creation. To change the schedule, delete this KanidmBackupSchedule and create a new one.\nExisting Backup CRs and remote S3 data are not affected by Schedule deletion.\n\nThe online backup transport is experimental (see TransportExperimental condition). Kanidm has no documented\ncompletion contract; Kaniop does not report production backup success based on file stability heuristics alone.",
+          "type": "string"
+        },
+        "suspend": {
+          "default": false,
+          "description": "Suspend the backup schedule. When true, Kaniop pauses the online backup configuration on the Kanidm primary.\nThis field is mutable and can be changed at any time.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "timeZone": {
+          "default": "UTC",
+          "description": "Time zone for the cron schedule. Defaults to UTC.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kanidmRef",
+        "repositoryRef",
+        "schedule"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "kanidmRef is immutable after creation. To target a different Kanidm, delete this KanidmBackupSchedule and create a new one. Existing Backup CRs and remote S3 data are not affected by Schedule deletion.",
+          "rule": "self.kanidmRef == oldSelf.kanidmRef"
+        },
+        {
+          "message": "repositoryRef is immutable after creation. To use a different repository, delete this KanidmBackupSchedule and create a new one. Existing Backup CRs and remote S3 data are not affected by Schedule deletion.",
+          "rule": "self.repositoryRef == oldSelf.repositoryRef"
+        },
+        {
+          "message": "schedule is immutable after creation. To change the cron schedule, delete this KanidmBackupSchedule and create a new one. Existing Backup CRs and remote S3 data are not affected by Schedule deletion.",
+          "rule": "self.schedule == oldSelf.schedule"
+        },
+        {
+          "message": "retention is immutable after creation. To change retention policy, delete this KanidmBackupSchedule and create a new one. Existing Backup CRs and remote S3 data are not affected by Schedule deletion; retention is applied at discovery time based on the current Schedule spec.",
+          "rule": "!has(oldSelf.retention) || self.retention == oldSelf.retention"
+        },
+        {
+          "message": "concurrencyPolicy must be Forbid",
+          "rule": "self.concurrencyPolicy == 'Forbid'"
+        },
+        {
+          "message": "localVersions must be between 1 and 3650",
+          "rule": "self.localVersions \u003e= 1 \u0026\u0026 self.localVersions \u003c= 3650"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "nullable": true,
+      "properties": {
+        "conditions": {
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "discovery": {
+          "additionalProperties": false,
+          "nullable": true,
+          "properties": {
+            "conditions": {
+              "items": {
+                "additionalProperties": false,
+                "description": "Condition contains details for one aspect of the current state of this API Resource.",
+                "properties": {
+                  "lastTransitionTime": {
+                    "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "message": {
+                    "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+                    "type": "string"
+                  },
+                  "observedGeneration": {
+                    "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+                    "type": "string"
+                  },
+                  "status": {
+                    "description": "status of the condition, one of True, False, Unknown.",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "lastTransitionTime",
+                  "message",
+                  "reason",
+                  "status",
+                  "type"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "type"
+              ],
+              "x-kubernetes-list-type": "map"
+            },
+            "lastDiscoveredCount": {
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "lastDiscoveredCount must be non-negative",
+                  "rule": "self \u003e= 0"
+                }
+              ]
+            },
+            "lastError": {
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lastScanTime": {
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lastSuccessfulScanTime": {
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lastDiscoveredBackupRef": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastSuccessfulBackupTime": {
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "title": "KanidmBackupSchedule",
+  "type": "object"
+}

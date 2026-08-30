@@ -36,6 +36,7 @@ spec:
             spec:
               properties:
                 authentication:
+                  description: Authentication configuration for writer, reader, and deleter roles. These fields are mutable and can be updated to rotate credentials.
                   properties:
                     deleter:
                       properties:
@@ -106,20 +107,39 @@ spec:
                     - writer
                   type: object
                 encryption:
+                  description: |-
+                    Encryption configuration for backup payloads. Supports provider-managed SSE (providerManaged),
+                    provider KMS SSE (providerKms), and client-side envelope encryption (clientSide). When absent, no encryption is applied.
+                    This field is mutable, but once a backup has been created with a given encryption configuration, the mode, keyId, and keyRef sub-fields become immutable.
                   nullable: true
                   properties:
                     keyId:
                       nullable: true
                       type: string
+                    keyRef:
+                      nullable: true
+                      properties:
+                        name:
+                          type: string
+                      required:
+                        - name
+                      type: object
                     mode:
                       enum:
                         - providerManaged
                         - providerKms
+                        - clientSide
                       type: string
                   required:
                     - mode
                   type: object
+                  x-kubernetes-validations:
+                    - message: keyId is required when mode is providerKms and forbidden otherwise
+                      rule: (self.mode == 'providerKms') == has(self.keyId)
+                    - message: keyRef is required when mode is clientSide and forbidden otherwise
+                      rule: (self.mode == 'clientSide') == has(self.keyRef)
                 limits:
+                  description: Transport limits and safety retention. This field is mutable.
                   nullable: true
                   properties:
                     maxConcurrentParts:
@@ -142,64 +162,70 @@ spec:
                     - message: maxConcurrentParts must be between 1 and 64
                       rule: self.maxConcurrentParts >= 1 && self.maxConcurrentParts <= 64
                 s3:
+                  description: S3-compatible storage configuration. The bucket, prefix, and endpoint fields are immutable after the repository has been used.
                   properties:
                     bucket:
+                      description: |-
+                        S3 bucket name. Must not be empty.
+
+                        This field is immutable after the repository has been used. To use a different bucket, delete this Repository and create a new one.
                       type: string
                       x-kubernetes-validations:
                         - message: bucket must not be empty
                           rule: self.size() > 0
                     caBundleRef:
+                      description: Reference to a ConfigMap or Secret containing a CA bundle for TLS verification.
                       nullable: true
                       type: string
                     endpoint:
+                      description: |-
+                        S3 endpoint URL. Must use HTTPS unless insecure is enabled.
+
+                        This field is immutable after the repository has been used. To use a different endpoint, delete this Repository and create a new one.
                       nullable: true
                       type: string
-                      x-kubernetes-validations:
-                        - message: endpoint must use HTTPS
-                          rule: self.startsWith('https://')
                     forcePathStyle:
                       default: false
+                      description: Use path-style addressing (http://endpoint/bucket) instead of virtual-hosted-style (http://bucket.endpoint).
+                      type: boolean
+                    insecure:
+                      default: false
+                      description: Allow HTTP endpoints. Not recommended for production use.
                       type: boolean
                     prefix:
+                      description: |-
+                        Prefix within the bucket. Must not contain path traversal segments (..).
+
+                        This field is immutable after the repository has been used. To use a different prefix, delete this Repository and create a new one.
                       type: string
                       x-kubernetes-validations:
                         - message: prefix must not contain path traversal segments
                           rule: '!self.contains(''..'')'
                     region:
+                      description: AWS region. Optional for S3-compatible providers that do not require region specification.
                       nullable: true
                       type: string
                   required:
                     - bucket
                     - prefix
                   type: object
+                  x-kubernetes-validations:
+                    - message: endpoint must use HTTPS unless insecure is enabled
+                      rule: '!has(self.endpoint) || self.endpoint.startsWith(''https://'') || self.insecure'
               required:
                 - authentication
                 - s3
               type: object
               x-kubernetes-validations:
-                - message: s3.bucket is immutable
+                - message: s3.bucket is immutable after creation. To use a different bucket, delete this KanidmBackupRepository and create a new one. Existing Backup CRs referencing this repository are not affected, but remote S3 data in the old bucket remains accessible only through the old Repository.
                   rule: self.s3.bucket == oldSelf.s3.bucket
-                - message: s3.prefix is immutable
+                - message: s3.prefix is immutable after creation. To use a different prefix, delete this KanidmBackupRepository and create a new one. Existing Backup CRs referencing this repository are not affected, but remote S3 data under the old prefix remains accessible only through the old Repository.
                   rule: self.s3.prefix == oldSelf.s3.prefix
-                - message: s3.endpoint is immutable
+                - message: s3.endpoint is immutable after creation. To use a different endpoint, delete this KanidmBackupRepository and create a new one. Existing Backup CRs referencing this repository are not affected, but remote S3 data at the old endpoint remains accessible only through the old Repository.
                   rule: '!has(oldSelf.s3.endpoint) || self.s3.endpoint == oldSelf.s3.endpoint'
             status:
               nullable: true
               properties:
-                capabilities:
-                  nullable: true
-                  properties:
-                    conditionalPut:
-                      type: boolean
-                    multipartUpload:
-                      type: boolean
-                    objectLock:
-                      type: boolean
-                  required:
-                    - conditionalPut
-                    - multipartUpload
-                    - objectLock
-                  type: object
                 conditions:
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
@@ -232,9 +258,9 @@ spec:
                       - type
                     type: object
                   type: array
-                lastProbeTime:
-                  nullable: true
-                  type: string
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
                 observedGeneration:
                   format: int64
                   nullable: true

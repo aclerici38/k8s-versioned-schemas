@@ -2,31 +2,31 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: kanidmbackupschedules.kaniop.rs
+  name: kanidmbackups.kaniop.rs
 spec:
   group: kaniop.rs
   names:
     categories:
       - kaniop
-    kind: KanidmBackupSchedule
-    plural: kanidmbackupschedules
+    kind: KanidmBackup
+    plural: kanidmbackups
     shortNames:
-      - kbs
-    singular: kanidmbackupschedule
+      - kb
+    singular: kanidmbackup
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
+        - jsonPath: .spec.backupId
+          name: BackupID
+          type: string
         - jsonPath: .spec.kanidmRef.name
           name: Kanidm
           type: string
-        - jsonPath: .spec.schedule
-          name: Schedule
+        - jsonPath: .status.phase
+          name: Phase
           type: string
-        - jsonPath: .spec.suspend
-          name: Suspended
-          type: boolean
-        - jsonPath: .status.conditions[?(@.type=='Ready')].status
-          name: Ready
+        - jsonPath: .status.consistency
+          name: Consistency
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -34,28 +34,24 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for KanidmBackupScheduleSpec via `CustomResource`
+          description: Auto-generated derived type for KanidmBackupSpec via `CustomResource`
           properties:
             spec:
               properties:
-                concurrencyPolicy:
-                  default: Forbid
+                backupId:
                   type: string
-                jitterSeconds:
-                  type: integer
-                  minimum: 0.0
-                  nullable: true
                 kanidmRef:
                   properties:
                     name:
                       type: string
+                    uid:
+                      type: string
                   required:
                     - name
+                    - uid
                   type: object
-                localVersions:
-                  default: 7
-                  type: integer
-                  minimum: 0.0
+                manifestKey:
+                  type: string
                 repositoryRef:
                   properties:
                     name:
@@ -63,64 +59,15 @@ spec:
                   required:
                     - name
                   type: object
-                retention:
-                  nullable: true
-                  properties:
-                    daily:
-                      default: 7
-                      type: integer
-                      minimum: 0.0
-                    keepLast:
-                      default: 8
-                      type: integer
-                      minimum: 0.0
-                    minAge:
-                      default: 24h
-                      type: string
-                    monthly:
-                      default: 12
-                      type: integer
-                      minimum: 0.0
-                    weekly:
-                      default: 4
-                      type: integer
-                      minimum: 0.0
-                  type: object
-                  x-kubernetes-validations:
-                    - message: keepLast must be between 1 and 3650
-                      rule: self.keepLast >= 1 && self.keepLast <= 3650
-                    - message: daily must be between 0 and 3650
-                      rule: self.daily >= 0 && self.daily <= 3650
-                    - message: weekly must be between 0 and 520
-                      rule: self.weekly >= 0 && self.weekly <= 520
-                    - message: monthly must be between 0 and 120
-                      rule: self.monthly >= 0 && self.monthly <= 120
-                schedule:
-                  type: string
-                suspend:
-                  default: false
-                  type: boolean
-                timeZone:
-                  default: UTC
-                  type: string
               required:
+                - backupId
                 - kanidmRef
+                - manifestKey
                 - repositoryRef
-                - schedule
               type: object
               x-kubernetes-validations:
-                - message: kanidmRef is immutable
-                  rule: self.kanidmRef == oldSelf.kanidmRef
-                - message: repositoryRef is immutable
-                  rule: self.repositoryRef == oldSelf.repositoryRef
-                - message: schedule is immutable
-                  rule: self.schedule == oldSelf.schedule
-                - message: retention is immutable
-                  rule: '!has(oldSelf.retention) || self.retention == oldSelf.retention'
-                - message: concurrencyPolicy must be Forbid
-                  rule: self.concurrencyPolicy == 'Forbid'
-                - message: localVersions must be between 1 and 3650
-                  rule: self.localVersions >= 1 && self.localVersions <= 3650
+                - message: KanidmBackup spec is immutable
+                  rule: self == oldSelf
             status:
               nullable: true
               properties:
@@ -156,20 +103,48 @@ spec:
                       - type
                     type: object
                   type: array
-                lastDiscoveredBackupRef:
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                consistency:
                   nullable: true
                   type: string
-                lastSuccessfulBackupTime:
+                createdAt:
+                  nullable: true
+                  type: string
+                imageDigest:
+                  nullable: true
+                  type: string
+                kanidmVersion:
                   nullable: true
                   type: string
                 observedGeneration:
                   format: int64
                   nullable: true
                   type: integer
+                payloadSha256:
+                  nullable: true
+                  type: string
+                phase:
+                  default: Discovering
+                  enum:
+                    - Discovering
+                    - Ready
+                    - Deleting
+                    - Deleted
+                    - Invalid
+                  type: string
+                reason:
+                  nullable: true
+                  type: string
+                sizeBytes:
+                  type: integer
+                  minimum: 0.0
+                  nullable: true
               type: object
           required:
             - spec
-          title: KanidmBackupSchedule
+          title: KanidmBackup
           type: object
       served: true
       storage: true

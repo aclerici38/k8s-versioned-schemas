@@ -52,31 +52,6 @@ spec:
                     More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
                   nullable: true
                   type: boolean
-                backup:
-                  description: |-
-                    Configures Kanidm-native online logical backups.
-
-                    Backups are written to `/data/backups` on the single replica group marked as the
-                    primary node. Local backup configuration requires persistent PVC-backed storage.
-                  nullable: true
-                  properties:
-                    schedule:
-                      description: Cron expression passed to Kanidm's native online backup scheduler.
-                      type: string
-                      x-kubernetes-validations:
-                        - message: backup.schedule cannot be empty
-                          rule: self.size() > 0
-                    versions:
-                      default: 7
-                      description: Number of completed local backups retained by Kanidm.
-                      x-kubernetes-validations:
-                        - message: backup.versions must be greater than zero
-                          rule: self > 0
-                      minimum: 0.0
-                      type: integer
-                  required:
-                    - schedule
-                  type: object
                 containers:
                   description: |-
                     Containers allows injecting additional containers or modifying operator generated
@@ -8104,11 +8079,6 @@ spec:
                 - domain
                 - replicaGroups
               type: object
-              x-kubernetes-validations:
-                - message: backup requires PVC-backed storage
-                  rule: '!has(self.backup) || (has(self.storage) && has(self.storage.volumeClaimTemplate) && !has(self.storage.emptyDir) && !has(self.storage.ephemeral))'
-                - message: backup requires exactly one primary replica group
-                  rule: '!has(self.backup) || self.replicaGroups.filter(r, r.primaryNode == true).size() == 1'
             status:
               description: |-
                 Most recent observed status of the Kanidm cluster. Read-only.
@@ -8155,6 +8125,9 @@ spec:
                     type: object
                   nullable: true
                   type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
                 domainAppearanceImage:
                   description: Status of the domain appearance image.
                   nullable: true
