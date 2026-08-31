@@ -2,39 +2,61 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
+      "additionalProperties": false,
       "description": "GatewayExtensionSpec defines the desired state of GatewayExtension.",
       "properties": {
         "extAuth": {
+          "additionalProperties": false,
           "description": "ExtAuth configuration for ExtAuth extension type.",
           "properties": {
             "clearRouteCache": {
               "default": false,
               "description": "ClearRouteCache determines if the route cache should be cleared to allow the\nexternal authentication service to correctly affect routing decisions.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "failOpen": {
               "default": false,
               "description": "FailOpen determines if requests are allowed when the ext auth service is unavailable.\nDefaults to false, meaning requests will be denied if the ext auth service is unavailable.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "grpcService": {
+              "additionalProperties": false,
               "description": "GrpcService is the GRPC service that will handle the auth.\nMutually exclusive with HttpService.",
               "properties": {
                 "authority": {
                   "description": "Authority is the authority header to use for the GRPC service.",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "backendRef": {
+                  "additionalProperties": false,
                   "description": "BackendRef references the backend GRPC service.",
                   "properties": {
                     "group": {
@@ -42,7 +64,10 @@
                       "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                       "maxLength": 253,
                       "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "default": "Service",
@@ -50,7 +75,10 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "name": {
                       "description": "Name is the name of the referent.",
@@ -63,14 +91,20 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "port": {
                       "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
                       "format": "int32",
                       "maximum": 65535,
                       "minimum": 1,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "weight": {
                       "default": 1,
@@ -78,7 +112,10 @@
                       "format": "int32",
                       "maximum": 1000000,
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -88,14 +125,17 @@
                   "x-kubernetes-validations": [
                     {
                       "message": "Must have port for Service reference",
-                      "rule": "(size(self.group) == 0 && self.kind == 'Service') ? has(self.port) : true"
+                      "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
                     }
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "requestTimeout": {
                   "description": "RequestTimeout is the timeout for the gRPC request. This is the timeout for a specific request.",
-                  "type": "string",
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "x-kubernetes-validations": [
                     {
                       "message": "invalid timeout value",
@@ -103,11 +143,12 @@
                     },
                     {
                       "message": "timeout must be at least 1ms.",
-                      "rule": "duration(self) >= duration('1ms')"
+                      "rule": "duration(self) \u003e= duration('1ms')"
                     }
                   ]
                 },
                 "retry": {
+                  "additionalProperties": false,
                   "description": "Retry specifies the retry policy for gRPC streams associated with the service.",
                   "properties": {
                     "attempts": {
@@ -115,13 +156,18 @@
                       "description": "Attempts specifies the number of retry attempts for a request.\nDefaults to 1 attempt if not set.\nA value of 0 effectively disables retries.",
                       "format": "int32",
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "backoff": {
+                      "additionalProperties": false,
                       "description": "Backoff specifies the retry backoff strategy.\nIf not set, a default backoff with a base interval of 1000ms is used. The default max interval is 10 times the base interval.",
                       "properties": {
                         "baseInterval": {
                           "description": "BaseInterval specifies the base interval used with a fully jittered exponential back-off between retries.",
+                          "maxLength": 32,
                           "type": "string",
                           "x-kubernetes-validations": [
                             {
@@ -130,13 +176,17 @@
                             },
                             {
                               "message": "retry.BaseInterval must be at least 1ms.",
-                              "rule": "duration(self) >= duration('1ms')"
+                              "rule": "duration(self) \u003e= duration('1ms')"
                             }
                           ]
                         },
                         "maxInterval": {
                           "description": "MaxInterval specifies the maximum interval between retry attempts.\nDefaults to 10 times the BaseInterval if not set.",
-                          "type": "string",
+                          "maxLength": 32,
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "x-kubernetes-validations": [
                             {
                               "message": "invalid duration value",
@@ -148,37 +198,48 @@
                       "required": [
                         "baseInterval"
                       ],
-                      "type": "object",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "x-kubernetes-validations": [
                         {
                           "message": "maxInterval must be greater than or equal to baseInterval",
-                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) >= duration(self.baseInterval) : true"
+                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) \u003e= duration(self.baseInterval) : true"
                         }
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "backendRef"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "headersToForward": {
               "description": "HeadersToForward specifies which headers from the client request should be\nforwarded to the external authorization service.\n\nHTTP services by default have the following headers forwarded: Host, Method, Path, Content-Length, Authorization.\n\nIf this field is omitted, gRPC services will have all client request headers forwarded,\nwhile HTTP services will only receive the default headers described above.\n\nCommon examples: [\"cookie\", \"authorization\", \"x-forwarded-for\"]\nMore info is available on the [Envoy docs](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_authz/v3/ext_authz.proto#envoy-v3-api-field-extensions-filters-http-ext-authz-v3-extauthz-allowed-headers)",
               "items": {
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "httpService": {
+              "additionalProperties": false,
               "description": "HttpService is the HTTP service that will handle the auth.\nMutually exclusive with GrpcService.",
               "properties": {
                 "authorizationRequest": {
+                  "additionalProperties": false,
                   "description": "AuthorizationRequest configures the authorization request to the external service.",
                   "properties": {
                     "headersToAdd": {
@@ -186,13 +247,19 @@
                         "type": "string"
                       },
                       "description": "HeadersToAdd specifies additional headers to add to the authorization request.\nThese headers are sent to the authorization service in addition to the original request headers.\nClient request headers with the same key will be overridden.\nThe keys are header names and values are envoy format specifiers, see https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_authz/v3/ext_authz.proto#envoy-v3-api-field-extensions-filters-http-ext-authz-v3-authorizationrequest-headers-to-add.",
-                      "type": "object"
+                      "type": [
+                        "object",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "authorizationResponse": {
+                  "additionalProperties": false,
                   "description": "AuthorizationResponse configures the authorization response from the external service.",
                   "properties": {
                     "headersToBackend": {
@@ -200,13 +267,39 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "headersToClient": {
+                      "description": "HeadersToClient specifies which headers from the authorization response\nshould be forwarded back to the downstream client when the request is denied.\nMaps to Envoy's allowed_client_headers. Required for redirect-based flows\n(e.g. oauth2-proxy returning 302 + Location) so that the redirect Location\nheader reaches the browser on denial.\nCommon examples: [\"location\", \"set-cookie\", \"www-authenticate\"]",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "headersToClientOnSuccess": {
+                      "description": "HeadersToClientOnSuccess specifies which headers from the authorization response\nshould be forwarded back to the downstream client when the request is allowed.\nMaps to Envoy's allowed_client_headers_on_success.\nCommon examples: [\"set-cookie\", \"x-auth-token\"]",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "backendRef": {
+                  "additionalProperties": false,
                   "description": "BackendRef references the backend HTTP service.",
                   "properties": {
                     "group": {
@@ -214,7 +307,10 @@
                       "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                       "maxLength": 253,
                       "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "default": "Service",
@@ -222,7 +318,10 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "name": {
                       "description": "Name is the name of the referent.",
@@ -235,14 +334,20 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "port": {
                       "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
                       "format": "int32",
                       "maximum": 65535,
                       "minimum": 1,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "weight": {
                       "default": 1,
@@ -250,7 +355,10 @@
                       "format": "int32",
                       "maximum": 1000000,
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -260,18 +368,24 @@
                   "x-kubernetes-validations": [
                     {
                       "message": "Must have port for Service reference",
-                      "rule": "(size(self.group) == 0 && self.kind == 'Service') ? has(self.port) : true"
+                      "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
                     }
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "pathPrefix": {
                   "description": "PathPrefix specifies a prefix to the value of the authorization request's path header.\nThis allows customizing the path at which the authorization server expects to receive requests.\nFor example, if the authorization server expects requests at \"/verify\", set this to \"/verify\".\nIf not specified, the original request path is used.",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "requestTimeout": {
                   "description": "RequestTimeout is the timeout for the HTTP request. Default timeout is 2 seconds.",
-                  "type": "string",
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "x-kubernetes-validations": [
                     {
                       "message": "invalid timeout value",
@@ -279,11 +393,12 @@
                     },
                     {
                       "message": "timeout must be at least 1ms.",
-                      "rule": "duration(self) >= duration('1ms')"
+                      "rule": "duration(self) \u003e= duration('1ms')"
                     }
                   ]
                 },
                 "retry": {
+                  "additionalProperties": false,
                   "description": "Retry specifies the retry policy for HTTP requests to the authorization service.",
                   "properties": {
                     "attempts": {
@@ -291,13 +406,18 @@
                       "description": "Attempts specifies the number of retry attempts for a request.\nDefaults to 1 attempt if not set.\nA value of 0 effectively disables retries.",
                       "format": "int32",
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "backoff": {
+                      "additionalProperties": false,
                       "description": "Backoff specifies the retry backoff strategy.\nIf not set, a default backoff with a base interval of 1000ms is used. The default max interval is 10 times the base interval.",
                       "properties": {
                         "baseInterval": {
                           "description": "BaseInterval specifies the base interval used with a fully jittered exponential back-off between retries.",
+                          "maxLength": 32,
                           "type": "string",
                           "x-kubernetes-validations": [
                             {
@@ -306,13 +426,17 @@
                             },
                             {
                               "message": "retry.BaseInterval must be at least 1ms.",
-                              "rule": "duration(self) >= duration('1ms')"
+                              "rule": "duration(self) \u003e= duration('1ms')"
                             }
                           ]
                         },
                         "maxInterval": {
                           "description": "MaxInterval specifies the maximum interval between retry attempts.\nDefaults to 10 times the BaseInterval if not set.",
-                          "type": "string",
+                          "maxLength": 32,
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "x-kubernetes-validations": [
                             {
                               "message": "invalid duration value",
@@ -324,30 +448,39 @@
                       "required": [
                         "baseInterval"
                       ],
-                      "type": "object",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "x-kubernetes-validations": [
                         {
                           "message": "maxInterval must be greater than or equal to baseInterval",
-                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) >= duration(self.baseInterval) : true"
+                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) \u003e= duration(self.baseInterval) : true"
                         }
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "backendRef"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "statPrefix": {
               "description": "StatPrefix is an optional prefix to include when emitting stats from the extauthz filter,\nenabling different instances of the filter to have unique stats.",
               "minLength": 1,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "statusOnError": {
               "default": 403,
@@ -355,15 +488,22 @@
               "format": "int32",
               "maximum": 511,
               "minimum": 100,
-              "type": "integer"
+              "type": [
+                "integer",
+                "null"
+              ]
             },
             "withRequestBody": {
+              "additionalProperties": false,
               "description": "WithRequestBody allows the request body to be buffered and sent to the auth service.\nWarning: buffering has implications for streaming and therefore performance.",
               "properties": {
                 "allowPartialMessage": {
                   "default": false,
                   "description": "AllowPartialMessage determines if partial messages should be allowed.\nWhen true, requests will be sent to the auth service even if they exceed maxRequestBytes.\nThe default behavior is false.",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "maxRequestBytes": {
                   "description": "MaxRequestBytes sets the maximum size of a message body to buffer.\nRequests exceeding this size will receive HTTP 413 and not be sent to the auth service.",
@@ -374,36 +514,48 @@
                 "packAsBytes": {
                   "default": false,
                   "description": "PackAsBytes determines if the body should be sent as raw bytes.\nWhen true, the body is sent as raw bytes in the raw_body field.\nWhen false, the body is sent as UTF-8 string in the body field.\nThe default behavior is false.",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "maxRequestBytes"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "exactly one of the fields in [grpcService httpService] must be set",
               "rule": "[has(self.grpcService),has(self.httpService)].filter(x,x==true).size() == 1"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
         "extProc": {
+          "additionalProperties": false,
           "description": "ExtProc configuration for ExtProc extension type.",
           "properties": {
             "allowProcessingModeOverride": {
               "default": false,
               "description": "AllowProcessingModeOverride determines if the processing mode can be overridden.\nDefaults to false, meaning the processing mode cannot be overridden.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "allowedProcessingModeOverrides": {
               "description": "AllowedProcessingModeOverrides specifies which processing modes are allowed to override the default.\nEmpty or unspecified means all overrides are allowed (if AllowProcessingModeOverride is true).\nThis is an allowlist; any processing mode in this list will allow the override to the specified mode.\nIf AllowProcessingModeOverride is false, this field is ignored.\nSee: https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_proc/v3/ext_proc.proto#envoy-v3-api-field-extensions-filters-http-ext-proc-v3-externalprocessor-allowed-override-modes",
               "items": {
+                "additionalProperties": false,
                 "description": "ProcessingMode defines how the filter should interact with the request/response streams",
                 "properties": {
                   "requestBodyMode": {
@@ -416,7 +568,10 @@
                       "BUFFERED_PARTIAL",
                       "FULL_DUPLEX_STREAMED"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "requestHeaderMode": {
                     "default": "SEND",
@@ -426,7 +581,10 @@
                       "SEND",
                       "SKIP"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "requestTrailerMode": {
                     "default": "SKIP",
@@ -436,7 +594,10 @@
                       "SEND",
                       "SKIP"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "responseBodyMode": {
                     "default": "NONE",
@@ -448,7 +609,10 @@
                       "BUFFERED_PARTIAL",
                       "FULL_DUPLEX_STREAMED"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "responseHeaderMode": {
                     "default": "SEND",
@@ -458,7 +622,10 @@
                       "SEND",
                       "SKIP"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "responseTrailerMode": {
                     "default": "SKIP",
@@ -468,27 +635,86 @@
                       "SEND",
                       "SKIP"
                     ],
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "failOpen": {
               "default": true,
               "description": "FailOpen determines if requests are allowed when the ext proc service is unavailable.\nDefaults to true, meaning requests are allowed upstream even if the ext proc service is unavailable.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "filterStage": {
+              "additionalProperties": false,
+              "description": "FilterStage specifies where in the HTTP filter chain the ExtProc filter\nshould be placed. If not specified, the ExtProc filter defaults to running\nafter the AuthZ stage.",
+              "properties": {
+                "predicate": {
+                  "default": "During",
+                  "description": "Predicate specifies placement relative to the stage: Before, During,\nor After.",
+                  "enum": [
+                    "Before",
+                    "During",
+                    "After"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "stage": {
+                  "description": "Stage selects the well-known position in the filter chain.",
+                  "enum": [
+                    "Fault",
+                    "AuthN",
+                    "AuthZ",
+                    "RateLimit",
+                    "Route"
+                  ],
+                  "type": "string"
+                },
+                "weight": {
+                  "default": 0,
+                  "description": "Weight controls ordering among multiple filters at the same\nstage and predicate. Higher weight places the filter earlier in the\nchain. Defaults to 0. Filters with the same stage, predicate, and\nweight are sorted alphabetically by filter name for consistency.",
+                  "format": "int32",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "stage"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "grpcService": {
+              "additionalProperties": false,
               "description": "GrpcService is the GRPC service that will handle the processing.",
               "properties": {
                 "authority": {
                   "description": "Authority is the authority header to use for the GRPC service.",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "backendRef": {
+                  "additionalProperties": false,
                   "description": "BackendRef references the backend GRPC service.",
                   "properties": {
                     "group": {
@@ -496,7 +722,10 @@
                       "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                       "maxLength": 253,
                       "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "default": "Service",
@@ -504,7 +733,10 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "name": {
                       "description": "Name is the name of the referent.",
@@ -517,14 +749,20 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "port": {
                       "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
                       "format": "int32",
                       "maximum": 65535,
                       "minimum": 1,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "weight": {
                       "default": 1,
@@ -532,7 +770,10 @@
                       "format": "int32",
                       "maximum": 1000000,
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -542,14 +783,17 @@
                   "x-kubernetes-validations": [
                     {
                       "message": "Must have port for Service reference",
-                      "rule": "(size(self.group) == 0 && self.kind == 'Service') ? has(self.port) : true"
+                      "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
                     }
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "requestTimeout": {
                   "description": "RequestTimeout is the timeout for the gRPC request. This is the timeout for a specific request.",
-                  "type": "string",
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "x-kubernetes-validations": [
                     {
                       "message": "invalid timeout value",
@@ -557,11 +801,12 @@
                     },
                     {
                       "message": "timeout must be at least 1ms.",
-                      "rule": "duration(self) >= duration('1ms')"
+                      "rule": "duration(self) \u003e= duration('1ms')"
                     }
                   ]
                 },
                 "retry": {
+                  "additionalProperties": false,
                   "description": "Retry specifies the retry policy for gRPC streams associated with the service.",
                   "properties": {
                     "attempts": {
@@ -569,13 +814,18 @@
                       "description": "Attempts specifies the number of retry attempts for a request.\nDefaults to 1 attempt if not set.\nA value of 0 effectively disables retries.",
                       "format": "int32",
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "backoff": {
+                      "additionalProperties": false,
                       "description": "Backoff specifies the retry backoff strategy.\nIf not set, a default backoff with a base interval of 1000ms is used. The default max interval is 10 times the base interval.",
                       "properties": {
                         "baseInterval": {
                           "description": "BaseInterval specifies the base interval used with a fully jittered exponential back-off between retries.",
+                          "maxLength": 32,
                           "type": "string",
                           "x-kubernetes-validations": [
                             {
@@ -584,13 +834,17 @@
                             },
                             {
                               "message": "retry.BaseInterval must be at least 1ms.",
-                              "rule": "duration(self) >= duration('1ms')"
+                              "rule": "duration(self) \u003e= duration('1ms')"
                             }
                           ]
                         },
                         "maxInterval": {
                           "description": "MaxInterval specifies the maximum interval between retry attempts.\nDefaults to 10 times the BaseInterval if not set.",
-                          "type": "string",
+                          "maxLength": 32,
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "x-kubernetes-validations": [
                             {
                               "message": "invalid duration value",
@@ -602,29 +856,36 @@
                       "required": [
                         "baseInterval"
                       ],
-                      "type": "object",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "x-kubernetes-validations": [
                         {
                           "message": "maxInterval must be greater than or equal to baseInterval",
-                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) >= duration(self.baseInterval) : true"
+                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) \u003e= duration(self.baseInterval) : true"
                         }
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "backendRef"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": "object"
             },
             "maxMessageTimeout": {
               "description": "MaxMessageTimeout specifies the upper bound of override_message_timeout that may be sent from the external processing server.\nThe default value 0, which effectively disables the override_message_timeout API.",
-              "type": "string",
+              "maxLength": 32,
+              "type": [
+                "string",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "invalid timeout value",
@@ -632,13 +893,17 @@
                 },
                 {
                   "message": "timeout must be at least 1ms.",
-                  "rule": "duration(self) >= duration('1ms')"
+                  "rule": "duration(self) \u003e= duration('1ms')"
                 }
               ]
             },
             "messageTimeout": {
               "description": "MessageTimeout is the timeout for each message sent to the external processing server.",
-              "type": "string",
+              "maxLength": 32,
+              "type": [
+                "string",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "invalid timeout value",
@@ -646,14 +911,16 @@
                 },
                 {
                   "message": "timeout must be at least 1ms.",
-                  "rule": "duration(self) >= duration('1ms')"
+                  "rule": "duration(self) \u003e= duration('1ms')"
                 }
               ]
             },
             "metadataOptions": {
+              "additionalProperties": false,
               "description": "MetadataOptions allows configuring metadata namespaces to forwarded or received from the external\nprocessing server.",
               "properties": {
                 "forwarding": {
+                  "additionalProperties": false,
                   "description": "Forwarding defines the typed or untyped dynamic metadata namespaces to forward to the external processing server.",
                   "properties": {
                     "typed": {
@@ -661,24 +928,35 @@
                         "type": "string"
                       },
                       "minItems": 1,
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "untyped": {
                       "items": {
                         "type": "string"
                       },
                       "minItems": 1,
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "processingMode": {
+              "additionalProperties": false,
               "description": "ProcessingMode defines how the filter should interact with the request/response streams.",
               "properties": {
                 "requestBodyMode": {
@@ -691,7 +969,10 @@
                     "BUFFERED_PARTIAL",
                     "FULL_DUPLEX_STREAMED"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "requestHeaderMode": {
                   "default": "SEND",
@@ -701,7 +982,10 @@
                     "SEND",
                     "SKIP"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "requestTrailerMode": {
                   "default": "SKIP",
@@ -711,7 +995,10 @@
                     "SEND",
                     "SKIP"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "responseBodyMode": {
                   "default": "NONE",
@@ -723,7 +1010,10 @@
                     "BUFFERED_PARTIAL",
                     "FULL_DUPLEX_STREAMED"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "responseHeaderMode": {
                   "default": "SEND",
@@ -733,7 +1023,10 @@
                     "SEND",
                     "SKIP"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "responseTrailerMode": {
                   "default": "SKIP",
@@ -743,11 +1036,26 @@
                     "SEND",
                     "SKIP"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "requestAttributes": {
+              "description": "RequestAttributes specifies a list of Envoy attribute expressions whose values will be\nincluded in the ProcessingRequest.attributes map sent to the external processing server\non every HTTP request.\nSee: https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_proc/v3/ext_proc.proto",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "routeCacheAction": {
               "default": "FromResponse",
@@ -757,26 +1065,36 @@
                 "Clear",
                 "Retain"
               ],
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "statPrefix": {
               "description": "StatPrefix is an optional prefix to include when emitting stats from the extproc filter,\nenabling different instances of the filter to have unique stats.",
               "minLength": 1,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
             "grpcService"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "jwt": {
+          "additionalProperties": false,
           "description": "JWT configuration for JWT extension type.",
           "properties": {
             "providers": {
               "description": "Providers configures named JWT providers.\nIf multiple providers are specified for a given JWT policy,\nthe providers will be `OR`-ed together and will allow validation to any of the providers.",
               "items": {
+                "additionalProperties": false,
                 "description": "NamedJWTProvider is a named JWT provider entry.",
                 "properties": {
                   "audiences": {
@@ -786,11 +1104,15 @@
                     },
                     "maxItems": 32,
                     "minItems": 1,
-                    "type": "array"
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   },
                   "claimsToHeaders": {
                     "description": "ClaimsToHeaders is the list of claims to headers to be used for the JWT provider.\nOptionally set the claims from the JWT payload that you want to extract and add as headers\nto the request before the request is forwarded to the upstream destination.\nNote: if ClaimsToHeaders is set, the Envoy route cache will be cleared.\nThis allows the JWT filter to correctly affect routing decisions.",
                     "items": {
+                      "additionalProperties": false,
                       "description": "JWTClaimToHeader allows copying verified claims to headers sent upstream",
                       "properties": {
                         "header": {
@@ -810,61 +1132,119 @@
                         "header",
                         "name"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": "object"
                     },
                     "maxItems": 32,
                     "minItems": 1,
-                    "type": "array"
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   },
                   "forwardToken": {
                     "description": "ForwardToken configures if the JWT token is forwarded to the upstream backend.\nIf true, the header containing the token will be forwarded upstream.\nIf false or not set, the header containing the token will be removed.",
-                    "type": "boolean"
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
                   },
                   "issuer": {
                     "description": "Issuer of the JWT. the 'iss' claim of the JWT must match this.",
                     "maxLength": 2048,
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "jwks": {
+                    "additionalProperties": false,
                     "description": "JWKS is the source for the JSON Web Keys to be used to validate the JWT.",
                     "properties": {
                       "local": {
+                        "additionalProperties": false,
                         "description": "LocalJWKS configures getting the public keys to validate the JWT from a Kubernetes configmap,\nor inline (raw string) JWKS.",
                         "properties": {
                           "configMapRef": {
+                            "additionalProperties": false,
                             "description": "ConfigMapRef configures storing the JWK in a Kubernetes ConfigMap in the same namespace as the GatewayExtension.\nThe ConfigMap must have a data key named 'jwks' that contains the JWKS.",
                             "properties": {
                               "name": {
                                 "default": "",
                                 "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-                                "type": "string"
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
                               }
                             },
-                            "type": "object",
-                            "x-kubernetes-map-type": "atomic",
-                            "additionalProperties": false
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "x-kubernetes-map-type": "atomic"
                           },
                           "inline": {
                             "description": "Inline is the JWKS as the raw, inline JWKS string\nThis can be an individual key, a key set or a pem block public key",
                             "maxLength": 16384,
                             "minLength": 1,
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
-                        "type": "object",
+                        "type": [
+                          "object",
+                          "null"
+                        ],
                         "x-kubernetes-validations": [
                           {
                             "message": "exactly one of the fields in [inline configMapRef] must be set",
                             "rule": "[has(self.inline),has(self.configMapRef)].filter(x,x==true).size() == 1"
                           }
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       "remote": {
+                        "additionalProperties": false,
                         "description": "RemoteJWKS configures getting the public keys to validate the JWT from a remote JWKS server.",
                         "properties": {
+                          "asyncFetch": {
+                            "additionalProperties": false,
+                            "description": "AsyncFetch configures fetching the JWKS asynchronously and caching it on a timer,\ninstead of fetching it on demand during request handling.",
+                            "properties": {
+                              "failedRefetchDuration": {
+                                "description": "FailedRefetchDuration is how long to wait before retrying the fetch after a failure.\nIf unspecified, Envoy default of 1 second is used.",
+                                "maxLength": 32,
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "x-kubernetes-validations": [
+                                  {
+                                    "message": "invalid duration value",
+                                    "rule": "matches(self, '^([0-9]{1,5}(h|m|s|ms)){1,4}$')"
+                                  },
+                                  {
+                                    "message": "failedRefetchDuration must be at least 1ms.",
+                                    "rule": "duration(self) \u003e= duration('1ms')"
+                                  }
+                                ]
+                              },
+                              "fastListener": {
+                                "description": "FastListener controls when the listener is considered ready relative to the\ninitial JWKS fetch.\nIf false or unset, the listener waits for the first JWKS fetch to complete before\nit starts serving traffic, so requests are never validated against an empty key set.\nIf true, the listener starts immediately and the first fetch happens in the background.",
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
                           "backendRef": {
+                            "additionalProperties": false,
                             "description": "BackendRef is reference to the backend of the JWKS server.",
                             "properties": {
                               "group": {
@@ -872,7 +1252,10 @@
                                 "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                                 "maxLength": 253,
                                 "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                                "type": "string"
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
                               },
                               "kind": {
                                 "default": "Service",
@@ -880,7 +1263,10 @@
                                 "maxLength": 63,
                                 "minLength": 1,
                                 "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                                "type": "string"
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
                               },
                               "name": {
                                 "description": "Name is the name of the referent.",
@@ -893,14 +1279,20 @@
                                 "maxLength": 63,
                                 "minLength": 1,
                                 "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                                "type": "string"
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
                               },
                               "port": {
                                 "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
                                 "format": "int32",
                                 "maximum": 65535,
                                 "minimum": 1,
-                                "type": "integer"
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ]
                               }
                             },
                             "required": [
@@ -910,14 +1302,17 @@
                             "x-kubernetes-validations": [
                               {
                                 "message": "Must have port for Service reference",
-                                "rule": "(size(self.group) == 0 && self.kind == 'Service') ? has(self.port) : true"
+                                "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
                               }
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           "cacheDuration": {
                             "description": "Duration after which the cached JWKS expires.\nIf unspecified, the default cache duration is 5 minutes.",
-                            "type": "string",
+                            "maxLength": 32,
+                            "type": [
+                              "string",
+                              "null"
+                            ],
                             "x-kubernetes-validations": [
                               {
                                 "message": "invalid duration value",
@@ -925,8 +1320,79 @@
                               },
                               {
                                 "message": "cacheDuration must be at least 1ms.",
-                                "rule": "duration(self) >= duration('1ms')"
+                                "rule": "duration(self) \u003e= duration('1ms')"
                               }
+                            ]
+                          },
+                          "retryPolicy": {
+                            "additionalProperties": false,
+                            "description": "RetryPolicy configures how the JWKS fetch is retried (with exponential backoff)\nwhen the remote JWKS server is unavailable.",
+                            "properties": {
+                              "backOff": {
+                                "additionalProperties": false,
+                                "description": "BackOff configures the exponential backoff strategy between retries.\nIf unset, the default base interval is 1000ms and the default maximum interval is\n10 times the base interval.",
+                                "properties": {
+                                  "baseInterval": {
+                                    "description": "BaseInterval is the base interval for the exponential backoff computation.\nIt must be greater than zero and less than or equal to MaxInterval.",
+                                    "maxLength": 32,
+                                    "type": "string",
+                                    "x-kubernetes-validations": [
+                                      {
+                                        "message": "invalid duration value",
+                                        "rule": "matches(self, '^([0-9]{1,5}(h|m|s|ms)){1,4}$')"
+                                      },
+                                      {
+                                        "message": "baseInterval must be at least 1ms.",
+                                        "rule": "duration(self) \u003e= duration('1ms')"
+                                      }
+                                    ]
+                                  },
+                                  "maxInterval": {
+                                    "description": "MaxInterval is the maximum interval between retries. If set, it must be greater than\nor equal to BaseInterval. Defaults to 10 times the BaseInterval.",
+                                    "maxLength": 32,
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-validations": [
+                                      {
+                                        "message": "invalid duration value",
+                                        "rule": "matches(self, '^([0-9]{1,5}(h|m|s|ms)){1,4}$')"
+                                      },
+                                      {
+                                        "message": "maxInterval must be at least 1ms.",
+                                        "rule": "duration(self) \u003e= duration('1ms')"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "baseInterval"
+                                ],
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "x-kubernetes-validations": [
+                                  {
+                                    "message": "maxInterval must be greater than or equal to baseInterval",
+                                    "rule": "!has(self.maxInterval) || duration(self.maxInterval) \u003e= duration(self.baseInterval)"
+                                  }
+                                ]
+                              },
+                              "numRetries": {
+                                "description": "NumRetries is the allowed number of retries when fetching the JWKS fails.\nDefaults to 1 if unset.",
+                                "format": "int32",
+                                "minimum": 1,
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
                             ]
                           },
                           "url": {
@@ -940,8 +1406,10 @@
                           "backendRef",
                           "url"
                         ],
-                        "type": "object",
-                        "additionalProperties": false
+                        "type": [
+                          "object",
+                          "null"
+                        ]
                       }
                     },
                     "type": "object",
@@ -950,8 +1418,7 @@
                         "message": "exactly one of the fields in [local remote] must be set",
                         "rule": "[has(self.local),has(self.remote)].filter(x,x==true).size() == 1"
                       }
-                    ],
-                    "additionalProperties": false
+                    ]
                   },
                   "name": {
                     "description": "Name is the unique name of the JWT provider.",
@@ -960,9 +1427,11 @@
                     "type": "string"
                   },
                   "tokenSource": {
+                    "additionalProperties": false,
                     "description": "TokenSource configures where to find the JWT of the current provider.",
                     "properties": {
                       "header": {
+                        "additionalProperties": false,
                         "description": "HeaderSource configures retrieving token from a header",
                         "properties": {
                           "header": {
@@ -975,39 +1444,51 @@
                             "description": "Prefix before the token. for example, \"Bearer \"",
                             "maxLength": 2048,
                             "minLength": 1,
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
                           "header"
                         ],
-                        "type": "object",
-                        "additionalProperties": false
+                        "type": [
+                          "object",
+                          "null"
+                        ]
                       },
                       "queryParameter": {
                         "description": "QueryParameter configures retrieving token from the query parameter",
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       }
                     },
-                    "type": "object",
+                    "type": [
+                      "object",
+                      "null"
+                    ],
                     "x-kubernetes-validations": [
                       {
                         "message": "exactly one of the fields in [header queryParameter] must be set",
                         "rule": "[has(self.header),has(self.queryParameter)].filter(x,x==true).size() == 1"
                       }
-                    ],
-                    "additionalProperties": false
+                    ]
                   }
                 },
                 "required": [
                   "jwks",
                   "name"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
               "maxItems": 32,
-              "type": "array",
+              "type": [
+                "array",
+                "null"
+              ],
               "x-kubernetes-list-map-keys": [
                 "name"
               ],
@@ -1019,21 +1500,31 @@
                 "Strict",
                 "AllowMissing"
               ],
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "oauth2": {
+          "additionalProperties": false,
           "description": "OAuth2 configuration for OAuth2 extension type.",
           "properties": {
             "authorizationEndpoint": {
               "description": "AuthorizationEndpoint specifies the endpoint to redirect to for authorization in response to unauthorized requests.\nIf both IssuerURI and this value are specified, the value discovered from the issuer will *not* be used and this takes precedence.\nRefer to https://datatracker.ietf.org/doc/html/rfc6749#section-3.1 for more details.",
-              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$&'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$&'()*+,;=:@%/?]*)?$",
-              "type": "string"
+              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%/?]*)?$",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "backendRef": {
+              "additionalProperties": false,
               "description": "BackendRef specifies the Backend to use for the OAuth2 provider.",
               "properties": {
                 "group": {
@@ -1041,7 +1532,10 @@
                   "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                   "maxLength": 253,
                   "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "kind": {
                   "default": "Service",
@@ -1049,7 +1543,10 @@
                   "maxLength": 63,
                   "minLength": 1,
                   "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "name": {
                   "description": "Name is the name of the referent.",
@@ -1062,14 +1559,20 @@
                   "maxLength": 63,
                   "minLength": 1,
                   "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "port": {
                   "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
                   "format": "int32",
                   "maximum": 65535,
                   "minimum": 1,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "weight": {
                   "default": 1,
@@ -1077,7 +1580,10 @@
                   "format": "int32",
                   "maximum": 1000000,
                   "minimum": 0,
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -1087,49 +1593,70 @@
               "x-kubernetes-validations": [
                 {
                   "message": "Must have port for Service reference",
-                  "rule": "(size(self.group) == 0 && self.kind == 'Service') ? has(self.port) : true"
+                  "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
                 }
-              ],
-              "additionalProperties": false
+              ]
             },
             "cookies": {
+              "additionalProperties": false,
               "description": "Cookies specifies the configuration for the OAuth2 cookies.",
               "properties": {
                 "disableAccessTokenSetCookie": {
                   "description": "DisableAccessTokenSetCookie specifies whether to disable setting the access token cookie.\nThis can be used when the access token is too large to fit in a cookie. When true, the\nset-cookie response header for the access token will be omitted.",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "disableIDTokenSetCookie": {
                   "description": "DisableIDTokenSetCookie specifies whether to disable setting the ID token cookie.\nThis can be used when the ID token is too large to fit in a cookie. When true, the\nset-cookie response header for the ID token will be omitted.",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "disableRefreshTokenSetCookie": {
                   "description": "DisableRefreshTokenSetCookie specifies whether to disable setting the refresh token cookie.\nThis can be used when the refresh token is too large to fit in a cookie. When true, the\nset-cookie response header for the refresh token will be omitted.",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "domain": {
                   "description": "CookieDomain specifies the domain to set on the access and ID token cookies.\nIf set, the cookies will be set for the specified domain and all its subdomains. This is useful when requests\nto subdomains are not required to be re-authenticated after the user has logged into the parent domain.\nIf not set, the cookies will default to the host of the request, not including the subdomains.",
                   "maxLength": 253,
                   "minLength": 1,
                   "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9]))*$",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "names": {
+                  "additionalProperties": false,
                   "description": "Names specifies the names of the cookies used to store the tokens.\nIf not set, the default names will be used.",
                   "properties": {
                     "accessToken": {
                       "description": "AccessToken specifies the name of the cookie used to store the access token.",
                       "minLength": 1,
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "idToken": {
                       "description": "IDToken specifies the name of the cookie used to store the ID token.",
                       "minLength": 1,
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "sameSite": {
                   "description": "SameSite specifies the SameSite attribute for the OAuth2 cookies.\nIf not set, the default is Lax.",
@@ -1138,13 +1665,19 @@
                     "Strict",
                     "None"
                   ],
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "credentials": {
+              "additionalProperties": false,
               "description": "Credentials specifies the Oauth2 client credentials to use for authentication.",
               "properties": {
                 "clientID": {
@@ -1153,39 +1686,43 @@
                   "type": "string"
                 },
                 "clientSecretRef": {
+                  "additionalProperties": false,
                   "description": "ClientSecretRef specifies a Secret that contains the client secret stored in the key 'client-secret'\nto use in the authentication request to obtain the access token.\nRefer to https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1 for more details.",
                   "properties": {
                     "name": {
                       "default": "",
                       "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "type": "object",
-                  "x-kubernetes-map-type": "atomic",
-                  "additionalProperties": false
+                  "x-kubernetes-map-type": "atomic"
                 }
               },
               "required": [
                 "clientID",
                 "clientSecretRef"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": "object"
             },
             "denyRedirect": {
+              "additionalProperties": false,
               "description": "DenyRedirectMatcher specifies the matcher to match requests that should be denied redirects to the authorization endpoint.\nMatching requests will receive a 401 Unauthorized response instead of being redirected.\nThis is useful for AJAX requests where redirects should be avoided.",
               "properties": {
                 "headers": {
                   "description": "Headers specifies the list of HTTP headers to match on requests that should be denied redirects.",
                   "items": {
+                    "additionalProperties": false,
                     "description": "HTTPHeaderMatch describes how to select a HTTP route by matching HTTP request\nheaders.",
                     "properties": {
                       "name": {
                         "description": "Name is the name of the HTTP Header to be matched. Name matching MUST be\ncase-insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).\n\nIf multiple entries specify equivalent header names, only the first\nentry with an equivalent name MUST be considered for a match. Subsequent\nentries with an equivalent header name MUST be ignored. Due to the\ncase-insensitivity of header names, \"foo\" and \"Foo\" are considered\nequivalent.\n\nWhen a header is repeated in an HTTP request, it is\nimplementation-specific behavior as to how this is represented.\nGenerally, proxies should follow the guidance from the RFC:\nhttps://www.rfc-editor.org/rfc/rfc7230.html#section-3.2.2 regarding\nprocessing a repeated header, with special handling for \"Set-Cookie\".",
                         "maxLength": 256,
                         "minLength": 1,
-                        "pattern": "^[A-Za-z0-9!#$%&'*+\\-.^_\\x60|~]+$",
+                        "pattern": "^[A-Za-z0-9!#$%\u0026'*+\\-.^_\\x60|~]+$",
                         "type": "string"
                       },
                       "type": {
@@ -1195,10 +1732,13 @@
                           "Exact",
                           "RegularExpression"
                         ],
-                        "type": "string"
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "value": {
-                        "description": "Value is the value of HTTP Header to be matched.\n<gateway:experimental:description>\nMust consist of printable US-ASCII characters, optionally separated\nby single tabs or spaces. See: https://tools.ietf.org/html/rfc7230#section-3.2\n</gateway:experimental:description>\n\n<gateway:experimental:validation:Pattern=`^[!-~]+([\\t ]?[!-~]+)*$`>",
+                        "description": "Value is the value of HTTP Header to be matched.\n\u003cgateway:experimental:description\u003e\nMust consist of printable US-ASCII characters, optionally separated\nby single tabs or spaces. See: https://tools.ietf.org/html/rfc7230#section-3.2\n\u003c/gateway:experimental:description\u003e\n\n\u003cgateway:experimental:validation:Pattern=`^[!-~]+([\\t ]?[!-~]+)*$`\u003e",
                         "maxLength": 4096,
                         "minLength": 1,
                         "type": "string"
@@ -1208,35 +1748,50 @@
                       "name",
                       "value"
                     ],
-                    "type": "object",
-                    "additionalProperties": false
+                    "type": "object"
                   },
                   "maxItems": 16,
                   "minItems": 1,
-                  "type": "array"
+                  "type": [
+                    "array",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "endSessionEndpoint": {
               "description": "EndSessionEndpoint specifies the URL that redirects a user's browser to in order to initiate a single logout\nacross all applications and the OpenID provider. Users are directed to this endpoint when they access the logout path.\nThis should only be set when the OpenID provider supports RP-Initiated Logout and \"openid\" is included in the list of scopes.\nIf both IssuerURI and this value are specified, the value discovered from the issuer will *not* be used and this takes precedence.\nRefer to https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout for more details.",
-              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$&'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$&'()*+,;=:@%/?]*)?$",
-              "type": "string"
+              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%/?]*)?$",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "forwardAccessToken": {
               "description": "ForwardAccessToken specifies whether to forward the access token to the backend service.\nIf set to true, the token is forwarded over a cookie named BearerToken and is also set in the Authorization header.\nDefaults to false.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "issuerURI": {
               "description": "IssuerURI specifies the OpenID provider's issuer URL to discover the OpenID provider's configuration.\nThe Issuer must be a URI RFC 3986 [RFC3986] with a scheme component that must be https, a host component,\nand optionally, port and path components and no query or fragment components.\nIt discovers the authorizationEndpoint, tokenEndpoint, endSessionEndpoint, and jwksURI if specified in the discovery response.\nExplicit configuration of these options will take precedence over the discovered values.\nRefer to https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig for more details.\nNote that the OpenID provider configuration is cached and only refreshed periodically when the GatewayExtension object\nis reprocessed.",
-              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$&'()*+,;=:@%]*)*/?$",
-              "type": "string"
+              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%]*)*/?$",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "jwt": {
+              "additionalProperties": false,
               "description": "JWT specifies the configuration for whether and how to process the retrieved access and ID tokens as JSON Web Token.",
               "properties": {
                 "accessToken": {
+                  "additionalProperties": false,
                   "description": "AccessToken specifies how to process the retrieved access token.\nThis requires the access token cookie to be enabled. Requests missing the token will be rejected.\nThe token will be verified against the provided JWKS.\nSuccessfully processed tokens have their payload made available as the 'accessToken' dynamic metadata in the 'envoy.filters.http.jwt_authn' namespace.\nIf omitted, the token will not be attempted to be parsed and verified at all.",
                   "properties": {
                     "audiences": {
@@ -1246,11 +1801,15 @@
                       },
                       "maxItems": 32,
                       "minItems": 1,
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "claimsToHeaders": {
                       "description": "ClaimsToHeaders is a list of claims from the token that should be forwarded upstream as a header.\nOptionally set the claims from the JWT payload that you want to extract and add as headers\nto the request before the request is forwarded to the upstream destination.\nNote: if ClaimsToHeaders is set, the Envoy route cache will be cleared.\nThis allows the JWT filter to correctly affect routing decisions.",
                       "items": {
+                        "additionalProperties": false,
                         "description": "JWTClaimToHeader allows copying verified claims to headers sent upstream",
                         "properties": {
                           "header": {
@@ -1270,18 +1829,23 @@
                           "header",
                           "name"
                         ],
-                        "type": "object",
-                        "additionalProperties": false
+                        "type": "object"
                       },
                       "maxItems": 32,
                       "minItems": 1,
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 },
                 "idToken": {
+                  "additionalProperties": false,
                   "description": "IDToken specifies how to process the retrieved ID token.\nThis requires the ID token cookie to be enabled. Requests missing the token will be rejected.\nThe token will be verified against the provided JWKS.\nSuccessfully processed tokens have their payload made available as the 'idToken' dynamic metadata in the 'envoy.filters.http.jwt_authn' namespace.\nIf omitted, the token will not be attempted to be parsed and verified at all.",
                   "properties": {
                     "audiences": {
@@ -1291,11 +1855,15 @@
                       },
                       "maxItems": 32,
                       "minItems": 1,
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "claimsToHeaders": {
                       "description": "ClaimsToHeaders is a list of claims from the token that should be forwarded upstream as a header.\nOptionally set the claims from the JWT payload that you want to extract and add as headers\nto the request before the request is forwarded to the upstream destination.\nNote: if ClaimsToHeaders is set, the Envoy route cache will be cleared.\nThis allows the JWT filter to correctly affect routing decisions.",
                       "items": {
+                        "additionalProperties": false,
                         "description": "JWTClaimToHeader allows copying verified claims to headers sent upstream",
                         "properties": {
                           "header": {
@@ -1315,58 +1883,148 @@
                           "header",
                           "name"
                         ],
-                        "type": "object",
-                        "additionalProperties": false
+                        "type": "object"
                       },
                       "maxItems": 32,
                       "minItems": 1,
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "jwksBackendRef": {
+                  "additionalProperties": false,
+                  "description": "JWKSBackendRef specifies the backend to use for fetching the JWKS.\nIf not set, the parent OAuth2Provider's BackendRef is used.",
+                  "properties": {
+                    "group": {
+                      "default": "",
+                      "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
+                      "maxLength": 253,
+                      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "default": "Service",
+                      "description": "Kind is the Kubernetes resource kind of the referent. For example\n\"Service\".\n\nDefaults to \"Service\" when not specified.\n\nExternalName services can refer to CNAME DNS records that may live\noutside of the cluster and as such are difficult to reason about in\nterms of conformance. They also may not be safe to forward to (see\nCVE-2021-25740 for more information). Implementations SHOULD NOT\nsupport ExternalName Services.\n\nSupport: Core (Services with a type other than ExternalName)\n\nSupport: Implementation-specific (Services with type ExternalName)",
+                      "maxLength": 63,
+                      "minLength": 1,
+                      "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "description": "Name is the name of the referent.",
+                      "maxLength": 253,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "description": "Namespace is the namespace of the backend. When unspecified, the local\nnamespace is inferred.\n\nNote that when a namespace different than the local namespace is specified,\na ReferenceGrant object is required in the referent namespace to allow that\nnamespace's owner to accept the reference. See the ReferenceGrant\ndocumentation for details.\n\nSupport: Core",
+                      "maxLength": 63,
+                      "minLength": 1,
+                      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "port": {
+                      "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
+                      "format": "int32",
+                      "maximum": 65535,
+                      "minimum": 1,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "Must have port for Service reference",
+                      "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
+                    }
+                  ]
                 },
                 "jwksURI": {
                   "description": "JWKSURI specifies the URL that public keys for validating JWTs should be retrieved from.\nThis must be set if the retrieved access or ID token need to be parsed and IssuerURI is not set for discovery.\nIf both IssuerURI and this value are specified, the value discovered from the issuer will *not* be used and this takes precedence.\nThe URL must point to a valid JWKS definition.\nRefer to https://datatracker.ietf.org/doc/html/rfc7517#section-5 for more details.",
-                  "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$&'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$&'()*+,;=:@%/?]*)?$",
-                  "type": "string"
+                  "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%/?]*)?$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "logoutPath": {
               "default": "/logout",
               "description": "LogoutPath specifies the path to log out a user, clearing their credential cookies.\nDefaults to /logout.",
               "minLength": 1,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "redirectURI": {
-              "description": "RedirectURI specifies the URL passed to the authorization endpoint.\nDefaults to <request-scheme>://<host>/oauth2/redirect, where the URL scheme and host are derived from the original request.\nRefer to https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.2 for more details.",
-              "type": "string"
+              "description": "RedirectURI specifies the URL passed to the authorization endpoint.\nDefaults to \u003crequest-scheme\u003e://\u003chost\u003e/oauth2/redirect, where the URL scheme and host are derived from the original request.\nRefer to https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.2 for more details.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "scopes": {
               "description": "List of OAuth scopes to be claimed in the authentication request.\nDefaults to \"user\" scope if not specified.\nWhen using OpenID, the \"openid\" scope must be included.\nRefer to https://datatracker.ietf.org/doc/html/rfc6749#section-3.3 for more details.",
               "items": {
                 "type": "string"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             },
             "tokenEndpoint": {
               "description": "TokenEndpoint specifies the endpoint on the authorization server to retrieve the access token from.\nIf both IssuerURI and this value are specified, the value discovered from the issuer will *not* be used and this takes precedence.\nRefer to https://datatracker.ietf.org/doc/html/rfc6749#section-3.2 for more details.",
-              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$&'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$&'()*+,;=:@%/?]*)?$",
-              "type": "string"
+              "pattern": "^https://([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(:[0-9]{1,5})?(/[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%]*)*/?(\\?[a-zA-Z0-9\\-._~!$\u0026'()*+,;=:@%/?]*)?$",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
             "backendRef",
             "credentials"
           ],
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "Either issuerURI, or both authorizationEndpoint and tokenEndpoint must be specified",
-              "rule": "has(self.issuerURI) || (has(self.authorizationEndpoint) && has(self.tokenEndpoint))"
+              "rule": "has(self.issuerURI) || (has(self.authorizationEndpoint) \u0026\u0026 has(self.tokenEndpoint))"
             },
             {
               "message": "Either issuerURI or jwksURI must be specified for JWT parsing",
@@ -1380,10 +2038,10 @@
               "message": "ID token cookie must not be disabled when the token should be parsed",
               "rule": "!has(self.?jwt.idToken) || !self.?cookies.?disableIDTokenSetCookie.orValue(false)"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
         "rateLimit": {
+          "additionalProperties": false,
           "description": "RateLimit configuration for RateLimit extension type.",
           "properties": {
             "domain": {
@@ -1393,16 +2051,24 @@
             "failOpen": {
               "default": true,
               "description": "FailOpen determines if requests are limited when the rate limit service is unavailable.\nDefaults to true, meaning requests are allowed upstream and not limited if the rate limit service is unavailable.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "grpcService": {
+              "additionalProperties": false,
               "description": "GrpcService is the GRPC service that will handle the rate limiting.",
               "properties": {
                 "authority": {
                   "description": "Authority is the authority header to use for the GRPC service.",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "backendRef": {
+                  "additionalProperties": false,
                   "description": "BackendRef references the backend GRPC service.",
                   "properties": {
                     "group": {
@@ -1410,7 +2076,10 @@
                       "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
                       "maxLength": 253,
                       "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "default": "Service",
@@ -1418,7 +2087,10 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "name": {
                       "description": "Name is the name of the referent.",
@@ -1431,14 +2103,20 @@
                       "maxLength": 63,
                       "minLength": 1,
                       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "port": {
                       "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service. In this\ncase, the port number is the service port number, not the target port.\nFor other resources, destination port might be derived from the referent\nresource or this field.",
                       "format": "int32",
                       "maximum": 65535,
                       "minimum": 1,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "weight": {
                       "default": 1,
@@ -1446,7 +2124,10 @@
                       "format": "int32",
                       "maximum": 1000000,
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -1456,14 +2137,17 @@
                   "x-kubernetes-validations": [
                     {
                       "message": "Must have port for Service reference",
-                      "rule": "(size(self.group) == 0 && self.kind == 'Service') ? has(self.port) : true"
+                      "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
                     }
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "requestTimeout": {
                   "description": "RequestTimeout is the timeout for the gRPC request. This is the timeout for a specific request.",
-                  "type": "string",
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "x-kubernetes-validations": [
                     {
                       "message": "invalid timeout value",
@@ -1471,11 +2155,12 @@
                     },
                     {
                       "message": "timeout must be at least 1ms.",
-                      "rule": "duration(self) >= duration('1ms')"
+                      "rule": "duration(self) \u003e= duration('1ms')"
                     }
                   ]
                 },
                 "retry": {
+                  "additionalProperties": false,
                   "description": "Retry specifies the retry policy for gRPC streams associated with the service.",
                   "properties": {
                     "attempts": {
@@ -1483,13 +2168,18 @@
                       "description": "Attempts specifies the number of retry attempts for a request.\nDefaults to 1 attempt if not set.\nA value of 0 effectively disables retries.",
                       "format": "int32",
                       "minimum": 0,
-                      "type": "integer"
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     },
                     "backoff": {
+                      "additionalProperties": false,
                       "description": "Backoff specifies the retry backoff strategy.\nIf not set, a default backoff with a base interval of 1000ms is used. The default max interval is 10 times the base interval.",
                       "properties": {
                         "baseInterval": {
                           "description": "BaseInterval specifies the base interval used with a fully jittered exponential back-off between retries.",
+                          "maxLength": 32,
                           "type": "string",
                           "x-kubernetes-validations": [
                             {
@@ -1498,13 +2188,17 @@
                             },
                             {
                               "message": "retry.BaseInterval must be at least 1ms.",
-                              "rule": "duration(self) >= duration('1ms')"
+                              "rule": "duration(self) \u003e= duration('1ms')"
                             }
                           ]
                         },
                         "maxInterval": {
                           "description": "MaxInterval specifies the maximum interval between retry attempts.\nDefaults to 10 times the BaseInterval if not set.",
-                          "type": "string",
+                          "maxLength": 32,
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "x-kubernetes-validations": [
                             {
                               "message": "invalid duration value",
@@ -1516,30 +2210,37 @@
                       "required": [
                         "baseInterval"
                       ],
-                      "type": "object",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "x-kubernetes-validations": [
                         {
                           "message": "maxInterval must be greater than or equal to baseInterval",
-                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) >= duration(self.baseInterval) : true"
+                          "rule": "has(self.maxInterval) ? duration(self.maxInterval) \u003e= duration(self.baseInterval) : true"
                         }
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
-                  "type": "object",
-                  "additionalProperties": false
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "backendRef"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": "object"
             },
             "timeout": {
               "default": "100ms",
               "description": "Timeout provides an optional timeout value for requests to the rate limit service.\nFor rate limiting, prefer using this timeout rather than setting the generic `timeout` on the `GrpcService`.\nSee [envoy issue](https://github.com/envoyproxy/envoy/issues/20070) for more info.",
-              "type": "string",
+              "maxLength": 32,
+              "type": [
+                "string",
+                "null"
+              ],
               "x-kubernetes-validations": [
                 {
                   "message": "invalid duration value",
@@ -1554,15 +2255,20 @@
                 "Off",
                 "DraftVersion03"
               ],
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
             "domain",
             "grpcService"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "type": {
           "description": "Deprecated: Setting this field has no effect.\nType indicates the type of the GatewayExtension to be used.",
@@ -1573,44 +2279,48 @@
             "JWT",
             "OAuth2"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object",
       "x-kubernetes-validations": [
         {
           "message": "extAuth must be set when type is ExtAuth",
-          "rule": "has(self.type) && self.type == 'ExtAuth' ? has(self.extAuth) : true"
+          "rule": "has(self.type) \u0026\u0026 self.type == 'ExtAuth' ? has(self.extAuth) : true"
         },
         {
           "message": "extProc must be set when type is ExtProc",
-          "rule": "has(self.type) && self.type == 'ExtProc' ? has(self.extProc) : true"
+          "rule": "has(self.type) \u0026\u0026 self.type == 'ExtProc' ? has(self.extProc) : true"
         },
         {
           "message": "rateLimit must be set when type is RateLimit",
-          "rule": "has(self.type) && self.type == 'RateLimit' ? has(self.rateLimit) : true"
+          "rule": "has(self.type) \u0026\u0026 self.type == 'RateLimit' ? has(self.rateLimit) : true"
         },
         {
           "message": "JWT must be set when type is JWT",
-          "rule": "has(self.type) && self.type == 'JWT' ? has(self.jwt) : true"
+          "rule": "has(self.type) \u0026\u0026 self.type == 'JWT' ? has(self.jwt) : true"
         },
         {
           "message": "oauth2 must be set when type is OAuth2",
-          "rule": "has(self.type) && self.type == 'OAuth2' ? has(self.oauth2) : true"
+          "rule": "has(self.type) \u0026\u0026 self.type == 'OAuth2' ? has(self.oauth2) : true"
         },
         {
           "message": "exactly one of the fields in [extAuth extProc rateLimit jwt oauth2] must be set",
           "rule": "[has(self.extAuth),has(self.extProc),has(self.rateLimit),has(self.jwt),has(self.oauth2)].filter(x,x==true).size() == 1"
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "status": {
+      "additionalProperties": false,
       "description": "GatewayExtensionStatus defines the observed state of GatewayExtension.",
       "properties": {
         "conditions": {
           "description": "Conditions is the list of conditions for the GatewayExtension.",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -1627,7 +2337,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -1659,19 +2372,23 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
           "maxItems": 8,
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "type"
           ],
           "x-kubernetes-list-type": "map"
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
