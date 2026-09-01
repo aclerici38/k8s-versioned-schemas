@@ -1,0 +1,1420 @@
+{
+  "description": "Auto-generated derived type for SnapshotReplicationSpec via `CustomResource`",
+  "properties": {
+    "spec": {
+      "additionalProperties": false,
+      "description": "Copy selected snapshots from a source repository into a destination repository on a schedule (`kopia snapshot migrate`).\n\nNot `Eq`: `mover` transitively embeds k8s-openapi types.",
+      "properties": {
+        "credentialProjection": {
+          "additionalProperties": false,
+          "description": "Opt-in projection of BOTH repositories' credential Secrets into the mover\nJob's namespace (required when the destination is a `ClusterRepository`\nwhose Secrets live elsewhere).",
+          "nullable": true,
+          "properties": {
+            "enabled": {
+              "default": false,
+              "description": "Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "destinationRef": {
+          "additionalProperties": false,
+          "description": "The `Repository` or `ClusterRepository` snapshots are copied INTO. A real\nrepository CR with its own password and format (unlike a\n`RepositoryReplication` destination, which is a bare backend reusing the\nsource's password). Must not resolve to the same repository as `sourceRef`\n(webhook-enforced structurally; the shared validator catches the literal\nsame-ref case at admission).",
+          "properties": {
+            "kind": {
+              "default": "Repository",
+              "description": "Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].",
+              "enum": [
+                "Repository",
+                "ClusterRepository"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Name of the referenced `Repository`/`ClusterRepository`.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "migrate": {
+          "additionalProperties": false,
+          "description": "Tuning for the underlying `kopia snapshot migrate` invocation. Absent:\nsequential copy, and NO policy copying (see [`PolicyCopyMode`]).",
+          "nullable": true,
+          "properties": {
+            "parallel": {
+              "description": "`--parallel`: number of snapshots migrated concurrently (kopia default\n`1` — sequential). Must be \u003e= 1 when set.",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "policies": {
+              "default": "none",
+              "description": "Whether kopia **policies** attached to the copied sources are also copied\nto the destination. Defaults to [`PolicyCopyMode::None`].",
+              "enum": [
+                "none",
+                "copy",
+                "copyOverwrite"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "throttle": {
+              "additionalProperties": false,
+              "description": "Bandwidth/ops caps for THIS replication's runs, per side. `snapshot\nmigrate` has no speed flags, so each side is applied as `kopia repository\nthrottle set` on that side's connection; `source` overrides the source\nrepository's `moverDefaults.throttle` and `destination` the destination\nrepository's, field by field (a field left unset keeps that repository's\ndefault). Absent: both sides use their repository's defaults.",
+              "nullable": true,
+              "properties": {
+                "destination": {
+                  "additionalProperties": false,
+                  "description": "Caps for the DESTINATION (write) side, overriding the destination\nrepository's `moverDefaults.throttle` field by field. Applied with\n`repository throttle set` on the destination connection the migrate\nwrites through.",
+                  "nullable": true,
+                  "properties": {
+                    "downloadBytesPerSecond": {
+                      "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "readOpsPerSecond": {
+                      "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "uploadBytesPerSecond": {
+                      "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "writeOpsPerSecond": {
+                      "description": "Cap write ops/sec (`--write-requests-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "additionalProperties": false,
+                  "description": "Caps for the SOURCE (read) side, overriding the source repository's\n`moverDefaults.throttle` field by field. Applied with `repository\nthrottle set` on the migrate's read-only source connection — accepted\nthere, so a read-only source is throttled like any other.",
+                  "nullable": true,
+                  "properties": {
+                    "downloadBytesPerSecond": {
+                      "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "readOpsPerSecond": {
+                      "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "uploadBytesPerSecond": {
+                      "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "writeOpsPerSecond": {
+                      "description": "Cap write ops/sec (`--write-requests-per-second`).",
+                      "format": "int64",
+                      "nullable": true,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mover": {
+          "additionalProperties": false,
+          "description": "Mover (Job pod) overrides for the replication run.",
+          "nullable": true,
+          "properties": {
+            "cache": {
+              "additionalProperties": false,
+              "description": "Override the repository's [`CacheDefaults`] for this recipe's movers.",
+              "nullable": true,
+              "properties": {
+                "capacity": {
+                  "description": "Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "contentCacheSizeMb": {
+                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`).",
+                  "format": "int64",
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "metadataCacheSizeMb": {
+                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).",
+                  "format": "int64",
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "mode": {
+                  "description": "How a mover's kopia cache volume is provisioned.",
+                  "enum": [
+                    "Ephemeral",
+                    "Persistent"
+                  ],
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "storageClassName": {
+                  "description": "StorageClass for the cache PVC; absent uses the cluster default.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "inheritSecurityContextFrom": {
+              "additionalProperties": false,
+              "description": "Copy the UID/GID security context from a live workload rather than hard-coding it.\n\nRequires the workload to pin `runAsUser` (container or pod level): a UID that comes\nfrom the container image's `USER` line is invisible in the pod spec and cannot be\ninherited — the mover would silently run as its own image's UID instead.\n\nMay be combined with `securityContext`/`podSecurityContext`, which override it\nfield-wise and act as the fallback when no workload pod can be resolved.",
+              "nullable": true,
+              "oneOf": [
+                {
+                  "required": [
+                    "workloadSelector"
+                  ]
+                },
+                {
+                  "required": [
+                    "pvcConsumer"
+                  ]
+                },
+                {
+                  "required": [
+                    "snapshot"
+                  ]
+                }
+              ],
+              "properties": {
+                "pvcConsumer": {
+                  "additionalProperties": false,
+                  "description": "Backup sources only: auto-derive the workload from the PVC this snapshot backs up.",
+                  "properties": {
+                    "container": {
+                      "description": "Which container within the matched consumer pod to inherit from; absent uses the first/only.",
+                      "nullable": true,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "snapshot": {
+                  "description": "Restores only: inherit the identity RECORDED on the backup itself\n(`Snapshot.status.recorded`, decoded from the `kopiur-meta` kopia tag) —\nuid/gid/fsGroup the backup mover actually ran as. Needs no live workload\npod, so it works on a rebuilt cluster and with `target.populator`.\nRejected at admission on SnapshotPolicy/Maintenance (backups read the\nlive workload; maintenance has no snapshot). Write it as `snapshot: {}`\n(an empty sub-object) — a bare `snapshot:` is null and rejected.",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "workloadSelector": {
+                  "additionalProperties": false,
+                  "description": "Inherit from workload pod(s) matched by an explicit label selector (backup or restore).",
+                  "properties": {
+                    "container": {
+                      "description": "Which container within the matched pod; absent uses the first/only container.",
+                      "nullable": true,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "podSelector": {
+                      "additionalProperties": false,
+                      "description": "Label selector matching the workload pod(s) to read context/hooks from.",
+                      "properties": {
+                        "matchExpressions": {
+                          "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                          "items": {
+                            "additionalProperties": false,
+                            "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+                            "properties": {
+                              "key": {
+                                "description": "key is the label key that the selector applies to.",
+                                "type": "string"
+                              },
+                              "operator": {
+                                "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+                                "type": "string"
+                              },
+                              "values": {
+                                "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "operator"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "matchLabels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "podSelector"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            },
+            "podSecurityContext": {
+              "additionalProperties": false,
+              "description": "Pod security context for the mover (notably `fsGroup` for group-writable restore\nvolumes). Same layering as `securityContext`: highest layer, merged field-wise, and\ncombinable with `inheritSecurityContextFrom`.",
+              "nullable": true,
+              "properties": {
+                "appArmorProfile": {
+                  "additionalProperties": false,
+                  "description": "appArmorProfile is the AppArmor options to use by the containers in this pod. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "localhostProfile": {
+                      "description": "localhostProfile indicates a profile loaded on the node that should be used. The profile must be preconfigured on the node to work. Must match the loaded name of the profile. Must be set if and only if type is \"Localhost\".",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "description": "type indicates which kind of AppArmor profile will be applied. Valid options are:\n  Localhost - a profile pre-loaded on the node.\n  RuntimeDefault - the container runtime's default profile.\n  Unconfined - no AppArmor enforcement.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "fsGroup": {
+                  "description": "A special supplemental group that applies to all containers in a pod. Some volume types allow the Kubelet to change the ownership of that volume to be owned by the pod:\n\n1. The owning GID will be the FSGroup 2. The setgid bit is set (new files created in the volume will be owned by FSGroup) 3. The permission bits are OR'd with rw-rw----\n\nIf unset, the Kubelet will not modify the ownership and permissions of any volume. Note that this field cannot be set when spec.os.name is windows.",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "fsGroupChangePolicy": {
+                  "description": "fsGroupChangePolicy defines behavior of changing ownership and permission of the volume before being exposed inside Pod. This field will only apply to volume types which support fsGroup based ownership(and permissions). It will have no effect on ephemeral volume types such as: secret, configmaps and emptydir. Valid values are \"OnRootMismatch\" and \"Always\". If not specified, \"Always\" is used. Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "runAsGroup": {
+                  "description": "The GID to run the entrypoint of the container process. Uses runtime default if unset. May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence for that container. Note that this field cannot be set when spec.os.name is windows.",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "runAsNonRoot": {
+                  "description": "Indicates that the container must run as a non-root user. If true, the Kubelet will validate the image at runtime to ensure that it does not run as UID 0 (root) and fail to start the container if it does. If unset or false, no such validation will be performed. May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "runAsUser": {
+                  "description": "The UID to run the entrypoint of the container process. Defaults to user specified in image metadata if unspecified. May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence for that container. Note that this field cannot be set when spec.os.name is windows.",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "seLinuxChangePolicy": {
+                  "description": "seLinuxChangePolicy defines how the container's SELinux label is applied to all volumes used by the Pod. It has no effect on nodes that do not support SELinux or to volumes does not support SELinux. Valid values are \"MountOption\" and \"Recursive\".\n\n\"Recursive\" means relabeling of all files on all Pod volumes by the container runtime. This may be slow for large volumes, but allows mixing privileged and unprivileged Pods sharing the same volume on the same node.\n\n\"MountOption\" mounts all eligible Pod volumes with `-o context` mount option. This requires all Pods that share the same volume to use the same SELinux label. It is not possible to share the same volume among privileged and unprivileged Pods. Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their CSIDriver instance. Other volumes are always re-labelled recursively. \"MountOption\" value is allowed only when SELinuxMount feature gate is enabled.\n\nIf not specified and SELinuxMount feature gate is enabled, \"MountOption\" is used. If not specified and SELinuxMount feature gate is disabled, \"MountOption\" is used for ReadWriteOncePod volumes and \"Recursive\" for all other volumes.\n\nThis field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.\n\nAll Pods that use the same volume should use the same seLinuxChangePolicy, otherwise some pods can get stuck in ContainerCreating state. Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seLinuxOptions": {
+                  "additionalProperties": false,
+                  "description": "The SELinux context to be applied to all containers. If unspecified, the container runtime will allocate a random SELinux context for each container.  May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence for that container. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "level": {
+                      "description": "Level is SELinux level label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "role": {
+                      "description": "Role is a SELinux role label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "description": "Type is a SELinux type label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "user": {
+                      "description": "User is a SELinux user label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "seccompProfile": {
+                  "additionalProperties": false,
+                  "description": "The seccomp options to use by the containers in this pod. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "localhostProfile": {
+                      "description": "localhostProfile indicates a profile defined in a file on the node should be used. The profile must be preconfigured on the node to work. Must be a descending path, relative to the kubelet's configured seccomp profile location. Must be set if type is \"Localhost\". Must NOT be set for any other type.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "description": "type indicates which kind of seccomp profile will be applied. Valid options are:\n\nLocalhost - a profile defined in a file on the node should be used. RuntimeDefault - the container runtime default profile should be used. Unconfined - no profile should be applied.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "supplementalGroups": {
+                  "description": "A list of groups applied to the first process run in each container, in addition to the container's primary GID and fsGroup (if specified).  If the SupplementalGroupsPolicy feature is enabled, the supplementalGroupsPolicy field determines whether these are in addition to or instead of any group memberships defined in the container image. If unspecified, no additional groups are added, though group memberships defined in the container image may still be used, depending on the supplementalGroupsPolicy field. Note that this field cannot be set when spec.os.name is windows.",
+                  "items": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "supplementalGroupsPolicy": {
+                  "description": "Defines how supplemental groups of the first container processes are calculated. Valid values are \"Merge\" and \"Strict\". If not specified, \"Merge\" is used. (Alpha) Using the field requires the SupplementalGroupsPolicy feature gate to be enabled and the container runtime must implement support for this feature. Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sysctls": {
+                  "description": "Sysctls hold a list of namespaced sysctls used for the pod. Pods with unsupported sysctls (by the container runtime) might fail to launch. Note that this field cannot be set when spec.os.name is windows.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "Sysctl defines a kernel parameter to be set",
+                    "properties": {
+                      "name": {
+                        "description": "Name of a property to set",
+                        "type": "string"
+                      },
+                      "value": {
+                        "description": "Value of a property to set",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "windowsOptions": {
+                  "additionalProperties": false,
+                  "description": "The Windows specific settings applied to all containers. If unspecified, the options within a container's SecurityContext will be used. If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence. Note that this field cannot be set when spec.os.name is linux.",
+                  "properties": {
+                    "gmsaCredentialSpec": {
+                      "description": "GMSACredentialSpec is where the GMSA admission webhook (https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the GMSA credential spec named by the GMSACredentialSpecName field.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "gmsaCredentialSpecName": {
+                      "description": "GMSACredentialSpecName is the name of the GMSA credential spec to use.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hostProcess": {
+                      "description": "HostProcess determines if a container should be run as a 'Host Process' container. All of a Pod's containers must have the same effective HostProcess value (it is not allowed to have a mix of HostProcess containers and non-HostProcess containers). In addition, if HostProcess is true then HostNetwork must also be set to true.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "runAsUserName": {
+                      "description": "The UserName in Windows to run the entrypoint of the container process. Defaults to the user specified in image metadata if unspecified. May also be set in PodSecurityContext. If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "privilegedMode": {
+              "description": "Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "resources": {
+              "additionalProperties": false,
+              "description": "Resource requests/limits for the mover container.",
+              "nullable": true,
+              "properties": {
+                "claims": {
+                  "description": "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container.\n\nThis is an alpha field and requires enabling the DynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                    "properties": {
+                      "name": {
+                        "description": "Name must match the name of one entry in pod.spec.resourceClaims of the Pod where this field is used. It makes that resource available inside a container.",
+                        "type": "string"
+                      },
+                      "request": {
+                        "description": "Request is the name chosen for a request in the referenced claim. If empty, everything from the claim is made available, otherwise only the result of this request.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "limits": {
+                  "additionalProperties": {
+                    "description": "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n``` \u003cquantity\u003e        ::= \u003csignedNumber\u003e\u003csuffix\u003e\n\n\t(Note that \u003csuffix\u003e may be empty, from the \"\" case in \u003cdecimalSI\u003e.)\n\n\u003cdigit\u003e           ::= 0 | 1 | ... | 9 \u003cdigits\u003e          ::= \u003cdigit\u003e | \u003cdigit\u003e\u003cdigits\u003e \u003cnumber\u003e          ::= \u003cdigits\u003e | \u003cdigits\u003e.\u003cdigits\u003e | \u003cdigits\u003e. | .\u003cdigits\u003e \u003csign\u003e            ::= \"+\" | \"-\" \u003csignedNumber\u003e    ::= \u003cnumber\u003e | \u003csign\u003e\u003cnumber\u003e \u003csuffix\u003e          ::= \u003cbinarySI\u003e | \u003cdecimalExponent\u003e | \u003cdecimalSI\u003e \u003cbinarySI\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\n\n\t(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\n\u003cdecimalSI\u003e       ::= m | \"\" | k | M | G | T | P | E\n\n\t(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\n\u003cdecimalExponent\u003e ::= \"e\" \u003csignedNumber\u003e | \"E\" \u003csignedNumber\u003e ```\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n\n- No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.\n\nThe sign will be omitted unless the number is negative.\n\nExamples:\n\n- 1.5 will be serialized as \"1500m\" - 1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.",
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ],
+                    "x-kubernetes-int-or-string": true
+                  },
+                  "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "requests": {
+                  "additionalProperties": {
+                    "description": "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n``` \u003cquantity\u003e        ::= \u003csignedNumber\u003e\u003csuffix\u003e\n\n\t(Note that \u003csuffix\u003e may be empty, from the \"\" case in \u003cdecimalSI\u003e.)\n\n\u003cdigit\u003e           ::= 0 | 1 | ... | 9 \u003cdigits\u003e          ::= \u003cdigit\u003e | \u003cdigit\u003e\u003cdigits\u003e \u003cnumber\u003e          ::= \u003cdigits\u003e | \u003cdigits\u003e.\u003cdigits\u003e | \u003cdigits\u003e. | .\u003cdigits\u003e \u003csign\u003e            ::= \"+\" | \"-\" \u003csignedNumber\u003e    ::= \u003cnumber\u003e | \u003csign\u003e\u003cnumber\u003e \u003csuffix\u003e          ::= \u003cbinarySI\u003e | \u003cdecimalExponent\u003e | \u003cdecimalSI\u003e \u003cbinarySI\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\n\n\t(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\n\u003cdecimalSI\u003e       ::= m | \"\" | k | M | G | T | P | E\n\n\t(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\n\u003cdecimalExponent\u003e ::= \"e\" \u003csignedNumber\u003e | \"E\" \u003csignedNumber\u003e ```\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n\n- No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.\n\nThe sign will be omitted unless the number is negative.\n\nExamples:\n\n- 1.5 will be serialized as \"1500m\" - 1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.",
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ],
+                    "x-kubernetes-int-or-string": true
+                  },
+                  "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "securityContext": {
+              "additionalProperties": false,
+              "description": "Container security context for the mover; merged field-wise over the hardened base,\n`moverDefaults`, and any inherited context — this is the highest layer, so every field\nset here wins. Combines with `inheritSecurityContextFrom`: fields you set override the\nworkload's, fields you omit are inherited, and this context stands in alone when\ninheritance cannot resolve a pod.",
+              "nullable": true,
+              "properties": {
+                "allowPrivilegeEscalation": {
+                  "description": "AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. This bool directly controls if the no_new_privs flag will be set on the container process. AllowPrivilegeEscalation is true always when the container is: 1) run as Privileged 2) has CAP_SYS_ADMIN Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "appArmorProfile": {
+                  "additionalProperties": false,
+                  "description": "appArmorProfile is the AppArmor options to use by this container. If set, this profile overrides the pod's appArmorProfile. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "localhostProfile": {
+                      "description": "localhostProfile indicates a profile loaded on the node that should be used. The profile must be preconfigured on the node to work. Must match the loaded name of the profile. Must be set if and only if type is \"Localhost\".",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "description": "type indicates which kind of AppArmor profile will be applied. Valid options are:\n  Localhost - a profile pre-loaded on the node.\n  RuntimeDefault - the container runtime's default profile.\n  Unconfined - no AppArmor enforcement.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "capabilities": {
+                  "additionalProperties": false,
+                  "description": "The capabilities to add/drop when running containers. Defaults to the default set of capabilities granted by the container runtime. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "add": {
+                      "description": "Added capabilities",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "drop": {
+                      "description": "Removed capabilities",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "privileged": {
+                  "description": "Run container in privileged mode. Processes in privileged containers are essentially equivalent to root on the host. Defaults to false. Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "procMount": {
+                  "description": "procMount denotes the type of proc mount to use for the containers. The default value is Default which uses the container runtime defaults for readonly paths and masked paths. This requires the ProcMountType feature flag to be enabled. Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "readOnlyRootFilesystem": {
+                  "description": "Whether this container has a read-only root filesystem. Default is false. Note that this field cannot be set when spec.os.name is windows.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "runAsGroup": {
+                  "description": "The GID to run the entrypoint of the container process. Uses runtime default if unset. May also be set in PodSecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence. Note that this field cannot be set when spec.os.name is windows.",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "runAsNonRoot": {
+                  "description": "Indicates that the container must run as a non-root user. If true, the Kubelet will validate the image at runtime to ensure that it does not run as UID 0 (root) and fail to start the container if it does. If unset or false, no such validation will be performed. May also be set in PodSecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "runAsUser": {
+                  "description": "The UID to run the entrypoint of the container process. Defaults to user specified in image metadata if unspecified. May also be set in PodSecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence. Note that this field cannot be set when spec.os.name is windows.",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "seLinuxOptions": {
+                  "additionalProperties": false,
+                  "description": "The SELinux context to be applied to the container. If unspecified, the container runtime will allocate a random SELinux context for each container.  May also be set in PodSecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "level": {
+                      "description": "Level is SELinux level label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "role": {
+                      "description": "Role is a SELinux role label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "description": "Type is a SELinux type label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "user": {
+                      "description": "User is a SELinux user label that applies to the container.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "seccompProfile": {
+                  "additionalProperties": false,
+                  "description": "The seccomp options to use by this container. If seccomp options are provided at both the pod \u0026 container level, the container options override the pod options. Note that this field cannot be set when spec.os.name is windows.",
+                  "properties": {
+                    "localhostProfile": {
+                      "description": "localhostProfile indicates a profile defined in a file on the node should be used. The profile must be preconfigured on the node to work. Must be a descending path, relative to the kubelet's configured seccomp profile location. Must be set if type is \"Localhost\". Must NOT be set for any other type.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "description": "type indicates which kind of seccomp profile will be applied. Valid options are:\n\nLocalhost - a profile defined in a file on the node should be used. RuntimeDefault - the container runtime default profile should be used. Unconfined - no profile should be applied.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "windowsOptions": {
+                  "additionalProperties": false,
+                  "description": "The Windows specific settings applied to all containers. If unspecified, the options from the PodSecurityContext will be used. If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence. Note that this field cannot be set when spec.os.name is linux.",
+                  "properties": {
+                    "gmsaCredentialSpec": {
+                      "description": "GMSACredentialSpec is where the GMSA admission webhook (https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the GMSA credential spec named by the GMSACredentialSpecName field.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "gmsaCredentialSpecName": {
+                      "description": "GMSACredentialSpecName is the name of the GMSA credential spec to use.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hostProcess": {
+                      "description": "HostProcess determines if a container should be run as a 'Host Process' container. All of a Pod's containers must have the same effective HostProcess value (it is not allowed to have a mix of HostProcess containers and non-HostProcess containers). In addition, if HostProcess is true then HostNetwork must also be set to true.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "runAsUserName": {
+                      "description": "The UserName in Windows to run the entrypoint of the container process. Defaults to the user specified in image metadata if unspecified. May also be set in PodSecurityContext. If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "ttlSecondsAfterFinished": {
+              "description": "Per-recipe override of `Job.spec.ttlSecondsAfterFinished` so finished Jobs self-GC.",
+              "format": "int64",
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pruning": {
+          "additionalProperties": false,
+          "description": "What happens to already-replicated copies at the destination on later runs.\nAbsent = `none`: copies accumulate forever and — like every mode here —\n**survive deletion of this CR** (copy `Snapshot` CRs carry no\nownerReference to it). Pruning only ever considers snapshots this CR\nreplicated (labeled at birth); it never touches the destination's own\ndirectly-written snapshots.",
+          "nullable": true,
+          "oneOf": [
+            {
+              "required": [
+                "none"
+              ]
+            },
+            {
+              "required": [
+                "mirrorSource"
+              ]
+            },
+            {
+              "required": [
+                "retention"
+              ]
+            }
+          ],
+          "properties": {
+            "mirrorSource": {
+              "description": "Mirror the source: delete a copy when its `(identity, startTime)` has\nvanished from the source repository.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "none": {
+              "description": "Never prune: copies accumulate until deleted by hand (the default when\n`spec.pruning` is absent).",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "retention": {
+              "additionalProperties": false,
+              "description": "Keep copies under an independent GFS retention at the destination,\nregardless of what the source still holds.",
+              "properties": {
+                "keepAnnual": {
+                  "description": "Keep one snapshot per year for the most-recent N years.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "keepDaily": {
+                  "description": "Keep one snapshot per day for the most-recent N days.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "keepHourly": {
+                  "description": "Keep one snapshot per hour for the most-recent N hours.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "keepLatest": {
+                  "description": "Keep the N most-recent snapshots regardless of age.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "keepMonthly": {
+                  "description": "Keep one snapshot per month for the most-recent N months.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "keepWeekly": {
+                  "description": "Keep one snapshot per week for the most-recent N weeks.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "schedule": {
+          "additionalProperties": false,
+          "description": "Cron and deterministic jitter for the replication runs.",
+          "properties": {
+            "cron": {
+              "description": "The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.",
+              "type": "string"
+            },
+            "jitter": {
+              "description": "Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timezone": {
+              "description": "IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses\nthe enclosing schedule's timezone, else the controller default (UTC).",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "cron"
+          ],
+          "type": "object"
+        },
+        "selection": {
+          "additionalProperties": false,
+          "description": "Which snapshots to copy. Absent: every identity in the source repository,\nfull history (`kopia snapshot migrate --all`).",
+          "nullable": true,
+          "properties": {
+            "identities": {
+              "additionalProperties": false,
+              "description": "Select source identities (`username@hostname:path`) to copy. Absent: all\nidentities in the source repository.",
+              "nullable": true,
+              "properties": {
+                "exclude": {
+                  "description": "Identities to skip, applied after `include`. Exclude wins on overlap.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "One glob match against a kopia identity's structured\n`(username, hostname, sourcePath)` triple. Every set component must match\n(AND); an unset component matches anything — but at least one component must\nbe set (webhook-refused otherwise: a fully-empty matcher constrains nothing).\n\nGlob semantics, **per component** (non-crossing — a `*` in `username` can\nnever reach into `hostname`): `*` matches any run of characters (including\nnone), `?` matches exactly one character, everything else matches literally,\nand the pattern is anchored (it must cover the WHOLE component — `pg` does\nnot match `pg-main`; `pg*` does). Matching is always on the structured\ntriple, never on a joined `username@hostname:path` string, so literal `@`/`:`\ninside a component cannot confuse it. No character classes (`[...]`) or brace\nexpansion — those are rejected at admission rather than silently matched\nliterally. See [`component_glob_matches`].",
+                    "properties": {
+                      "hostname": {
+                        "description": "Glob for the `hostname` component; absent matches any hostname.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sourcePath": {
+                        "description": "Glob for the `sourcePath` component; absent matches any path.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "username": {
+                        "description": "Glob for the `username` component; absent matches any username.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "include": {
+                  "description": "Identities to copy. Empty/absent: every identity in the source.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "One glob match against a kopia identity's structured\n`(username, hostname, sourcePath)` triple. Every set component must match\n(AND); an unset component matches anything — but at least one component must\nbe set (webhook-refused otherwise: a fully-empty matcher constrains nothing).\n\nGlob semantics, **per component** (non-crossing — a `*` in `username` can\nnever reach into `hostname`): `*` matches any run of characters (including\nnone), `?` matches exactly one character, everything else matches literally,\nand the pattern is anchored (it must cover the WHOLE component — `pg` does\nnot match `pg-main`; `pg*` does). Matching is always on the structured\ntriple, never on a joined `username@hostname:path` string, so literal `@`/`:`\ninside a component cannot confuse it. No character classes (`[...]`) or brace\nexpansion — those are rejected at admission rather than silently matched\nliterally. See [`component_glob_matches`].",
+                    "properties": {
+                      "hostname": {
+                        "description": "Glob for the `hostname` component; absent matches any hostname.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sourcePath": {
+                        "description": "Glob for the `sourcePath` component; absent matches any path.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "username": {
+                        "description": "Glob for the `username` component; absent matches any username.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "latestOnly": {
+              "description": "Copy only each selected identity's most recent snapshot instead of its\nfull history (`kopia snapshot migrate --latest`). Default `false`.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sourceRef": {
+          "additionalProperties": false,
+          "description": "The `Repository` or `ClusterRepository` snapshots are copied FROM. Opened\nread-only by the replication mover — a replication never writes to its source.",
+          "properties": {
+            "kind": {
+              "default": "Repository",
+              "description": "Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].",
+              "enum": [
+                "Repository",
+                "ClusterRepository"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Name of the referenced `Repository`/`ClusterRepository`.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "suspend": {
+          "description": "Pause this replication; a suspended replication runs no copies (default `false`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "destinationRef",
+        "schedule",
+        "sourceRef"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "Observed state of a `SnapshotReplication`.",
+      "nullable": true,
+      "properties": {
+        "conditions": {
+          "description": "Standard Kubernetes conditions (`Ready`, `Reconciling`, `Stalled`).",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "lastReplicated": {
+          "description": "RFC3339 timestamp of the most recent successful replication run (also the\nscheduling anchor for the next slot).",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastRun": {
+          "additionalProperties": false,
+          "description": "Counters from the most recent run.",
+          "nullable": true,
+          "properties": {
+            "alreadyPresent": {
+              "description": "Selected snapshots that were already present at the destination (skipped).",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "failed": {
+              "description": "Selected snapshots that failed to copy (kopia migrate exits 0 on\nper-source failures; the mover's post-verify counts them here).",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "identitiesSelected": {
+              "description": "Source identities the selector matched this run.",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "pruned": {
+              "description": "Copies pruned this run per `spec.pruning`.",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "snapshotsCopied": {
+              "description": "Snapshots newly copied to the destination this run.",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "manualRun": {
+          "additionalProperties": false,
+          "description": "State of the most recent annotation-requested out-of-band run\n(`kopiur.home-operations.com/run-requested`); absent until one is\nrequested.",
+          "nullable": true,
+          "properties": {
+            "completedAt": {
+              "description": "RFC3339 instant the run reached a terminal phase.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phase": {
+              "description": "Lifecycle of a manual replication run. Closed enum.",
+              "enum": [
+                "Pending",
+                "Running",
+                "Succeeded",
+                "Failed"
+              ],
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requestedAt": {
+              "description": "The `run-requested` annotation value this status reflects (RFC3339),\nverbatim as the user wrote it — it pins WHICH request is answered.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "`metadata.generation` last reconciled, for staleness detection / kstatus.",
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Lifecycle phase of a snapshot replication.",
+          "enum": [
+            "Pending",
+            "Replicating",
+            "Succeeded",
+            "Failed",
+            "Suspended"
+          ],
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "title": "SnapshotReplication",
+  "type": "object"
+}
