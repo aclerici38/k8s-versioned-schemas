@@ -3,54 +3,41 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: snapshotreplications.kopiur.home-operations.com
+  name: restores.kopiur.home-operations.com
 spec:
   group: kopiur.home-operations.com
   names:
     categories:
       - kopiur
-    kind: SnapshotReplication
-    plural: snapshotreplications
+    kind: Restore
+    plural: restores
     shortNames:
-      - kopiasrepl
-    singular: snapshotreplication
+      - kopiarestore
+    singular: restore
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.sourceRef.name
-          name: Source
-          type: string
-        - jsonPath: .spec.destinationRef.name
-          name: Destination
-          type: string
-        - jsonPath: .spec.schedule.cron
-          name: Schedule
-          type: string
         - jsonPath: .status.phase
           name: Phase
           type: string
-        - jsonPath: .status.lastReplicated
-          name: Last
-          type: date
+        - jsonPath: .status.sourceKind
+          name: Source
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for SnapshotReplicationSpec via `CustomResource`
+          description: Auto-generated derived type for RestoreSpec via `CustomResource`
           properties:
             spec:
               description: |-
-                Copy selected snapshots from a source repository into a destination repository on a schedule (`kopia snapshot migrate`).
-
-                Not `Eq`: `mover` transitively embeds k8s-openapi types.
+                A restore operation from a snapshot/identity into a PVC, or a passive populator source.
+                Desired state of a Restore: where to read from, where to write to, and how to behave when the snapshot is missing.
               properties:
                 credentialProjection:
-                  description: |-
-                    Opt-in projection of BOTH repositories' credential Secrets into the mover
-                    Job's namespace (required when the destination is a `ClusterRepository`
-                    whose Secrets live elsewhere).
+                  description: Opt-in copying of the repository's credential Secret(s) into the mover's namespace (default off).
                   nullable: true
                   properties:
                     enabled:
@@ -58,59 +45,28 @@ spec:
                       description: Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.
                       type: boolean
                   type: object
-                destinationRef:
-                  description: |-
-                    The `Repository` or `ClusterRepository` snapshots are copied INTO. A real
-                    repository CR with its own password and format (unlike a
-                    `RepositoryReplication` destination, which is a bare backend reusing the
-                    source's password). Must not resolve to the same repository as `sourceRef`
-                    (webhook-enforced structurally; the shared validator catches the literal
-                    same-ref case at admission).
-                  properties:
-                    kind:
-                      default: Repository
-                      description: Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].
-                      enum:
-                        - Repository
-                        - ClusterRepository
-                      type: string
-                    name:
-                      description: Name of the referenced `Repository`/`ClusterRepository`.
-                      type: string
-                    namespace:
-                      description: Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.
-                      nullable: true
-                      type: string
-                  required:
-                    - name
-                  type: object
-                migrate:
-                  description: |-
-                    Tuning for the underlying `kopia snapshot migrate` invocation. Absent:
-                    sequential copy, and NO policy copying (see [`PolicyCopyMode`]).
+                failurePolicy:
+                  description: Mover `Job` retry/deadline limits (`backoffLimit`, `activeDeadlineSeconds`).
                   nullable: true
                   properties:
-                    parallel:
-                      description: |-
-                        `--parallel`: number of snapshots migrated concurrently (kopia default
-                        `1` — sequential). Must be >= 1 when set.
-                      format: uint32
-                      minimum: 0.0
+                    activeDeadlineSeconds:
+                      description: Mover `Job.spec.activeDeadlineSeconds` — wall-clock cap after which a running run is killed.
+                      format: int64
                       nullable: true
                       type: integer
-                    policies:
-                      default: none
-                      description: |-
-                        Whether kopia **policies** attached to the copied sources are also copied
-                        to the destination. Defaults to [`PolicyCopyMode::None`].
-                      enum:
-                        - none
-                        - copy
-                        - copyOverwrite
-                      type: string
+                    backoffLimit:
+                      description: Mover `Job.spec.backoffLimit` — retries before a failed run is marked failed.
+                      format: int32
+                      nullable: true
+                      type: integer
+                    podStartupDeadlineSeconds:
+                      description: Seconds a non-starting (wedged) mover pod may sit before the run is failed; default 300s.
+                      format: int64
+                      nullable: true
+                      type: integer
                   type: object
                 mover:
-                  description: Mover (Job pod) overrides for the replication run.
+                  description: Per-run mover overrides for this restore's Job (resources, cache, `securityContext`).
                   nullable: true
                   properties:
                     cache:
@@ -511,184 +467,96 @@ spec:
                       nullable: true
                       type: integer
                   type: object
-                pruning:
-                  description: |-
-                    What happens to already-replicated copies at the destination on later runs.
-                    Absent = `none`: copies accumulate forever and — like every mode here —
-                    **survive deletion of this CR** (copy `Snapshot` CRs carry no
-                    ownerReference to it). Pruning only ever considers snapshots this CR
-                    replicated (labeled at birth); it never touches the destination's own
-                    directly-written snapshots.
-                  nullable: true
-                  oneOf:
-                    - required:
-                        - none
-                    - required:
-                        - mirrorSource
-                    - required:
-                        - retention
-                  properties:
-                    mirrorSource:
-                      description: |-
-                        Mirror the source: delete a copy when its `(identity, startTime)` has
-                        vanished from the source repository.
-                      type: object
-                    none:
-                      description: |-
-                        Never prune: copies accumulate until deleted by hand (the default when
-                        `spec.pruning` is absent).
-                      type: object
-                    retention:
-                      description: |-
-                        Keep copies under an independent GFS retention at the destination,
-                        regardless of what the source still holds.
-                      properties:
-                        keepAnnual:
-                          description: Keep one snapshot per year for the most-recent N years.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepDaily:
-                          description: Keep one snapshot per day for the most-recent N days.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepHourly:
-                          description: Keep one snapshot per hour for the most-recent N hours.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepLatest:
-                          description: Keep the N most-recent snapshots regardless of age.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepMonthly:
-                          description: Keep one snapshot per month for the most-recent N months.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepWeekly:
-                          description: Keep one snapshot per week for the most-recent N weeks.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                      type: object
-                  type: object
-                schedule:
-                  description: Cron and deterministic jitter for the replication runs.
-                  properties:
-                    cron:
-                      description: The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.
-                      type: string
-                    jitter:
-                      description: Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).
-                      nullable: true
-                      type: string
-                    timezone:
-                      description: |-
-                        IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses
-                        the enclosing schedule's timezone, else the controller default (UTC).
-                      nullable: true
-                      type: string
-                  required:
-                    - cron
-                  type: object
-                selection:
-                  description: |-
-                    Which snapshots to copy. Absent: every identity in the source repository,
-                    full history (`kopia snapshot migrate --all`).
+                options:
+                  description: kopia restore behavior (file deletion, permission/atomicity handling).
                   nullable: true
                   properties:
-                    identities:
+                    enableFileDeletion:
                       description: |-
-                        Select source identities (`username@hostname:path`) to copy. Absent: all
-                        identities in the source repository.
+                        Delete files in the target that are not present in the snapshot (exact mirror); off by default.
+                        Wired to kopia's `--[no-]delete-extra` (previously a silent no-op — see issue #216 gap sweep).
+                      type: boolean
+                    ignoreErrors:
+                      description: '`--[no-]ignore-errors`: ignore all restore errors and continue (kopia default `false`).'
                       nullable: true
-                      properties:
-                        exclude:
-                          description: Identities to skip, applied after `include`. Exclude wins on overlap.
-                          items:
-                            description: |-
-                              One glob match against a kopia identity's structured
-                              `(username, hostname, sourcePath)` triple. Every set component must match
-                              (AND); an unset component matches anything — but at least one component must
-                              be set (webhook-refused otherwise: a fully-empty matcher constrains nothing).
-
-                              Glob semantics, **per component** (non-crossing — a `*` in `username` can
-                              never reach into `hostname`): `*` matches any run of characters (including
-                              none), `?` matches exactly one character, everything else matches literally,
-                              and the pattern is anchored (it must cover the WHOLE component — `pg` does
-                              not match `pg-main`; `pg*` does). Matching is always on the structured
-                              triple, never on a joined `username@hostname:path` string, so literal `@`/`:`
-                              inside a component cannot confuse it. No character classes (`[...]`) or brace
-                              expansion — those are rejected at admission rather than silently matched
-                              literally. See [`component_glob_matches`].
-                            properties:
-                              hostname:
-                                description: Glob for the `hostname` component; absent matches any hostname.
-                                nullable: true
-                                type: string
-                              sourcePath:
-                                description: Glob for the `sourcePath` component; absent matches any path.
-                                nullable: true
-                                type: string
-                              username:
-                                description: Glob for the `username` component; absent matches any username.
-                                nullable: true
-                                type: string
-                            type: object
-                          type: array
-                        include:
-                          description: 'Identities to copy. Empty/absent: every identity in the source.'
-                          items:
-                            description: |-
-                              One glob match against a kopia identity's structured
-                              `(username, hostname, sourcePath)` triple. Every set component must match
-                              (AND); an unset component matches anything — but at least one component must
-                              be set (webhook-refused otherwise: a fully-empty matcher constrains nothing).
-
-                              Glob semantics, **per component** (non-crossing — a `*` in `username` can
-                              never reach into `hostname`): `*` matches any run of characters (including
-                              none), `?` matches exactly one character, everything else matches literally,
-                              and the pattern is anchored (it must cover the WHOLE component — `pg` does
-                              not match `pg-main`; `pg*` does). Matching is always on the structured
-                              triple, never on a joined `username@hostname:path` string, so literal `@`/`:`
-                              inside a component cannot confuse it. No character classes (`[...]`) or brace
-                              expansion — those are rejected at admission rather than silently matched
-                              literally. See [`component_glob_matches`].
-                            properties:
-                              hostname:
-                                description: Glob for the `hostname` component; absent matches any hostname.
-                                nullable: true
-                                type: string
-                              sourcePath:
-                                description: Glob for the `sourcePath` component; absent matches any path.
-                                nullable: true
-                                type: string
-                              username:
-                                description: Glob for the `username` component; absent matches any username.
-                                nullable: true
-                                type: string
-                            type: object
-                          type: array
-                      type: object
-                    latestOnly:
+                      type: boolean
+                    ignorePermissionErrors:
+                      description: Continue past permission errors during restore (default true).
+                      nullable: true
+                      type: boolean
+                    overwriteDirectories:
                       description: |-
-                        Copy only each selected identity's most recent snapshot instead of its
-                        full history (`kopia snapshot migrate --latest`). Default `false`.
+                        `--[no-]overwrite-directories`: overwrite existing directories in the target
+                        (kopia default `true`).
+                      nullable: true
+                      type: boolean
+                    overwriteFiles:
+                      description: '`--[no-]overwrite-files`: overwrite existing files in the target (kopia default `true`).'
+                      nullable: true
+                      type: boolean
+                    overwriteSymlinks:
+                      description: |-
+                        `--[no-]overwrite-symlinks`: overwrite existing symlinks in the target
+                        (kopia default `true`).
+                      nullable: true
+                      type: boolean
+                    parallel:
+                      description: '`--parallel`: restore parallelism (kopia default `8`; `1` disables parallelism).'
+                      format: uint32
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    skipExisting:
+                      description: |-
+                        `--[no-]skip-existing`: skip files/symlinks that already exist in the target
+                        (kopia default `false`).
+                      nullable: true
+                      type: boolean
+                    skipOwners:
+                      description: '`--[no-]skip-owners`: skip restoring file owners (kopia default `false`).'
+                      nullable: true
+                      type: boolean
+                    skipPermissions:
+                      description: '`--[no-]skip-permissions`: skip restoring file permissions (kopia default `false`).'
+                      nullable: true
+                      type: boolean
+                    skipTimes:
+                      description: '`--[no-]skip-times`: skip restoring file modification times (kopia default `false`).'
+                      nullable: true
+                      type: boolean
+                    writeFilesAtomically:
+                      description: Write files atomically via a temp file + rename (default true).
+                      nullable: true
+                      type: boolean
+                    writeSparseFiles:
+                      description: |-
+                        `--[no-]write-sparse-files`: attempt to write files sparsely, allocating the
+                        minimum disk space needed (kopia default `false`).
+                      nullable: true
                       type: boolean
                   type: object
-                sourceRef:
-                  description: |-
-                    The `Repository` or `ClusterRepository` snapshots are copied FROM. Opened
-                    read-only by the replication mover — a replication never writes to its source.
+                policy:
+                  description: What to do when the referenced snapshot doesn't exist yet, and how long to wait.
+                  nullable: true
+                  properties:
+                    onMissingSnapshot:
+                      description: |-
+                        What to do when the resolved source matches no snapshot. Defaults to `Fail`
+                        (fail-closed) so an explicit restore can never silently no-op; choose
+                        `Continue` to provision an empty volume instead (deploy-or-restore).
+                      enum:
+                        - Fail
+                        - Continue
+                      nullable: true
+                      type: string
+                    waitTimeout:
+                      description: How long to wait for the source snapshot to appear before giving up (e.g. `5m`).
+                      nullable: true
+                      type: string
+                  type: object
+                repository:
+                  description: The repository to read from; derived from `source` when omitted, required only with `source.identity`.
+                  nullable: true
                   properties:
                     kind:
                       default: Repository
@@ -707,20 +575,155 @@ spec:
                   required:
                     - name
                   type: object
-                suspend:
-                  description: Pause this replication; a suspended replication runs no copies (default `false`).
-                  type: boolean
+                source:
+                  description: Where to read data from (snapshotRef, fromPolicy, or identity).
+                  oneOf:
+                    - required:
+                        - snapshotRef
+                    - required:
+                        - fromPolicy
+                    - required:
+                        - identity
+                  properties:
+                    fromPolicy:
+                      description: A `SnapshotPolicy` CR, resolved via identity even with no `Snapshot` CR present (deploy-or-restore).
+                      properties:
+                        asOf:
+                          description: Restore the newest snapshot at or before this RFC3339 timestamp (point-in-time).
+                          nullable: true
+                          type: string
+                        name:
+                          description: Name of the `SnapshotPolicy` whose identity selects the snapshot.
+                          type: string
+                        namespace:
+                          description: Namespace of the `SnapshotPolicy`; absent = the `Restore`'s own namespace.
+                          nullable: true
+                          type: string
+                        offset:
+                          default: 0
+                          description: 'Which snapshot to pick: 0 = latest, 1 = previous, and so on.'
+                          format: int64
+                          type: integer
+                      required:
+                        - name
+                      type: object
+                    identity:
+                      description: A raw kopia identity (foreign writers / aged-out catalog); requires `spec.repository`.
+                      properties:
+                        asOf:
+                          description: Restore the newest snapshot at or before this RFC3339 timestamp (point-in-time).
+                          nullable: true
+                          type: string
+                        hostname:
+                          description: The kopia `hostname` to match.
+                          type: string
+                        offset:
+                          description: 'Which snapshot to pick: 0 = latest, 1 = previous, and so on.'
+                          format: int64
+                          nullable: true
+                          type: integer
+                        snapshotID:
+                          description: Pin an exact kopia snapshot by ID.
+                          nullable: true
+                          type: string
+                        sourcePath:
+                          description: The kopia source path to match; absent matches any path for the identity.
+                          nullable: true
+                          type: string
+                        username:
+                          description: The kopia `username` to match.
+                          type: string
+                      required:
+                        - hostname
+                        - username
+                      type: object
+                    snapshotRef:
+                      description: A `Snapshot` CR (scheduled, manual, or discovered).
+                      properties:
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        namespace:
+                          description: Namespace of the referenced object; absent = same namespace as the referrer.
+                          nullable: true
+                          type: string
+                      required:
+                        - name
+                      type: object
+                  type: object
+                target:
+                  description: Where to write the restored data (pvc, pvcRef, or populator).
+                  oneOf:
+                    - required:
+                        - pvc
+                    - required:
+                        - pvcRef
+                    - required:
+                        - populator
+                  properties:
+                    populator:
+                      description: 'Passive populator mode: the restore is claimed by a PVC''s `spec.dataSourceRef`.'
+                      type: object
+                    pvc:
+                      description: Operator creates the PVC.
+                      properties:
+                        accessModes:
+                          description: |-
+                            Access modes for the new PVC; empty defaults to `[ReadWriteOnce]`. Closed
+                            enum in the schema; a non-canonical value persisted before enforcement
+                            decodes as [`PvcAccessMode::Unknown`] and is rejected per-CR with the
+                            value quoted (webhook + reconciler, via `validate_access_modes`) instead
+                            of poisoning the typed watcher.
+                          items:
+                            description: A Kubernetes PersistentVolumeClaim access mode.
+                            enum:
+                              - ReadWriteOnce
+                              - ReadOnlyMany
+                              - ReadWriteMany
+                              - ReadWriteOncePod
+                            type: string
+                          type: array
+                        capacity:
+                          description: Requested size of the new PVC (e.g. `100Gi`).
+                          nullable: true
+                          type: string
+                        name:
+                          description: Name of the PVC to create.
+                          type: string
+                        storageClassName:
+                          description: StorageClass for the new PVC; absent uses the cluster default.
+                          nullable: true
+                          type: string
+                      required:
+                        - name
+                      type: object
+                    pvcRef:
+                      description: Write into an existing PVC.
+                      properties:
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        namespace:
+                          description: Namespace of the referenced object; absent = same namespace as the referrer.
+                          nullable: true
+                          type: string
+                      required:
+                        - name
+                      type: object
+                  type: object
               required:
-                - destinationRef
-                - schedule
-                - sourceRef
+                - source
+                - target
               type: object
+              x-kubernetes-validations:
+                - message: exactly one of target.pvc, target.pvcRef, target.populator
+                  rule: '[has(self.target.pvc), has(self.target.pvcRef), has(self.target.populator)].filter(x, x).size() == 1'
             status:
-              description: Observed state of a `SnapshotReplication`.
+              description: Observed state of a Restore, written by the controller/mover.
               nullable: true
               properties:
                 conditions:
-                  description: Standard Kubernetes conditions (`Ready`, `Reconciling`, `Stalled`).
+                  description: Standard Kubernetes conditions carrying the human-readable status/reason.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -752,68 +755,213 @@ spec:
                       - type
                     type: object
                   type: array
-                lastReplicated:
-                  description: |-
-                    RFC3339 timestamp of the most recent successful replication run (also the
-                    scheduling anchor for the next slot).
-                  nullable: true
-                  type: string
-                lastRun:
-                  description: Counters from the most recent run.
+                failure:
+                  description: Structured terminal-failure detail (kopia error class, stderr tail, retry hint).
                   nullable: true
                   properties:
-                    alreadyPresent:
-                      description: Selected snapshots that were already present at the destination (skipped).
-                      format: uint32
-                      minimum: 0.0
+                    exitCode:
+                      description: The process exit code, if one was reported.
+                      format: int32
                       nullable: true
                       type: integer
-                    failed:
+                    kopiaErrorClass:
+                      description: kopia error class (e.g. `RepositoryUnavailable`, `AuthFailure`).
+                      type: string
+                    message:
+                      description: 'A short human-readable message: what failed, why, and how to fix it.'
+                      type: string
+                    op:
                       description: |-
-                        Selected snapshots that failed to copy (kopia migrate exits 0 on
-                        per-source failures; the mover's post-verify counts them here).
-                      format: uint32
-                      minimum: 0.0
+                        The mover operation that failed, as a stable label (e.g.
+                        `repository connect`, `snapshot create`) — the values of the mover's
+                        `KopiaOp::as_str()`. Distinguishes a repository-level connect failure
+                        from a source-level failure (a broken PVC), which share
+                        `kopiaErrorClass` values (e.g. `NotFound`). Absent on failures that
+                        occurred outside a kopia invocation.
                       nullable: true
-                      type: integer
-                    identitiesSelected:
-                      description: Source identities the selector matched this run.
-                      format: uint32
-                      minimum: 0.0
+                      type: string
+                    retryRecommended:
+                      description: Whether retrying the same operation unchanged could succeed.
+                      type: boolean
+                    stderrTail:
+                      description: |-
+                        The last lines of kopia's stderr, if any were captured (bounded by
+                        [`MAX_LOG_TAIL_BYTES`]).
                       nullable: true
-                      type: integer
-                    pruned:
-                      description: Copies pruned this run per `spec.pruning`.
-                      format: uint32
-                      minimum: 0.0
-                      nullable: true
-                      type: integer
-                    snapshotsCopied:
-                      description: Snapshots newly copied to the destination this run.
-                      format: uint32
-                      minimum: 0.0
-                      nullable: true
-                      type: integer
+                      type: string
+                  required:
+                    - kopiaErrorClass
+                    - message
+                    - retryRecommended
                   type: object
+                logTail:
+                  description: The last lines of the run's output, written by the mover at the terminal transition.
+                  nullable: true
+                  type: string
                 observedGeneration:
-                  description: '`metadata.generation` last reconciled, for staleness detection / kstatus.'
+                  description: '`metadata.generation` last reconciled, so stale status is detectable.'
                   format: int64
                   nullable: true
                   type: integer
                 phase:
-                  description: Lifecycle phase of a snapshot replication.
+                  description: Lifecycle phase of a restore.
                   enum:
                     - Pending
-                    - Replicating
-                    - Succeeded
+                    - Resolving
+                    - Restoring
+                    - Completed
                     - Failed
-                    - Suspended
+                  nullable: true
+                  type: string
+                progress:
+                  description: Bytes/files restored so far, patched periodically by the mover.
+                  nullable: true
+                  properties:
+                    bytesRestored:
+                      description: Total bytes restored so far.
+                      format: int64
+                      nullable: true
+                      type: integer
+                    filesRestored:
+                      description: Total files restored so far.
+                      format: int64
+                      nullable: true
+                      type: integer
+                  type: object
+                resolved:
+                  description: The source resolved and pinned at admission; never re-resolved.
+                  nullable: true
+                  properties:
+                    identity:
+                      description: The resolved kopia identity (`username@hostname:path`) of the snapshot.
+                      nullable: true
+                      properties:
+                        hostname:
+                          description: The final `hostname` kopia records, fixed at admission.
+                          type: string
+                        sourcePath:
+                          description: The resolved snapshot source path, when applicable (`username@hostname:path`).
+                          nullable: true
+                          type: string
+                        username:
+                          description: The final `username` kopia records, fixed at admission.
+                          type: string
+                      required:
+                        - hostname
+                        - username
+                      type: object
+                    kopiaSnapshotID:
+                      description: The exact kopia snapshot manifest id the source resolved to; pinned once.
+                      nullable: true
+                      type: string
+                    pinnedAt:
+                      description: Timestamp at which the source was pinned (RFC3339).
+                      nullable: true
+                      type: string
+                    repository:
+                      description: The repository the snapshot lives in, resolved from the source.
+                      nullable: true
+                      properties:
+                        kind:
+                          default: Repository
+                          description: Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].
+                          enum:
+                            - Repository
+                            - ClusterRepository
+                          type: string
+                        name:
+                          description: Name of the referenced `Repository`/`ClusterRepository`.
+                          type: string
+                        namespace:
+                          description: Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.
+                          nullable: true
+                          type: string
+                      required:
+                        - name
+                      type: object
+                    resolution:
+                      description: Which outcome the source resolution pinned, once and never re-resolved.
+                      enum:
+                        - Snapshot
+                        - NoSnapshot
+                      nullable: true
+                      type: string
+                    snapshotRef:
+                      description: The concrete `Snapshot` CR the source resolved to, when applicable.
+                      nullable: true
+                      properties:
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        namespace:
+                          description: Namespace of the referenced object; absent = same namespace as the referrer.
+                          nullable: true
+                          type: string
+                      required:
+                        - name
+                      type: object
+                  type: object
+                sourceKind:
+                  description: The pinned source kind (`SnapshotRef`/`FromPolicy`/`Identity`); backs the `SOURCE` printer column.
+                  nullable: true
+                  type: string
+                target:
+                  description: Resolved target details (the PVC written to / populator handshake).
+                  nullable: true
+                  properties:
+                    pvcPrime:
+                      description: Populator handshake (passive / pvc-create modes).
+                      nullable: true
+                      type: string
+                    pvcRef:
+                      description: The PVC actually written to (created or pre-existing).
+                      nullable: true
+                      properties:
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        namespace:
+                          description: Namespace of the referenced object; absent = same namespace as the referrer.
+                          nullable: true
+                          type: string
+                      required:
+                        - name
+                      type: object
+                  type: object
+                timing:
+                  description: Start/end timestamps for the restore run.
+                  nullable: true
+                  properties:
+                    endTime:
+                      description: When the restore reached a terminal phase (RFC3339).
+                      nullable: true
+                      type: string
+                    startTime:
+                      description: When the mover began restoring (RFC3339).
+                      nullable: true
+                      type: string
+                  type: object
+                waitStartedAt:
+                  description: |-
+                    When the `policy.waitTimeout` window OPENED (RFC3339) — the first reconcile on which
+                    the restore could actually proceed (its repository reached `Ready`, and for a
+                    `target.populator` a PVC already claims it), NOT when the Restore was created. The
+                    window does NOT open while the referenced `Repository` object or `fromPolicy`
+                    `SnapshotPolicy` doesn't exist: the restore parks in `Pending`
+                    (`ReferentAvailable=False`, reason `RestoreReferentMissing`) and stays unstamped. It
+                    DOES still open for a `snapshotRef` whose `Snapshot` row doesn't exist yet (so
+                    `onMissingSnapshot` can fire for a ref that never appears) and for a restore whose
+                    mover Job already launched. Stamped once and then honored verbatim, so the window
+                    survives controller restarts and Job pod retries; cleared when a populator re-opens
+                    resolution for a re-created claim, so that claim gets the full window again. Absent
+                    means the window has not opened yet (or no `policy.waitTimeout` is configured, in
+                    which case there is no window to anchor).
                   nullable: true
                   type: string
               type: object
           required:
             - spec
-          title: SnapshotReplication
+          title: Restore
           type: object
       served: true
       storage: true

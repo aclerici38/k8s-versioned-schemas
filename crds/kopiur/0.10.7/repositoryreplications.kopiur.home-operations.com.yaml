@@ -3,70 +3,523 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: restores.kopiur.home-operations.com
+  name: repositoryreplications.kopiur.home-operations.com
 spec:
   group: kopiur.home-operations.com
   names:
     categories:
       - kopiur
-    kind: Restore
-    plural: restores
+    kind: RepositoryReplication
+    plural: repositoryreplications
     shortNames:
-      - kopiarestore
-    singular: restore
+      - kopiarepl
+    singular: repositoryreplication
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.sourceKind
+        - jsonPath: .spec.sourceRef.name
           name: Source
           type: string
+        - jsonPath: .status.destinationBackend
+          name: Destination
+          type: string
+        - jsonPath: .spec.schedule.cron
+          name: Schedule
+          type: string
+        - jsonPath: .status.lastReplicated
+          name: Last
+          type: date
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for RestoreSpec via `CustomResource`
+          description: Auto-generated derived type for RepositoryReplicationSpec via `CustomResource`
           properties:
             spec:
               description: |-
-                A restore operation from a snapshot/identity into a PVC, or a passive populator source.
-                Desired state of a Restore: where to read from, where to write to, and how to behave when the snapshot is missing.
+                Mirror a source repository's blobs to a destination backend on a schedule (`kopia repository sync-to`).
+
+                Not `Eq`: `mover` transitively embeds k8s-openapi types.
               properties:
-                credentialProjection:
-                  description: Opt-in copying of the repository's credential Secret(s) into the mover's namespace (default off).
-                  nullable: true
+                destination:
+                  description: |-
+                    The backend to mirror to; must differ from the source's backend (webhook-enforced).
+
+                    `kopia repository sync-to` is a blob-level copy: the destination inherits the
+                    source repository's format and encryption password verbatim, so there is no
+                    separate destination password to configure. The destination backend's own
+                    access credentials (e.g. S3 keys) ride its `auth.secretRef`, which — like the
+                    source's — must live in this CR's namespace.
+                  oneOf:
+                    - required:
+                        - s3
+                    - required:
+                        - azure
+                    - required:
+                        - gcs
+                    - required:
+                        - b2
+                    - required:
+                        - filesystem
+                    - required:
+                        - sftp
+                    - required:
+                        - webDav
+                    - required:
+                        - rclone
+                    - required:
+                        - gdrive
                   properties:
-                    enabled:
-                      default: false
-                      description: Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.
-                      type: boolean
-                  type: object
-                failurePolicy:
-                  description: Mover `Job` retry/deadline limits (`backoffLimit`, `activeDeadlineSeconds`).
-                  nullable: true
-                  properties:
-                    activeDeadlineSeconds:
-                      description: Mover `Job.spec.activeDeadlineSeconds` — wall-clock cap after which a running run is killed.
-                      format: int64
-                      nullable: true
-                      type: integer
-                    backoffLimit:
-                      description: Mover `Job.spec.backoffLimit` — retries before a failed run is marked failed.
-                      format: int32
-                      nullable: true
-                      type: integer
-                    podStartupDeadlineSeconds:
-                      description: Seconds a non-starting (wedged) mover pod may sit before the run is failed; default 300s.
-                      format: int64
-                      nullable: true
-                      type: integer
+                    azure:
+                      description: Azure Blob Storage.
+                      properties:
+                        auth:
+                          description: Access credentials (Secret ref / workload identity).
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret holding the backend's static access credentials (mutually exclusive with `workloadIdentity`).
+                              nullable: true
+                              properties:
+                                name:
+                                  description: Name of the `Secret`.
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                    `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                    reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                    absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                    mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                    `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                    needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                    other than the operator itself reads the `Secret`.
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                            workloadIdentity:
+                              description: Use a cloud-federated ServiceAccount instead of static keys (mutually exclusive with `secretRef`).
+                              nullable: true
+                              properties:
+                                serviceAccountName:
+                                  description: Name of the `ServiceAccount` the mover pod runs as, resolved in the Job's own namespace.
+                                  type: string
+                              required:
+                                - serviceAccountName
+                              type: object
+                          type: object
+                        container:
+                          description: Blob container holding the kopia repository.
+                          type: string
+                        prefix:
+                          description: Blob-name prefix within the container; empty/absent means the container root.
+                          nullable: true
+                          type: string
+                        storageAccount:
+                          description: Storage-account name (when not inferred from credentials).
+                          nullable: true
+                          type: string
+                      required:
+                        - container
+                      type: object
+                    b2:
+                      description: Backblaze B2.
+                      properties:
+                        auth:
+                          description: Access credentials (application key ID/key Secret); Secret-only.
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret holding the backend's access credentials, read by well-known keys.
+                              nullable: true
+                              properties:
+                                name:
+                                  description: Name of the `Secret`.
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                    `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                    reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                    absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                    mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                    `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                    needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                    other than the operator itself reads the `Secret`.
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                          type: object
+                        bucket:
+                          description: B2 bucket holding the kopia repository.
+                          type: string
+                        prefix:
+                          description: Object-name prefix within the bucket; empty/absent means the bucket root.
+                          nullable: true
+                          type: string
+                      required:
+                        - bucket
+                      type: object
+                    filesystem:
+                      description: A local filesystem path, backed by a PVC the operator mounts into the mover.
+                      properties:
+                        path:
+                          description: Mount path inside the mover pod where kopia writes the repository (e.g. `/repo`).
+                          type: string
+                        volume:
+                          description: 'What backs `path`: a PVC or an inline NFS export; absent for a path already on the node/image.'
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - pvc
+                            - required:
+                                - nfs
+                          properties:
+                            nfs:
+                              description: An inline NFS export mounted directly (no PVC).
+                              properties:
+                                path:
+                                  description: Exported path on the NFS server (e.g. `/export/kopia` or `/mnt/eros/Media`).
+                                  type: string
+                                server:
+                                  description: NFS server hostname or IP (e.g. `nas.lan` or `expanse.internal`).
+                                  type: string
+                              required:
+                                - path
+                                - server
+                              type: object
+                            pvc:
+                              description: A `PersistentVolumeClaim` mounted read-write at the repo path.
+                              properties:
+                                name:
+                                  description: Name of the `PersistentVolumeClaim` to mount (in the mover's namespace).
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                          type: object
+                      required:
+                        - path
+                      type: object
+                    gcs:
+                      description: Google Cloud Storage.
+                      properties:
+                        auth:
+                          description: Access credentials (service-account key Secret / workload identity).
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret holding the backend's static access credentials (mutually exclusive with `workloadIdentity`).
+                              nullable: true
+                              properties:
+                                name:
+                                  description: Name of the `Secret`.
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                    `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                    reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                    absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                    mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                    `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                    needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                    other than the operator itself reads the `Secret`.
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                            workloadIdentity:
+                              description: Use a cloud-federated ServiceAccount instead of static keys (mutually exclusive with `secretRef`).
+                              nullable: true
+                              properties:
+                                serviceAccountName:
+                                  description: Name of the `ServiceAccount` the mover pod runs as, resolved in the Job's own namespace.
+                                  type: string
+                              required:
+                                - serviceAccountName
+                              type: object
+                          type: object
+                        bucket:
+                          description: GCS bucket holding the kopia repository.
+                          type: string
+                        prefix:
+                          description: Object-name prefix within the bucket; empty/absent means the bucket root.
+                          nullable: true
+                          type: string
+                      required:
+                        - bucket
+                      type: object
+                    gdrive:
+                      description: |-
+                        Google Drive via kopia's native `gdrive` provider (service-account JSON).
+                        kopia marks this provider experimental / not maintained, and a native
+                        gdrive repository is not interchangeable with an rclone-backed Drive remote.
+                      properties:
+                        credentialsSecretRef:
+                          description: |-
+                            Secret holding the Google service-account JSON used to reach the folder,
+                            read by the well-known key `KOPIA_GDRIVE_CREDENTIALS`. Absent means kopia
+                            falls back to ambient credentials (`GOOGLE_APPLICATION_CREDENTIALS` or
+                            instance metadata).
+                          nullable: true
+                          properties:
+                            name:
+                              description: Name of the `Secret`.
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                other than the operator itself reads the `Secret`.
+                              nullable: true
+                              type: string
+                          required:
+                            - name
+                          type: object
+                        folderId:
+                          description: Google Drive folder ID that holds the kopia repository.
+                          type: string
+                      required:
+                        - folderId
+                      type: object
+                    rclone:
+                      description: |-
+                        Any rclone remote (kopia shells out to `rclone`), broadening reach to
+                        providers without a native kopia backend.
+                      properties:
+                        configSecretRef:
+                          description: |-
+                            Secret holding the `rclone.conf` that defines the remote referenced by
+                            `remote_path`.
+                          nullable: true
+                          properties:
+                            name:
+                              description: Name of the `Secret`.
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                other than the operator itself reads the `Secret`.
+                              nullable: true
+                              type: string
+                          required:
+                            - name
+                          type: object
+                        remotePath:
+                          description: |-
+                            rclone path in `remote:path` form (the remote name must exist in the
+                            supplied rclone config).
+                          type: string
+                        startupTimeout:
+                          description: |-
+                            How long kopia waits for its embedded `rclone serve` to come up before
+                            failing the connect, as a Go duration (e.g. `2m`). kopia's default is
+                            `15s`; raise it for slow remotes whose repository metadata/indexes load
+                            through the rclone/WebDAV bridge and take longer than the default budget.
+                          nullable: true
+                          type: string
+                      required:
+                        - remotePath
+                      type: object
+                    s3:
+                      description: Amazon S3 or any S3-compatible object store (MinIO, RustFS, Ceph RGW, …).
+                      properties:
+                        auth:
+                          description: Access credentials (Secret ref / workload identity).
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret holding the backend's static access credentials (mutually exclusive with `workloadIdentity`).
+                              nullable: true
+                              properties:
+                                name:
+                                  description: Name of the `Secret`.
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                    `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                    reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                    absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                    mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                    `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                    needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                    other than the operator itself reads the `Secret`.
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                            workloadIdentity:
+                              description: Use a cloud-federated ServiceAccount instead of static keys (mutually exclusive with `secretRef`).
+                              nullable: true
+                              properties:
+                                serviceAccountName:
+                                  description: Name of the `ServiceAccount` the mover pod runs as, resolved in the Job's own namespace.
+                                  type: string
+                              required:
+                                - serviceAccountName
+                              type: object
+                          type: object
+                        bucket:
+                          description: Bucket holding the kopia repository.
+                          type: string
+                        endpoint:
+                          description: |-
+                            S3 endpoint host. Omit for AWS; set it for MinIO/RustFS/other
+                            S3-compatible stores.
+                          nullable: true
+                          type: string
+                        prefix:
+                          description: |-
+                            Key prefix under the bucket, letting several repositories share one bucket
+                            (e.g. `clusters/prod/`). Empty/absent means the bucket root.
+                          nullable: true
+                          type: string
+                        region:
+                          description: S3 region. Required by AWS and some compatible providers.
+                          nullable: true
+                          type: string
+                        tls:
+                          description: TLS overrides for self-signed CAs or HTTP-only endpoints.
+                          nullable: true
+                          properties:
+                            caBundleRef:
+                              description: CA bundle (PEM) used to verify the endpoint's certificate, sourced from a `ConfigMap`.
+                              nullable: true
+                              properties:
+                                configMapName:
+                                  description: |-
+                                    Name of the `ConfigMap` holding the value (e.g. a CA bundle). Resolved in the
+                                    referrer's namespace for a namespaced `Repository`, and in the operator's
+                                    namespace (`KOPIUR_NAMESPACE`) for a `ClusterRepository` (cluster-scoped, no
+                                    namespace of its own).
+                                  nullable: true
+                                  type: string
+                                key:
+                                  description: Which key inside the `ConfigMap` to read; defaults to `ca.crt` when unset.
+                                  nullable: true
+                                  type: string
+                              type: object
+                            disableTls:
+                              description: Disable TLS entirely and talk plain HTTP; maps to kopia's `--disable-tls`.
+                              type: boolean
+                            insecureSkipVerify:
+                              description: Skip TLS certificate verification (still uses TLS); maps to kopia's `--disable-tls-verification`.
+                              type: boolean
+                          type: object
+                      required:
+                        - bucket
+                      type: object
+                    sftp:
+                      description: SFTP server.
+                      properties:
+                        auth:
+                          description: Credentials (SSH private key / known-hosts) sourced from a Secret; Secret-only.
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret holding the backend's access credentials, read by well-known keys.
+                              nullable: true
+                              properties:
+                                name:
+                                  description: Name of the `Secret`.
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                    `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                    reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                    absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                    mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                    `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                    needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                    other than the operator itself reads the `Secret`.
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                          type: object
+                        host:
+                          description: SFTP server hostname or IP.
+                          type: string
+                        path:
+                          description: Remote path on the server that holds the kopia repository.
+                          type: string
+                        port:
+                          description: TCP port; defaults to 22 when absent.
+                          format: uint16
+                          maximum: 65535.0
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                        username:
+                          description: SSH username to connect as.
+                          nullable: true
+                          type: string
+                      required:
+                        - host
+                        - path
+                      type: object
+                    webDav:
+                      description: WebDAV endpoint.
+                      properties:
+                        auth:
+                          description: HTTP basic-auth credentials sourced from a Secret; Secret-only.
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret holding the backend's access credentials, read by well-known keys.
+                              nullable: true
+                              properties:
+                                name:
+                                  description: Name of the `Secret`.
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    Namespace of the `Secret`; absent = same namespace as the referrer. A
+                                    `ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT
+                                    reads the `Secret` (to connect, to bootstrap, or to run its repository server) an
+                                    absent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload
+                                    mover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —
+                                    `envFrom` is namespace-local — so put it there, or use `credentialProjection`, which
+                                    needs this namespace set EXPLICITLY to know what to copy. Set it whenever anything
+                                    other than the operator itself reads the `Secret`.
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                          type: object
+                        url:
+                          description: WebDAV collection URL holding the kopia repository.
+                          type: string
+                      required:
+                        - url
+                      type: object
                   type: object
                 mover:
-                  description: Per-run mover overrides for this restore's Job (resources, cache, `securityContext`).
+                  description: Mover (Job pod) overrides for the replication run.
                   nullable: true
                   properties:
                     cache:
@@ -467,96 +920,27 @@ spec:
                       nullable: true
                       type: integer
                   type: object
-                options:
-                  description: kopia restore behavior (file deletion, permission/atomicity handling).
-                  nullable: true
+                schedule:
+                  description: Cron and deterministic jitter for the replication runs.
                   properties:
-                    enableFileDeletion:
-                      description: |-
-                        Delete files in the target that are not present in the snapshot (exact mirror); off by default.
-                        Wired to kopia's `--[no-]delete-extra` (previously a silent no-op — see issue #216 gap sweep).
-                      type: boolean
-                    ignoreErrors:
-                      description: '`--[no-]ignore-errors`: ignore all restore errors and continue (kopia default `false`).'
-                      nullable: true
-                      type: boolean
-                    ignorePermissionErrors:
-                      description: Continue past permission errors during restore (default true).
-                      nullable: true
-                      type: boolean
-                    overwriteDirectories:
-                      description: |-
-                        `--[no-]overwrite-directories`: overwrite existing directories in the target
-                        (kopia default `true`).
-                      nullable: true
-                      type: boolean
-                    overwriteFiles:
-                      description: '`--[no-]overwrite-files`: overwrite existing files in the target (kopia default `true`).'
-                      nullable: true
-                      type: boolean
-                    overwriteSymlinks:
-                      description: |-
-                        `--[no-]overwrite-symlinks`: overwrite existing symlinks in the target
-                        (kopia default `true`).
-                      nullable: true
-                      type: boolean
-                    parallel:
-                      description: '`--parallel`: restore parallelism (kopia default `8`; `1` disables parallelism).'
-                      format: uint32
-                      minimum: 0.0
-                      nullable: true
-                      type: integer
-                    skipExisting:
-                      description: |-
-                        `--[no-]skip-existing`: skip files/symlinks that already exist in the target
-                        (kopia default `false`).
-                      nullable: true
-                      type: boolean
-                    skipOwners:
-                      description: '`--[no-]skip-owners`: skip restoring file owners (kopia default `false`).'
-                      nullable: true
-                      type: boolean
-                    skipPermissions:
-                      description: '`--[no-]skip-permissions`: skip restoring file permissions (kopia default `false`).'
-                      nullable: true
-                      type: boolean
-                    skipTimes:
-                      description: '`--[no-]skip-times`: skip restoring file modification times (kopia default `false`).'
-                      nullable: true
-                      type: boolean
-                    writeFilesAtomically:
-                      description: Write files atomically via a temp file + rename (default true).
-                      nullable: true
-                      type: boolean
-                    writeSparseFiles:
-                      description: |-
-                        `--[no-]write-sparse-files`: attempt to write files sparsely, allocating the
-                        minimum disk space needed (kopia default `false`).
-                      nullable: true
-                      type: boolean
-                  type: object
-                policy:
-                  description: What to do when the referenced snapshot doesn't exist yet, and how long to wait.
-                  nullable: true
-                  properties:
-                    onMissingSnapshot:
-                      description: |-
-                        What to do when the resolved source matches no snapshot. Defaults to `Fail`
-                        (fail-closed) so an explicit restore can never silently no-op; choose
-                        `Continue` to provision an empty volume instead (deploy-or-restore).
-                      enum:
-                        - Fail
-                        - Continue
+                    cron:
+                      description: The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.
+                      type: string
+                    jitter:
+                      description: Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).
                       nullable: true
                       type: string
-                    waitTimeout:
-                      description: How long to wait for the source snapshot to appear before giving up (e.g. `5m`).
+                    timezone:
+                      description: |-
+                        IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses
+                        the enclosing schedule's timezone, else the controller default (UTC).
                       nullable: true
                       type: string
+                  required:
+                    - cron
                   type: object
-                repository:
-                  description: The repository to read from; derived from `source` when omitted, required only with `source.identity`.
-                  nullable: true
+                sourceRef:
+                  description: Reference to the `Repository` or `ClusterRepository` to mirror from.
                   properties:
                     kind:
                       default: Repository
@@ -575,155 +959,80 @@ spec:
                   required:
                     - name
                   type: object
-                source:
-                  description: Where to read data from (snapshotRef, fromPolicy, or identity).
-                  oneOf:
-                    - required:
-                        - snapshotRef
-                    - required:
-                        - fromPolicy
-                    - required:
-                        - identity
+                suspend:
+                  description: Pause this replication; a suspended replication runs no syncs (default `false`).
+                  type: boolean
+                sync:
+                  description: |-
+                    Tuning knobs for the underlying `kopia repository sync-to` invocation
+                    (issue #216). `None` reproduces today's behavior: sequential copy
+                    (`--parallel` unset), additive sync (no `--delete`), kopia's own
+                    `--must-exist`/`--times`/`--update` defaults, and no throughput cap.
+                  nullable: true
                   properties:
-                    fromPolicy:
-                      description: A `SnapshotPolicy` CR, resolved via identity even with no `Snapshot` CR present (deploy-or-restore).
-                      properties:
-                        asOf:
-                          description: Restore the newest snapshot at or before this RFC3339 timestamp (point-in-time).
-                          nullable: true
-                          type: string
-                        name:
-                          description: Name of the `SnapshotPolicy` whose identity selects the snapshot.
-                          type: string
-                        namespace:
-                          description: Namespace of the `SnapshotPolicy`; absent = the `Restore`'s own namespace.
-                          nullable: true
-                          type: string
-                        offset:
-                          default: 0
-                          description: 'Which snapshot to pick: 0 = latest, 1 = previous, and so on.'
-                          format: int64
-                          type: integer
-                      required:
-                        - name
-                      type: object
-                    identity:
-                      description: A raw kopia identity (foreign writers / aged-out catalog); requires `spec.repository`.
-                      properties:
-                        asOf:
-                          description: Restore the newest snapshot at or before this RFC3339 timestamp (point-in-time).
-                          nullable: true
-                          type: string
-                        hostname:
-                          description: The kopia `hostname` to match.
-                          type: string
-                        offset:
-                          description: 'Which snapshot to pick: 0 = latest, 1 = previous, and so on.'
-                          format: int64
-                          nullable: true
-                          type: integer
-                        snapshotID:
-                          description: Pin an exact kopia snapshot by ID.
-                          nullable: true
-                          type: string
-                        sourcePath:
-                          description: The kopia source path to match; absent matches any path for the identity.
-                          nullable: true
-                          type: string
-                        username:
-                          description: The kopia `username` to match.
-                          type: string
-                      required:
-                        - hostname
-                        - username
-                      type: object
-                    snapshotRef:
-                      description: A `Snapshot` CR (scheduled, manual, or discovered).
-                      properties:
-                        name:
-                          description: Name of the referenced object.
-                          type: string
-                        namespace:
-                          description: Namespace of the referenced object; absent = same namespace as the referrer.
-                          nullable: true
-                          type: string
-                      required:
-                        - name
-                      type: object
-                  type: object
-                target:
-                  description: Where to write the restored data (pvc, pvcRef, or populator).
-                  oneOf:
-                    - required:
-                        - pvc
-                    - required:
-                        - pvcRef
-                    - required:
-                        - populator
-                  properties:
-                    populator:
-                      description: 'Passive populator mode: the restore is claimed by a PVC''s `spec.dataSourceRef`.'
-                      type: object
-                    pvc:
-                      description: Operator creates the PVC.
-                      properties:
-                        accessModes:
-                          description: |-
-                            Access modes for the new PVC; empty defaults to `[ReadWriteOnce]`. Closed
-                            enum in the schema; a non-canonical value persisted before enforcement
-                            decodes as [`PvcAccessMode::Unknown`] and is rejected per-CR with the
-                            value quoted (webhook + reconciler, via `validate_access_modes`) instead
-                            of poisoning the typed watcher.
-                          items:
-                            description: A Kubernetes PersistentVolumeClaim access mode.
-                            enum:
-                              - ReadWriteOnce
-                              - ReadOnlyMany
-                              - ReadWriteMany
-                              - ReadWriteOncePod
-                            type: string
-                          type: array
-                        capacity:
-                          description: Requested size of the new PVC (e.g. `100Gi`).
-                          nullable: true
-                          type: string
-                        name:
-                          description: Name of the PVC to create.
-                          type: string
-                        storageClassName:
-                          description: StorageClass for the new PVC; absent uses the cluster default.
-                          nullable: true
-                          type: string
-                      required:
-                        - name
-                      type: object
-                    pvcRef:
-                      description: Write into an existing PVC.
-                      properties:
-                        name:
-                          description: Name of the referenced object.
-                          type: string
-                        namespace:
-                          description: Namespace of the referenced object; absent = same namespace as the referrer.
-                          nullable: true
-                          type: string
-                      required:
-                        - name
-                      type: object
+                    deleteExtra:
+                      description: |-
+                        `--delete`: prune destination-only blobs so the mirror is an exact copy
+                        (kopia default `false` — additive sync, never removes destination
+                        content). Named `deleteExtra`, not kopia's bare `delete`: a `delete: true`
+                        key on backup-adjacent YAML is dangerously ambiguous at a glance.
+
+                        CAUTION: with this `true`, blobs present at the destination but absent
+                        from the source are deleted on every run.
+                      type: boolean
+                    maxDownloadSpeedBytesPerSecond:
+                      description: |-
+                        `--max-download-speed`: cap read throughput from the source, in
+                        bytes/sec (kopia default: unlimited).
+                      format: int64
+                      nullable: true
+                      type: integer
+                    maxUploadSpeedBytesPerSecond:
+                      description: |-
+                        `--max-upload-speed`: cap write throughput to the destination, in
+                        bytes/sec (kopia default: unlimited).
+                      format: int64
+                      nullable: true
+                      type: integer
+                    mustExist:
+                      description: |-
+                        `--[no-]must-exist`: fail the sync instead of initializing the
+                        destination's repository-format blob (kopia default `false` — sync-to may
+                        create the destination layout on first run).
+                      nullable: true
+                      type: boolean
+                    parallel:
+                      description: |-
+                        `--parallel`: number of concurrent blob-copy workers (kopia default `1` —
+                        sequential, the root cause of #216's multi-week seed times to R2).
+                      format: uint32
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    times:
+                      description: |-
+                        `--[no-]times`: synchronize blob modification times to the destination,
+                        when the destination backend supports it (kopia default `true`).
+                      nullable: true
+                      type: boolean
+                    update:
+                      description: |-
+                        `--[no-]update`: update blobs already present at the destination when the
+                        source copy is newer (kopia default `true`).
+                      nullable: true
+                      type: boolean
                   type: object
               required:
-                - source
-                - target
+                - destination
+                - schedule
+                - sourceRef
               type: object
-              x-kubernetes-validations:
-                - message: exactly one of target.pvc, target.pvcRef, target.populator
-                  rule: '[has(self.target.pvc), has(self.target.pvcRef), has(self.target.populator)].filter(x, x).size() == 1'
             status:
-              description: Observed state of a Restore, written by the controller/mover.
+              description: Observed state of a `RepositoryReplication`.
               nullable: true
               properties:
                 conditions:
-                  description: Standard Kubernetes conditions carrying the human-readable status/reason.
+                  description: Standard Kubernetes conditions (`Ready`, `Reconciling`, `Stalled`).
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -755,196 +1064,74 @@ spec:
                       - type
                     type: object
                   type: array
-                failure:
-                  description: Structured terminal-failure detail (kopia error class, stderr tail, retry hint).
+                destinationBackend:
+                  description: The destination backend kind, for the `DESTINATION` print column.
+                  nullable: true
+                  type: string
+                lastReplicated:
+                  description: RFC3339 timestamp of the most recent successful replication run.
+                  nullable: true
+                  type: string
+                lastReplicatedBlobs:
+                  description: Blobs replicated by the last successful run (best-effort).
+                  format: int64
+                  nullable: true
+                  type: integer
+                lastReplicatedBytes:
+                  description: Bytes replicated by the last successful run (best-effort from kopia output).
+                  format: int64
+                  nullable: true
+                  type: integer
+                manualRun:
+                  description: |-
+                    State of the most recent annotation-requested out-of-band run
+                    (`kopiur.home-operations.com/run-requested`); absent until one is
+                    requested.
                   nullable: true
                   properties:
-                    exitCode:
-                      description: The process exit code, if one was reported.
-                      format: int32
+                    completedAt:
+                      description: RFC3339 instant the run reached a terminal phase.
                       nullable: true
-                      type: integer
-                    kopiaErrorClass:
-                      description: kopia error class (e.g. `RepositoryUnavailable`, `AuthFailure`).
                       type: string
-                    message:
-                      description: 'A short human-readable message: what failed, why, and how to fix it.'
+                    phase:
+                      description: Lifecycle of a manual replication run. Closed enum.
+                      enum:
+                        - Pending
+                        - Running
+                        - Succeeded
+                        - Failed
+                      nullable: true
                       type: string
-                    op:
+                    requestedAt:
                       description: |-
-                        The mover operation that failed, as a stable label (e.g.
-                        `repository connect`, `snapshot create`) — the values of the mover's
-                        `KopiaOp::as_str()`. Distinguishes a repository-level connect failure
-                        from a source-level failure (a broken PVC), which share
-                        `kopiaErrorClass` values (e.g. `NotFound`). Absent on failures that
-                        occurred outside a kopia invocation.
+                        The `run-requested` annotation value this status reflects (RFC3339),
+                        verbatim as the user wrote it — it pins WHICH request is answered.
                       nullable: true
                       type: string
-                    retryRecommended:
-                      description: Whether retrying the same operation unchanged could succeed.
-                      type: boolean
-                    stderrTail:
-                      description: |-
-                        The last lines of kopia's stderr, if any were captured (bounded by
-                        [`MAX_LOG_TAIL_BYTES`]).
-                      nullable: true
-                      type: string
-                  required:
-                    - kopiaErrorClass
-                    - message
-                    - retryRecommended
                   type: object
-                logTail:
-                  description: The last lines of the run's output, written by the mover at the terminal transition.
+                nextScheduledAt:
+                  description: RFC3339 timestamp of the next scheduled replication run (cron + jitter, pinned).
                   nullable: true
                   type: string
                 observedGeneration:
-                  description: '`metadata.generation` last reconciled, so stale status is detectable.'
+                  description: '`metadata.generation` last reconciled, for staleness detection / kstatus.'
                   format: int64
                   nullable: true
                   type: integer
                 phase:
-                  description: Lifecycle phase of a restore.
+                  description: Lifecycle phase of a replication.
                   enum:
                     - Pending
-                    - Resolving
-                    - Restoring
-                    - Completed
+                    - Replicating
+                    - Succeeded
                     - Failed
+                    - Suspended
                   nullable: true
                   type: string
-                progress:
-                  description: Bytes/files restored so far, patched periodically by the mover.
-                  nullable: true
-                  properties:
-                    bytesRestored:
-                      description: Total bytes restored so far.
-                      format: int64
-                      nullable: true
-                      type: integer
-                    filesRestored:
-                      description: Total files restored so far.
-                      format: int64
-                      nullable: true
-                      type: integer
-                  type: object
-                resolved:
-                  description: The source resolved and pinned at admission; never re-resolved.
-                  nullable: true
-                  properties:
-                    identity:
-                      description: The resolved kopia identity (`username@hostname:path`) of the snapshot.
-                      nullable: true
-                      properties:
-                        hostname:
-                          description: The final `hostname` kopia records, fixed at admission.
-                          type: string
-                        sourcePath:
-                          description: The resolved snapshot source path, when applicable (`username@hostname:path`).
-                          nullable: true
-                          type: string
-                        username:
-                          description: The final `username` kopia records, fixed at admission.
-                          type: string
-                      required:
-                        - hostname
-                        - username
-                      type: object
-                    kopiaSnapshotID:
-                      description: The exact kopia snapshot manifest id the source resolved to; pinned once.
-                      nullable: true
-                      type: string
-                    pinnedAt:
-                      description: Timestamp at which the source was pinned (RFC3339).
-                      nullable: true
-                      type: string
-                    repository:
-                      description: The repository the snapshot lives in, resolved from the source.
-                      nullable: true
-                      properties:
-                        kind:
-                          default: Repository
-                          description: Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].
-                          enum:
-                            - Repository
-                            - ClusterRepository
-                          type: string
-                        name:
-                          description: Name of the referenced `Repository`/`ClusterRepository`.
-                          type: string
-                        namespace:
-                          description: Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.
-                          nullable: true
-                          type: string
-                      required:
-                        - name
-                      type: object
-                    resolution:
-                      description: Which outcome the source resolution pinned, once and never re-resolved.
-                      enum:
-                        - Snapshot
-                        - NoSnapshot
-                      nullable: true
-                      type: string
-                    snapshotRef:
-                      description: The concrete `Snapshot` CR the source resolved to, when applicable.
-                      nullable: true
-                      properties:
-                        name:
-                          description: Name of the referenced object.
-                          type: string
-                        namespace:
-                          description: Namespace of the referenced object; absent = same namespace as the referrer.
-                          nullable: true
-                          type: string
-                      required:
-                        - name
-                      type: object
-                  type: object
-                sourceKind:
-                  description: The pinned source kind (`SnapshotRef`/`FromPolicy`/`Identity`); backs the `SOURCE` printer column.
-                  nullable: true
-                  type: string
-                target:
-                  description: Resolved target details (the PVC written to / populator handshake).
-                  nullable: true
-                  properties:
-                    pvcPrime:
-                      description: Populator handshake (passive / pvc-create modes).
-                      nullable: true
-                      type: string
-                    pvcRef:
-                      description: The PVC actually written to (created or pre-existing).
-                      nullable: true
-                      properties:
-                        name:
-                          description: Name of the referenced object.
-                          type: string
-                        namespace:
-                          description: Namespace of the referenced object; absent = same namespace as the referrer.
-                          nullable: true
-                          type: string
-                      required:
-                        - name
-                      type: object
-                  type: object
-                timing:
-                  description: Start/end timestamps for the restore run.
-                  nullable: true
-                  properties:
-                    endTime:
-                      description: When the restore reached a terminal phase (RFC3339).
-                      nullable: true
-                      type: string
-                    startTime:
-                      description: When the mover began restoring (RFC3339).
-                      nullable: true
-                      type: string
-                  type: object
               type: object
           required:
             - spec
-          title: Restore
+          title: RepositoryReplication
           type: object
       served: true
       storage: true
