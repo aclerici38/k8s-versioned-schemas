@@ -283,7 +283,9 @@ spec:
                           description: Selects a key of a ConfigMap.
                           properties:
                             key:
-                              description: The key to select.
+                              description: |-
+                                The key to select from the ConfigMap's Data field.
+                                Keys in the BinaryData field are not currently propagated to container env vars.
                               type: string
                             name:
                               default: ""
@@ -436,7 +438,7 @@ spec:
                 encryptionKey:
                   description: |-
                     Encryption Key
-                    Required since Pocket-ID v2 when deploying an instance; omit for external instances.
+                    Required when deploying an instance; omit for external instances.
                     See the official documentation for ENCRYPTION_KEY environment variable
                   properties:
                     value:
@@ -449,7 +451,9 @@ spec:
                           description: Selects a key of a ConfigMap.
                           properties:
                             key:
-                              description: The key to select.
+                              description: |-
+                                The key to select from the ConfigMap's Data field.
+                                Keys in the BinaryData field are not currently propagated to container env vars.
                               type: string
                             name:
                               default: ""
@@ -595,7 +599,9 @@ spec:
                             description: Selects a key of a ConfigMap.
                             properties:
                               key:
-                                description: The key to select.
+                                description: |-
+                                  The key to select from the ConfigMap's Data field.
+                                  Keys in the BinaryData field are not currently propagated to container env vars.
                                 type: string
                               name:
                                 default: ""
@@ -782,7 +788,9 @@ spec:
                               description: Selects a key of a ConfigMap.
                               properties:
                                 key:
-                                  description: The key to select.
+                                  description: |-
+                                    The key to select from the ConfigMap's Data field.
+                                    Keys in the BinaryData field are not currently propagated to container env vars.
                                   type: string
                                 name:
                                   default: ""
@@ -910,7 +918,9 @@ spec:
                               description: Selects a key of a ConfigMap.
                               properties:
                                 key:
-                                  description: The key to select.
+                                  description: |-
+                                    The key to select from the ConfigMap's Data field.
+                                    Keys in the BinaryData field are not currently propagated to container env vars.
                                   type: string
                                 name:
                                   default: ""
@@ -1033,8 +1043,9 @@ spec:
                     Defaults to true
                   type: boolean
                 image:
-                  default: ghcr.io/pocket-id/pocket-id:v2.13.0-distroless@sha256:ccb590169770feb5b23ba16d49386514a2c26a77e95bb687b442ae09f17c15da
-                  description: Container image to run. Defaults to the latest distroless version at time of operator release
+                  description: |-
+                    Container image to run. When empty the operator supplies the latest distroless
+                    version tested against this release.
                   type: string
                 internalAppUrl:
                   description: Internal base URL for OIDC .well-known endpoints (for split-horizon DNS)
@@ -1102,7 +1113,9 @@ spec:
                               description: Selects a key of a ConfigMap.
                               properties:
                                 key:
-                                  description: The key to select.
+                                  description: |-
+                                    The key to select from the ConfigMap's Data field.
+                                    Keys in the BinaryData field are not currently propagated to container env vars.
                                   type: string
                                 name:
                                   default: ""
@@ -1267,6 +1280,13 @@ spec:
                     grpc:
                       description: GRPC specifies a GRPC HealthCheckRequest.
                       properties:
+                        mode:
+                          description: |-
+                            mode specifies the connection mode for the gRPC health probe.
+                            Set to "TLS" to use TLS without certificate verification.
+                            Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                            If not specified, the probe uses a plaintext (insecure) connection.
+                          type: string
                         port:
                           description: Port number of the gRPC service. Number must be in the range 1 to 65535.
                           format: int32
@@ -1321,6 +1341,11 @@ spec:
                             Number must be in the range 1 to 65535.
                             Name must be an IANA_SVC_NAME.
                           x-kubernetes-int-or-string: true
+                        protocol:
+                          description: |-
+                            Protocol selects the wire protocol for the probe connection.
+                            Nil defaults to HTTP/1.1.
+                          type: string
                         scheme:
                           description: |-
                             Scheme to use for connecting to the host.
@@ -1457,10 +1482,20 @@ spec:
                       items:
                         description: VolumeMount describes a mounting of a Volume within a container.
                         properties:
-                          mountPath:
+                          bindMountOptions:
                             description: |-
-                              Path within the container at which the volume should be mounted.  Must
-                              not contain ':'.
+                              bindMountOptions is the list of additional bind mount options to apply when
+                              mounting this volume into the container. Allowed values are noexec,
+                              nodev, and nosuid. These are Linux mount options and have no effect on
+                              Windows nodes.
+                              This field is not supported with image volumes.
+                              This is an alpha field and requires enabling the VolumeBindMountOptions feature gate.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: set
+                          mountPath:
+                            description: Path within the container at which the volume should be mounted.
                             type: string
                           mountPropagation:
                             description: |-
@@ -1630,11 +1665,8 @@ spec:
                         Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                         whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                         CSIDriver instance. Other volumes are always re-labelled recursively.
-                        "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                        If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                        If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                        and "Recursive" for all other volumes.
+                        If not specified, "MountOption" is used.
 
                         This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -1799,6 +1831,13 @@ spec:
                     grpc:
                       description: GRPC specifies a GRPC HealthCheckRequest.
                       properties:
+                        mode:
+                          description: |-
+                            mode specifies the connection mode for the gRPC health probe.
+                            Set to "TLS" to use TLS without certificate verification.
+                            Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                            If not specified, the probe uses a plaintext (insecure) connection.
+                          type: string
                         port:
                           description: Port number of the gRPC service. Number must be in the range 1 to 65535.
                           format: int32
@@ -1853,6 +1892,11 @@ spec:
                             Number must be in the range 1 to 65535.
                             Name must be an IANA_SVC_NAME.
                           x-kubernetes-int-or-string: true
+                        protocol:
+                          description: |-
+                            Protocol selects the wire protocol for the probe connection.
+                            Nil defaults to HTTP/1.1.
+                          type: string
                         scheme:
                           description: |-
                             Scheme to use for connecting to the host.
@@ -2204,7 +2248,9 @@ spec:
                               description: Selects a key of a ConfigMap.
                               properties:
                                 key:
-                                  description: The key to select.
+                                  description: |-
+                                    The key to select from the ConfigMap's Data field.
+                                    Keys in the BinaryData field are not currently propagated to container env vars.
                                   type: string
                                 name:
                                   default: ""
@@ -2349,7 +2395,9 @@ spec:
                               description: Selects a key of a ConfigMap.
                               properties:
                                 key:
-                                  description: The key to select.
+                                  description: |-
+                                    The key to select from the ConfigMap's Data field.
+                                    Keys in the BinaryData field are not currently propagated to container env vars.
                                   type: string
                                 name:
                                   default: ""
@@ -2473,7 +2521,9 @@ spec:
                 serviceTemplate:
                   description: |-
                     ServiceTemplate is merged with the operator-built Service spec.
-                    Operator-managed fields (the selector and the http/metrics ports) always take precedence.
+                    Operator-managed fields (the selector and the number, protocol and appProtocol of
+                    the http/metrics ports) always take precedence. A nodePort set on those ports is
+                    honoured, as are extra ports and every other field.
                   x-kubernetes-preserve-unknown-fields: true
                 smtp:
                   description: |-
@@ -2499,7 +2549,9 @@ spec:
                               description: Selects a key of a ConfigMap.
                               properties:
                                 key:
-                                  description: The key to select.
+                                  description: |-
+                                    The key to select from the ConfigMap's Data field.
+                                    Keys in the BinaryData field are not currently propagated to container env vars.
                                   type: string
                                 name:
                                   default: ""
