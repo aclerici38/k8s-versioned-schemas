@@ -1,0 +1,378 @@
+{
+  "description": "MiroirNodeGroup materializes one MiroirNode per label-matched node, so a\nfleet sharing a storage layout (a device-path convention, a common ZFS\ndataset) is one object and joining it is labeling the node. Direct\nMiroirNodes always win over groups, and membership changes never delete\na MiroirNode — members that stop matching are orphaned in place.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "MiroirNodeGroupSpec selects a set of nodes and the MiroirNode spec they\nshare.",
+      "properties": {
+        "nodeSelector": {
+          "additionalProperties": false,
+          "description": "NodeSelector picks the member nodes by label. An empty selector\nmatches every node in the cluster (the Kubernetes convention).\nThe expression rule mirrors what LabelSelectorAsSelector enforces at\nruntime — the LabelSelector schema alone admits combinations that\nwould otherwise fail every reconcile.",
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "items": {
+                "additionalProperties": false,
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "matchLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object",
+          "x-kubernetes-map-type": "atomic",
+          "x-kubernetes-validations": [
+            {
+              "message": "matchExpressions: In/NotIn require values; Exists/DoesNotExist forbid them",
+              "rule": "!has(self.matchExpressions) || self.matchExpressions.all(e, ((e.operator == 'In' || e.operator == 'NotIn') \u0026\u0026 has(e.values) \u0026\u0026 size(e.values) \u003e 0) || ((e.operator == 'Exists' || e.operator == 'DoesNotExist') \u0026\u0026 (!has(e.values) || size(e.values) == 0)))"
+            }
+          ]
+        },
+        "template": {
+          "additionalProperties": false,
+          "description": "Template is the MiroirNode spec applied to every member, with two\nper-node facts resolved from the Node object: an empty zone\ninherits the node's topology.kubernetes.io/zone label, and the\nreplication address comes from the node's\nmiroir.home-operations.com/address annotation.",
+          "properties": {
+            "address": {
+              "description": "Address optionally pins the node's DRBD replication endpoint to a\ndedicated storage NIC/VLAN IP (IPv4 or IPv6); empty falls back to\nthe node's InternalIP. It applies to volumes created afterwards —\nexisting volumes keep the address persisted at creation. An explicit\nempty string means unset (0.10 values files carry them).",
+              "maxLength": 45,
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "address must be a plain IPv4 or IPv6 address",
+                  "rule": "self == '' || isIP(self)"
+                }
+              ]
+            },
+            "autoEvict": {
+              "description": "AutoEvict, when explicitly false, exempts this node from auto-evict:\nits legs are never re-placed while its heartbeat is stale (a node\nwith known long outages). Absent means eligible.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "pools": {
+              "description": "Pools lists this node's storage pools, one entry per pool. Every\nnode in the topology carries at least one.",
+              "items": {
+                "additionalProperties": false,
+                "description": "MiroirNodePool is one named storage pool on a node. The backend is the\nconfiguration block that is present — exactly one of lvmthin/zfs/\nloopfile, even when it has nothing to say (lvmthin: {} when the VG\nalready exists). Pool names are cluster-wide identities — a\nStorageClass selects a pool by name and the controller places each\nreplica on a node carrying that pool.",
+                "properties": {
+                  "loopfile": {
+                    "additionalProperties": false,
+                    "description": "Loopfile makes this a loopfile pool.",
+                    "properties": {
+                      "baseDir": {
+                        "description": "BaseDir is the directory holding the sparse files, e.g.\n\"/var/lib/miroir\". Must be reflink-capable (XFS reflink=1 or btrfs)\nfor CoW snapshots; the agent refuses the pool otherwise.",
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "baseDir"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "lvmthin": {
+                    "additionalProperties": false,
+                    "description": "LVMThin makes this an lvmthin pool.",
+                    "properties": {
+                      "device": {
+                        "description": "Device is the block device backing the pool's VG. Optional when the\nVG already exists (a pre-provisioned or shared VG); required for the\nagent to create it on first start.",
+                        "maxLength": 256,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "poolSize": {
+                        "description": "PoolSize bounds the thin pool (an lvm size spec, e.g. \"400g\");\nempty claims all free VG space.",
+                        "maxLength": 32,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "description": "Name is the pool name (\"default\" for the pre-multi-pool single\npool). It becomes an LVM VG name suffix, a metric label value, and a\nStorageClass parameter, so it stays a short lowercase identifier.",
+                    "pattern": "^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$",
+                    "type": "string"
+                  },
+                  "zfs": {
+                    "additionalProperties": false,
+                    "description": "ZFS makes this a zfs pool.",
+                    "properties": {
+                      "compression": {
+                        "default": "lz4",
+                        "description": "Compression is the compression property for newly created zvols;\n\"inherit\" uses the parent dataset's setting. Existing zvols are not\nmutated, and snapshot clones retain their source properties. Empty\nmeans the default (lz4) — 0.10 values files carry explicit empty\nstrings, and the agent has always defaulted them.",
+                        "pattern": "^(|inherit|on|off|lz4|lzjb|zle|gzip(-[1-9])?|zstd(-([1-9]|1[0-9]))?|zstd-fast(-(10|[1-9]|[2-9]0|100|500|1000))?)$",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "dataset": {
+                        "description": "Dataset is the parent dataset for zvols.",
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "volBlockSize": {
+                        "default": "4K",
+                        "description": "VolBlockSize is the volblocksize property for newly created zvols.\nEmpty means the default (4K), for the same 0.10 compatibility reason\nas Compression.",
+                        "enum": [
+                          "",
+                          "4K",
+                          "8K",
+                          "16K",
+                          "32K",
+                          "64K",
+                          "128K"
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "dataset"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "exactly one backend block (lvmthin, zfs, or loopfile) must be set — lvmthin: {} when the VG already exists",
+                    "rule": "[has(self.lvmthin), has(self.zfs), has(self.loopfile)].filter(x, x).size() == 1"
+                  }
+                ]
+              },
+              "maxItems": 32,
+              "minItems": 1,
+              "type": "array",
+              "x-kubernetes-list-map-keys": [
+                "name"
+              ],
+              "x-kubernetes-list-type": "map",
+              "x-kubernetes-validations": [
+                {
+                  "message": "no two pools may share a device",
+                  "rule": "self.filter(p, has(p.lvmthin) \u0026\u0026 has(p.lvmthin.device)).map(p, p.lvmthin.device).all(d, self.filter(p, has(p.lvmthin) \u0026\u0026 has(p.lvmthin.device) \u0026\u0026 p.lvmthin.device == d).size() == 1)"
+                },
+                {
+                  "message": "no two pools may share a dataset",
+                  "rule": "self.filter(p, has(p.zfs)).map(p, p.zfs.dataset).all(d, self.filter(p, has(p.zfs) \u0026\u0026 p.zfs.dataset == d).size() == 1)"
+                },
+                {
+                  "message": "no two pools may share a baseDir",
+                  "rule": "self.filter(p, has(p.loopfile)).map(p, p.loopfile.baseDir).all(d, self.filter(p, has(p.loopfile) \u0026\u0026 p.loopfile.baseDir == d).size() == 1)"
+                }
+              ]
+            },
+            "zone": {
+              "description": "Zone is an optional failure domain (rack, host group, AZ). When set,\nthe controller spreads a volume's replicas across distinct zones;\nempty means unconstrained.",
+              "maxLength": 63,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "pools"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "nodeSelector",
+        "template"
+      ],
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "address is a per-node fact: annotate the Node with miroir.home-operations.com/address, or author a direct MiroirNode",
+          "rule": "!has(self.template.address) || size(self.template.address) == 0"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "MiroirNodeGroupStatus reports the group's materialized membership.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions follow the standard Kubernetes condition conventions.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "nodes": {
+          "description": "Nodes lists the member nodes whose MiroirNode this group currently\nmanages, sorted by name.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the spec generation this status reflects.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object",
+  "x-kubernetes-validations": [
+    {
+      "message": "the group name becomes a label value on materialized MiroirNodes: 63 characters maximum",
+      "rule": "size(self.metadata.name) \u003c= 63"
+    }
+  ]
+}

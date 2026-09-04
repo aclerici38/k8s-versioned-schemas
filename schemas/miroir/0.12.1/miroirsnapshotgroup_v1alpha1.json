@@ -1,0 +1,158 @@
+{
+  "description": "MiroirSnapshotGroup is one crash-consistent point-in-time snapshot cut\nacross several MiroirVolumes at once (1:1 with a\nVolumeGroupSnapshotContent). Its members are ordinary MiroirSnapshots\nthat restore individually; the group coordinates their cut under one\nshared write barrier.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "MiroirSnapshotGroupSpec is the desired state, created by the controller\non CSI CreateVolumeGroupSnapshot.",
+      "properties": {
+        "snapshotNames": {
+          "description": "SnapshotNames lists the member MiroirSnapshots (one per source\nvolume, each carrying this group's name in spec.group). Immutable:\nthe group barrier is cut atomically over exactly this member set,\nso growing or shrinking it after the fact would misrepresent what\nthe cut covered.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-validations": [
+            {
+              "message": "snapshotNames is immutable: the group barrier was cut over exactly this member set",
+              "rule": "self == oldSelf"
+            }
+          ]
+        }
+      },
+      "required": [
+        "snapshotNames"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "MiroirSnapshotGroupStatus is the shared state of the group's write\nbarrier round. One MiroirSnapshotGroup is one round spanning every\ndiskful leg of every member volume — the multi-volume generalization\nof the MiroirSnapshot per-node round, kept on a single object so that\nsealing and voiding the round serialize on one resourceVersion.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions follow the standard Kubernetes condition conventions.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ioSuspended": {
+          "description": "IOSuspended is the group-wide write barrier: set by the round\ndriver after suspending its local member legs, cleared on resume.\nLegs are cut only while it holds and every slot reports Suspended.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "perLeg": {
+          "additionalProperties": {
+            "description": "SnapshotNodeState tracks one node's progress through the snapshot barrier.",
+            "type": "string"
+          },
+          "description": "PerLeg maps \"\u003cvolume\u003e/\u003cnode\u003e\" to that leg's progress through the\ngroup barrier round.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "readyToUse": {
+          "description": "ReadyToUse is true once every diskful leg of every member volume\nholds its snapshot, all cut inside one shared write barrier.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "suspendedAt": {
+          "description": "SuspendedAt bounds the barrier: the driver voids the round at the\ndeadline even if a leg never cuts, so a stuck member cannot freeze\nevery volume in the group forever.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
