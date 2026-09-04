@@ -8,11 +8,11 @@ metadata:
     helm.sh/resource-policy: keep
     cert-manager.io/inject-ca-from: default/garage-operator-webhook-cert
   labels:
-    helm.sh/chart: garage-operator-0.7.3
+    helm.sh/chart: garage-operator-0.7.8
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/version: "0.7.8"
     app.kubernetes.io/managed-by: Helm
   name: garageclusters.garage.rajsingh.info
 spec:
@@ -1057,7 +1057,7 @@ spec:
                       description: |-
                         CompressionLevel is the zstd compression level
                         1-19: standard, 20-22: ultra, -1 to -99: fast, "none": disabled
-                      pattern: ^(none|-?[1-9][0-9]*)$
+                      pattern: ^(none|0|-?[1-9][0-9]*)$
                       type: string
                     disableScrub:
                       description: DisableScrub disables automatic monthly data directory scrub
@@ -1158,9 +1158,8 @@ spec:
                       properties:
                         kubeConfigSecretRef:
                           description: |-
-                            KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                            Only needed for multi-cluster federation where the GarageCluster lives in a different
-                            Kubernetes cluster entirely (not just a different namespace).
+                            KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                            It is currently rejected by admission because the operator does not use it.
                           properties:
                             key:
                               description: The key of the secret to select from.  Must be a valid secret key.
@@ -1187,8 +1186,8 @@ spec:
                         namespace:
                           description: |-
                             Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
-                            Cross-namespace references require a GarageReferenceGrant in the target namespace.
-                            Not supported on GarageNode.
+                            Cross-namespace references require a GarageReferenceGrant where supported by
+                            the owning resource. GarageNode and GarageAdminToken reject them.
                           type: string
                       required:
                         - name
@@ -1607,7 +1606,6 @@ spec:
                     - Must specify connectTo to reference a storage cluster
                   type: boolean
                 image:
-                  default: dxflrs/garage:v2.3.0
                   description: |-
                     Image specifies the Garage container image to use.
                     Takes precedence over imageRepository if both are set.
@@ -1650,8 +1648,7 @@ spec:
                   properties:
                     bindAddress:
                       description: |-
-                        BindAddress is a custom bind address for the K2V API.
-                        Can be a TCP address or Unix socket path (e.g., "unix:///run/garage/k2v.sock").
+                        BindAddress is a custom wildcard TCP bind address for the K2V API.
                         If set, this overrides BindPort.
                       type: string
                     bindPort:
@@ -1865,8 +1862,9 @@ spec:
                       type: array
                     rpcBindAddress:
                       description: |-
-                        RPCBindAddress is a custom bind address for the RPC server.
-                        Can be a TCP address (e.g., "0.0.0.0:3901", "[::]:3901").
+                        RPCBindAddress is a custom wildcard TCP bind address for the RPC server.
+                        Managed workloads accept "0.0.0.0:3901" or "[::]:3901" so the
+                        generated Service can reach every Garage process.
                         If set, this overrides RPCBindPort.
                       type: string
                     rpcBindOutgoing:
@@ -2003,17 +2001,18 @@ spec:
                     Required for multi-cluster federation
                   properties:
                     externalIP:
-                      description: ExternalIP configuration
+                      description: |-
+                        ExternalIP is retained for API compatibility but is not supported.
+                        Setting it is rejected because the operator does not consume the explicit
+                        address mapping or template.
                       properties:
                         addressTemplate:
-                          description: |-
-                            AddressTemplate uses go template to generate addresses from pod info
-                            Example: "garage-{{.Index}}.example.com"
+                          description: AddressTemplate is retained for API compatibility but is unsupported.
                           type: string
                         addresses:
                           additionalProperties:
                             type: string
-                          description: Addresses maps pod names to external IPs
+                          description: Addresses is retained for API compatibility but is unsupported.
                           type: object
                       type: object
                     loadBalancer:
@@ -2140,9 +2139,9 @@ spec:
                           - type: integer
                           - type: string
                         description: |-
-                          DefaultCapacity is the default storage capacity to assign to remote nodes
-                          that don't yet have a role in the layout. If not specified, defaults to 100Gi.
-                          Set to "0" to add nodes as gateway-only (no storage).
+                          DefaultCapacity is retained for API compatibility but is not supported.
+                          Remote role capacity is copied from the source cluster's committed or
+                          staged layout and cannot be overridden by the importing cluster.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       name:
@@ -2282,9 +2281,9 @@ spec:
                   properties:
                     bindAddress:
                       description: |-
-                        BindAddress is a custom bind address for the S3 API.
-                        Can be a TCP address (e.g., "0.0.0.0:3900", "[::]:3900") or
-                        a Unix socket path (e.g., "unix:///run/garage/s3.sock").
+                        BindAddress is a custom wildcard TCP bind address for the S3 API.
+                        Managed workloads accept "0.0.0.0:3900" or "[::]:3900" so the
+                        generated Service and probes can reach every Garage process.
                         If set, this overrides BindPort.
                       type: string
                     bindPort:
@@ -2495,11 +2494,8 @@ spec:
                         Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                         whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                         CSIDriver instance. Other volumes are always re-labelled recursively.
-                        "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                        If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                        If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                        and "Recursive" for all other volumes.
+                        If not specified, "MountOption" is used.
 
                         This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -2651,6 +2647,38 @@ spec:
                             type: string
                           description: Annotations to set on the PVC. Only valid when Type=PersistentVolumeClaim.
                           type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for every generated PVC of this
+                            volume role. Setting it copies the same same-namespace, non-core group
+                            populator onto each Auto ordinal of this role; the populator must map
+                            target claim i to source-group member i. A core PVC or single-volume clone
+                            is not a safe source. Metadata and data are independent roles: restore
+                            identity by setting this on metadata, object blocks by setting it on data.
+                            It is immutable after the GarageCluster is created.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
+                          type: object
                         labels:
                           additionalProperties:
                             type: string
@@ -2689,6 +2717,33 @@ spec:
                                     additionalProperties:
                                       type: string
                                     description: Annotations to set on the PVC.
+                                    type: object
+                                  dataSourceRef:
+                                    description: |-
+                                      DataSourceRef is the opt-in restore source for this data path's PVC across
+                                      every Auto ordinal. Same group-populator contract as VolumeConfig.dataSourceRef.
+                                    properties:
+                                      apiGroup:
+                                        description: |-
+                                          APIGroup is the group for the resource being referenced.
+                                          If APIGroup is not specified, the specified Kind must be in the core API group.
+                                          For any other third-party types, APIGroup is required.
+                                        type: string
+                                      kind:
+                                        description: Kind is the type of resource being referenced
+                                        type: string
+                                      name:
+                                        description: Name is the name of resource being referenced
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace is the namespace of resource being referenced
+                                          Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                          (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                        type: string
+                                    required:
+                                      - kind
+                                      - name
                                     type: object
                                   labels:
                                     additionalProperties:
@@ -2783,8 +2838,8 @@ spec:
                                           * An existing PVC (PersistentVolumeClaim)
                                           If the provisioner or an external controller can support the specified data source,
                                           it will create a new volume based on the contents of the specified data source.
-                                          When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                          and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                          dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                          copied to dataSource when dataSourceRef.namespace is not specified.
                                           If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                         properties:
                                           apiGroup:
@@ -2827,7 +2882,6 @@ spec:
                                             specified.
                                           * While dataSource only allows local objects, dataSourceRef allows objects
                                             in any namespaces.
-                                          (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                           (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                         properties:
                                           apiGroup:
@@ -3056,8 +3110,8 @@ spec:
                                 * An existing PVC (PersistentVolumeClaim)
                                 If the provisioner or an external controller can support the specified data source,
                                 it will create a new volume based on the contents of the specified data source.
-                                When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                copied to dataSource when dataSourceRef.namespace is not specified.
                                 If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                               properties:
                                 apiGroup:
@@ -3100,7 +3154,6 @@ spec:
                                   specified.
                                 * While dataSource only allows local objects, dataSourceRef allows objects
                                   in any namespaces.
-                                (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                 (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                               properties:
                                 apiGroup:
@@ -3266,7 +3319,9 @@ spec:
                                 description: Selects a key of a ConfigMap.
                                 properties:
                                   key:
-                                    description: The key to select.
+                                    description: |-
+                                      The key to select from the ConfigMap's Data field.
+                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                     type: string
                                   name:
                                     default: ""
@@ -3451,6 +3506,38 @@ spec:
                             type: string
                           description: Annotations to set on the PVC. Only valid when Type=PersistentVolumeClaim.
                           type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for every generated PVC of this
+                            volume role. Setting it copies the same same-namespace, non-core group
+                            populator onto each Auto ordinal of this role; the populator must map
+                            target claim i to source-group member i. A core PVC or single-volume clone
+                            is not a safe source. Metadata and data are independent roles: restore
+                            identity by setting this on metadata, object blocks by setting it on data.
+                            It is immutable after the GarageCluster is created.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
+                          type: object
                         labels:
                           additionalProperties:
                             type: string
@@ -3489,6 +3576,33 @@ spec:
                                     additionalProperties:
                                       type: string
                                     description: Annotations to set on the PVC.
+                                    type: object
+                                  dataSourceRef:
+                                    description: |-
+                                      DataSourceRef is the opt-in restore source for this data path's PVC across
+                                      every Auto ordinal. Same group-populator contract as VolumeConfig.dataSourceRef.
+                                    properties:
+                                      apiGroup:
+                                        description: |-
+                                          APIGroup is the group for the resource being referenced.
+                                          If APIGroup is not specified, the specified Kind must be in the core API group.
+                                          For any other third-party types, APIGroup is required.
+                                        type: string
+                                      kind:
+                                        description: Kind is the type of resource being referenced
+                                        type: string
+                                      name:
+                                        description: Name is the name of resource being referenced
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace is the namespace of resource being referenced
+                                          Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                          (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                        type: string
+                                    required:
+                                      - kind
+                                      - name
                                     type: object
                                   labels:
                                     additionalProperties:
@@ -3583,8 +3697,8 @@ spec:
                                           * An existing PVC (PersistentVolumeClaim)
                                           If the provisioner or an external controller can support the specified data source,
                                           it will create a new volume based on the contents of the specified data source.
-                                          When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                          and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                          dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                          copied to dataSource when dataSourceRef.namespace is not specified.
                                           If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                         properties:
                                           apiGroup:
@@ -3627,7 +3741,6 @@ spec:
                                             specified.
                                           * While dataSource only allows local objects, dataSourceRef allows objects
                                             in any namespaces.
-                                          (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                           (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                         properties:
                                           apiGroup:
@@ -3856,8 +3969,8 @@ spec:
                                 * An existing PVC (PersistentVolumeClaim)
                                 If the provisioner or an external controller can support the specified data source,
                                 it will create a new volume based on the contents of the specified data source.
-                                When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                copied to dataSource when dataSourceRef.namespace is not specified.
                                 If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                               properties:
                                 apiGroup:
@@ -3900,7 +4013,6 @@ spec:
                                   specified.
                                 * While dataSource only allows local objects, dataSourceRef allows objects
                                   in any namespaces.
-                                (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                 (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                               properties:
                                 apiGroup:
@@ -4297,8 +4409,7 @@ spec:
                       type: boolean
                     bindAddress:
                       description: |-
-                        BindAddress is a custom bind address for the Web API.
-                        Can be a TCP address or Unix socket path (e.g., "unix:///run/garage/web.sock").
+                        BindAddress is a custom wildcard TCP bind address for the Web API.
                         If set, this overrides BindPort.
                       type: string
                     bindPort:
@@ -4417,6 +4528,37 @@ spec:
                         type: string
                     type: object
                   type: array
+                autoModePvcHandoffs:
+                  description: |-
+                    AutoModePVCHandoffs mirrors the hub version's controller-owned retained
+                    PVC identity handoffs so conversion cannot erase an in-flight replacement.
+                  items:
+                    description: |-
+                      AutoModePVCHandoffStatus mirrors the v1beta2 retained Auto-mode PVC handoff
+                      for lossless status conversion.
+                    properties:
+                      previousGarageNodeUid:
+                        type: string
+                      pvcName:
+                        type: string
+                      pvcUid:
+                        type: string
+                      replacementGarageNodeUid:
+                        type: string
+                      replacementReservationHash:
+                        type: string
+                      slotName:
+                        type: string
+                    required:
+                      - previousGarageNodeUid
+                      - pvcName
+                      - pvcUid
+                      - slotName
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - pvcName
+                  x-kubernetes-list-type: map
                 blockErrorDetails:
                   description: BlockErrorDetails provides detailed information about block errors
                   properties:
@@ -5368,7 +5510,7 @@ spec:
                   properties:
                     compressionLevel:
                       description: CompressionLevel is the zstd compression level.
-                      pattern: ^(none|-?[1-9][0-9]*)$
+                      pattern: ^(none|0|-?[1-9][0-9]*)$
                       type: string
                     disableScrub:
                       description: DisableScrub disables automatic monthly data directory scrub.
@@ -5439,9 +5581,8 @@ spec:
                       properties:
                         kubeConfigSecretRef:
                           description: |-
-                            KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                            Only needed for multi-cluster federation where the GarageCluster lives in a different
-                            Kubernetes cluster entirely (not just a different namespace).
+                            KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                            It is currently rejected by admission because the operator does not use it.
                           properties:
                             key:
                               description: The key of the secret to select from.  Must be a valid secret key.
@@ -6793,7 +6934,9 @@ spec:
                                 description: Selects a key of a ConfigMap.
                                 properties:
                                   key:
-                                    description: The key to select.
+                                    description: |-
+                                      The key to select from the ConfigMap's Data field.
+                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                     type: string
                                   name:
                                     default: ""
@@ -6983,6 +7126,38 @@ spec:
                             type: string
                           description: Annotations to set on the PVC.
                           type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for every generated PVC of this
+                            volume role. Setting it copies the same same-namespace, non-core group
+                            populator onto each Auto ordinal of this role; the populator must map
+                            target claim i to source-group member i. A core PVC or single-volume clone
+                            is not a safe source. Metadata and data are independent roles: restore
+                            identity by setting this on metadata, object blocks by setting it on data.
+                            It is immutable after the GarageCluster is created.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
+                          type: object
                         labels:
                           additionalProperties:
                             type: string
@@ -7023,6 +7198,33 @@ spec:
                                     additionalProperties:
                                       type: string
                                     description: Annotations to set on the PVC.
+                                    type: object
+                                  dataSourceRef:
+                                    description: |-
+                                      DataSourceRef is the opt-in restore source for this data path's PVC across
+                                      every Auto ordinal. Same group-populator contract as VolumeConfig.dataSourceRef.
+                                    properties:
+                                      apiGroup:
+                                        description: |-
+                                          APIGroup is the group for the resource being referenced.
+                                          If APIGroup is not specified, the specified Kind must be in the core API group.
+                                          For any other third-party types, APIGroup is required.
+                                        type: string
+                                      kind:
+                                        description: Kind is the type of resource being referenced
+                                        type: string
+                                      name:
+                                        description: Name is the name of resource being referenced
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace is the namespace of resource being referenced
+                                          Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                          (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                        type: string
+                                    required:
+                                      - kind
+                                      - name
                                     type: object
                                   labels:
                                     additionalProperties:
@@ -7117,8 +7319,8 @@ spec:
                                           * An existing PVC (PersistentVolumeClaim)
                                           If the provisioner or an external controller can support the specified data source,
                                           it will create a new volume based on the contents of the specified data source.
-                                          When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                          and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                          dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                          copied to dataSource when dataSourceRef.namespace is not specified.
                                           If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                         properties:
                                           apiGroup:
@@ -7161,7 +7363,6 @@ spec:
                                             specified.
                                           * While dataSource only allows local objects, dataSourceRef allows objects
                                             in any namespaces.
-                                          (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                           (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                         properties:
                                           apiGroup:
@@ -7385,8 +7586,8 @@ spec:
                                 * An existing PVC (PersistentVolumeClaim)
                                 If the provisioner or an external controller can support the specified data source,
                                 it will create a new volume based on the contents of the specified data source.
-                                When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                copied to dataSource when dataSourceRef.namespace is not specified.
                                 If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                               properties:
                                 apiGroup:
@@ -7429,7 +7630,6 @@ spec:
                                   specified.
                                 * While dataSource only allows local objects, dataSourceRef allows objects
                                   in any namespaces.
-                                (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                 (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                               properties:
                                 apiGroup:
@@ -7663,6 +7863,13 @@ spec:
                         grpc:
                           description: GRPC specifies a GRPC HealthCheckRequest.
                           properties:
+                            mode:
+                              description: |-
+                                mode specifies the connection mode for the gRPC health probe.
+                                Set to "TLS" to use TLS without certificate verification.
+                                Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                                If not specified, the probe uses a plaintext (insecure) connection.
+                              type: string
                             port:
                               description: Port number of the gRPC service. Number must be in the range 1 to 65535.
                               format: int32
@@ -7717,6 +7924,11 @@ spec:
                                 Number must be in the range 1 to 65535.
                                 Name must be an IANA_SVC_NAME.
                               x-kubernetes-int-or-string: true
+                            protocol:
+                              description: |-
+                                Protocol selects the wire protocol for the probe connection.
+                                Nil defaults to HTTP/1.1.
+                              type: string
                             scheme:
                               description: |-
                                 Scheme to use for connecting to the host.
@@ -7954,11 +8166,8 @@ spec:
                             Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                             whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                             CSIDriver instance. Other volumes are always re-labelled recursively.
-                            "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                            If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                            If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                            and "Recursive" for all other volumes.
+                            If not specified, "MountOption" is used.
 
                             This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -8302,7 +8511,6 @@ spec:
                     - replicas
                   type: object
                 image:
-                  default: dxflrs/garage:v2.3.0
                   description: |-
                     Image specifies the Garage container image to use.
                     Takes precedence over imageRepository if both are set.
@@ -8342,7 +8550,7 @@ spec:
                     Omit to disable K2V.
                   properties:
                     bindAddress:
-                      description: BindAddress is a custom bind address for the K2V API.
+                      description: BindAddress is a custom wildcard TCP bind address for the K2V API.
                       type: string
                     bindPort:
                       default: 3904
@@ -8523,7 +8731,7 @@ spec:
                         type: string
                       type: array
                     rpcBindAddress:
-                      description: RPCBindAddress is a custom bind address for the RPC server.
+                      description: RPCBindAddress is a custom wildcard TCP bind address for the RPC server.
                       type: string
                     rpcBindOutgoing:
                       description: RPCBindOutgoing pre-binds outgoing sockets to same IP.
@@ -8611,15 +8819,18 @@ spec:
                     Used for multi-cluster federation of the storage tier.
                   properties:
                     externalIP:
-                      description: ExternalIP configuration.
+                      description: |-
+                        ExternalIP is retained for API compatibility but is not supported.
+                        Setting it is rejected because the operator does not consume the explicit
+                        address mapping or template.
                       properties:
                         addressTemplate:
-                          description: AddressTemplate uses go template to generate addresses from pod info.
+                          description: AddressTemplate is retained for API compatibility but is unsupported.
                           type: string
                         addresses:
                           additionalProperties:
                             type: string
-                          description: Addresses maps pod names to external IPs.
+                          description: Addresses is retained for API compatibility but is unsupported.
                           type: object
                       type: object
                     loadBalancer:
@@ -8754,7 +8965,10 @@ spec:
                         anyOf:
                           - type: integer
                           - type: string
-                        description: DefaultCapacity is the default storage capacity to assign to remote nodes.
+                        description: |-
+                          DefaultCapacity is retained for API compatibility but is not supported.
+                          Remote role capacity is copied from the source cluster's committed or
+                          staged layout and cannot be overridden by the importing cluster.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       name:
@@ -8808,7 +9022,7 @@ spec:
                   description: S3API configures the S3-compatible API endpoint
                   properties:
                     bindAddress:
-                      description: BindAddress is a custom bind address for the S3 API.
+                      description: BindAddress is a custom wildcard TCP bind address for the S3 API.
                       type: string
                     bindPort:
                       default: 3900
@@ -10003,6 +10217,38 @@ spec:
                             type: string
                           description: Annotations to set on the PVC.
                           type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for every generated PVC of this
+                            volume role. Setting it copies the same same-namespace, non-core group
+                            populator onto each Auto ordinal of this role; the populator must map
+                            target claim i to source-group member i. A core PVC or single-volume clone
+                            is not a safe source. Metadata and data are independent roles: restore
+                            identity by setting this on metadata, object blocks by setting it on data.
+                            It is immutable after the GarageCluster is created.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
+                          type: object
                         labels:
                           additionalProperties:
                             type: string
@@ -10043,6 +10289,33 @@ spec:
                                     additionalProperties:
                                       type: string
                                     description: Annotations to set on the PVC.
+                                    type: object
+                                  dataSourceRef:
+                                    description: |-
+                                      DataSourceRef is the opt-in restore source for this data path's PVC across
+                                      every Auto ordinal. Same group-populator contract as VolumeConfig.dataSourceRef.
+                                    properties:
+                                      apiGroup:
+                                        description: |-
+                                          APIGroup is the group for the resource being referenced.
+                                          If APIGroup is not specified, the specified Kind must be in the core API group.
+                                          For any other third-party types, APIGroup is required.
+                                        type: string
+                                      kind:
+                                        description: Kind is the type of resource being referenced
+                                        type: string
+                                      name:
+                                        description: Name is the name of resource being referenced
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace is the namespace of resource being referenced
+                                          Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                          (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                        type: string
+                                    required:
+                                      - kind
+                                      - name
                                     type: object
                                   labels:
                                     additionalProperties:
@@ -10137,8 +10410,8 @@ spec:
                                           * An existing PVC (PersistentVolumeClaim)
                                           If the provisioner or an external controller can support the specified data source,
                                           it will create a new volume based on the contents of the specified data source.
-                                          When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                          and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                          dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                          copied to dataSource when dataSourceRef.namespace is not specified.
                                           If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                         properties:
                                           apiGroup:
@@ -10181,7 +10454,6 @@ spec:
                                             specified.
                                           * While dataSource only allows local objects, dataSourceRef allows objects
                                             in any namespaces.
-                                          (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                           (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                         properties:
                                           apiGroup:
@@ -10405,8 +10677,8 @@ spec:
                                 * An existing PVC (PersistentVolumeClaim)
                                 If the provisioner or an external controller can support the specified data source,
                                 it will create a new volume based on the contents of the specified data source.
-                                When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                copied to dataSource when dataSourceRef.namespace is not specified.
                                 If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                               properties:
                                 apiGroup:
@@ -10449,7 +10721,6 @@ spec:
                                   specified.
                                 * While dataSource only allows local objects, dataSourceRef allows objects
                                   in any namespaces.
-                                (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                 (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                               properties:
                                 apiGroup:
@@ -10615,7 +10886,9 @@ spec:
                                 description: Selects a key of a ConfigMap.
                                 properties:
                                   key:
-                                    description: The key to select.
+                                    description: |-
+                                      The key to select from the ConfigMap's Data field.
+                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                     type: string
                                   name:
                                     default: ""
@@ -10810,6 +11083,38 @@ spec:
                             type: string
                           description: Annotations to set on the PVC.
                           type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for every generated PVC of this
+                            volume role. Setting it copies the same same-namespace, non-core group
+                            populator onto each Auto ordinal of this role; the populator must map
+                            target claim i to source-group member i. A core PVC or single-volume clone
+                            is not a safe source. Metadata and data are independent roles: restore
+                            identity by setting this on metadata, object blocks by setting it on data.
+                            It is immutable after the GarageCluster is created.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
+                          type: object
                         labels:
                           additionalProperties:
                             type: string
@@ -10850,6 +11155,33 @@ spec:
                                     additionalProperties:
                                       type: string
                                     description: Annotations to set on the PVC.
+                                    type: object
+                                  dataSourceRef:
+                                    description: |-
+                                      DataSourceRef is the opt-in restore source for this data path's PVC across
+                                      every Auto ordinal. Same group-populator contract as VolumeConfig.dataSourceRef.
+                                    properties:
+                                      apiGroup:
+                                        description: |-
+                                          APIGroup is the group for the resource being referenced.
+                                          If APIGroup is not specified, the specified Kind must be in the core API group.
+                                          For any other third-party types, APIGroup is required.
+                                        type: string
+                                      kind:
+                                        description: Kind is the type of resource being referenced
+                                        type: string
+                                      name:
+                                        description: Name is the name of resource being referenced
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace is the namespace of resource being referenced
+                                          Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                          (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                        type: string
+                                    required:
+                                      - kind
+                                      - name
                                     type: object
                                   labels:
                                     additionalProperties:
@@ -10944,8 +11276,8 @@ spec:
                                           * An existing PVC (PersistentVolumeClaim)
                                           If the provisioner or an external controller can support the specified data source,
                                           it will create a new volume based on the contents of the specified data source.
-                                          When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                          and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                          dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                          copied to dataSource when dataSourceRef.namespace is not specified.
                                           If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                         properties:
                                           apiGroup:
@@ -10988,7 +11320,6 @@ spec:
                                             specified.
                                           * While dataSource only allows local objects, dataSourceRef allows objects
                                             in any namespaces.
-                                          (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                           (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                         properties:
                                           apiGroup:
@@ -11212,8 +11543,8 @@ spec:
                                 * An existing PVC (PersistentVolumeClaim)
                                 If the provisioner or an external controller can support the specified data source,
                                 it will create a new volume based on the contents of the specified data source.
-                                When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                copied to dataSource when dataSourceRef.namespace is not specified.
                                 If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                               properties:
                                 apiGroup:
@@ -11256,7 +11587,6 @@ spec:
                                   specified.
                                 * While dataSource only allows local objects, dataSourceRef allows objects
                                   in any namespaces.
-                                (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                 (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                               properties:
                                 apiGroup:
@@ -12665,7 +12995,9 @@ spec:
                                           description: Selects a key of a ConfigMap.
                                           properties:
                                             key:
-                                              description: The key to select.
+                                              description: |-
+                                                The key to select from the ConfigMap's Data field.
+                                                Keys in the BinaryData field are not currently propagated to container env vars.
                                               type: string
                                             name:
                                               default: ""
@@ -13002,11 +13334,8 @@ spec:
                                       Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                                       whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                                       CSIDriver instance. Other volumes are always re-labelled recursively.
-                                      "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                                      If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                                      If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                                      and "Recursive" for all other volumes.
+                                      If not specified, "MountOption" is used.
 
                                       This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -13646,11 +13975,8 @@ spec:
                             Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                             whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                             CSIDriver instance. Other volumes are always re-labelled recursively.
-                            "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                            If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                            If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                            and "Recursive" for all other volumes.
+                            If not specified, "MountOption" is used.
 
                             This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -14003,7 +14329,7 @@ spec:
                       description: AddHostToMetrics adds the domain name to metrics labels for per-domain tracking.
                       type: boolean
                     bindAddress:
-                      description: BindAddress is a custom bind address for the Web API.
+                      description: BindAddress is a custom wildcard TCP bind address for the Web API.
                       type: string
                     bindPort:
                       default: 3902
@@ -14104,6 +14430,52 @@ spec:
                         type: string
                     type: object
                   type: array
+                autoModePvcHandoffs:
+                  description: |-
+                    AutoModePVCHandoffs are controller-owned, exact-UID authorizations for
+                    retained Auto-mode claims whose GarageNode slot was scaled down and later
+                    recreated. Entries are removed after the replacement binds the exact PVC.
+                  items:
+                    description: |-
+                      AutoModePVCHandoffStatus authorizes one exact retained PVC incarnation to
+                      move from a deleted Auto-mode GarageNode to its replacement. The parent
+                      GarageCluster status is the trust boundary: predictable object names and
+                      user-writable labels or annotations are never sufficient to adopt a claim.
+                    properties:
+                      previousGarageNodeUid:
+                        description: |-
+                          PreviousGarageNodeUID is the exact deleted GarageNode incarnation that
+                          reserved the claim.
+                        type: string
+                      pvcName:
+                        description: PVCName and PVCUID identify the exact retained claim incarnation.
+                        type: string
+                      pvcUid:
+                        type: string
+                      replacementGarageNodeUid:
+                        description: |-
+                          ReplacementGarageNodeUID is the only new GarageNode incarnation allowed
+                          to consume this handoff.
+                        type: string
+                      replacementReservationHash:
+                        description: |-
+                          ReplacementReservationHash is a one-way commitment to the nonce placed
+                          on the controller-created replacement GarageNode. It closes the crash gap
+                          between Create and recording the replacement object's API-server UID.
+                        type: string
+                      slotName:
+                        description: SlotName is the stable Auto-mode slot (for example, cluster-gateway-1).
+                        type: string
+                    required:
+                      - previousGarageNodeUid
+                      - pvcName
+                      - pvcUid
+                      - slotName
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - pvcName
+                  x-kubernetes-list-type: map
                 blockErrorDetails:
                   description: BlockErrorDetails provides detailed information about block errors.
                   properties:

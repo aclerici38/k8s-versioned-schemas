@@ -3,23 +3,35 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
-      "description": "GarageAdminTokenSpec defines the desired state of GarageAdminToken.\n\nGarageAdminToken provisions a static bootstrap Secret for the Garage Admin\nHTTP API. The referenced GarageCluster must explicitly select this Secret in\nspec.admin.adminTokenSecretRef. This resource does not create a row in\nGarage's dynamic Admin-token table, and deletion does not revoke bytes that a\nrunning Garage process already loaded at startup.\nAdmin tokens authenticate differently from S3 keys (GarageKey) \u2014 they use\nBearer token auth against the admin port (default 3903) instead of HMAC-SHA256.\n\nStatic configured tokens always have full admin access and no server-side\nname, scope, or expiry metadata. Use Garage's Admin API directly for a\nuser-managed scoped/dynamic token.",
+      "additionalProperties": false,
+      "description": "GarageAdminTokenSpec defines the desired state of GarageAdminToken.\n\nGarageAdminToken provisions a static bootstrap Secret for the Garage Admin\nHTTP API. The referenced GarageCluster must explicitly select this Secret in\nspec.admin.adminTokenSecretRef. This resource does not create a row in\nGarage's dynamic Admin-token table, and deletion does not revoke bytes that a\nrunning Garage process already loaded at startup.\nAdmin tokens authenticate differently from S3 keys (GarageKey) — they use\nBearer token auth against the admin port (default 3903) instead of HMAC-SHA256.\n\nStatic configured tokens always have full admin access and no server-side\nname, scope, or expiry metadata. Use Garage's Admin API directly for a\nuser-managed scoped/dynamic token.",
       "properties": {
         "clusterRef": {
+          "additionalProperties": false,
           "description": "ClusterRef references the GarageCluster this token belongs to",
           "properties": {
             "kubeConfigSecretRef": {
-              "description": "KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.\nOnly needed for multi-cluster federation where the GarageCluster lives in a different\nKubernetes cluster entirely (not just a different namespace).",
+              "additionalProperties": false,
+              "description": "KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.\nIt is currently rejected by admission because the operator does not use it.",
               "properties": {
                 "key": {
                   "description": "The key of the secret to select from.  Must be a valid secret key.",
@@ -28,49 +40,69 @@
                 "name": {
                   "default": "",
                   "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "optional": {
                   "description": "Specify whether the Secret or its key must be defined",
-                  "type": "boolean"
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "key"
               ],
-              "type": "object",
-              "x-kubernetes-map-type": "atomic",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
             },
             "name": {
               "description": "Name of the GarageCluster resource.",
               "type": "string"
             },
             "namespace": {
-              "description": "Namespace of the GarageCluster. Defaults to the referencing resource's namespace.\nCross-namespace references require a GarageReferenceGrant in the target namespace.\nNot supported on GarageNode.",
-              "type": "string"
+              "description": "Namespace of the GarageCluster. Defaults to the referencing resource's namespace.\nCross-namespace references require a GarageReferenceGrant where supported by\nthe owning resource. GarageNode and GarageAdminToken reject them.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
             "name"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": "object"
         },
         "expiresAt": {
           "description": "ExpiresAt is retained for compatibility but rejected because static\nconfigured tokens have no Garage-side expiry or revocation record.",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "name": {
           "description": "Name is retained for compatibility but rejected because static bootstrap\nmaterial has no Garage-side friendly name.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "neverExpires": {
           "description": "NeverExpires is retained for compatibility. Static configured tokens are\nalways non-expiring, so this field is deprecated and has no effect.",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "secretTemplate": {
+          "additionalProperties": false,
           "description": "SecretTemplate configures how the secret containing the token is generated",
           "properties": {
             "annotations": {
@@ -78,50 +110,71 @@
                 "type": "string"
               },
               "description": "Annotations to add to the secret",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "endpointKey": {
               "default": "admin-endpoint",
               "description": "EndpointKey is the key name for the admin endpoint",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "includeEndpoint": {
               "description": "IncludeEndpoint includes the admin API endpoint in the secret\nDefaults to true if not specified",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "labels": {
               "additionalProperties": {
                 "type": "string"
               },
               "description": "Labels to add to the secret",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "name": {
               "description": "Name is the name of the secret to create\nDefaults to the GarageAdminToken name",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "tokenKey": {
               "default": "admin-token",
               "description": "TokenKey is the key name for the admin token in the secret",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
       "required": [
         "clusterRef"
       ],
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "status": {
+      "additionalProperties": false,
       "description": "GarageAdminTokenStatus defines the observed state of GarageAdminToken",
       "properties": {
         "conditions": {
           "description": "Conditions represent the current state",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -138,7 +191,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -170,10 +226,12 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-list-map-keys": [
             "type"
           ],
@@ -182,12 +240,18 @@
         "expiresAt": {
           "description": "ExpiresAt is deprecated and always cleared because static configured\ntokens have no Garage-side expiry record.",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "observedGeneration": {
           "description": "ObservedGeneration is the last observed generation",
           "format": "int64",
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "phase": {
           "description": "Phase represents the current phase",
@@ -200,35 +264,55 @@
             "Expired",
             "Unknown"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "secretRef": {
+          "additionalProperties": false,
           "description": "SecretRef references the created secret",
           "properties": {
             "name": {
               "description": "name is unique within a namespace to reference a secret resource.",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "namespace": {
               "description": "namespace defines the space within which the secret name must be unique.",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "x-kubernetes-map-type": "atomic",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
         },
         "tokenDigest": {
           "description": "TokenDigest is the full SHA-256 digest of the static bearer. The controller\nuses it to detect mutation of an existing generated Secret without exposing\nany bearer bytes.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "tokenId": {
           "description": "TokenID is a short display fingerprint of the generated static token. It is\nnot a Garage-assigned dynamic token ID.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
