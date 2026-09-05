@@ -1,0 +1,341 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: extensions.t3code.janpuc.com
+spec:
+  group: t3code.janpuc.com
+  names:
+    kind: Extension
+    listKind: ExtensionList
+    plural: extensions
+    shortNames:
+      - ext
+    singular: extension
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.source.type
+          name: Source
+          type: string
+        - jsonPath: .status.conditions[?(@.type=="Ready")].status
+          name: Ready
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                harnessRefs:
+                  items:
+                    properties:
+                      name:
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                  maxItems: 64
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                source:
+                  properties:
+                    git:
+                      properties:
+                        commit:
+                          pattern: ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$
+                          type: string
+                        credentialSecretRef:
+                          properties:
+                            key:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[-._A-Za-z0-9]+$
+                              type: string
+                            name:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        path:
+                          maxLength: 1024
+                          type: string
+                        url:
+                          maxLength: 2048
+                          minLength: 1
+                          type: string
+                      required:
+                        - commit
+                        - url
+                      type: object
+                    githubRelease:
+                      properties:
+                        asset:
+                          maxLength: 256
+                          minLength: 1
+                          type: string
+                        credentialSecretRef:
+                          properties:
+                            key:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[-._A-Za-z0-9]+$
+                              type: string
+                            name:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        repository:
+                          pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+                          type: string
+                        sha256:
+                          pattern: ^[0-9a-fA-F]{64}$
+                          type: string
+                        tag:
+                          maxLength: 128
+                          minLength: 1
+                          type: string
+                      required:
+                        - asset
+                        - repository
+                        - sha256
+                        - tag
+                      type: object
+                    include:
+                      items:
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]{0,252}$
+                        type: string
+                      maxItems: 128
+                      type: array
+                      x-kubernetes-list-type: set
+                    marketplace:
+                      properties:
+                        commit:
+                          pattern: ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$
+                          type: string
+                        credentialSecretRef:
+                          properties:
+                            key:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[-._A-Za-z0-9]+$
+                              type: string
+                            name:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        extension:
+                          maxLength: 128
+                          minLength: 1
+                          type: string
+                        marketplace:
+                          maxLength: 128
+                          minLength: 1
+                          type: string
+                        repositoryUrl:
+                          maxLength: 2048
+                          minLength: 1
+                          type: string
+                      required:
+                        - commit
+                        - extension
+                        - marketplace
+                        - repositoryUrl
+                      type: object
+                    oci:
+                      properties:
+                        credentialSecretRef:
+                          properties:
+                            key:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[-._A-Za-z0-9]+$
+                              type: string
+                            name:
+                              maxLength: 253
+                              minLength: 1
+                              pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        digest:
+                          pattern: ^[A-Za-z][A-Za-z0-9+._-]*:[0-9a-fA-F]{32,}$
+                          type: string
+                        repository:
+                          maxLength: 2048
+                          minLength: 1
+                          type: string
+                      required:
+                        - digest
+                        - repository
+                      type: object
+                    type:
+                      enum:
+                        - Git
+                        - OCI
+                        - Marketplace
+                        - GitHubRelease
+                      type: string
+                  required:
+                    - type
+                  type: object
+                  x-kubernetes-validations:
+                    - message: exactly one source configuration must be set
+                      rule: '(has(self.git) ? 1 : 0) + (has(self.oci) ? 1 : 0) + (has(self.marketplace) ? 1 : 0) + (has(self.githubRelease) ? 1 : 0) == 1'
+                    - message: source configuration must match type
+                      rule: 'self.type == ''Git'' ? has(self.git) : self.type == ''OCI'' ? has(self.oci) : self.type == ''Marketplace'' ? has(self.marketplace) : has(self.githubRelease)'
+              required:
+                - source
+              type: object
+            status:
+              properties:
+                attachments:
+                  items:
+                    properties:
+                      conditions:
+                        items:
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              enum:
+                                - "True"
+                                - "False"
+                                - Unknown
+                              type: string
+                            type:
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                            - lastTransitionTime
+                            - message
+                            - reason
+                            - status
+                            - type
+                          type: object
+                        maxItems: 16
+                        type: array
+                        x-kubernetes-list-map-keys:
+                          - type
+                        x-kubernetes-list-type: map
+                      desiredRevision:
+                        type: string
+                      liveRevision:
+                        type: string
+                      targetName:
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                      - targetName
+                    type: object
+                  maxItems: 64
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - targetName
+                  x-kubernetes-list-type: map
+                conditions:
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        format: date-time
+                        type: string
+                      message:
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  maxItems: 16
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                desiredRevision:
+                  type: string
+                liveRevision:
+                  type: string
+                observedGeneration:
+                  format: int64
+                  type: integer
+                resolvedSource:
+                  type: string
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
