@@ -25,11 +25,6 @@
       "additionalProperties": false,
       "description": "spec defines the desired state of WorkerPool",
       "properties": {
-        "ateomImage": {
-          "description": "AteomImage is the ateom container image to deploy as workers.",
-          "minLength": 1,
-          "type": "string"
-        },
         "replicas": {
           "description": "Replicas is the number of worker pods to run.",
           "format": "int32",
@@ -38,18 +33,11 @@
         },
         "sandboxClass": {
           "default": "gvisor",
-          "description": "SandboxClass selects the sandbox runtime family for this pool, which drives\nthe worker pod shape (KVM/vhost device mounts and node placement) and which\nSandboxConfigs are eligible. The concrete binary is still selected by\nAteomImage. Defaults to gvisor.\n\nSee Also: TODOs in ActorTemplate SandboxClass",
+          "description": "SandboxClass selects the sandbox runtime family for this pool, which drives\nthe worker pod shape (KVM/vhost device mounts and node placement). The\nconcrete binary is still selected by WorkerImage. Defaults to gvisor.\nThe sandbox binaries themselves come from the SandboxConfig each\nActorTemplate names (required).\n\nSee Also: TODOs in ActorTemplate SandboxClass",
           "enum": [
             "gvisor",
             "microvm"
           ],
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sandboxConfigName": {
-          "description": "SandboxConfigName names a cluster-scoped SandboxConfig to use for fetching\nsandbox binaries. It overrides the cluster-wide default SandboxConfig for\nthis pool's SandboxClass. The referenced config's SandboxClass must match\nthis pool's SandboxClass. If empty, the default SandboxConfig for the\nSandboxClass is used.",
           "type": [
             "string",
             "null"
@@ -479,23 +467,18 @@
             "object",
             "null"
           ]
+        },
+        "workerImage": {
+          "description": "WorkerImage is the ateom container image to deploy as workers.",
+          "minLength": 1,
+          "type": "string"
         }
       },
       "required": [
-        "ateomImage",
-        "replicas"
+        "replicas",
+        "workerImage"
       ],
-      "type": "object",
-      "x-kubernetes-validations": [
-        {
-          "message": "nvidia.com/gpu is only supported when sandboxClass is 'gvisor'",
-          "rule": "!has(self.sandboxClass) || self.sandboxClass == 'gvisor' || !has(self.template) || !has(self.template.resources) || !((has(self.template.resources.limits) \u0026\u0026 'nvidia.com/gpu' in self.template.resources.limits) || (has(self.template.resources.requests) \u0026\u0026 'nvidia.com/gpu' in self.template.resources.requests))"
-        },
-        {
-          "message": "nvidia.com/gpu must be set in limits: Kubernetes does not admit a request for an extended resource without a matching limit",
-          "rule": "!has(self.template) || !has(self.template.resources) || !has(self.template.resources.requests) || !('nvidia.com/gpu' in self.template.resources.requests) || (has(self.template.resources.limits) \u0026\u0026 'nvidia.com/gpu' in self.template.resources.limits)"
-        }
-      ]
+      "type": "object"
     },
     "status": {
       "additionalProperties": false,

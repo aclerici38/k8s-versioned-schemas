@@ -1,0 +1,274 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: mcpservers.t3code.janpuc.com
+spec:
+  group: t3code.janpuc.com
+  names:
+    kind: MCPServer
+    listKind: MCPServerList
+    plural: mcpservers
+    shortNames:
+      - mcp
+    singular: mcpserver
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.transport
+          name: Transport
+          type: string
+        - jsonPath: .status.conditions[?(@.type=="Ready")].status
+          name: Ready
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                config:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                environment:
+                  items:
+                    properties:
+                      name:
+                        maxLength: 253
+                        pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                        type: string
+                      value:
+                        maxLength: 32768
+                        pattern: ^[^\x00]*$
+                        type: string
+                      valueFrom:
+                        properties:
+                          secretKeyRef:
+                            properties:
+                              key:
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[-._A-Za-z0-9]+$
+                                type: string
+                              name:
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                                type: string
+                            required:
+                              - key
+                              - name
+                            type: object
+                        required:
+                          - secretKeyRef
+                        type: object
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-validations:
+                      - message: exactly one of value or valueFrom must be set
+                        rule: has(self.value) != has(self.valueFrom)
+                  maxItems: 128
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                harnessRefs:
+                  items:
+                    properties:
+                      name:
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                  maxItems: 64
+                  minItems: 1
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                headers:
+                  items:
+                    properties:
+                      name:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9][A-Za-z0-9-]*$
+                        type: string
+                      prefix:
+                        maxLength: 128
+                        pattern: ^[^\r\n\x00]*$
+                        type: string
+                      value:
+                        maxLength: 32768
+                        pattern: ^[^\r\n\x00]*$
+                        type: string
+                      valueFrom:
+                        properties:
+                          secretKeyRef:
+                            properties:
+                              key:
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[-._A-Za-z0-9]+$
+                                type: string
+                              name:
+                                maxLength: 253
+                                minLength: 1
+                                pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                                type: string
+                            required:
+                              - key
+                              - name
+                            type: object
+                        required:
+                          - secretKeyRef
+                        type: object
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-validations:
+                      - message: exactly one of value or valueFrom must be set
+                        rule: has(self.value) != has(self.valueFrom)
+                  maxItems: 64
+                  type: array
+                transport:
+                  maxLength: 64
+                  minLength: 1
+                  type: string
+              required:
+                - harnessRefs
+                - transport
+              type: object
+              x-kubernetes-validations:
+                - message: header names must be unique when compared case-insensitively
+                  rule: '!has(self.headers) || self.headers.all(header, self.headers.exists_one(candidate, candidate.name.lowerAscii() == header.name.lowerAscii()))'
+            status:
+              properties:
+                attachments:
+                  items:
+                    properties:
+                      conditions:
+                        items:
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              enum:
+                                - "True"
+                                - "False"
+                                - Unknown
+                              type: string
+                            type:
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                            - lastTransitionTime
+                            - message
+                            - reason
+                            - status
+                            - type
+                          type: object
+                        maxItems: 16
+                        type: array
+                        x-kubernetes-list-map-keys:
+                          - type
+                        x-kubernetes-list-type: map
+                      desiredRevision:
+                        type: string
+                      liveRevision:
+                        type: string
+                      targetName:
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                      - targetName
+                    type: object
+                  maxItems: 64
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - targetName
+                  x-kubernetes-list-type: map
+                conditions:
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        format: date-time
+                        type: string
+                      message:
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  maxItems: 16
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                desiredRevision:
+                  type: string
+                liveRevision:
+                  type: string
+                observedGeneration:
+                  format: int64
+                  type: integer
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

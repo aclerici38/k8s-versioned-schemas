@@ -1,5 +1,5 @@
 {
-  "description": "SandboxConfig is cluster-scoped configuration describing the sandbox binaries\nfor a sandbox runtime family. It is referenced (or defaulted) by WorkerPools\nand decouples sandbox binary selection from ActorTemplate.",
+  "description": "SandboxConfig is cluster-scoped configuration describing the sandbox binaries\nfor a sandbox runtime family. It is referenced by an ActorTemplate's\nsandbox_config.config_name (required) and decouples\nsandbox binary selection from the workload definition.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -50,16 +50,9 @@
             },
             "type": "object"
           },
-          "description": "Assets is the set of files atelet fetches for this runtime, keyed first by\narchitecture (GOARCH, e.g. \"amd64\", \"arm64\") and then by asset name. The\nasset names are interpreted by the sandbox backend: gVisor expects a\n\"gvisor\" asset (the release's gvisor.tar.bz2, which atelet extracts so\nthe gvisor-bin/ helpers sit next to runsc; a legacy bare-binary \"runsc\"\nasset is still accepted); a micro-VM backend expects several (e.g.\n\"cloud-hypervisor\", \"kata-kernel\", \"kata-image\"). The schema is\nintentionally generic; per-class requirements are enforced by a\nValidatingAdmissionPolicy.",
+          "description": "Assets is the set of files atelet fetches for this runtime, keyed first by\narchitecture (GOARCH, e.g. \"amd64\", \"arm64\") and then by asset name. The\nasset names are interpreted by the sandbox backend: gVisor expects a\n\"gvisor\" asset (the release's gvisor.tar.zstd, which atelet extracts so\nthe gvisor-bin/ helpers sit next to runsc; a legacy bare-binary \"runsc\"\nasset is still accepted); a micro-VM backend expects several (e.g.\n\"cloud-hypervisor\", \"kata-kernel\", \"kata-image\"). The schema is\nintentionally generic; per-class requirements are enforced by a\nValidatingAdmissionPolicy.",
           "type": [
             "object",
-            "null"
-          ]
-        },
-        "default": {
-          "description": "Default marks this SandboxConfig as the cluster-wide default for its\nSandboxClass. A WorkerPool with no explicit SandboxConfigName resolves to\nthe default config for its SandboxClass. At most one default is expected\nper SandboxClass.",
-          "type": [
-            "boolean",
             "null"
           ]
         },
@@ -75,7 +68,7 @@
         },
         "sandboxClass": {
           "default": "gvisor",
-          "description": "SandboxClass is the sandbox runtime family this config applies to. A\nWorkerPool only uses SandboxConfigs whose SandboxClass matches its own.",
+          "description": "SandboxClass is the sandbox runtime family this config applies to. An\nActorTemplate only uses SandboxConfigs whose SandboxClass matches its\nsandbox_config.sandbox_class.",
           "enum": [
             "gvisor",
             "microvm"
