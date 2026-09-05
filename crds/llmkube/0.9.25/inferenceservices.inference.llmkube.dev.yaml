@@ -3452,6 +3452,86 @@ spec:
                     hardware by keeping attention layers on GPU while expert weights use system RAM.
                     Maps to llama.cpp --cpu-moe flag. Requires sufficient system RAM via resources.memory.
                   type: boolean
+                multiNode:
+                  description: |-
+                    MultiNode serves this model across several nodes as one gang of pods.
+                    Rank 0 serves the endpoint; the Service selects it as usual. Replicas
+                    must be 1 or unset. See docs/multi-node-inference.md.
+                  properties:
+                    ibGIDIndex:
+                      description: |-
+                        IBGIDIndex sets NCCL_IB_GID_INDEX for every member (3 is RoCE v2 on the
+                        ConnectX-7 parts we run). Unset leaves NCCL's default.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    members:
+                      description: Members lists the ranks in order. At least two.
+                      items:
+                        description: MultiNodeMember is one rank of a multi-node serving group.
+                        properties:
+                          fabric:
+                            description: Fabric is this member's fabric configuration.
+                            properties:
+                              address:
+                                description: |-
+                                  Address is the member's IP on the fabric. Rank 0's address is the
+                                  rendezvous address every other rank dials; for other ranks it seeds the
+                                  runtime's own host IP (vLLM: VLLM_HOST_IP). Optional on ranks >= 1.
+                                type: string
+                              ibHCA:
+                                description: |-
+                                  IBHCA is the RDMA device NCCL may use (NCCL_IB_HCA). An exact device
+                                  name (rocep1s0f0) or a prefix (mlx5). Unset lets NCCL enumerate.
+                                type: string
+                              socketInterface:
+                                description: |-
+                                  SocketInterface is the NIC that carries the bootstrap traffic
+                                  (NCCL_SOCKET_IFNAME, GLOO_SOCKET_IFNAME, TP_SOCKET_IFNAME).
+                                type: string
+                            type: object
+                          modelCache:
+                            description: ModelCache overrides spec.modelCache for this member.
+                            properties:
+                              claimName:
+                                description: |-
+                                  ClaimName is an existing PersistentVolumeClaim in the service namespace
+                                  holding the model files for this member.
+                                minLength: 1
+                                type: string
+                            required:
+                              - claimName
+                            type: object
+                          node:
+                            description: Node is the Kubernetes node this rank is pinned to.
+                            minLength: 1
+                            type: string
+                        required:
+                          - node
+                        type: object
+                      maxItems: 64
+                      minItems: 2
+                      type: array
+                    rdmaResource:
+                      description: |-
+                        RDMAResource is an extended resource name advertised by an RDMA device
+                        plugin (e.g. rdma/rdma_shared_device_a). When set, every member requests
+                        one and gets CAP_IPC_LOCK, which NCCL needs to pin registered memory.
+                      type: string
+                    rendezvousPort:
+                      description: |-
+                        RendezvousPort is the port rank 0 listens on for torch.distributed.
+                        Defaults to 29500.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1024
+                      type: integer
+                  required:
+                    - members
+                  type: object
+                  x-kubernetes-validations:
+                    - message: 'members[0].fabric.address is required: it is the rendezvous address every other rank dials'
+                      rule: has(self.members[0].fabric) && has(self.members[0].fabric.address) && self.members[0].fabric.address.size() > 0
                 noKvOffload:
                   description: |-
                     NoKvOffload keeps the KV cache in system RAM instead of VRAM.
@@ -4303,10 +4383,7 @@ spec:
                         everywhere and none is applied.
 
                         The pattern is the Kubernetes quantity format, so a malformed value is
-                        rejected at admission. The sibling quantity fields above predate this and
-                        carry no pattern; they reach resource.MustParse, which panics on
-                        malformed input and takes the controller down for every workload rather
-                        than failing the one object at fault.
+                        rejected at admission.
                       pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
                       type: string
                     gpu:
@@ -4386,9 +4463,11 @@ spec:
                         Translated to pod resources.requests.memory, taking precedence over Memory when set.
                         Without this, the K8s scheduler has no visibility into the pod's actual RAM consumption,
                         which can lead to OOM kills after model load.
+                      pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
                       type: string
                     memory:
                       description: Memory requests (e.g., "4Gi")
+                      pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
                       type: string
                   type: object
                 revisionHistoryLimit:
@@ -5585,6 +5664,15 @@ spec:
                       format: int32
                       minimum: 512
                       type: integer
+                    pipelineParallelSize:
+                      description: |-
+                        PipelineParallelSize is the number of pipeline stages (vLLM
+                        --pipeline-parallel-size). Together with tensorParallelSize it defines the
+                        world size; for a multiNode service tensorParallelSize x
+                        pipelineParallelSize must equal members x resources.gpu.
+                      format: int32
+                      minimum: 1
+                      type: integer
                     quantization:
                       description: |-
                         Quantization method.
@@ -5656,6 +5744,11 @@ spec:
               required:
                 - modelRef
               type: object
+              x-kubernetes-validations:
+                - message: 'multiNode serves one group: replicas must be 1 or unset'
+                  rule: '!has(self.multiNode) || !has(self.replicas) || self.replicas <= 1'
+                - message: multiNode is supported for runtime vllm in this release
+                  rule: '!has(self.multiNode) || (has(self.runtime) && self.runtime == ''vllm'')'
             status:
               description: status defines the observed state of InferenceService
               properties:
@@ -5814,6 +5907,45 @@ spec:
                 modelReady:
                   description: ModelReady indicates if the referenced Model is in Ready state
                   type: boolean
+                multiNode:
+                  description: MultiNode is the observed state of a multi-node serving group.
+                  properties:
+                    members:
+                      description: Members is per-rank detail in rank order.
+                      items:
+                        description: MultiNodeMemberStatus is the observed state of one rank.
+                        properties:
+                          node:
+                            type: string
+                          phase:
+                            type: string
+                          pod:
+                            type: string
+                          rank:
+                            format: int32
+                            type: integer
+                          ready:
+                            type: boolean
+                          restarts:
+                            format: int32
+                            type: integer
+                        required:
+                          - node
+                          - rank
+                        type: object
+                      type: array
+                    readyMembers:
+                      description: ReadyMembers counts members that are Running (rank 0 must also be Ready).
+                      format: int32
+                      type: integer
+                    size:
+                      description: Size is the number of members in the spec.
+                      format: int32
+                      type: integer
+                  required:
+                    - readyMembers
+                    - size
+                  type: object
                 phase:
                   description: |-
                     Phase represents the current lifecycle phase of the InferenceService.

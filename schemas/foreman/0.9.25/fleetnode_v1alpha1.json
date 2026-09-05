@@ -258,6 +258,33 @@
             "null"
           ]
         },
+        "supervisionCapacity": {
+          "additionalProperties": false,
+          "description": "SupervisionCapacity is the node's Job-mode supervision budget,\npublished by the agent on heartbeat (#1639). It lets an operator\ntell \"the fleet is at capacity\" apart from \"something is broken\":\na node that is heartbeating normally but declining further Job-mode\ntasks because its supervision bound is full now reads as full from\nthe cluster instead of only in the agent's memory.\n\nThis is NOT the scheduler's placement signal in v0.1 -- the\nscheduler keeps reading CurrentTask for that (see above), and this\nfield is observability only until a later change makes it\nauthoritative. A Maximum of zero means the bound is unset (unbounded);\nan absent value means the agent did not report one (older agent, or\nthe node has never supervised a Job-mode task).",
+          "properties": {
+            "current": {
+              "description": "Current is the number of Job-mode tasks this node is currently\nsupervising. Reported on heartbeat; resets to zero when none are in\nflight.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "maximum": {
+              "description": "Maximum is the node's Job-mode supervision bound (--max-supervised-tasks,\ndefaulting to DefaultMaxSupervisedTasks). Zero means the bound is unset\n(unbounded); it is a pointer so an absent capacity renders as absent,\nnot as \"unbounded\".",
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "updateRequest": {
           "additionalProperties": false,
           "description": "UpdateRequest is written by the AgentReleaseReconciler when a new\nagent version is ready for this node to install. The agent reads\nthis field on each heartbeat (PR4) and performs the self-update.\nThe reconciler clears the field once the node reports the target\nversion and passes the health gate.",

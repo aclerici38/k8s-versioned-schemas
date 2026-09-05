@@ -3851,6 +3851,121 @@
             "null"
           ]
         },
+        "multiNode": {
+          "additionalProperties": false,
+          "description": "MultiNode serves this model across several nodes as one gang of pods.\nRank 0 serves the endpoint; the Service selects it as usual. Replicas\nmust be 1 or unset. See docs/multi-node-inference.md.",
+          "properties": {
+            "ibGIDIndex": {
+              "description": "IBGIDIndex sets NCCL_IB_GID_INDEX for every member (3 is RoCE v2 on the\nConnectX-7 parts we run). Unset leaves NCCL's default.",
+              "format": "int32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "members": {
+              "description": "Members lists the ranks in order. At least two.",
+              "items": {
+                "additionalProperties": false,
+                "description": "MultiNodeMember is one rank of a multi-node serving group.",
+                "properties": {
+                  "fabric": {
+                    "additionalProperties": false,
+                    "description": "Fabric is this member's fabric configuration.",
+                    "properties": {
+                      "address": {
+                        "description": "Address is the member's IP on the fabric. Rank 0's address is the\nrendezvous address every other rank dials; for other ranks it seeds the\nruntime's own host IP (vLLM: VLLM_HOST_IP). Optional on ranks \u003e= 1.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "ibHCA": {
+                        "description": "IBHCA is the RDMA device NCCL may use (NCCL_IB_HCA). An exact device\nname (rocep1s0f0) or a prefix (mlx5). Unset lets NCCL enumerate.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "socketInterface": {
+                        "description": "SocketInterface is the NIC that carries the bootstrap traffic\n(NCCL_SOCKET_IFNAME, GLOO_SOCKET_IFNAME, TP_SOCKET_IFNAME).",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "modelCache": {
+                    "additionalProperties": false,
+                    "description": "ModelCache overrides spec.modelCache for this member.",
+                    "properties": {
+                      "claimName": {
+                        "description": "ClaimName is an existing PersistentVolumeClaim in the service namespace\nholding the model files for this member.",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "claimName"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "node": {
+                    "description": "Node is the Kubernetes node this rank is pinned to.",
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node"
+                ],
+                "type": "object"
+              },
+              "maxItems": 64,
+              "minItems": 2,
+              "type": "array"
+            },
+            "rdmaResource": {
+              "description": "RDMAResource is an extended resource name advertised by an RDMA device\nplugin (e.g. rdma/rdma_shared_device_a). When set, every member requests\none and gets CAP_IPC_LOCK, which NCCL needs to pin registered memory.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rendezvousPort": {
+              "description": "RendezvousPort is the port rank 0 listens on for torch.distributed.\nDefaults to 29500.",
+              "format": "int32",
+              "maximum": 65535,
+              "minimum": 1024,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "members"
+          ],
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "members[0].fabric.address is required: it is the rendezvous address every other rank dials",
+              "rule": "has(self.members[0].fabric) \u0026\u0026 has(self.members[0].fabric.address) \u0026\u0026 self.members[0].fabric.address.size() \u003e 0"
+            }
+          ]
+        },
         "noKvOffload": {
           "description": "NoKvOffload keeps the KV cache in system RAM instead of VRAM.\nUseful for extended context windows when VRAM is constrained by model weights.\nMaps to llama.cpp --no-kv-offload flag. Requires sufficient system RAM via resources.memory.",
           "type": [
@@ -4902,7 +5017,7 @@
               ]
             },
             "ephemeralStorage": {
-              "description": "EphemeralStorage is the node local-disk budget for this pod (e.g. \"40Gi\").\nTranslated to BOTH requests and limits for ephemeral-storage, and, when\nmodelCache.persistence is Ephemeral, to the sizeLimit of the emptyDir the\nweights download into.\n\nSet this whenever weights land on node disk rather than a cache PVC.\nWithout it the scheduler has no visibility into a download that can run to\ntens of gigabytes and will place further pods on a node that is about to\nfill, and the kubelet has no per-pod ceiling to enforce: the node crosses\nits DiskPressure threshold instead, and eviction then proceeds by QoS\nclass, which can remove unrelated workloads before this one. The request\nmakes the download visible to scheduling; the limit keeps an overrun\ncharged to this pod.\n\nSize it above the model on disk with room for the partial file during\ndownload. Node disk capacity varies by an order of magnitude across\ndistributions and machine types, so there is no default that is safe\neverywhere and none is applied.\n\nThe pattern is the Kubernetes quantity format, so a malformed value is\nrejected at admission. The sibling quantity fields above predate this and\ncarry no pattern; they reach resource.MustParse, which panics on\nmalformed input and takes the controller down for every workload rather\nthan failing the one object at fault.",
+              "description": "EphemeralStorage is the node local-disk budget for this pod (e.g. \"40Gi\").\nTranslated to BOTH requests and limits for ephemeral-storage, and, when\nmodelCache.persistence is Ephemeral, to the sizeLimit of the emptyDir the\nweights download into.\n\nSet this whenever weights land on node disk rather than a cache PVC.\nWithout it the scheduler has no visibility into a download that can run to\ntens of gigabytes and will place further pods on a node that is about to\nfill, and the kubelet has no per-pod ceiling to enforce: the node crosses\nits DiskPressure threshold instead, and eviction then proceeds by QoS\nclass, which can remove unrelated workloads before this one. The request\nmakes the download visible to scheduling; the limit keeps an overrun\ncharged to this pod.\n\nSize it above the model on disk with room for the partial file during\ndownload. Node disk capacity varies by an order of magnitude across\ndistributions and machine types, so there is no default that is safe\neverywhere and none is applied.\n\nThe pattern is the Kubernetes quantity format, so a malformed value is\nrejected at admission.",
               "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$",
               "type": [
                 "string",
@@ -4981,6 +5096,7 @@
             },
             "hostMemory": {
               "description": "HostMemory specifies the system RAM required for hybrid GPU/CPU offloading (e.g., \"64Gi\").\nUsed when MoE expert weights or KV cache are offloaded to CPU via moeCPUOffload or noKvOffload.\nTranslated to pod resources.requests.memory, taking precedence over Memory when set.\nWithout this, the K8s scheduler has no visibility into the pod's actual RAM consumption,\nwhich can lead to OOM kills after model load.",
+              "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$",
               "type": [
                 "string",
                 "null"
@@ -4988,6 +5104,7 @@
             },
             "memory": {
               "description": "Memory requests (e.g., \"4Gi\")",
+              "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$",
               "type": [
                 "string",
                 "null"
@@ -6266,6 +6383,15 @@
                 "null"
               ]
             },
+            "pipelineParallelSize": {
+              "description": "PipelineParallelSize is the number of pipeline stages (vLLM\n--pipeline-parallel-size). Together with tensorParallelSize it defines the\nworld size; for a multiNode service tensorParallelSize x\npipelineParallelSize must equal members x resources.gpu.",
+              "format": "int32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "quantization": {
               "description": "Quantization method.\nawq, gptq, squeezellm are classic 4-bit formats. fp8 targets 8-bit FP\ncheckpoints (Qwen FP8, Llama FP8, etc.). compressed-tensors is the\nneuralmagic/vLLM cross-format loader used by Unsloth and other recent\nreleases.\n\nThe two FP4 formats both require Blackwell-class hardware (sm_100 for\ndatacenter B200/GB200, sm_120 for consumer RTX 50-series):\n  - nvfp4 is NVIDIA's own 4-bit format. Ready-made checkpoints are\n    published under nvidia/*-NVFP4 on Hugging Face; local conversion\n    uses NVIDIA/Model-Optimizer (PyPI nvidia-modelopt), which was\n    renamed from NVIDIA/TensorRT-Model-Optimizer.\n  - mxfp4 is the OCP standard 4-bit format, with broader vLLM support.\n\nBoth are hardware-supported on sm_100 and sm_120; kernel coverage is the\npractical limit and it is thinner on consumer sm_120. On Blackwell, use\na vLLM image \u003e= v0.25.0: v0.22.0 through v0.24.0 carry a regression that\ncollapses NVFP4 output throughput (vllm-project/vllm#42988, fixed by\n#45739). The chart's pinned default is safe; see\ndocs/operations/b200-validation-matrix.md.",
               "enum": [
@@ -6335,7 +6461,17 @@
       "required": [
         "modelRef"
       ],
-      "type": "object"
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "multiNode serves one group: replicas must be 1 or unset",
+          "rule": "!has(self.multiNode) || !has(self.replicas) || self.replicas \u003c= 1"
+        },
+        {
+          "message": "multiNode is supported for runtime vllm in this release",
+          "rule": "!has(self.multiNode) || (has(self.runtime) \u0026\u0026 self.runtime == 'vllm')"
+        }
+      ]
     },
     "status": {
       "additionalProperties": false,
@@ -6520,6 +6656,80 @@
           "description": "ModelReady indicates if the referenced Model is in Ready state",
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "multiNode": {
+          "additionalProperties": false,
+          "description": "MultiNode is the observed state of a multi-node serving group.",
+          "properties": {
+            "members": {
+              "description": "Members is per-rank detail in rank order.",
+              "items": {
+                "additionalProperties": false,
+                "description": "MultiNodeMemberStatus is the observed state of one rank.",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "phase": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pod": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "rank": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "ready": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "restarts": {
+                    "format": "int32",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "node",
+                  "rank"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "readyMembers": {
+              "description": "ReadyMembers counts members that are Running (rank 0 must also be Ready).",
+              "format": "int32",
+              "type": "integer"
+            },
+            "size": {
+              "description": "Size is the number of members in the spec.",
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "readyMembers",
+            "size"
+          ],
+          "type": [
+            "object",
             "null"
           ]
         },

@@ -25,6 +25,43 @@
       "additionalProperties": false,
       "description": "spec defines the desired state of ModelRouter",
       "properties": {
+        "agentGatewayRef": {
+          "additionalProperties": false,
+          "description": "AgentGatewayRef identifies the pre-installed agentgateway data plane the\ngenerated InferencePool/InferenceModel/HTTPRoute attach to when DataPlane\nis \"AgentGateway\". Required in AgentGateway mode; ignored otherwise. The\nGateway, the Gateway API Inference Extension CRDs, and an Endpoint Picker\n(EPP) service are documented prerequisites; LLMKube does not install or own\nthem. The EndpointPicker is referenced by every generated InferencePool so\nagentgateway can select a model-server endpoint per request.",
+          "properties": {
+            "endpointPicker": {
+              "description": "EndpointPicker names the EPP Service agentgateway consults for endpoint\nselection. Required so each generated InferencePool can reference the\npicker; agentgateway cannot select endpoints without it.",
+              "type": "string"
+            },
+            "endpointPickerPort": {
+              "description": "EndpointPickerPort is the port the EPP Service listens on. agentgateway\ndials the picker on this port.",
+              "format": "int32",
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "name": {
+              "description": "Name is the agentgateway Gateway's name.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "Namespace is the Gateway's namespace. Empty means the ModelRouter's own\nnamespace.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "endpointPicker",
+            "endpointPickerPort",
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "backends": {
           "description": "Backends are the candidate destinations the router can dispatch to.\nOrder is not significant; selection is rule-driven. At least one\nbackend must be declared.",
           "items": {
@@ -229,10 +266,11 @@
         },
         "dataPlane": {
           "default": "Proxy",
-          "description": "DataPlane selects how this ModelRouter serves traffic.\n\n\"Proxy\" (default) provisions the managed router-proxy Deployment +\nService and routes in-process per the rules below (today's behavior,\nfully back-compat).\n\n\"Gateway\" compiles the backends and rules onto a pre-installed Envoy AI\nGateway: a Backend + AIServiceBackend per InferenceServiceRef backend, a\nmulti-rule AIGatewayRoute, and a retry/failover BackendTrafficPolicy. In\nGateway mode the router-proxy is NOT provisioned. Requires the aigw CRDs\nto be installed; when they are absent the gateway resources are not\ngenerated and a condition explains why.",
+          "description": "DataPlane selects how this ModelRouter serves traffic.\n\n\"Proxy\" (default) provisions the managed router-proxy Deployment +\nService and routes in-process per the rules below (today's behavior,\nfully back-compat).\n\n\"Gateway\" compiles the backends and rules onto a pre-installed Envoy AI\nGateway: a Backend + AIServiceBackend per InferenceServiceRef backend, a\nmulti-rule AIGatewayRoute, and a retry/failover BackendTrafficPolicy. In\nGateway mode the router-proxy is NOT provisioned. Requires the aigw CRDs\nto be installed; when they are absent the gateway resources are not\ngenerated and a condition explains why.\n\n\"AgentGateway\" compiles the backends and rules onto a pre-installed\nagentgateway data plane: one AgentgatewayBackend (custom provider targeting\nan InferencePool) per InferenceServiceRef backend and a multi-rule HTTPRoute\nmatching on the X-Gateway-Base-Model-Name header. In AgentGateway mode the\nrouter-proxy is NOT provisioned. Requires the agentgateway.dev CRDs and a\npre-installed agentgateway Gateway; when they are absent the resources are\nnot generated and a condition explains why.",
           "enum": [
             "Proxy",
-            "Gateway"
+            "Gateway",
+            "AgentGateway"
           ],
           "type": [
             "string",
@@ -961,6 +999,30 @@
           "format": "int32",
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "agentGateway": {
+          "additionalProperties": false,
+          "description": "AgentGateway reports the observed state of dataPlane: AgentGateway\nexposure: whether the InferencePool / InferenceModel / HTTPRoute reconciled\nagainst the referenced agentgateway Gateway, and the resolved endpoint.\nnil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady\ncondition.",
+          "properties": {
+            "endpoint": {
+              "description": "Endpoint is the agentgateway address clients send OpenAI requests to,\nresolved from the referenced Gateway. Empty until the pool is ready.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "poolReady": {
+              "description": "PoolReady indicates the generated InferencePool(s) reconciled against the\nreferenced agentgateway Gateway.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
             "null"
           ]
         },

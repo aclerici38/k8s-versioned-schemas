@@ -33,6 +33,12 @@ spec:
         - jsonPath: .status.currentTask
           name: Current Task
           type: string
+        - jsonPath: .status.supervisionCapacity.current
+          name: Supervising
+          type: integer
+        - jsonPath: .status.supervisionCapacity.maximum
+          name: Supervision
+          type: integer
         - jsonPath: .status.kubernetesNode
           name: K8s Node
           type: string
@@ -271,6 +277,39 @@ spec:
                     - NotReady
                     - Unknown
                   type: string
+                supervisionCapacity:
+                  description: |-
+                    SupervisionCapacity is the node's Job-mode supervision budget,
+                    published by the agent on heartbeat (#1639). It lets an operator
+                    tell "the fleet is at capacity" apart from "something is broken":
+                    a node that is heartbeating normally but declining further Job-mode
+                    tasks because its supervision bound is full now reads as full from
+                    the cluster instead of only in the agent's memory.
+
+                    This is NOT the scheduler's placement signal in v0.1 -- the
+                    scheduler keeps reading CurrentTask for that (see above), and this
+                    field is observability only until a later change makes it
+                    authoritative. A Maximum of zero means the bound is unset (unbounded);
+                    an absent value means the agent did not report one (older agent, or
+                    the node has never supervised a Job-mode task).
+                  properties:
+                    current:
+                      description: |-
+                        Current is the number of Job-mode tasks this node is currently
+                        supervising. Reported on heartbeat; resets to zero when none are in
+                        flight.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    maximum:
+                      description: |-
+                        Maximum is the node's Job-mode supervision bound (--max-supervised-tasks,
+                        defaulting to DefaultMaxSupervisedTasks). Zero means the bound is unset
+                        (unbounded); it is a pointer so an absent capacity renders as absent,
+                        not as "unbounded".
+                      format: int32
+                      type: integer
+                  type: object
                 updateRequest:
                   description: |-
                     UpdateRequest is written by the AgentReleaseReconciler when a new
