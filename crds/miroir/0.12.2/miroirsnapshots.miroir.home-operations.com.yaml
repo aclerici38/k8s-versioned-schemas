@@ -3,20 +3,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
-  name: miroirsnapshotgroups.miroir.home-operations.com
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: miroirsnapshots.miroir.home-operations.com
 spec:
   group: miroir.home-operations.com
   names:
-    kind: MiroirSnapshotGroup
-    listKind: MiroirSnapshotGroupList
-    plural: miroirsnapshotgroups
+    kind: MiroirSnapshot
+    listKind: MiroirSnapshotList
+    plural: miroirsnapshots
     shortNames:
-      - misg
-    singular: miroirsnapshotgroup
+      - mis
+    singular: miroirsnapshot
   scope: Cluster
   versions:
     - additionalPrinterColumns:
+        - jsonPath: .spec.volumeName
+          name: Volume
+          type: string
         - jsonPath: .status.readyToUse
           name: Ready
           type: boolean
@@ -27,11 +30,8 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            MiroirSnapshotGroup is one crash-consistent point-in-time snapshot cut
-            across several MiroirVolumes at once (1:1 with a
-            VolumeGroupSnapshotContent). Its members are ordinary MiroirSnapshots
-            that restore individually; the group coordinates their cut under one
-            shared write barrier.
+            MiroirSnapshot is one crash-consistent point-in-time snapshot of a
+            MiroirVolume (1:1 with a VolumeSnapshotContent).
           properties:
             apiVersion:
               description: |-
@@ -52,33 +52,38 @@ spec:
               type: object
             spec:
               description: |-
-                MiroirSnapshotGroupSpec is the desired state, created by the controller
-                on CSI CreateVolumeGroupSnapshot.
+                MiroirSnapshotSpec is the desired state, created by the controller on
+                CSI CreateSnapshot.
               properties:
-                snapshotNames:
+                group:
                   description: |-
-                    SnapshotNames lists the member MiroirSnapshots (one per source
-                    volume, each carrying this group's name in spec.group). Immutable:
-                    the group barrier is cut atomically over exactly this member set,
-                    so growing or shrinking it after the fact would misrepresent what
-                    the cut covered.
-                  items:
-                    type: string
-                  minItems: 1
-                  type: array
+                    Group names the MiroirSnapshotGroup whose shared barrier round cuts
+                    this snapshot; empty for a standalone snapshot. Grouped members are
+                    cut by the group reconciler, never by the per-snapshot round.
+                    Immutable: moving a snapshot between groups would misrepresent
+                    which barrier its data was cut under.
+                  type: string
                   x-kubernetes-validations:
-                    - message: 'snapshotNames is immutable: the group barrier was cut over exactly this member set'
+                    - message: 'group is immutable: the snapshot was cut under this group''s barrier'
+                      rule: self == oldSelf
+                volumeName:
+                  description: |-
+                    VolumeName references the MiroirVolume this snapshot captures.
+                    Immutable: the backend CoW snapshots were cut on the source volume's
+                    replicas, so retargeting the reference would point restores and
+                    per-node teardown at a volume that never held them.
+                  type: string
+                  x-kubernetes-validations:
+                    - message: 'volumeName is immutable: the snapshot''s backend data lives on the volume it was cut from'
                       rule: self == oldSelf
               required:
-                - snapshotNames
+                - volumeName
               type: object
             status:
               description: |-
-                MiroirSnapshotGroupStatus is the shared state of the group's write
-                barrier round. One MiroirSnapshotGroup is one round spanning every
-                diskful leg of every member volume — the multi-volume generalization
-                of the MiroirSnapshot per-node round, kept on a single object so that
-                sealing and voiding the round serialize on one resourceVersion.
+                MiroirSnapshotStatus is the observed state aggregated from node agents.
+                The snapshot exists as a backend CoW snapshot on every replica of the
+                source volume.
               properties:
                 conditions:
                   description: Conditions follow the standard Kubernetes condition conventions.
@@ -138,28 +143,35 @@ spec:
                   type: array
                 ioSuspended:
                   description: |-
-                    IOSuspended is the group-wide write barrier: set by the round
-                    driver after suspending its local member legs, cleared on resume.
-                    Legs are cut only while it holds and every slot reports Suspended.
+                    IOSuspended is the replicated-snapshot write barrier: set by the
+                    coordinator after suspend-io, cleared on resume. Peers snapshot
+                    only while it holds.
                   type: boolean
-                perLeg:
+                perNode:
                   additionalProperties:
                     description: SnapshotNodeState tracks one node's progress through the snapshot barrier.
                     type: string
-                  description: |-
-                    PerLeg maps "<volume>/<node>" to that leg's progress through the
-                    group barrier round.
+                  description: PerNode maps node name to that agent's snapshot progress.
                   type: object
                 readyToUse:
+                  description: ReadyToUse is true once every replica holds the snapshot.
+                  type: boolean
+                sizeBytes:
                   description: |-
-                    ReadyToUse is true once every diskful leg of every member volume
-                    holds its snapshot, all cut inside one shared write barrier.
+                    SizeBytes is the virtual size of the snapshotted volume, used by
+                    the CSI layer to size restored volumes.
+                  format: int64
+                  type: integer
+                sourceFormatted:
+                  description: |-
+                    SourceFormatted records the source volume's Formatted flag when
+                    the snapshot is cut. Restored volumes inherit it so their first
+                    stage never reformats a clone that should carry a filesystem.
                   type: boolean
                 suspendedAt:
                   description: |-
-                    SuspendedAt bounds the barrier: the driver voids the round at the
-                    deadline even if a leg never cuts, so a stuck member cannot freeze
-                    every volume in the group forever.
+                    SuspendedAt bounds the barrier: the coordinator resumes IO at the
+                    deadline even if a peer never snapshots.
                   format: date-time
                   type: string
               type: object
