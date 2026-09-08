@@ -3,18 +3,18 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: repositories.kopiur.home-operations.com
+  name: clusterrepositories.kopiur.home-operations.com
 spec:
   group: kopiur.home-operations.com
   names:
     categories:
       - kopiur
-    kind: Repository
-    plural: repositories
+    kind: ClusterRepository
+    plural: clusterrepositories
     shortNames:
-      - kopiarepo
-    singular: repository
-  scope: Namespaced
+      - kopiacrepo
+    singular: clusterrepository
+  scope: Cluster
   versions:
     - additionalPrinterColumns:
         - jsonPath: .status.phase
@@ -23,6 +23,9 @@ spec:
         - jsonPath: .status.backend
           name: Backend
           type: string
+        - jsonPath: .status.allowedNamespaceCount
+          name: Namespaces
+          type: integer
         - jsonPath: .status.server.endpoint
           name: Server
           type: string
@@ -36,11 +39,60 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for RepositorySpec via `CustomResource`
+          description: Auto-generated derived type for ClusterRepositorySpec via `CustomResource`
           properties:
             spec:
-              description: A kopia repository owned by one namespace, referenced by `SnapshotPolicy`s and `Restore`s.
+              description: A cluster-scoped kopia repository referenceable from allow-listed namespaces.
               properties:
+                allowedNamespaces:
+                  description: Which namespaces are permitted to reference this repository.
+                  oneOf:
+                    - required:
+                        - list
+                    - required:
+                        - selector
+                    - required:
+                        - all
+                  properties:
+                    all:
+                      description: Allow all namespaces (must be `true`).
+                      type: boolean
+                    list:
+                      description: Explicit namespace names.
+                      items:
+                        type: string
+                      type: array
+                    selector:
+                      description: Match namespaces by label.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                          items:
+                            description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector applies to.
+                                type: string
+                              operator:
+                                description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                              - key
+                              - operator
+                            type: object
+                          type: array
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                  type: object
                 backend:
                   description: Exactly one storage backend.
                   oneOf:
@@ -521,7 +573,12 @@ spec:
                         Failure policy for the bootstrap Job. `activeDeadlineSeconds` caps how long
                         a connect may run before the Job is marked failed (default 120s); raise it
                         for a slow backend — e.g. an rclone remote whose repository metadata and
-                        indexes load through kopia's embedded `rclone serve`/WebDAV bridge.
+                        indexes load through kopia's embedded `rclone serve`/WebDAV bridge, or a
+                        large repository whose cold-cache connect outgrows the default. The value
+                        is a BASE, not a ceiling: after consecutive deadline-killed attempts the
+                        operator escalates the effective deadline itself (doubling per attempt, up
+                        to 30 minutes or the configured value, whichever is larger — never below
+                        it), so a slow-but-alive backend self-heals without a spec edit.
                         `backoffLimit` bounds retries. `podStartupDeadlineSeconds` is accepted for
                         shape parity but is not honored by the bootstrap Job.
                       nullable: true
@@ -613,6 +670,39 @@ spec:
                           type: integer
                       type: object
                   type: object
+                concurrency:
+                  description: Concurrency limits for mover Jobs against this repository (absent = unlimited).
+                  nullable: true
+                  properties:
+                    maxConcurrentJobs:
+                      description: |-
+                        Ceiling on how many of this repository's mover Jobs may be in flight at
+                        once. Backup snapshots, restores, and replication runs that READ FROM this
+                        repository all draw from ONE pool — a repository's backend (and the
+                        bandwidth to it) is the shared resource, so splitting the budget per work
+                        kind would let three "safe" limits still saturate it.
+
+                        Restores are **always admitted** and never parked: a restore is a recovery
+                        in progress, and holding one behind a queue of routine backups is exactly
+                        backwards. An in-flight restore still COUNTS toward the pool, so it
+                        displaces backups rather than adding to them.
+
+                        Excluded from the pool entirely: maintenance (already single-flight per
+                        repository), verification, pin, and snapshot-delete batch Jobs. These are
+                        operator-driven housekeeping that must not be starved by a saturated
+                        backup pool.
+
+                        Absent or `0` means unlimited — the default, and today's behavior.
+
+                        No schema `default:` is emitted for this field (api-conventions §4a):
+                        absent and `0` are the SAME state (unlimited), so a materialized default
+                        would stamp `{maxConcurrentJobs: 0}` onto every stored repository — GitOps
+                        diff noise for a value that changes nothing.
+                      format: uint32
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                  type: object
                 create:
                   description: What to do when the repository does not yet exist (absent means it must already exist).
                   nullable: true
@@ -654,6 +744,15 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                credentialProjection:
+                  description: Repository-owner gate for projecting credential Secrets into a foreign consumer namespace.
+                  nullable: true
+                  properties:
+                    allowed:
+                      default: false
+                      description: When `true`, the owner permits projecting this repository's credential Secret(s) into a consumer namespace.
+                      type: boolean
+                  type: object
                 deletionProtection:
                   description: Mass-deletion circuit breaker for this repository's Snapshots.
                   nullable: true
@@ -673,7 +772,7 @@ spec:
                       type: integer
                   type: object
                 encryption:
-                  description: Repository password (a Secret reference).
+                  description: Repository password (a Secret reference that must carry an explicit `namespace`).
                   properties:
                     passwordSecretRef:
                       description: Repository password, always a Secret reference (never inline).
@@ -754,10 +853,13 @@ spec:
                           description: |-
                             What sustained backend-probe failure (past `failureThreshold`) does to the
                             repository (default `Degrade`). `Degrade` moves it to `Degraded`, pausing
-                            backups, maintenance, and replication until a re-connect succeeds —
-                            recovery is automatic. `Alert` keeps the repository `Ready` and only raises
-                            the `BackendReachable` condition + Warning event + metric; backups keep
-                            running against the failing backend. Neither ever auto-recreates.
+                            backups and replication until a re-connect succeeds — recovery is
+                            automatic (maintenance also pauses for a confirmed-unreachable/vanished
+                            backend, but keeps running for a probe deadline kill, where index
+                            compaction is often the cure). `Alert` keeps the repository `Ready` and
+                            only raises the `BackendReachable` condition + Warning event + metric;
+                            backups keep running against the failing backend. Neither ever
+                            auto-recreates.
                           enum:
                             - Degrade
                             - Alert
@@ -766,15 +868,7 @@ spec:
                       type: object
                   type: object
                 identityDefaults:
-                  description: |-
-                    Identity defaults (CEL `*Expr`) applied when consumers don't override.
-                    Set `cluster` when this repository's backend is shared across clusters
-                    (e.g. one bucket backed up from more than one Kubernetes cluster) — the
-                    default kopia identity hostname then becomes `<namespace>.<cluster>`
-                    instead of bare `<namespace>`, so same-named namespaces on different
-                    clusters never collide. Same semantics as `ClusterRepository`'s field of
-                    the same name (ADR-0004 §5); a consumer's explicit `spec.identity` still
-                    wins over anything here.
+                  description: Identity defaults (CEL `*Expr`) applied when consumers don't override.
                   nullable: true
                   properties:
                     cluster:
@@ -799,7 +893,7 @@ spec:
                       type: string
                   type: object
                 maintenance:
-                  description: Maintenance control; when absent or enabled the reconciler creates and owns a `Maintenance` CR.
+                  description: Maintenance control; `maintenance.namespace` selects where the owned `Maintenance` CR lands.
                   nullable: true
                   properties:
                     enabled:
@@ -1842,6 +1936,39 @@ spec:
                       description: Pod `nodeSelector` for every mover.
                       nullable: true
                       type: object
+                    podAnnotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Extra annotations for every mover pod. Unlike `podLabels`
+                        these are **pod-template-only** — they are not mirrored onto the `Job`
+                        object, because the common case is a sidecar-injection opt-out
+                        (`sidecar.istio.io/inject: "false"`, `linkerd.io/inject: disabled`,
+                        `vault.hashicorp.com/agent-inject: "false"`) that only means anything on
+                        the pod a mesh webhook actually sees. A mover is a short-lived batch pod;
+                        an injected sidecar that never exits keeps its Job running forever.
+
+                        Same reserved keys as `podLabels`, rejected at admission.
+                      nullable: true
+                      type: object
+                    podLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Extra labels for every mover POD (and the `Job` that owns it), merged
+                        UNDER kopiur's own labels — a key kopiur sets always wins, so a
+                        user-supplied value can never break the selectors the controller counts
+                        and reaps by.
+
+                        This is the hook for cluster machinery that keys off pod labels and that
+                        kopiur has no field of its own for: a Kueue `kueue.x-k8s.io/queue-name` to
+                        put movers under a cluster queue, a monitoring/`NetworkPolicy` selector, a
+                        service-mesh exclusion label.
+
+                        Keys under `kopiur.home-operations.com/` and the exact key
+                        `app.kubernetes.io/managed-by` are reserved and rejected at admission.
+                      nullable: true
+                      type: object
                     podSecurityContext:
                       description: Pod security-context base (notably `fsGroup`) for every mover.
                       nullable: true
@@ -2318,11 +2445,26 @@ spec:
                   type: object
                 scheduleDefaults:
                   description: |-
-                    Scheduling defaults (e.g. `timezone`) inherited by consumers that don't set
-                    their own equivalent field — verification, replication, and maintenance
-                    schedules today; set once here instead of repeating it on every cron.
+                    Scheduling defaults (`timezone`, `jitter`) inherited by consumers that don't
+                    set their own equivalent field — backup, verification, replication, and
+                    maintenance schedules; set once here instead of repeating it on every cron.
                   nullable: true
                   properties:
+                    jitter:
+                      description: |-
+                        Deterministic jitter window (Go-style duration, e.g. `10m`) applied to every
+                        consuming cron that doesn't set its own `jitter` — `SnapshotSchedule`,
+                        `Maintenance` (quick and full), `SnapshotPolicy` verification (quick and
+                        deep), and both replication kinds. Set once here instead of repeating it on
+                        every cron, so a whole repository's schedules spread their load off the
+                        top-of-the-hour thundering herd.
+
+                        The spread is deterministic per `(scheduleUID, slot)`, not random: the same
+                        slot always lands on the same instant, so a restart never re-rolls it.
+                        Capped at 24h by validation — jitter is a spread WITHIN a cron period, not a
+                        schedule offset.
+                      nullable: true
+                      type: string
                     timezone:
                       description: |-
                         IANA timezone name applied to every consuming cron that doesn't set its own
@@ -2947,6 +3089,85 @@ spec:
                             - copy
                             - copyOverwrite
                           type: string
+                        throttle:
+                          description: |-
+                            Bandwidth/ops caps for THIS seed's copy, per side. A migrate seed opens
+                            two repositories under two kopia connections and `snapshot migrate` has
+                            no speed flags of its own, so each side is applied as `kopia repository
+                            throttle set` on that side's connection:
+
+                            * `source` caps the REPLICA — the repository named by
+                              `spec.seed.from.repository`, opened read-only — overriding **its**
+                              `moverDefaults.throttle`;
+                            * `destination` caps THIS repository, the one being seeded, overriding
+                              **its own** `moverDefaults.throttle`.
+
+                            Each side overrides field by field: a knob set here wins, a knob left
+                            unset keeps that repository's default. Absent: both sides use their
+                            repository's defaults. Applies only while the seed is armed — an
+                            ordinary connect to the now-initialized repository is capped by
+                            `moverDefaults.throttle` alone.
+                          nullable: true
+                          properties:
+                            destination:
+                              description: |-
+                                Caps for the DESTINATION (write) side, overriding the destination
+                                repository's `moverDefaults.throttle` field by field. Applied with
+                                `repository throttle set` on the destination connection the migrate
+                                writes through.
+                              nullable: true
+                              properties:
+                                downloadBytesPerSecond:
+                                  description: Cap download throughput in bytes/sec (`--download-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                readOpsPerSecond:
+                                  description: Cap read/list ops/sec (`--read-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                uploadBytesPerSecond:
+                                  description: Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                writeOpsPerSecond:
+                                  description: Cap write ops/sec (`--write-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                              type: object
+                            source:
+                              description: |-
+                                Caps for the SOURCE (read) side, overriding the source repository's
+                                `moverDefaults.throttle` field by field. Applied with `repository
+                                throttle set` on the migrate's read-only source connection — accepted
+                                there, so a read-only source is throttled like any other.
+                              nullable: true
+                              properties:
+                                downloadBytesPerSecond:
+                                  description: Cap download throughput in bytes/sec (`--download-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                readOpsPerSecond:
+                                  description: Cap read/list ops/sec (`--read-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                uploadBytesPerSecond:
+                                  description: Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                writeOpsPerSecond:
+                                  description: Cap write ops/sec (`--write-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                              type: object
+                          type: object
                       type: object
                     sync:
                       description: |-
@@ -2982,7 +3203,7 @@ spec:
                     - from
                   type: object
                 server:
-                  description: Optional kopia web-UI server, exposed via a `Service` in this namespace.
+                  description: Optional kopia web-UI server (the target `namespace` is required).
                   nullable: true
                   properties:
                     auth:
@@ -3030,6 +3251,9 @@ spec:
                             - usernameKey
                           type: object
                       type: object
+                    namespace:
+                      description: Target namespace for the server Deployment/Service (and generated Secret).
+                      type: string
                     podSecurityContext:
                       description: Pod-level security context for the server pod (notably `supplementalGroups` for NFS exports).
                       nullable: true
@@ -3334,11 +3558,14 @@ spec:
                             - LoadBalancer
                           type: string
                       type: object
+                  required:
+                    - namespace
                   type: object
                 suspend:
-                  description: 'Pause this repository: skip connect/bootstrap and maintenance projection.'
+                  description: 'Pause this cluster repository: skip connect/bootstrap and maintenance projection.'
                   type: boolean
               required:
+                - allowedNamespaces
                 - backend
                 - encryption
               type: object
@@ -3352,15 +3579,20 @@ spec:
                 - message: create.ecc is immutable after creation
                   rule: '!has(self.create) || !has(oldSelf.create) || (has(self.create.ecc) == has(oldSelf.create.ecc) && (!has(self.create.ecc) || self.create.ecc == oldSelf.create.ecc))'
             status:
-              description: Observed state of a `Repository`, carrying resolved values pinned by the reconciler.
+              description: Observed state of a `ClusterRepository`; mirrors `RepositoryStatus` plus `allowedNamespaceCount`.
               nullable: true
               properties:
+                allowedNamespaceCount:
+                  description: Number of namespaces currently resolved by `spec.allowedNamespaces`.
+                  format: int64
+                  nullable: true
+                  type: integer
                 backend:
                   description: Mirror of `spec.backend` discriminant for the print column.
                   nullable: true
                   type: string
                 catalog:
-                  description: Catalog-materialization status (how many discovered `Snapshot`s, last refresh).
+                  description: Catalog-materialization status (discovered-backup count, last refresh).
                   nullable: true
                   properties:
                     discoveredBackupCount:
@@ -3711,13 +3943,27 @@ spec:
                       type: integer
                   type: object
                 uniqueId:
-                  description: Kopia repository unique ID.
+                  description: |-
+                    Kopia repository unique ID, pinned on the first successful bootstrap.
+
+                    Its presence is the "this repository has been Ready" flag that makes
+                    auto-create one-way in time: `spec.create.enabled` governs the FIRST
+                    bootstrap only, and once this is set kopiur will never create a fresh
+                    empty repository over the backend, however empty the backend goes. A
+                    wiped backend therefore parks at `Failed` with reason
+                    `RepositoryReinitializeBlocked` instead of being silently re-created.
+
+                    To deliberately re-initialize a wiped repository, annotate it with
+                    `kopiur.home-operations.com/allow-reinitialize` set to THIS value; the
+                    ack is honored only while it matches, so the new ID minted by a
+                    successful re-initialize makes it inert. This discards the history the
+                    old repository held.
                   nullable: true
                   type: string
               type: object
           required:
             - spec
-          title: Repository
+          title: ClusterRepository
           type: object
       served: true
       storage: true

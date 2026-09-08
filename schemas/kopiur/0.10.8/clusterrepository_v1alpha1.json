@@ -843,7 +843,7 @@
           "properties": {
             "failurePolicy": {
               "additionalProperties": false,
-              "description": "Failure policy for the bootstrap Job. `activeDeadlineSeconds` caps how long\na connect may run before the Job is marked failed (default 120s); raise it\nfor a slow backend — e.g. an rclone remote whose repository metadata and\nindexes load through kopia's embedded `rclone serve`/WebDAV bridge.\n`backoffLimit` bounds retries. `podStartupDeadlineSeconds` is accepted for\nshape parity but is not honored by the bootstrap Job.",
+              "description": "Failure policy for the bootstrap Job. `activeDeadlineSeconds` caps how long\na connect may run before the Job is marked failed (default 120s); raise it\nfor a slow backend — e.g. an rclone remote whose repository metadata and\nindexes load through kopia's embedded `rclone serve`/WebDAV bridge, or a\nlarge repository whose cold-cache connect outgrows the default. The value\nis a BASE, not a ceiling: after consecutive deadline-killed attempts the\noperator escalates the effective deadline itself (doubling per attempt, up\nto 30 minutes or the configured value, whichever is larger — never below\nit), so a slow-but-alive backend self-heals without a spec edit.\n`backoffLimit` bounds retries. `podStartupDeadlineSeconds` is accepted for\nshape parity but is not honored by the bootstrap Job.",
               "nullable": true,
               "properties": {
                 "activeDeadlineSeconds": {
@@ -964,6 +964,27 @@
               },
               "type": [
                 "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "concurrency": {
+          "additionalProperties": false,
+          "description": "Concurrency limits for mover Jobs against this repository (absent = unlimited).",
+          "nullable": true,
+          "properties": {
+            "maxConcurrentJobs": {
+              "description": "Ceiling on how many of this repository's mover Jobs may be in flight at\nonce. Backup snapshots, restores, and replication runs that READ FROM this\nrepository all draw from ONE pool — a repository's backend (and the\nbandwidth to it) is the shared resource, so splitting the budget per work\nkind would let three \"safe\" limits still saturate it.\n\nRestores are **always admitted** and never parked: a restore is a recovery\nin progress, and holding one behind a queue of routine backups is exactly\nbackwards. An in-flight restore still COUNTS toward the pool, so it\ndisplaces backups rather than adding to them.\n\nExcluded from the pool entirely: maintenance (already single-flight per\nrepository), verification, pin, and snapshot-delete batch Jobs. These are\noperator-driven housekeeping that must not be starved by a saturated\nbackup pool.\n\nAbsent or `0` means unlimited — the default, and today's behavior.\n\nNo schema `default:` is emitted for this field (api-conventions §4a):\nabsent and `0` are the SAME state (unlimited), so a materialized default\nwould stamp `{maxConcurrentJobs: 0}` onto every stored repository — GitOps\ndiff noise for a value that changes nothing.",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
                 "null"
               ]
             }
@@ -1175,7 +1196,7 @@
                 },
                 "onFailure": {
                   "default": "Degrade",
-                  "description": "What sustained backend-probe failure (past `failureThreshold`) does to the\nrepository (default `Degrade`). `Degrade` moves it to `Degraded`, pausing\nbackups, maintenance, and replication until a re-connect succeeds —\nrecovery is automatic. `Alert` keeps the repository `Ready` and only raises\nthe `BackendReachable` condition + Warning event + metric; backups keep\nrunning against the failing backend. Neither ever auto-recreates.",
+                  "description": "What sustained backend-probe failure (past `failureThreshold`) does to the\nrepository (default `Degrade`). `Degrade` moves it to `Degraded`, pausing\nbackups and replication until a re-connect succeeds — recovery is\nautomatic (maintenance also pauses for a confirmed-unreachable/vanished\nbackend, but keeps running for a probe deadline kill, where index\ncompaction is often the cure). `Alert` keeps the repository `Ready` and\nonly raises the `BackendReachable` condition + Warning event + metric;\nbackups keep running against the failing backend. Neither ever\nauto-recreates.",
                   "enum": [
                     "Degrade",
                     "Alert"
@@ -3128,6 +3149,28 @@
                 "null"
               ]
             },
+            "podAnnotations": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Extra annotations for every mover pod. Unlike `podLabels`\nthese are **pod-template-only** — they are not mirrored onto the `Job`\nobject, because the common case is a sidecar-injection opt-out\n(`sidecar.istio.io/inject: \"false\"`, `linkerd.io/inject: disabled`,\n`vault.hashicorp.com/agent-inject: \"false\"`) that only means anything on\nthe pod a mesh webhook actually sees. A mover is a short-lived batch pod;\nan injected sidecar that never exits keeps its Job running forever.\n\nSame reserved keys as `podLabels`, rejected at admission.",
+              "nullable": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "podLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Extra labels for every mover POD (and the `Job` that owns it), merged\nUNDER kopiur's own labels — a key kopiur sets always wins, so a\nuser-supplied value can never break the selectors the controller counts\nand reaps by.\n\nThis is the hook for cluster machinery that keys off pod labels and that\nkopiur has no field of its own for: a Kueue `kueue.x-k8s.io/queue-name` to\nput movers under a cluster queue, a monitoring/`NetworkPolicy` selector, a\nservice-mesh exclusion label.\n\nKeys under `kopiur.home-operations.com/` and the exact key\n`app.kubernetes.io/managed-by` are reserved and rejected at admission.",
+              "nullable": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "podSecurityContext": {
               "additionalProperties": false,
               "description": "Pod security-context base (notably `fsGroup`) for every mover.",
@@ -3963,9 +4006,17 @@
         },
         "scheduleDefaults": {
           "additionalProperties": false,
-          "description": "Scheduling defaults (e.g. `timezone`) inherited by consumers that don't set\ntheir own equivalent field — verification, replication, and maintenance\nschedules today; set once here instead of repeating it on every cron.",
+          "description": "Scheduling defaults (`timezone`, `jitter`) inherited by consumers that don't\nset their own equivalent field — backup, verification, replication, and\nmaintenance schedules; set once here instead of repeating it on every cron.",
           "nullable": true,
           "properties": {
+            "jitter": {
+              "description": "Deterministic jitter window (Go-style duration, e.g. `10m`) applied to every\nconsuming cron that doesn't set its own `jitter` — `SnapshotSchedule`,\n`Maintenance` (quick and full), `SnapshotPolicy` verification (quick and\ndeep), and both replication kinds. Set once here instead of repeating it on\nevery cron, so a whole repository's schedules spread their load off the\ntop-of-the-hour thundering herd.\n\nThe spread is deterministic per `(scheduleUID, slot)`, not random: the same\nslot always lands on the same instant, so a restart never re-rolls it.\nCapped at 24h by validation — jitter is a spread WITHIN a cron period, not a\nschedule offset.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "timezone": {
               "description": "IANA timezone name applied to every consuming cron that doesn't set its own\n`timezone` (e.g. `America/New_York`). Set once here instead of repeating it\non every `SnapshotPolicy.verification`, `RepositoryReplication.schedule`, and\n`Maintenance.schedule` cron.",
               "nullable": true,
@@ -4871,6 +4922,111 @@
                   ],
                   "type": [
                     "string",
+                    "null"
+                  ]
+                },
+                "throttle": {
+                  "additionalProperties": false,
+                  "description": "Bandwidth/ops caps for THIS seed's copy, per side. A migrate seed opens\ntwo repositories under two kopia connections and `snapshot migrate` has\nno speed flags of its own, so each side is applied as `kopia repository\nthrottle set` on that side's connection:\n\n* `source` caps the REPLICA — the repository named by\n  `spec.seed.from.repository`, opened read-only — overriding **its**\n  `moverDefaults.throttle`;\n* `destination` caps THIS repository, the one being seeded, overriding\n  **its own** `moverDefaults.throttle`.\n\nEach side overrides field by field: a knob set here wins, a knob left\nunset keeps that repository's default. Absent: both sides use their\nrepository's defaults. Applies only while the seed is armed — an\nordinary connect to the now-initialized repository is capped by\n`moverDefaults.throttle` alone.",
+                  "nullable": true,
+                  "properties": {
+                    "destination": {
+                      "additionalProperties": false,
+                      "description": "Caps for the DESTINATION (write) side, overriding the destination\nrepository's `moverDefaults.throttle` field by field. Applied with\n`repository throttle set` on the destination connection the migrate\nwrites through.",
+                      "nullable": true,
+                      "properties": {
+                        "downloadBytesPerSecond": {
+                          "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "readOpsPerSecond": {
+                          "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "uploadBytesPerSecond": {
+                          "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "writeOpsPerSecond": {
+                          "description": "Cap write ops/sec (`--write-requests-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "source": {
+                      "additionalProperties": false,
+                      "description": "Caps for the SOURCE (read) side, overriding the source repository's\n`moverDefaults.throttle` field by field. Applied with `repository\nthrottle set` on the migrate's read-only source connection — accepted\nthere, so a read-only source is throttled like any other.",
+                      "nullable": true,
+                      "properties": {
+                        "downloadBytesPerSecond": {
+                          "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "readOpsPerSecond": {
+                          "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "uploadBytesPerSecond": {
+                          "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "writeOpsPerSecond": {
+                          "description": "Cap write ops/sec (`--write-requests-per-second`).",
+                          "format": "int64",
+                          "nullable": true,
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
                     "null"
                   ]
                 }
@@ -6140,7 +6296,7 @@
           ]
         },
         "uniqueId": {
-          "description": "Kopia repository unique ID.",
+          "description": "Kopia repository unique ID, pinned on the first successful bootstrap.\n\nIts presence is the \"this repository has been Ready\" flag that makes\nauto-create one-way in time: `spec.create.enabled` governs the FIRST\nbootstrap only, and once this is set kopiur will never create a fresh\nempty repository over the backend, however empty the backend goes. A\nwiped backend therefore parks at `Failed` with reason\n`RepositoryReinitializeBlocked` instead of being silently re-created.\n\nTo deliberately re-initialize a wiped repository, annotate it with\n`kopiur.home-operations.com/allow-reinitialize` set to THIS value; the\nack is honored only while it matches, so the new ID minted by a\nsuccessful re-initialize makes it inert. This discards the history the\nold repository held.",
           "nullable": true,
           "type": [
             "string",
