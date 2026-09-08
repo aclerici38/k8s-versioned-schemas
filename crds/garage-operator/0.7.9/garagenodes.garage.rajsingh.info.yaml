@@ -7,11 +7,11 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.20.1
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: garage-operator-0.7.4
+    helm.sh/chart: garage-operator-0.7.9
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.4"
+    app.kubernetes.io/version: "0.7.9"
     app.kubernetes.io/managed-by: Helm
   name: garagenodes.garage.rajsingh.info
 spec:
@@ -1028,8 +1028,8 @@ spec:
                     namespace:
                       description: |-
                         Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
-                        Cross-namespace references require a GarageReferenceGrant in the target namespace.
-                        Not supported on GarageNode.
+                        Cross-namespace references require a GarageReferenceGrant where supported by
+                        the owning resource. GarageNode and GarageAdminToken reject them.
                       type: string
                   required:
                     - name
@@ -1255,7 +1255,9 @@ spec:
                             description: Selects a key of a ConfigMap.
                             properties:
                               key:
-                                description: The key to select.
+                                description: |-
+                                  The key to select from the ConfigMap's Data field.
+                                  Keys in the BinaryData field are not currently propagated to container env vars.
                                 type: string
                               name:
                                 default: ""
@@ -1474,8 +1476,8 @@ spec:
                         namespace:
                           description: |-
                             Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
-                            Cross-namespace references require a GarageReferenceGrant in the target namespace.
-                            Not supported on GarageNode.
+                            Cross-namespace references require a GarageReferenceGrant where supported by
+                            the owning resource. GarageNode and GarageAdminToken reject them.
                           type: string
                       required:
                         - name
@@ -1861,11 +1863,8 @@ spec:
                         Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                         whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                         CSIDriver instance. Other volumes are always re-labelled recursively.
-                        "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                        If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                        If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                        and "Recursive" for all other volumes.
+                        If not specified, "MountOption" is used.
 
                         This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -2021,6 +2020,34 @@ spec:
                             type: string
                           description: Annotations to set on dynamically provisioned PVCs.
                           type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for this node's newly created PVC.
+                            Auto-generated nodes inherit the parent volume's source. Manual nodes may set
+                            it on a new claim; it cannot be combined with existingClaim.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
+                          type: object
                         existingClaim:
                           description: |-
                             ExistingClaim references a pre-existing PVC by name in the cluster namespace.
@@ -2159,6 +2186,34 @@ spec:
                               type: string
                             description: Annotations to set on dynamically provisioned PVCs.
                             type: object
+                          dataSourceRef:
+                            description: |-
+                              DataSourceRef is the opt-in restore source for this node's newly created PVC.
+                              Auto-generated nodes inherit the parent volume's source. Manual nodes may set
+                              it on a new claim; it cannot be combined with existingClaim.
+                            properties:
+                              apiGroup:
+                                description: |-
+                                  APIGroup is the group for the resource being referenced.
+                                  If APIGroup is not specified, the specified Kind must be in the core API group.
+                                  For any other third-party types, APIGroup is required.
+                                type: string
+                              kind:
+                                description: Kind is the type of resource being referenced
+                                type: string
+                              name:
+                                description: Name is the name of resource being referenced
+                                type: string
+                              namespace:
+                                description: |-
+                                  Namespace is the namespace of resource being referenced
+                                  Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                  (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                type: string
+                            required:
+                              - kind
+                              - name
+                            type: object
                           existingClaim:
                             description: |-
                               ExistingClaim references a pre-existing PVC by name in the cluster namespace.
@@ -2276,6 +2331,34 @@ spec:
                           additionalProperties:
                             type: string
                           description: Annotations to set on dynamically provisioned PVCs.
+                          type: object
+                        dataSourceRef:
+                          description: |-
+                            DataSourceRef is the opt-in restore source for this node's newly created PVC.
+                            Auto-generated nodes inherit the parent volume's source. Manual nodes may set
+                            it on a new claim; it cannot be combined with existingClaim.
+                          properties:
+                            apiGroup:
+                              description: |-
+                                APIGroup is the group for the resource being referenced.
+                                If APIGroup is not specified, the specified Kind must be in the core API group.
+                                For any other third-party types, APIGroup is required.
+                              type: string
+                            kind:
+                              description: Kind is the type of resource being referenced
+                              type: string
+                            name:
+                              description: Name is the name of resource being referenced
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the namespace of resource being referenced
+                                Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                              type: string
+                          required:
+                            - kind
+                            - name
                           type: object
                         existingClaim:
                           description: |-

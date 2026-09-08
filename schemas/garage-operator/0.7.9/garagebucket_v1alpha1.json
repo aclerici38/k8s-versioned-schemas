@@ -25,20 +25,13 @@
       "additionalProperties": false,
       "description": "GarageBucketSpec defines the desired state of GarageBucket",
       "properties": {
-        "bucketId": {
-          "description": "BucketID pins this resource to a pre-existing Garage bucket ID.\nWhen set, the operator will never create a new bucket — it only manages\nsettings and key permissions for the identified bucket. Takes priority\nover GlobalAlias-based lookup. Useful for importing existing buckets and\nfor recovery after cluster incidents.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "clusterRef": {
           "additionalProperties": false,
           "description": "ClusterRef references the GarageCluster this bucket belongs to",
           "properties": {
             "kubeConfigSecretRef": {
               "additionalProperties": false,
-              "description": "KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.\nIt is currently rejected by admission because the operator does not use it.",
+              "description": "KubeConfigSecretRef references a secret containing kubeconfig for a remote cluster.\nOnly used for cross-cluster references in multi-cluster federation scenarios.",
               "properties": {
                 "key": {
                   "description": "The key of the secret to select from.  Must be a valid secret key.",
@@ -70,11 +63,11 @@
               "x-kubernetes-map-type": "atomic"
             },
             "name": {
-              "description": "Name of the GarageCluster resource.",
+              "description": "Name of the GarageCluster",
               "type": "string"
             },
             "namespace": {
-              "description": "Namespace of the GarageCluster. Defaults to the referencing resource's namespace.\nCross-namespace references require a GarageReferenceGrant in the target namespace.\nNot supported on GarageNode.",
+              "description": "Namespace of the GarageCluster (defaults to the same namespace as the referencing resource)",
               "type": [
                 "string",
                 "null"
@@ -85,6 +78,18 @@
             "name"
           ],
           "type": "object"
+        },
+        "deletionPolicy": {
+          "default": "Delete",
+          "description": "DeletionPolicy controls whether deleting this resource also deletes the\ncorresponding Garage bucket. The default is Delete.",
+          "enum": [
+            "Delete",
+            "Retain"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "globalAlias": {
           "description": "GlobalAlias is the global alias for this bucket (optional)\nIf not set, the bucket name from metadata.name is used",
@@ -100,28 +105,10 @@
             "description": "KeyPermission grants access to a key",
             "properties": {
               "keyRef": {
-                "additionalProperties": false,
-                "description": "KeyRef references the GarageKey by name (and optionally namespace).",
-                "properties": {
-                  "name": {
-                    "description": "Name of the GarageKey.",
-                    "type": "string"
-                  },
-                  "namespace": {
-                    "description": "Namespace of the GarageKey. Defaults to the GarageBucket's namespace.\nCross-namespace references require a GarageReferenceGrant in the target namespace.",
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "name"
-                ],
-                "type": "object"
+                "description": "KeyRef references the GarageKey by name",
+                "type": "string"
               },
               "owner": {
-                "default": false,
                 "description": "Owner allows bucket owner operations",
                 "type": [
                   "boolean",
@@ -129,7 +116,6 @@
                 ]
               },
               "read": {
-                "default": false,
                 "description": "Read allows reading objects",
                 "type": [
                   "boolean",
@@ -137,7 +123,6 @@
                 ]
               },
               "write": {
-                "default": false,
                 "description": "Write allows writing objects",
                 "type": [
                   "boolean",
@@ -155,123 +140,18 @@
             "null"
           ]
         },
-        "lifecycle": {
-          "additionalProperties": false,
-          "description": "Lifecycle configures bucket lifecycle policies (object expiration,\nabort of incomplete multipart uploads).\n\nGarage exposes lifecycle only via the S3 API, not the admin API. The\noperator applies rules using an internal access key it manages per\nGarageCluster. Garage supports a strict subset of the AWS S3 lifecycle\nspec: only Expiration (days or date, no ExpiredObjectDeleteMarker) and\nAbortIncompleteMultipartUpload. Filters support prefix and object size\nbounds; tag filters and the deprecated rule-level Prefix are not\naccepted.\n\nGarage's lifecycle worker runs daily at midnight (UTC by default), so\nrule evaluation is asynchronous from reconciliation.",
-          "properties": {
-            "rules": {
-              "description": "Rules to apply. The operator replaces the bucket's lifecycle\nconfiguration with this exact set on each reconcile.",
-              "items": {
-                "additionalProperties": false,
-                "description": "LifecycleRule is a single lifecycle rule. At least one action\n(ExpirationDays, ExpirationDate, AbortIncompleteMultipartUploadDays)\nmust be set. ExpirationDays and ExpirationDate are mutually exclusive.",
-                "properties": {
-                  "abortIncompleteMultipartUploadDays": {
-                    "description": "AbortIncompleteMultipartUploadDays aborts multipart uploads that have\nbeen pending for at least this many days.",
-                    "format": "int32",
-                    "minimum": 1,
-                    "type": [
-                      "integer",
-                      "null"
-                    ]
-                  },
-                  "expirationDate": {
-                    "description": "ExpirationDate expires current objects on or after this UTC date.",
-                    "format": "date-time",
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "expirationDays": {
-                    "description": "ExpirationDays expires current objects this many days after creation.",
-                    "format": "int32",
-                    "minimum": 1,
-                    "type": [
-                      "integer",
-                      "null"
-                    ]
-                  },
-                  "filter": {
-                    "additionalProperties": false,
-                    "description": "Filter narrows the rule to a subset of objects. If unset, the rule\napplies to every object in the bucket.",
-                    "properties": {
-                      "objectSizeGreaterThan": {
-                        "description": "ObjectSizeGreaterThan matches objects strictly larger than this many\nbytes.",
-                        "format": "int64",
-                        "minimum": 0,
-                        "type": [
-                          "integer",
-                          "null"
-                        ]
-                      },
-                      "objectSizeLessThan": {
-                        "description": "ObjectSizeLessThan matches objects strictly smaller than this many\nbytes.",
-                        "format": "int64",
-                        "minimum": 1,
-                        "type": [
-                          "integer",
-                          "null"
-                        ]
-                      },
-                      "prefix": {
-                        "description": "Prefix matches object keys starting with this string.",
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": [
-                      "object",
-                      "null"
-                    ]
-                  },
-                  "id": {
-                    "description": "ID is the rule identifier. Must be unique within the bucket.",
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "status": {
-                    "default": "Enabled",
-                    "description": "Status enables or disables this rule. Disabled rules are sent to\nGarage but skipped by the lifecycle worker.",
-                    "enum": [
-                      "Enabled",
-                      "Disabled"
-                    ],
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "id"
-                ],
-                "type": "object"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "localAliases": {
           "description": "LocalAliases are per-key local aliases for this bucket",
           "items": {
             "additionalProperties": false,
-            "description": "LocalAlias is a bucket alias that is only visible to a specific key.\nUnlike global aliases (which any key can use), a local alias is scoped to one key —\nuseful when different teams share the same Garage cluster but use different bucket names.\nThe alias is accessible via S3 as a bucket name when authenticated with that key.",
+            "description": "LocalAlias represents a per-key local alias for a bucket",
             "properties": {
               "alias": {
-                "description": "Alias is the bucket name this key will use to access the bucket.\nMust be unique within the key's alias namespace.",
+                "description": "Alias is the local alias name",
                 "type": "string"
               },
               "keyRef": {
-                "description": "KeyRef is the name of the GarageKey in the same namespace that owns this alias.",
+                "description": "KeyRef references the GarageKey",
                 "type": "string"
               }
             },
@@ -325,7 +205,7 @@
           "description": "Website configures static website hosting for this bucket.\nNote: Only indexDocument and errorDocument are supported via the Admin API.\nFor advanced features (routing rules, redirectAll), use S3 PutBucketWebsite API directly.",
           "properties": {
             "enabled": {
-              "description": "Enabled enables static website hosting.",
+              "description": "Enabled enables static website hosting",
               "type": [
                 "boolean",
                 "null"
@@ -533,36 +413,6 @@
             "null"
           ]
         },
-        "lifecycleRules": {
-          "description": "LifecycleRules summarises lifecycle rules currently applied to the\nbucket in Garage. Spec is the source of truth for rule contents; this\nlist reports id and enabled state only.",
-          "items": {
-            "additionalProperties": false,
-            "description": "LifecycleRuleStatus reports the id and enabled state of a lifecycle rule\ncurrently applied to the bucket.",
-            "properties": {
-              "id": {
-                "description": "ID of the rule.",
-                "type": "string"
-              },
-              "status": {
-                "description": "Status is Enabled or Disabled.",
-                "enum": [
-                  "Enabled",
-                  "Disabled"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "status"
-            ],
-            "type": "object"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
         "localAliases": {
           "description": "LocalAliases tracks per-key local aliases for this bucket",
           "items": {
@@ -598,55 +448,11 @@
             "null"
           ]
         },
-        "managedGlobalAlias": {
-          "description": "ManagedGlobalAlias is the global alias reserved or successfully managed from\nspec.globalAlias (or the bucket name when spec.globalAlias is empty).\nIt is separate from GlobalAlias, which reports observed Garage state, so\naliases created outside the operator are never removed accidentally.",
+        "objectCount": {
+          "description": "ObjectCount is the current object count",
+          "format": "int64",
           "type": [
-            "string",
-            "null"
-          ]
-        },
-        "managedKeyGrants": {
-          "description": "ManagedKeyGrants lists access key IDs with reserved or active operator\nownership from this bucket's spec.keyPermissions. IDs are recorded before\nthe first remote mutation and removed only after exact convergence, allowing\ncrash-safe revocation when a declaration is dropped without disturbing\ngrants managed through GarageKey or by hand.",
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "managedLocalAliases": {
-          "description": "ManagedLocalAliases lists the per-key aliases reserved or successfully\nmanaged from spec.localAliases. IDs are recorded before the first remote\nadd so an interrupted add can still be removed safely.",
-          "items": {
-            "additionalProperties": false,
-            "description": "LocalAliasStatus shows the status of a local alias for this bucket",
-            "properties": {
-              "alias": {
-                "description": "Alias is the local alias name",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "keyId": {
-                "description": "KeyID is the access key ID that owns this alias",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "keyName": {
-                "description": "KeyName is the friendly name of the key",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "type": "object"
-          },
-          "type": [
-            "array",
+            "integer",
             "null"
           ]
         },
@@ -658,23 +464,8 @@
             "null"
           ]
         },
-        "pendingGlobalAlias": {
-          "description": "PendingGlobalAlias reserves a replacement before its first remote add.\nManagedGlobalAlias retains the old alias until the replacement succeeds,\nso a failed rename never leaves the bucket without its prior alias.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "phase": {
           "description": "Phase represents the current phase",
-          "enum": [
-            "Pending",
-            "Creating",
-            "Ready",
-            "Deleting",
-            "Failed",
-            "Unknown"
-          ],
           "type": [
             "string",
             "null"
