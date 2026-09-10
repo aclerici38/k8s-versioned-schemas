@@ -1,5 +1,5 @@
 {
-  "description": "MCPTelemetryConfig is the Schema for the mcptelemetryconfigs API.\nMCPTelemetryConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources within the same namespace. Cross-namespace references\nare not supported for security and isolation reasons.",
+  "description": "MCPTelemetryConfig is the deprecated v1alpha1 version of the MCPTelemetryConfig resource.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -35,7 +35,7 @@
               "properties": {
                 "configMapRef": {
                   "additionalProperties": false,
-                  "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nIf Key is not specified, it defaults to \"ca.crt\".",
+                  "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nThe ConfigMap key is required by the API. If omitted in a stored object, it\ndefaults to \"ca.crt\" for backwards compatibility.",
                   "properties": {
                     "key": {
                       "description": "The key to select.",
@@ -70,6 +70,12 @@
               "type": [
                 "object",
                 "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "configMapRef.name is required and must be non-empty",
+                  "rule": "has(self.configMapRef) \u0026\u0026 size(self.configMapRef.name) \u003e 0"
+                }
               ]
             },
             "enabled": {
@@ -233,6 +239,13 @@
             "enabled": {
               "default": false,
               "description": "Enabled controls whether Prometheus metrics endpoint is exposed",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "metricsOnTransportPort": {
+              "description": "MetricsOnTransportPort controls whether /metrics is ALSO served on the main\ntransport port, in addition to the dedicated diagnostics port. It exists to\ngive deployments a migration window: while true, an existing scrape\nconfiguration aimed at the transport port keeps working, so a scraper can be\nmoved to the diagnostics port and verified before the old location goes away.\n\nLeave unset to follow the current default, which is true during the migration\nwindow and becomes false when it closes. Setting it explicitly opts out of\nthat change: an explicit value is honoured before and after the cutover.\n\nSee https://github.com/stacklok/toolhive/issues/6384 for the removal timeline.",
               "type": [
                 "boolean",
                 "null"

@@ -1,5 +1,5 @@
 {
-  "description": "MCPServerEntry is the Schema for the mcpserverentries API.\nIt declares a remote MCP server endpoint for vMCP discovery and routing\nwithout deploying any infrastructure.",
+  "description": "MCPServerEntry is the deprecated v1alpha1 version of the MCPServerEntry resource.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -25,13 +25,21 @@
       "additionalProperties": false,
       "description": "MCPServerEntrySpec defines the desired state of MCPServerEntry.\nMCPServerEntry is a zero-infrastructure catalog entry that declares a remote MCP\nserver endpoint. Unlike MCPRemoteProxy, it creates no pods, services, or deployments.",
       "properties": {
+        "allowPrivateEndpoint": {
+          "default": false,
+          "description": "AllowPrivateEndpoint permits RemoteURL to point at a private or\nin-cluster endpoint: RFC 1918 and IPv6 unique-local addresses, and\nhostnames ending in \"cluster.local\". (Bare \".svc\" hostnames are never\nblocked, since no DNS resolution is performed.) Enable this to reach a\nco-located in-cluster backend in-mesh so the backend's workload-identity\nauthorization policy still applies. Loopback, link-local, cloud-metadata,\nand kubernetes.default endpoints remain blocked regardless of this\nsetting.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "caBundleRef": {
           "additionalProperties": false,
           "description": "CABundleRef references a ConfigMap containing CA certificates for TLS verification\nwhen connecting to the remote MCP server.",
           "properties": {
             "configMapRef": {
               "additionalProperties": false,
-              "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nIf Key is not specified, it defaults to \"ca.crt\".",
+              "description": "ConfigMapRef references a ConfigMap containing the CA certificate bundle.\nThe ConfigMap key is required by the API. If omitted in a stored object, it\ndefaults to \"ca.crt\" for backwards compatibility.",
               "properties": {
                 "key": {
                   "description": "The key to select.",
@@ -66,6 +74,12 @@
           "type": [
             "object",
             "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "configMapRef.name is required and must be non-empty",
+              "rule": "has(self.configMapRef) \u0026\u0026 size(self.configMapRef.name) \u003e 0"
+            }
           ]
         },
         "externalAuthConfigRef": {
