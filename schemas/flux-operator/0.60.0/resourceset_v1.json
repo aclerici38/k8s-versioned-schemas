@@ -3,19 +3,30 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
+      "additionalProperties": false,
       "description": "ResourceSetSpec defines the desired state of ResourceSet",
       "properties": {
         "commonMetadata": {
+          "additionalProperties": false,
           "description": "CommonMetadata specifies the common labels and annotations that are\napplied to all resources. Any existing label or annotation will be\noverridden if its key matches a common one.",
           "properties": {
             "annotations": {
@@ -23,22 +34,31 @@
                 "type": "string"
               },
               "description": "Annotations to be added to the object's metadata.",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "labels": {
               "additionalProperties": {
                 "type": "string"
               },
               "description": "Labels to be added to the object's metadata.",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "dependsOn": {
           "description": "DependsOn specifies the list of Kubernetes resources that must\nexist on the cluster before the reconciliation process starts.",
           "items": {
+            "additionalProperties": false,
             "description": "Dependency defines a ResourceSet dependency on a Kubernetes resource.",
             "properties": {
               "apiVersion": {
@@ -55,15 +75,24 @@
               },
               "namespace": {
                 "description": "Namespace of the resource to depend on.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "ready": {
                 "description": "Ready checks if the resource Ready status condition is true.",
-                "type": "boolean"
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "readyExpr": {
                 "description": "ReadyExpr checks if the resource satisfies the given CEL expression.\nThe expression replaces the default readiness check and\nis only evaluated if Ready is set to 'true'.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -72,16 +101,28 @@
               "name"
             ],
             "type": "object",
-            "additionalProperties": false
+            "x-kubernetes-validations": [
+              {
+                "message": "ready must be set when readyExpr is set",
+                "rule": "!has(self.readyExpr) || has(self.ready)"
+              }
+            ]
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "inputStrategy": {
+          "additionalProperties": false,
           "description": "InputStrategy defines how the inputs are combined when multiple\ninput provider objects are used. Defaults to flattening all inputs\nfrom all providers into a single list of input sets.",
           "properties": {
             "includeEmptyProviders": {
               "description": "IncludeEmptyProviders controls how input providers that export no\ninputs are treated. Only applies when Name is Permute. When true, if\nany provider has zero inputs the resulting permutation set is empty\n(mathematically correct Cartesian product behavior). When false or\nunset (default), providers with zero inputs are silently skipped and\nthe remaining providers still permute among themselves.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "name": {
               "description": "Name defines how the inputs are combined when multiple\ninput provider objects are used. Supported values are:\n- Flatten: all inputs sets from all input provider objects are\n  flattened into a single list of input sets.\n- Permute: all inputs sets from all input provider objects are\n  combined using a Cartesian product, resulting in a list of input sets\n  that contains every possible combination of input values.\n  For example, if provider A has inputs [{x: 1}, {x: 2}] and provider B has\n  inputs [{y: \"a\"}, {y: \"b\"}], the resulting input sets will be:\n  [{x: 1, y: \"a\"}, {x: 1, y: \"b\"}, {x: 2, y: \"a\"}, {x: 2, y: \"b\"}].\n  This strategy can lead to a large number of input sets and should be\n  used with caution. Users should use filtering features from\n  ResourceSetInputProvider to limit the amount of exported inputs.",
@@ -95,14 +136,16 @@
           "required": [
             "name"
           ],
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "includeEmptyProviders only applies when name is Permute",
               "rule": "!has(self.includeEmptyProviders) || self.name == 'Permute'"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
         "inputs": {
           "description": "Inputs contains the list of ResourceSet inputs.",
@@ -113,11 +156,15 @@
             "description": "ResourceSetInput defines the key-value pairs of the ResourceSet input.",
             "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "inputsFrom": {
           "description": "InputsFrom contains the list of references to input providers.\nWhen set, the inputs are fetched from the providers and concatenated\nwith the in-line inputs defined in the ResourceSet.",
           "items": {
+            "additionalProperties": false,
             "description": "InputProviderReference defines a reference to an input provider resource\nin the same namespace as the ResourceSet.",
             "properties": {
               "apiVersion": {
@@ -125,25 +172,36 @@
                 "enum": [
                   "fluxcd.controlplane.io/v1"
                 ],
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "kind": {
                 "description": "Kind of the input provider resource.",
                 "enum": [
                   "ResourceSetInputProvider"
                 ],
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "name": {
                 "description": "Name of the input provider resource. Cannot be set\nwhen the Selector field is set.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "selector": {
+                "additionalProperties": false,
                 "description": "Selector is a label selector to filter the input provider resources\nas an alternative to the Name field.",
                 "properties": {
                   "matchExpressions": {
                     "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
                     "items": {
+                      "additionalProperties": false,
                       "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
                       "properties": {
                         "key": {
@@ -159,7 +217,10 @@
                           "items": {
                             "type": "string"
                           },
-                          "type": "array",
+                          "type": [
+                            "array",
+                            "null"
+                          ],
                           "x-kubernetes-list-type": "atomic"
                         }
                       },
@@ -167,10 +228,12 @@
                         "key",
                         "operator"
                       ],
-                      "type": "object",
-                      "additionalProperties": false
+                      "type": "object"
                     },
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-type": "atomic"
                   },
                   "matchLabels": {
@@ -178,12 +241,17 @@
                       "type": "string"
                     },
                     "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-                    "type": "object"
+                    "type": [
+                      "object",
+                      "null"
+                    ]
                   }
                 },
-                "type": "object",
-                "x-kubernetes-map-type": "atomic",
-                "additionalProperties": false
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-map-type": "atomic"
               }
             },
             "type": "object",
@@ -196,10 +264,12 @@
                 "message": "cannot set both name and selector for input provider references",
                 "rule": "!has(self.name) || !has(self.selector)"
               }
-            ],
-            "additionalProperties": false
+            ]
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "resources": {
           "description": "Resources contains the list of Kubernetes resources to reconcile.",
@@ -207,19 +277,29 @@
             "type": "object",
             "x-kubernetes-preserve-unknown-fields": true
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "resourcesTemplate": {
           "description": "ResourcesTemplate is a Go template that generates the list of\nKubernetes resources to reconcile. The template is rendered\nas multi-document YAML, the resources should be separated by '---'.\nWhen both Resources and ResourcesTemplate are set, the resulting\nobjects are merged and deduplicated, with the ones from Resources taking precedence.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "serviceAccountName": {
           "description": "The name of the Kubernetes service account to impersonate\nwhen reconciling the generated resources.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "steps": {
           "description": "Steps contains an ordered list of named steps to reconcile in sequence.\nEach step's resources are applied and health-checked before the next\nstep starts. Mutually exclusive with Resources and ResourcesTemplate.",
           "items": {
+            "additionalProperties": false,
             "description": "ResourceSetStep defines a named step in the ResourceSet reconciliation\nsequence. The step's resources are applied and health-checked before\nthe next step starts.",
             "properties": {
               "name": {
@@ -234,16 +314,25 @@
                   "type": "object",
                   "x-kubernetes-preserve-unknown-fields": true
                 },
-                "type": "array"
+                "type": [
+                  "array",
+                  "null"
+                ]
               },
               "resourcesTemplate": {
                 "description": "ResourcesTemplate is a Go template that generates the list of\nKubernetes resources to reconcile. The template is rendered\nas multi-document YAML, the resources should be separated by '---'.\nWhen both Resources and ResourcesTemplate are set, the resulting\nobjects are merged and deduplicated, with the ones from Resources taking precedence.",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "timeout": {
                 "description": "Timeout is the maximum time to wait for the step's resources to\nbecome ready. When not set, the ResourceSet reconciliation\ntimeout is used.",
                 "pattern": "^([0-9]+(\\.[0-9]+)?(ms|s|m|h))+$",
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -255,12 +344,14 @@
                 "message": "at least one of resources or resourcesTemplate must be set",
                 "rule": "has(self.resources) || has(self.resourcesTemplate)"
               }
-            ],
-            "additionalProperties": false
+            ]
           },
           "maxItems": 20,
           "minItems": 1,
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "x-kubernetes-validations": [
             {
               "message": "step names must be unique",
@@ -270,28 +361,35 @@
         },
         "wait": {
           "description": "Wait instructs the controller to check the health\nof all the reconciled resources.",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
-      "type": "object",
+      "type": [
+        "object",
+        "null"
+      ],
       "x-kubernetes-validations": [
         {
           "message": "steps is mutually exclusive with resources and resourcesTemplate",
-          "rule": "!has(self.steps) || (!has(self.resources) && !has(self.resourcesTemplate))"
+          "rule": "!has(self.steps) || (!has(self.resources) \u0026\u0026 !has(self.resourcesTemplate))"
         },
         {
           "message": "at least one of steps, resources or resourcesTemplate must be set",
           "rule": "has(self.steps) || has(self.resources) || has(self.resourcesTemplate)"
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "status": {
+      "additionalProperties": false,
       "description": "ResourceSetStatus defines the observed state of ResourceSet.",
       "properties": {
         "conditions": {
           "description": "Conditions contains the readiness conditions of the object.",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -308,7 +406,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -340,25 +441,31 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "externalChecksumRefs": {
           "description": "ExternalChecksumRefs lists the ConfigMap and Secret references\ndiscovered in checksumFrom annotations on the last reconciliation\nthat point to objects not rendered by this ResourceSet. Each entry\nhas the form \"Kind/namespace/name\". It is used to trigger a\nreconciliation when one of the referenced objects changes.",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "history": {
           "description": "History contains the reconciliation history of the ResourceSet\nas a list of snapshots ordered by the last reconciled time.",
           "items": {
+            "additionalProperties": false,
             "description": "Snapshot represents a point-in-time record of a group of resources reconciliation,\nincluding timing information, status, and a unique digest identifier.",
             "properties": {
               "digest": {
-                "description": "Digest is the checksum in the format `<algo>:<hex>` of the resources in this snapshot.",
+                "description": "Digest is the checksum in the format `\u003calgo\u003e:\u003chex\u003e` of the resources in this snapshot.",
                 "type": "string"
               },
               "firstReconciled": {
@@ -384,7 +491,10 @@
                   "type": "string"
                 },
                 "description": "Metadata contains additional information about the snapshot.",
-                "type": "object"
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "totalReconciliations": {
                 "description": "TotalReconciliations is the total number of reconciliations that have occurred for this snapshot.",
@@ -400,21 +510,25 @@
               "lastReconciledStatus",
               "totalReconciliations"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "inventory": {
+          "additionalProperties": false,
           "description": "Inventory contains a list of Kubernetes resource object references\nlast applied on the cluster.",
           "properties": {
             "entries": {
               "description": "Entries of Kubernetes resource object references.",
               "items": {
+                "additionalProperties": false,
                 "description": "ResourceRef contains the information necessary to locate a resource within a cluster.",
                 "properties": {
                   "id": {
-                    "description": "ID is the string representation of the Kubernetes resource object's metadata,\nin the format '<namespace>_<name>_<group>_<kind>'.",
+                    "description": "ID is the string representation of the Kubernetes resource object's metadata,\nin the format '\u003cnamespace\u003e_\u003cname\u003e_\u003cgroup\u003e_\u003ckind\u003e'.",
                     "type": "string"
                   },
                   "v": {
@@ -426,8 +540,7 @@
                   "id",
                   "v"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
               "type": "array"
             }
@@ -435,20 +548,30 @@
           "required": [
             "entries"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "lastAppliedRevision": {
           "description": "LastAppliedRevision is the digest of the\ngenerated resources that were last reconcile.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "lastHandledReconcileAt": {
           "description": "LastHandledReconcileAt holds the value of the most recent\nreconcile request value, so a change of the annotation value\ncan be detected.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "type": "object"
