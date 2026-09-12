@@ -542,6 +542,24 @@
       "type": "string",
       "minLength": 1
     },
+    "revisionHistoryLimit": {
+      "description": "Number of old controller ReplicaSets and node DaemonSet revisions to retain.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "startupConnectTimeout": {
+      "description": "Maximum time to retry the initial TrueNAS connection with exponential backoff. Set to 0s for fail-fast startup.",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^(0|0s|([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        {
+          "type": "integer",
+          "const": 0
+        }
+      ]
+    },
     "csidriver": {
       "type": "object",
       "additionalProperties": false,
@@ -827,6 +845,13 @@
         "maxVolumesPerNode": {
           "type": "integer",
           "minimum": 0
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "updateStrategy": {
+          "$ref": "#/definitions/freeObject"
         },
         "resources": {
           "type": "object",
@@ -1385,6 +1410,36 @@
             "type": "string"
           }
         },
+        "connect": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fastIOFailTmo": {
+              "type": "integer"
+            },
+            "nrIOQueues": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "nrWriteQueues": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "keepAliveTmo": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        },
         "commandTimeout": {
           "description": "DEPRECATED, ignored; the nvme CLI timeout is commandTimeouts.nvme. Retained only so old values files pass validation.",
           "type": "integer",
@@ -1451,6 +1506,10 @@
               "minLength": 2
             }
           }
+        },
+        "retryIntervalMax": {
+          "type": "string",
+          "minLength": 2
         },
         "provisioner": {
           "$ref": "#/definitions/sidecar"
@@ -1641,6 +1700,10 @@
           "type": "string",
           "minLength": 2
         },
+        "tombstoneMinAge": {
+          "type": "string",
+          "minLength": 2
+        },
         "alertAfter": {
           "type": "string",
           "minLength": 2
@@ -1665,8 +1728,38 @@
             },
             "schedule": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "default": "20 4,10,16,22 * * *"
             },
+            "activeDeadlineSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3600
+            },
+            "startingDeadlineSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 900
+            },
+            "maxPerRun": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1000
+            },
+            "reapRecordPollInterval": {
+              "type": "string",
+              "pattern": "^([0-9]+(s|m|h))+$",
+              "not": {
+                "pattern": "^(0+(s|m|h))+$"
+              },
+              "default": "5m"
+            }
+          }
+        },
+        "repair": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
             "maxPerRun": {
               "type": "integer",
               "minimum": 1,
