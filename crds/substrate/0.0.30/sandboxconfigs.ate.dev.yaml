@@ -20,9 +20,6 @@ spec:
         - jsonPath: .spec.sandboxClass
           name: Class
           type: string
-        - jsonPath: .spec.default
-          name: Default
-          type: boolean
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -31,8 +28,9 @@ spec:
         openAPIV3Schema:
           description: |-
             SandboxConfig is cluster-scoped configuration describing the sandbox binaries
-            for a sandbox runtime family. It is referenced (or defaulted) by WorkerPools
-            and decouples sandbox binary selection from ActorTemplate.
+            for a sandbox runtime family. It is referenced by an ActorTemplate's
+            sandbox_config.config_name (required) and decouples
+            sandbox binary selection from the workload definition.
           properties:
             apiVersion:
               description: |-
@@ -90,13 +88,6 @@ spec:
                     intentionally generic; per-class requirements are enforced by a
                     ValidatingAdmissionPolicy.
                   type: object
-                default:
-                  description: |-
-                    Default marks this SandboxConfig as the cluster-wide default for its
-                    SandboxClass. A WorkerPool with no explicit SandboxConfigName resolves to
-                    the default config for its SandboxClass. At most one default is expected
-                    per SandboxClass.
-                  type: boolean
                 pauseImage:
                   description: |-
                     PauseImage is the container image used as the root sandbox container.
@@ -112,13 +103,14 @@ spec:
                       - [2] registry.k8s.io/pause:3.10.2@sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4
                   type: string
                   x-kubernetes-validations:
-                    - message: All images must be pinned (changing the image invalidates snapshots)
+                    - message: All images must include a digest
                       rule: self.contains('@')
                 sandboxClass:
                   default: gvisor
                   description: |-
-                    SandboxClass is the sandbox runtime family this config applies to. A
-                    WorkerPool only uses SandboxConfigs whose SandboxClass matches its own.
+                    SandboxClass is the sandbox runtime family this config applies to. An
+                    ActorTemplate only uses SandboxConfigs whose SandboxClass matches its
+                    sandbox_config.sandbox_class.
                   enum:
                     - gvisor
                     - microvm

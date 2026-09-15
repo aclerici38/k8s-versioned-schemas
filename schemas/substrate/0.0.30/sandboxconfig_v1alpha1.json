@@ -1,5 +1,5 @@
 {
-  "description": "SandboxConfig is cluster-scoped configuration describing the sandbox binaries\nfor a sandbox runtime family. It is referenced (or defaulted) by WorkerPools\nand decouples sandbox binary selection from ActorTemplate.",
+  "description": "SandboxConfig is cluster-scoped configuration describing the sandbox binaries\nfor a sandbox runtime family. It is referenced by an ActorTemplate's\nsandbox_config.config_name (required) and decouples\nsandbox binary selection from the workload definition.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -56,26 +56,19 @@
             "null"
           ]
         },
-        "default": {
-          "description": "Default marks this SandboxConfig as the cluster-wide default for its\nSandboxClass. A WorkerPool with no explicit SandboxConfigName resolves to\nthe default config for its SandboxClass. At most one default is expected\nper SandboxClass.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "pauseImage": {
           "description": "PauseImage is the container image used as the root sandbox container.\nIt holds the sandbox's namespaces and runs no workload code, so it is an\nimplementation detail of the sandbox rather than something actor authors\nchoose. It is captured in the snapshot manifest alongside the sandbox\nbinaries, so a restore always re-creates the sandbox from the same image\nthe snapshot was taken with.\n\nTypically, set it to [1] for on-gcp, and [2] for off-gcp\n\n  - [1] gcr.io/gke-release/pause@sha256:bcbd57ba5653580ec647b16d8163cdd1112df3609129b01f912a8032e48265da\n  - [2] registry.k8s.io/pause:3.10.2@sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4",
           "type": "string",
           "x-kubernetes-validations": [
             {
-              "message": "All images must be pinned (changing the image invalidates snapshots)",
+              "message": "All images must include a digest",
               "rule": "self.contains('@')"
             }
           ]
         },
         "sandboxClass": {
           "default": "gvisor",
-          "description": "SandboxClass is the sandbox runtime family this config applies to. A\nWorkerPool only uses SandboxConfigs whose SandboxClass matches its own.",
+          "description": "SandboxClass is the sandbox runtime family this config applies to. An\nActorTemplate only uses SandboxConfigs whose SandboxClass matches its\nsandbox_config.sandbox_class.",
           "enum": [
             "gvisor",
             "microvm"
