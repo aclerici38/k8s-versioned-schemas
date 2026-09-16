@@ -1,0 +1,346 @@
+{
+  "description": "A seccomp profile that kguardian distributes to every node as kguardian/\u003cnamespace\u003e/\u003cname\u003e.json under the kubelet seccomp root. Reference it from a pod with securityContext.seccompProfile {type: Localhost, localhostProfile: kguardian/\u003cnamespace\u003e/\u003cname\u003e.json}.",
+  "properties": {
+    "spec": {
+      "additionalProperties": false,
+      "description": "Spec of a `SeccompProfile`: a seccomp profile in its native shape,\nplus an optional pointer at the workload it is for.",
+      "properties": {
+        "architectures": {
+          "description": "Architectures the profile applies to (seccomp `architectures`).\nOmitted ⇒ the rendered file carries no `architectures` field.",
+          "items": {
+            "enum": [
+              "SCMP_ARCH_X86_64",
+              "SCMP_ARCH_ARM64",
+              "SCMP_ARCH_X86",
+              "SCMP_ARCH_X32",
+              "SCMP_ARCH_AARCH64"
+            ],
+            "type": "string"
+          },
+          "nullable": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "defaultAction": {
+          "description": "Action for any syscall not matched by a rule.",
+          "enum": [
+            "SCMP_ACT_LOG",
+            "SCMP_ACT_ERRNO",
+            "SCMP_ACT_KILL",
+            "SCMP_ACT_KILL_PROCESS"
+          ],
+          "type": "string"
+        },
+        "syscalls": {
+          "description": "Syscall rules. kguardian generates `SCMP_ACT_ALLOW` rules only;\nthe other actions are accepted for hand edits.",
+          "items": {
+            "additionalProperties": false,
+            "description": "One seccomp rule: a set of syscall names sharing an action.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "SCMP_ACT_ALLOW",
+                  "SCMP_ACT_LOG",
+                  "SCMP_ACT_ERRNO",
+                  "SCMP_ACT_KILL",
+                  "SCMP_ACT_KILL_PROCESS"
+                ],
+                "type": "string"
+              },
+              "errnoRet": {
+                "description": "errno to return for `SCMP_ACT_ERRNO` rules.",
+                "format": "uint32",
+                "minimum": 0,
+                "nullable": true,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "names": {
+                "description": "Syscall names (`^[a-z][a-z0-9_]{0,63}$`).",
+                "items": {
+                  "description": "A syscall name. Validated by the CRD schema pattern.",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "action",
+              "names"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "workloadRef": {
+          "additionalProperties": false,
+          "description": "The workload this profile is for. Enables the `CaptureComplete`\nand `Drift` conditions; optional.",
+          "nullable": true,
+          "properties": {
+            "kind": {
+              "enum": [
+                "Deployment",
+                "StatefulSet",
+                "DaemonSet",
+                "CronJob",
+                "Job",
+                "ReplicaSet",
+                "ReplicationController"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "defaultAction",
+        "syscalls"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "`status` of a `SeccompProfile`. Two writers: each controller\nserver-side-applies its own `nodes[name=\u003cnode\u003e]` entry (field manager\n`kguardian-controller/\u003cnode\u003e`), and every controller applies the same\ncomputed summary (everything else) under the shared manager\n`kguardian-summary`, so the summary converges to the last writer.",
+      "nullable": true,
+      "properties": {
+        "conditions": {
+          "items": {
+            "additionalProperties": false,
+            "description": "A `metav1.Condition`-shaped condition (`type`, `status`, `reason`,\n`message`, `lastTransitionTime`).",
+            "properties": {
+              "lastTransitionTime": {
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "default": "",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "status": {
+                "description": "`\"True\"`, `\"False\"` or `\"Unknown\"`.",
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "denials": {
+          "additionalProperties": false,
+          "description": "Seccomp denials the broker has attributed to this CR's workload:\nsyscalls the kernel's own filter acted on, as opposed to `drift`,\nwhich is inferred from what kguardian observed the workload call.\n\nA settled reading, not a live counter, and `refreshedAt` says when it\nwas taken. Every node polls the Broker on its own schedule, so every\nnode holds a slightly different reading; writing each one back would\nhave the fleet rewrite this CR without end. A node therefore\nrepublishes the block only when its own reading is strictly stronger\nthan the published one — a syscall or a verdict not listed there, or\nan order of magnitude more events — and otherwise leaves it alone\nuntil it is more than 15 minutes old, at which point the next node to\nreconcile replaces it outright.\n\nSo `observed` trails live activity by up to 15 minutes, and it trails\nit in one direction: a workload climbing from 1,200 to 9,900 inside\none order of magnitude keeps reporting 1,200 until the refresh, and\nso does a count that falls, whether because the retention window\npruned older events or because the workload stopped. Read it as\n\"denials on this scale, as of `refreshedAt`\", not as a total. `GET\n/seccomp/denials` on the Broker is the live, per-event view.\n\nPresent whenever the Broker gave an answer, including when that\nanswer is zero. `observed: 0` means \"checked, and clean\". The whole\nblock being absent means \"not known\" — the Broker was unreachable, it\npredates denial capture, or nothing on this cluster is capturing\ndenials at all.\n\nKeeping those two apart is the point of the field. Zero is what\nclears a profile for promotion from `SCMP_ACT_LOG` to an enforcing\naction; absent is no evidence whatsoever, and collapsing them would\nhand out that clearance on the strength of nobody having looked. The\n`Denials` printer column reads `observed` straight out of this block,\nso it shows `0` for a cleared workload and stays blank for an unknown\none — readable without going and fetching the condition. The\n`DenialsObserved` condition carries the same distinction with a\nreason attached, and its message renders this block and nothing else,\nso `kubectl get` and `kubectl describe` cannot name two different\nnumbers.",
+          "nullable": true,
+          "properties": {
+            "actions": {
+              "description": "The `SCMP_ACT_*` verdicts the kernel returned in this reading,\nsorted. What separates a profile that is only logging from one\nthat is returning errors to the workload or killing it.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "lastSeen": {
+              "description": "RFC 3339; the most recent denial in this reading, when there has\nbeen one.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "observed": {
+              "description": "Denial events in this reading, across every syscall and action.\nThis is the `Denials` printer column. Up to 15 minutes behind the\nBroker, and coarse — see the note on this block.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "refreshedAt": {
+              "description": "RFC 3339; when this reading was taken from the Broker. Every\nother field in the block is as of this instant. Absent on a block\nwritten by a controller from before this field existed; the next\nreconcile stamps one.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "syscalls": {
+              "description": "Distinct syscall names denied in this reading, sorted.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "observed"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "distribution": {
+          "additionalProperties": false,
+          "nullable": true,
+          "properties": {
+            "ready": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "state": {
+              "enum": [
+                "Ready",
+                "Partial",
+                "Pending"
+              ],
+              "type": "string"
+            },
+            "summary": {
+              "description": "`ready/total`, for the `Ready` printer column.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "total": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "ready",
+            "state",
+            "total"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "drift": {
+          "description": "Mirror of the `Drift` condition's status (`True`/`False`/`Unknown`)\nfor the printer column — CRD printer columns take simple JSON\npaths only, no `[?(@.type==\"Drift\")]` filters.",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hash": {
+          "description": "FNV-1a-64 (hex) of the rendered file — what is on a ready node.",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "localhostProfile": {
+          "description": "The `localhostProfile` value pods reference.",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nodes": {
+          "description": "Per-node state; each entry is owned by that node's controller.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hash": {
+                "type": "string"
+              },
+              "lastWritten": {
+                "description": "RFC 3339; when this node last wrote the file.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hash",
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "observedGeneration": {
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "title": "SeccompProfile",
+  "type": "object"
+}
