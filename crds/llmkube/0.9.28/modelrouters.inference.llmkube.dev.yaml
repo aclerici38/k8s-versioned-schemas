@@ -60,6 +60,43 @@ spec:
             spec:
               description: spec defines the desired state of ModelRouter
               properties:
+                agentGatewayRef:
+                  description: |-
+                    AgentGatewayRef identifies the pre-installed agentgateway data plane the
+                    generated InferencePool/InferenceModel/HTTPRoute attach to when DataPlane
+                    is "AgentGateway". Required in AgentGateway mode; ignored otherwise. The
+                    Gateway, the Gateway API Inference Extension CRDs, and an Endpoint Picker
+                    (EPP) service are documented prerequisites; LLMKube does not install or own
+                    them. The EndpointPicker is referenced by every generated InferencePool so
+                    agentgateway can select a model-server endpoint per request.
+                  properties:
+                    endpointPicker:
+                      description: |-
+                        EndpointPicker names the EPP Service agentgateway consults for endpoint
+                        selection. Required so each generated InferencePool can reference the
+                        picker; agentgateway cannot select endpoints without it.
+                      type: string
+                    endpointPickerPort:
+                      description: |-
+                        EndpointPickerPort is the port the EPP Service listens on. agentgateway
+                        dials the picker on this port.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    name:
+                      description: Name is the agentgateway Gateway's name.
+                      type: string
+                    namespace:
+                      description: |-
+                        Namespace is the Gateway's namespace. Empty means the ModelRouter's own
+                        namespace.
+                      type: string
+                  required:
+                    - endpointPicker
+                    - endpointPickerPort
+                    - name
+                  type: object
                 backends:
                   description: |-
                     Backends are the candidate destinations the router can dispatch to.
@@ -198,6 +235,19 @@ spec:
                           Must be lowercase alphanumeric or '-'.
                         pattern: ^[a-z0-9][a-z0-9-]{0,62}$
                         type: string
+                      resolution:
+                        default: service
+                        description: |-
+                          Resolution selects how a local (inferenceServiceRef) backend's upstream
+                          address is resolved. "service" (the default) dispatches to the
+                          InferenceService's ClusterIP Service DNS name, so a keep-alive client
+                          can pin to one pod through conntrack. "endpoint" compiles one address
+                          per ready pod and the router-proxy balances requests across them.
+                          External backends ignore this field.
+                        enum:
+                          - service
+                          - endpoint
+                        type: string
                       tier:
                         default: local
                         description: |-
@@ -246,9 +296,18 @@ spec:
                     Gateway mode the router-proxy is NOT provisioned. Requires the aigw CRDs
                     to be installed; when they are absent the gateway resources are not
                     generated and a condition explains why.
+
+                    "AgentGateway" compiles the backends and rules onto a pre-installed
+                    agentgateway data plane: one AgentgatewayBackend (custom provider targeting
+                    an InferencePool) per InferenceServiceRef backend and a multi-rule HTTPRoute
+                    matching on the X-Gateway-Base-Model-Name header. In AgentGateway mode the
+                    router-proxy is NOT provisioned. Requires the agentgateway.dev CRDs and a
+                    pre-installed agentgateway Gateway; when they are absent the resources are
+                    not generated and a condition explains why.
                   enum:
                     - Proxy
                     - Gateway
+                    - AgentGateway
                   type: string
                 defaultRoute:
                   description: |-
@@ -838,6 +897,23 @@ spec:
                               type: string
                             minItems: 1
                             type: array
+                          poolActivation:
+                            default: Wait
+                            description: |-
+                              PoolActivation decides what the proxy does when a backend in
+                              Backends is a ModelPool member that is not resident and the resident
+                              member is busy. "Wait" (default) holds the request open until the
+                              incumbent drains and the target loads, bounded by the pool's
+                              swapBudget. "IfIdle" only starts a swap when the incumbent is idle;
+                              while it is busy the pooled backend is skipped immediately and the
+                              request falls through to the next entry in Backends, so a rule such
+                              as [preferred-model, resident-model] serves on whichever is warm
+                              instead of queueing behind in-flight work. Non-pooled backends and
+                              same-model requests are unaffected.
+                            enum:
+                              - Wait
+                              - IfIdle
+                            type: string
                           strategy:
                             default: primary-fallback
                             description: Strategy selects how multiple backends are used.
@@ -876,6 +952,25 @@ spec:
                     against current backend state.
                   format: int32
                   type: integer
+                agentGateway:
+                  description: |-
+                    AgentGateway reports the observed state of dataPlane: AgentGateway
+                    exposure: whether the InferencePool / InferenceModel / HTTPRoute reconciled
+                    against the referenced agentgateway Gateway, and the resolved endpoint.
+                    nil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady
+                    condition.
+                  properties:
+                    endpoint:
+                      description: |-
+                        Endpoint is the agentgateway address clients send OpenAI requests to,
+                        resolved from the referenced Gateway. Empty until the pool is ready.
+                      type: string
+                    poolReady:
+                      description: |-
+                        PoolReady indicates the generated InferencePool(s) reconciled against the
+                        referenced agentgateway Gateway.
+                      type: boolean
+                  type: object
                 backends:
                   description: |-
                     Backends reports the resolved address and current health of every
