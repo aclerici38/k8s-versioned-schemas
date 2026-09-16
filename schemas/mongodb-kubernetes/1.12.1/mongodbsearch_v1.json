@@ -1,0 +1,2293 @@
+{
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "properties": {
+        "autoEmbedding": {
+          "additionalProperties": false,
+          "description": "AutoEmbedding configures MongoDB Search to generate vector embeddings automatically\nthrough an embedding model service. These values populate the `embedding` section of the mongot config.",
+          "properties": {
+            "embeddingModelAPIKeySecret": {
+              "additionalProperties": false,
+              "description": "EmbeddingModelAPIKeySecret references a Secret holding the embedding model's API keys.\nThe Secret must contain two keys: query-key and indexing-key.\nIt may be omitted only when ProviderEndpoint points to the Kubernetes Service\nexposing the self-hosted Voyage AI embedding model managed by this operator. For any\nother endpoint the secret remains required; the operator validates this at\nreconcile time.",
+              "properties": {
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
+            },
+            "providerEndpoint": {
+              "description": "ProviderEndpoint is the URL of the embedding model service.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "clusters": {
+          "description": "Clusters configures the deployment per Kubernetes cluster: one entry for a\nsingle cluster (name optional), or one entry per cluster for\nmulti-cluster (name required, len \u003e 1). This is the place to set\nreplicas, resources, storage, and StatefulSet overrides.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ClusterSpec is one entry in spec.clusters[]. The cluster name (spec.clusters[].name)\nis required and immutable when len(spec.clusters) \u003e 1; optional in the single-cluster case.\nEach field, when set, applies to this cluster; when unset, the operator's\nper-field default applies.",
+            "properties": {
+              "advancedMongotConfigs": {
+                "description": "AdvancedMongotConfigs is an opaque block of mongot settings rendered verbatim\nunder the advancedConfigs key of this cluster's mongot config file.\nThe operator neither reads nor modifies it; operator-generated settings are unaffected.",
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-preserve-unknown-fields": true
+              },
+              "index": {
+                "description": "Index is the stable integer in per-cluster resource names. Required on every entry\nof a multi-cluster spec, and even on a single entry when each member cluster runs its own\noperator. Changing it renames this cluster's resources, orphaning those at the old index.",
+                "format": "int32",
+                "maximum": 999,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "jvmFlags": {
+                "description": "JVMFlags sets the `--jvm-flags` option for this cluster's mongot pods.",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "loadBalancer": {
+                "additionalProperties": false,
+                "description": "LoadBalancer configures how mongod/mongos connect to this cluster's mongot\n(managed Envoy or user-provided). Every cluster must agree on the mode:\neither all clusters set managed, all set unmanaged, or none set loadBalancer.",
+                "properties": {
+                  "managed": {
+                    "additionalProperties": false,
+                    "description": "Managed configures an operator-managed Envoy load balancer.",
+                    "properties": {
+                      "deployment": {
+                        "additionalProperties": false,
+                        "description": "Deployment holds optional overrides merged into the operator-created Envoy Deployment.\nFollows the same convention as spec.statefulSet on MongoDB resources.",
+                        "properties": {
+                          "metadata": {
+                            "additionalProperties": false,
+                            "description": "DeploymentMetadataWrapper is a wrapper around Labels and Annotations",
+                            "properties": {
+                              "annotations": {
+                                "additionalProperties": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "labels": {
+                                "additionalProperties": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "spec": {
+                            "type": "object",
+                            "x-kubernetes-preserve-unknown-fields": true
+                          }
+                        },
+                        "required": [
+                          "spec"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "externalHostname": {
+                        "description": "ExternalHostname is the hostname Envoy expects for SNI matching on incoming requests.\nFor sharded clusters, may contain a {shardName} placeholder.\nIn multi-cluster deployments, every cluster's hostname must be distinct.\nRequired when MongoDB is externally managed. Ignored for operator-managed MongoDB.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "minMongotReadyReplicas": {
+                        "description": "MinMongotReadyReplicas is the minimum number of ready mongot replicas in a group\nbefore this mongot group can be considered ready and envoy routes real traffic to it.\nUntil this threshold is met, traffic for that shard is forwarded to a healthy mongot group with the\nrouted_from_another_shard header (returning empty results).\nDefaults to 1 if not specified.",
+                        "format": "int32",
+                        "minimum": 1,
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "replicas": {
+                        "description": "Replicas is the number of Envoy proxy pods to deploy.\nDefaults to 1 if not specified.",
+                        "format": "int32",
+                        "minimum": 1,
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "resourceRequirements": {
+                        "additionalProperties": false,
+                        "description": "ResourceRequirements for the Envoy container.\nWhen not set, defaults to requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}.",
+                        "properties": {
+                          "claims": {
+                            "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                            "items": {
+                              "additionalProperties": false,
+                              "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                              "properties": {
+                                "name": {
+                                  "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                                  "type": "string"
+                                },
+                                "request": {
+                                  "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "name"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "x-kubernetes-list-map-keys": [
+                              "name"
+                            ],
+                            "x-kubernetes-list-type": "map"
+                          },
+                          "limits": {
+                            "additionalProperties": {
+                              "oneOf": [
+                                {
+                                  "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "integer"
+                                }
+                              ],
+                              "x-kubernetes-int-or-string": true
+                            },
+                            "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "requests": {
+                            "additionalProperties": {
+                              "oneOf": [
+                                {
+                                  "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "integer"
+                                }
+                              ],
+                              "x-kubernetes-int-or-string": true
+                            },
+                            "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "retryPolicy": {
+                        "additionalProperties": false,
+                        "description": "RetryPolicy configures Envoy retry behavior for individual gRPC streams to upstream mongot clusters.\nWhen not set, retries are enabled with sensible defaults (2 retries, 60s per-try timeout).",
+                        "properties": {
+                          "numRetries": {
+                            "description": "NumRetries is the maximum number of retries per request.\nDefaults to 2 if not specified (3 total attempts including the original).",
+                            "format": "int32",
+                            "minimum": 1,
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "perTryTimeout": {
+                            "description": "PerTryTimeout is the timeout for each retry attempt (including the original).\nSpecified as a Go duration string (e.g., \"60s\", \"30s\").\nDefaults to \"60s\" if not specified.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "routerHostname": {
+                        "description": "RouterHostname is the host:port a sharded cluster's mongos (router) uses to reach this cluster's\nmongot via the managed Envoy LB, and the SNI hostname Envoy matches for the cluster-level filter\nchain. Unlike ExternalHostname it is shard-agnostic and must NOT contain a {shardName}\nplaceholder. This value is per-cluster: in multi-cluster deployments each cluster has its own\nEnvoy LB and its mongos routes to it, so every cluster's RouterHostname must be distinct.\nRequired for an external sharded MongoDB source with managed LB; ignored for ReplicaSet sources\nand operator-managed MongoDB. Must be covered by the Envoy LB server certificate SANs.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "unmanaged": {
+                    "additionalProperties": false,
+                    "description": "Unmanaged configures a user-provided (BYO) L7 load balancer.",
+                    "properties": {
+                      "endpoint": {
+                        "description": "Endpoint is the full host:port of the BYO load balancer written into mongod config.\nFor sharded clusters, must contain a {shardName} placeholder.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-validations": [
+                  {
+                    "message": "exactly one of managed or unmanaged must be set",
+                    "rule": "(has(self.managed) \u0026\u0026 !has(self.unmanaged)) || (!has(self.managed) \u0026\u0026 has(self.unmanaged))"
+                  }
+                ]
+              },
+              "name": {
+                "description": "Name is the Kubernetes cluster name. Required and immutable\nwhen len(spec.clusters) \u003e 1; optional in the single-cluster case.\nMaxLength is 253 — the DNS subdomain limit Kubernetes cluster names follow.",
+                "maxLength": 253,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "nodeAffinity": {
+                "additionalProperties": false,
+                "description": "NodeAffinity can be used to configure mongot pod's node affinity or pod's spec.affinity.nodeAffinity field.\nA spec.clusters[].statefulSet override of nodeAffinity, takes precedence over this field.",
+                "properties": {
+                  "preferredDuringSchedulingIgnoredDuringExecution": {
+                    "description": "The scheduler will prefer to schedule pods to nodes that satisfy\nthe affinity expressions specified by this field, but it may choose\na node that violates one or more of the expressions. The node that is\nmost preferred is the one with the greatest sum of weights, i.e.\nfor each node that meets all of the scheduling requirements (resource\nrequest, requiredDuringScheduling affinity expressions, etc.),\ncompute a sum by iterating through the elements of this field and adding\n\"weight\" to the sum if the node matches the corresponding matchExpressions; the\nnode(s) with the highest sum are the most preferred.",
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "An empty preferred scheduling term matches all objects with implicit weight 0\n(i.e. it's a no-op). A null preferred scheduling term matches no objects (i.e. is also a no-op).",
+                      "properties": {
+                        "preference": {
+                          "additionalProperties": false,
+                          "description": "A node selector term, associated with the corresponding weight.",
+                          "properties": {
+                            "matchExpressions": {
+                              "description": "A list of node selector requirements by node's labels.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                "properties": {
+                                  "key": {
+                                    "description": "The label key that the selector applies to.",
+                                    "type": "string"
+                                  },
+                                  "operator": {
+                                    "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "operator"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "x-kubernetes-list-type": "atomic"
+                            },
+                            "matchFields": {
+                              "description": "A list of node selector requirements by node's fields.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                "properties": {
+                                  "key": {
+                                    "description": "The label key that the selector applies to.",
+                                    "type": "string"
+                                  },
+                                  "operator": {
+                                    "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "operator"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "x-kubernetes-list-type": "atomic"
+                            }
+                          },
+                          "type": "object",
+                          "x-kubernetes-map-type": "atomic"
+                        },
+                        "weight": {
+                          "description": "Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.",
+                          "format": "int32",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "preference",
+                        "weight"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  },
+                  "requiredDuringSchedulingIgnoredDuringExecution": {
+                    "additionalProperties": false,
+                    "description": "If the affinity requirements specified by this field are not met at\nscheduling time, the pod will not be scheduled onto the node.\nIf the affinity requirements specified by this field cease to be met\nat some point during pod execution (e.g. due to an update), the system\nmay or may not try to eventually evict the pod from its node.",
+                    "properties": {
+                      "nodeSelectorTerms": {
+                        "description": "Required. A list of node selector terms. The terms are ORed.",
+                        "items": {
+                          "additionalProperties": false,
+                          "description": "A null or empty node selector term matches no objects. The requirements of\nthem are ANDed.\nThe TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
+                          "properties": {
+                            "matchExpressions": {
+                              "description": "A list of node selector requirements by node's labels.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                "properties": {
+                                  "key": {
+                                    "description": "The label key that the selector applies to.",
+                                    "type": "string"
+                                  },
+                                  "operator": {
+                                    "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "operator"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "x-kubernetes-list-type": "atomic"
+                            },
+                            "matchFields": {
+                              "description": "A list of node selector requirements by node's fields.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                "properties": {
+                                  "key": {
+                                    "description": "The label key that the selector applies to.",
+                                    "type": "string"
+                                  },
+                                  "operator": {
+                                    "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "operator"
+                                ],
+                                "type": "object"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "x-kubernetes-list-type": "atomic"
+                            }
+                          },
+                          "type": "object",
+                          "x-kubernetes-map-type": "atomic"
+                        },
+                        "type": "array",
+                        "x-kubernetes-list-type": "atomic"
+                      }
+                    },
+                    "required": [
+                      "nodeSelectorTerms"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "x-kubernetes-map-type": "atomic"
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "persistence": {
+                "additionalProperties": false,
+                "description": "Persistence configures this cluster's mongot persistent volume. Defaults to 10GB if unset.",
+                "properties": {
+                  "multiple": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "data": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "labelSelector": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "x-kubernetes-preserve-unknown-fields": true
+                          },
+                          "storage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "storageClass": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "journal": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "labelSelector": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "x-kubernetes-preserve-unknown-fields": true
+                          },
+                          "storage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "storageClass": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "logs": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "labelSelector": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "x-kubernetes-preserve-unknown-fields": true
+                          },
+                          "storage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "storageClass": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "single": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "labelSelector": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "x-kubernetes-preserve-unknown-fields": true
+                      },
+                      "storage": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "storageClass": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "replicas": {
+                "description": "Replicas is the number of mongot pods for this cluster's StatefulSet.\nFor ReplicaSet sources this is the total; for sharded sources it is per shard.\nWhen Replicas \u003e 1, a load balancer (spec.clusters[].loadBalancer) is required to\ndistribute traffic across mongot instances.\nSet to 0 to take mongot offline: the StatefulSet scales to 0 while the MongoDBSearch CR stays.",
+                "format": "int32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "resourceRequirements": {
+                "additionalProperties": false,
+                "description": "ResourceRequirements configures resource requests and limits for this cluster's mongot pods.",
+                "properties": {
+                  "claims": {
+                    "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                      "properties": {
+                        "name": {
+                          "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                          "type": "string"
+                        },
+                        "request": {
+                          "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-map-keys": [
+                      "name"
+                    ],
+                    "x-kubernetes-list-type": "map"
+                  },
+                  "limits": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ],
+                      "x-kubernetes-int-or-string": true
+                    },
+                    "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "requests": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ],
+                      "x-kubernetes-int-or-string": true
+                    },
+                    "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "shardOverrides": {
+                "description": "ShardOverrides applies per-shard sizing exceptions within this cluster,\nfor external sharded sources only. Each entry layers its set sizing fields\nonto this cluster's resolved values for the named shards.",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "ShardOverride sizes specific shards within the enclosing cluster differently\nfrom the cluster default. Replicas, ResourceRequirements, Persistence,\nJVMFlags and NodeAffinity replace the cluster value for the named shards when set;\nStatefulSetConfiguration is deep-merged onto the cluster value. Unset fields\ninherit the cluster value.",
+                  "properties": {
+                    "jvmFlags": {
+                      "description": "JVMFlags replaces the cluster's jvmFlags for these shards when non-empty.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "nodeAffinity": {
+                      "additionalProperties": false,
+                      "description": "NodeAffinity replaces the cluster's mongot node affinity for these shards.",
+                      "properties": {
+                        "preferredDuringSchedulingIgnoredDuringExecution": {
+                          "description": "The scheduler will prefer to schedule pods to nodes that satisfy\nthe affinity expressions specified by this field, but it may choose\na node that violates one or more of the expressions. The node that is\nmost preferred is the one with the greatest sum of weights, i.e.\nfor each node that meets all of the scheduling requirements (resource\nrequest, requiredDuringScheduling affinity expressions, etc.),\ncompute a sum by iterating through the elements of this field and adding\n\"weight\" to the sum if the node matches the corresponding matchExpressions; the\nnode(s) with the highest sum are the most preferred.",
+                          "items": {
+                            "additionalProperties": false,
+                            "description": "An empty preferred scheduling term matches all objects with implicit weight 0\n(i.e. it's a no-op). A null preferred scheduling term matches no objects (i.e. is also a no-op).",
+                            "properties": {
+                              "preference": {
+                                "additionalProperties": false,
+                                "description": "A node selector term, associated with the corresponding weight.",
+                                "properties": {
+                                  "matchExpressions": {
+                                    "description": "A list of node selector requirements by node's labels.",
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                      "properties": {
+                                        "key": {
+                                          "description": "The label key that the selector applies to.",
+                                          "type": "string"
+                                        },
+                                        "operator": {
+                                          "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                          "type": "string"
+                                        },
+                                        "values": {
+                                          "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "type": [
+                                            "array",
+                                            "null"
+                                          ],
+                                          "x-kubernetes-list-type": "atomic"
+                                        }
+                                      },
+                                      "required": [
+                                        "key",
+                                        "operator"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  },
+                                  "matchFields": {
+                                    "description": "A list of node selector requirements by node's fields.",
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                      "properties": {
+                                        "key": {
+                                          "description": "The label key that the selector applies to.",
+                                          "type": "string"
+                                        },
+                                        "operator": {
+                                          "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                          "type": "string"
+                                        },
+                                        "values": {
+                                          "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "type": [
+                                            "array",
+                                            "null"
+                                          ],
+                                          "x-kubernetes-list-type": "atomic"
+                                        }
+                                      },
+                                      "required": [
+                                        "key",
+                                        "operator"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  }
+                                },
+                                "type": "object",
+                                "x-kubernetes-map-type": "atomic"
+                              },
+                              "weight": {
+                                "description": "Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.",
+                                "format": "int32",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "preference",
+                              "weight"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "x-kubernetes-list-type": "atomic"
+                        },
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                          "additionalProperties": false,
+                          "description": "If the affinity requirements specified by this field are not met at\nscheduling time, the pod will not be scheduled onto the node.\nIf the affinity requirements specified by this field cease to be met\nat some point during pod execution (e.g. due to an update), the system\nmay or may not try to eventually evict the pod from its node.",
+                          "properties": {
+                            "nodeSelectorTerms": {
+                              "description": "Required. A list of node selector terms. The terms are ORed.",
+                              "items": {
+                                "additionalProperties": false,
+                                "description": "A null or empty node selector term matches no objects. The requirements of\nthem are ANDed.\nThe TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
+                                "properties": {
+                                  "matchExpressions": {
+                                    "description": "A list of node selector requirements by node's labels.",
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                      "properties": {
+                                        "key": {
+                                          "description": "The label key that the selector applies to.",
+                                          "type": "string"
+                                        },
+                                        "operator": {
+                                          "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                          "type": "string"
+                                        },
+                                        "values": {
+                                          "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "type": [
+                                            "array",
+                                            "null"
+                                          ],
+                                          "x-kubernetes-list-type": "atomic"
+                                        }
+                                      },
+                                      "required": [
+                                        "key",
+                                        "operator"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  },
+                                  "matchFields": {
+                                    "description": "A list of node selector requirements by node's fields.",
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "description": "A node selector requirement is a selector that contains values, a key, and an operator\nthat relates the key and values.",
+                                      "properties": {
+                                        "key": {
+                                          "description": "The label key that the selector applies to.",
+                                          "type": "string"
+                                        },
+                                        "operator": {
+                                          "description": "Represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+                                          "type": "string"
+                                        },
+                                        "values": {
+                                          "description": "An array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. If the operator is Gt or Lt, the values\narray must have a single element, which will be interpreted as an integer.\nThis array is replaced during a strategic merge patch.",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "type": [
+                                            "array",
+                                            "null"
+                                          ],
+                                          "x-kubernetes-list-type": "atomic"
+                                        }
+                                      },
+                                      "required": [
+                                        "key",
+                                        "operator"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-list-type": "atomic"
+                                  }
+                                },
+                                "type": "object",
+                                "x-kubernetes-map-type": "atomic"
+                              },
+                              "type": "array",
+                              "x-kubernetes-list-type": "atomic"
+                            }
+                          },
+                          "required": [
+                            "nodeSelectorTerms"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "x-kubernetes-map-type": "atomic"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "persistence": {
+                      "additionalProperties": false,
+                      "description": "Persistence replaces the cluster's mongot persistent volume config for these shards.",
+                      "properties": {
+                        "multiple": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "data": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "labelSelector": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "x-kubernetes-preserve-unknown-fields": true
+                                },
+                                "storage": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "storageClass": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "journal": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "labelSelector": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "x-kubernetes-preserve-unknown-fields": true
+                                },
+                                "storage": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "storageClass": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "logs": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "labelSelector": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "x-kubernetes-preserve-unknown-fields": true
+                                },
+                                "storage": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "storageClass": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "single": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "labelSelector": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "x-kubernetes-preserve-unknown-fields": true
+                            },
+                            "storage": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "storageClass": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "replicas": {
+                      "description": "Replicas replaces the cluster's mongot replica count for these shards.\nSet to 0 to take these shards' mongot offline.",
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "resourceRequirements": {
+                      "additionalProperties": false,
+                      "description": "ResourceRequirements replaces the cluster's mongot resource requests/limits for these shards.",
+                      "properties": {
+                        "claims": {
+                          "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                          "items": {
+                            "additionalProperties": false,
+                            "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                            "properties": {
+                              "name": {
+                                "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                                "type": "string"
+                              },
+                              "request": {
+                                "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "x-kubernetes-list-map-keys": [
+                            "name"
+                          ],
+                          "x-kubernetes-list-type": "map"
+                        },
+                        "limits": {
+                          "additionalProperties": {
+                            "oneOf": [
+                              {
+                                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "integer"
+                              }
+                            ],
+                            "x-kubernetes-int-or-string": true
+                          },
+                          "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "requests": {
+                          "additionalProperties": {
+                            "oneOf": [
+                              {
+                                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "integer"
+                              }
+                            ],
+                            "x-kubernetes-int-or-string": true
+                          },
+                          "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "shardNames": {
+                      "description": "ShardNames are the shards (within this cluster) this override applies to.\nEach must exist in spec.source.external.shardedCluster.shards[].",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "statefulSet": {
+                      "additionalProperties": false,
+                      "description": "StatefulSetConfiguration is deep-merged onto the cluster's StatefulSet override for these shards.",
+                      "properties": {
+                        "metadata": {
+                          "additionalProperties": false,
+                          "description": "StatefulSetMetadataWrapper is a wrapper around Labels and Annotations",
+                          "properties": {
+                            "annotations": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "labels": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "spec": {
+                          "type": "object",
+                          "x-kubernetes-preserve-unknown-fields": true
+                        }
+                      },
+                      "required": [
+                        "spec"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "shardNames"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "statefulSet": {
+                "additionalProperties": false,
+                "description": "StatefulSetConfiguration is applied to this cluster's mongot StatefulSet at the end of the\nreconcile loop, for customizations not exposed as first-class fields.",
+                "properties": {
+                  "metadata": {
+                    "additionalProperties": false,
+                    "description": "StatefulSetMetadataWrapper is a wrapper around Labels and Annotations",
+                    "properties": {
+                      "annotations": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "labels": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "spec": {
+                    "type": "object",
+                    "x-kubernetes-preserve-unknown-fields": true
+                  }
+                },
+                "required": [
+                  "spec"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "syncSourceSelector": {
+                "additionalProperties": false,
+                "description": "SyncSourceSelector picks which mongods this cluster's mongot fleet syncs from.",
+                "properties": {
+                  "matchTagSets": {
+                    "description": "MatchTagSets selects sync-source mongods by replica-set tags: an ordered list of\ntag sets passed to mongot's syncSource.replicationReader (secondaryPreferred).\nmongot syncs from the first set with matches; a trailing {} is a match-any fallback.",
+                    "items": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "maxItems": 50,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-validations": [
+            {
+              "message": "clusters[].name must be set and unique when more than one cluster is specified",
+              "rule": "size(self) \u003c= 1 || self.all(c1, has(c1.name) \u0026\u0026 self.exists_one(c2, has(c2.name) \u0026\u0026 c2.name == c1.name))"
+            },
+            {
+              "message": "clusters[].index must be unique when set",
+              "rule": "self.all(c1, !has(c1.index) || self.exists_one(c2, has(c2.index) \u0026\u0026 c2.index == c1.index))"
+            },
+            {
+              "message": "clusters[].index is required on every entry when more than one cluster is specified",
+              "rule": "size(self) \u003c= 1 || self.all(c, has(c.index))"
+            },
+            {
+              "message": "clusters[].name is immutable for an existing cluster index; remove and re-add the entry to change it",
+              "rule": "self.all(c, oldSelf.all(o, (has(o.index) ? o.index : 0) != (has(c.index) ? c.index : 0) || (has(o.name) ? o.name : '') == '' || (has(o.name) ? o.name : '') == (has(c.name) ? c.name : '')))"
+            }
+          ]
+        },
+        "featureFlags": {
+          "additionalProperties": false,
+          "description": "FeatureFlags configures mongot feature flags. When a flag is set to true in the CR,\nit is rendered into the mongot config YAML. When omitted or false, the flag is not\nincluded in mongot config and mongot uses its built-in defaults.",
+          "properties": {
+            "enableOverloadRetrySignal": {
+              "default": true,
+              "description": "EnableOverloadRetrySignal enables the OVERLOAD_RETRY_SIGNAL feature in mongot,\nallowing it to signal load shedding to upstream proxies (e.g., Envoy) via\ngRPC RESOURCE_EXHAUSTED status codes. Defaults to true.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "logLevel": {
+          "description": "Configure verbosity of mongot logs. Defaults to INFO if not set.",
+          "enum": [
+            "TRACE",
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observability": {
+          "additionalProperties": false,
+          "default": {},
+          "description": "Observability configures observability features (e.g. Prometheus endpoint and metrics forwarding to Ops Manager).",
+          "properties": {
+            "metricsForwarder": {
+              "additionalProperties": false,
+              "default": {},
+              "description": "MetricsForwarder configures a metrics forwarder Deployment that scrapes\nmongot Prometheus metrics and forwards them to Ops Manager.",
+              "properties": {
+                "deployment": {
+                  "additionalProperties": false,
+                  "description": "Deployment holds optional overrides merged into the operator-created metrics forwarder Deployment.",
+                  "properties": {
+                    "metadata": {
+                      "additionalProperties": false,
+                      "description": "DeploymentMetadataWrapper is a wrapper around Labels and Annotations",
+                      "properties": {
+                        "annotations": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "labels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "spec": {
+                      "type": "object",
+                      "x-kubernetes-preserve-unknown-fields": true
+                    }
+                  },
+                  "required": [
+                    "spec"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "mode": {
+                  "default": "auto",
+                  "description": "Mode controls whether the metrics forwarder Deployment is created.\nAuto (default): enabled for internal MongoDB sources, and for external sources when OpsManager is set.\nEnabled: always create the metrics forwarder.\nDisabled: never create the metrics forwarder.",
+                  "enum": [
+                    "auto",
+                    "enabled",
+                    "disabled"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "opsManager": {
+                  "additionalProperties": false,
+                  "description": "OpsManager holds the Ops Manager project and credentials configuration for the metrics forwarder.\nIf not set, the operator derives the connection details from the source MongoDB resource's connection spec.",
+                  "properties": {
+                    "agentCredentials": {
+                      "additionalProperties": false,
+                      "description": "AgentCredentials is a reference to a Secret containing the Ops Manager Agent API key.",
+                      "properties": {
+                        "name": {
+                          "default": "",
+                          "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object",
+                      "x-kubernetes-map-type": "atomic"
+                    },
+                    "projectConfigMapRef": {
+                      "additionalProperties": false,
+                      "description": "ProjectConfigMapRef is a reference to a ConfigMap containing OM Project configuration.",
+                      "properties": {
+                        "name": {
+                          "default": "",
+                          "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object",
+                      "x-kubernetes-map-type": "atomic"
+                    }
+                  },
+                  "required": [
+                    "agentCredentials",
+                    "projectConfigMapRef"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "resourceRequirements": {
+                  "additionalProperties": false,
+                  "default": {
+                    "limits": {
+                      "cpu": "250m",
+                      "memory": "256Mi"
+                    },
+                    "requests": {
+                      "cpu": "100m",
+                      "memory": "128Mi"
+                    }
+                  },
+                  "description": "ResourceRequirements for the metrics forwarder container.",
+                  "properties": {
+                    "claims": {
+                      "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+                        "properties": {
+                          "name": {
+                            "description": "Name must match the name of one entry in pod.spec.resourceClaims of\nthe Pod where this field is used. It makes that resource available\ninside a container.",
+                            "type": "string"
+                          },
+                          "request": {
+                            "description": "Request is the name chosen for a request in the referenced claim.\nIf empty, everything from the claim is made available, otherwise\nonly the result of this request.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "x-kubernetes-list-map-keys": [
+                        "name"
+                      ],
+                      "x-kubernetes-list-type": "map"
+                    },
+                    "limits": {
+                      "additionalProperties": {
+                        "oneOf": [
+                          {
+                            "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                            "type": "string"
+                          },
+                          {
+                            "type": "integer"
+                          }
+                        ],
+                        "x-kubernetes-int-or-string": true
+                      },
+                      "description": "Limits describes the maximum amount of compute resources allowed.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "requests": {
+                      "additionalProperties": {
+                        "oneOf": [
+                          {
+                            "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                            "type": "string"
+                          },
+                          {
+                            "type": "integer"
+                          }
+                        ],
+                        "x-kubernetes-int-or-string": true
+                      },
+                      "description": "Requests describes the minimum amount of compute resources required.\nIf Requests is omitted for a container, it defaults to Limits if that is explicitly specified,\notherwise to an implementation-defined value. Requests cannot exceed Limits.\nMore info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "prometheus": {
+              "additionalProperties": false,
+              "default": {},
+              "description": "Prometheus configures the Prometheus metrics endpoint in mongot.\nBy default the endpoint is enabled on port 9946.",
+              "properties": {
+                "mode": {
+                  "allOf": [
+                    {
+                      "enum": [
+                        "enabled",
+                        "disabled"
+                      ]
+                    },
+                    {
+                      "enum": [
+                        "enabled",
+                        "disabled"
+                      ]
+                    }
+                  ],
+                  "default": "enabled",
+                  "description": "Mode controls whether the Prometheus metrics endpoint in mongot is enabled.\nDefaults to enabled.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "port": {
+                  "default": 9946,
+                  "description": "Port where metrics endpoint will be exposed on. Defaults to 9946.",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "security": {
+          "additionalProperties": false,
+          "description": "Security holds the TLS settings for the MongoDB Search server.",
+          "properties": {
+            "tls": {
+              "additionalProperties": false,
+              "description": "TLS configures TLS for the MongoDB Search server.",
+              "properties": {
+                "certificateKeySecretRef": {
+                  "additionalProperties": false,
+                  "description": "CertificateKeySecret is a reference to a Secret containing a private key and certificate to use for TLS.\nThe key and cert are expected to be PEM encoded and available at \"tls.key\" and \"tls.crt\".\nThis is the same format used for the standard \"kubernetes.io/tls\" Secret type, but no specific type is required.\nIf both CertificateKeySecret.Name and CertsSecretPrefix are specified, CertificateKeySecret.Name takes precedence.",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                },
+                "certsSecretPrefix": {
+                  "description": "CertsSecretPrefix is a prefix used to derive the TLS secret name.\nWhen set, the operator will look for a secret named \"{prefix}-{resourceName}-search-cert\".\nIf CertificateKeySecret.Name is also specified, that takes precedence over this field.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "keyFilePasswordSecretRef": {
+                  "additionalProperties": false,
+                  "description": "KeyFilePasswordSecret references a Secret with the password (key: \"keyFilePassword\") that\ndecrypts the password-encrypted server private key. Omit when the key is not encrypted.",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "additionalProperties": false,
+          "description": "Source is the MongoDB database that MongoDB Search syncs from to build its indexes.",
+          "properties": {
+            "external": {
+              "additionalProperties": false,
+              "description": "ExternalMongoDBSource describes a MongoDB deployment the operator does not manage.\nMutually exclusive with MongoDBResourceRef.",
+              "properties": {
+                "hostAndPorts": {
+                  "description": "HostAndPorts is the list of mongod host:port seeds for replica set sources.\nMutually exclusive with Sharded.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "keyfileSecretRef": {
+                  "additionalProperties": false,
+                  "description": "mongod keyfile used to connect to the external MongoDB deployment",
+                  "properties": {
+                    "key": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "shardedCluster": {
+                  "additionalProperties": false,
+                  "description": "ShardedCluster contains configuration for external sharded MongoDB clusters.\nMutually exclusive with HostAndPorts.",
+                  "properties": {
+                    "router": {
+                      "additionalProperties": false,
+                      "description": "Router contains the mongos router configuration",
+                      "properties": {
+                        "hosts": {
+                          "description": "Hosts is the list of mongos router endpoints (host:port)",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "hosts"
+                      ],
+                      "type": "object"
+                    },
+                    "shards": {
+                      "description": "Shards is the list of shard configurations",
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "ExternalShardConfig contains configuration for a single shard in an external sharded cluster",
+                        "properties": {
+                          "hosts": {
+                            "description": "Hosts is the list of mongod host:port seeds for this shard's replica set",
+                            "items": {
+                              "type": "string"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "shardName": {
+                            "description": "ShardName is the logical shard name (e.g., \"shard-0\").",
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "hosts",
+                          "shardName"
+                        ],
+                        "type": "object"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "router",
+                    "shards"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "tls": {
+                  "additionalProperties": false,
+                  "description": "TLS configuration for the external MongoDB deployment",
+                  "properties": {
+                    "ca": {
+                      "additionalProperties": false,
+                      "description": "CA is a reference to a ConfigMap containing the CA certificate that issued mongod's TLS certificate.\nThe CA certificate is expected to be PEM encoded and available at the \"ca.crt\" key.",
+                      "properties": {
+                        "name": {
+                          "default": "",
+                          "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object",
+                      "x-kubernetes-map-type": "atomic"
+                    }
+                  },
+                  "required": [
+                    "ca"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "mongodbResourceRef": {
+              "additionalProperties": false,
+              "description": "MongoDBResourceRef points to an operator-managed MongoDB resource to sync from.\nMutually exclusive with External.",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "namespace": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "passwordSecretRef": {
+              "additionalProperties": false,
+              "description": "PasswordSecretRef references the Secret holding the sync-source user's password.",
+              "properties": {
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "tls": {
+              "additionalProperties": false,
+              "description": "TLS configures TLS transport settings for the sync source SCRAM connection.\nWhen set, mongot presents the specified client certificate during the TLS handshake.\nOnly applicable when using SCRAM auth (passwordSecretRef). Mutually exclusive with X509.",
+              "properties": {
+                "clientCertificateSecretRef": {
+                  "additionalProperties": false,
+                  "description": "ClientCertificateSecret is a reference to a Secret containing a TLS client\ncertificate and key to present during the TLS handshake with the source MongoDB.\nExpected keys: \"tls.crt\", \"tls.key\".",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "x-kubernetes-map-type": "atomic"
+                },
+                "keyFilePasswordSecretRef": {
+                  "additionalProperties": false,
+                  "description": "KeyFilePasswordSecret references a Secret with the password (key: \"keyFilePassword\") that\ndecrypts the password-encrypted client private key. Omit when the key is not encrypted.",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                }
+              },
+              "required": [
+                "clientCertificateSecretRef"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "username": {
+              "description": "Username is the sync-source user mongot authenticates as. Defaults to search-sync-source.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x509": {
+              "additionalProperties": false,
+              "description": "X509 configures x509 client certificate authentication for the sync source connection.\nWhen set, mongot authenticates to MongoDB using x509 instead of username/password.\nMutually exclusive with PasswordSecretRef and Username.",
+              "properties": {
+                "clientCertificateSecretRef": {
+                  "additionalProperties": false,
+                  "description": "ClientCertificateSecret is a reference to a Secret containing the x509 client\ncertificate and key for authenticating to the MongoDB sync source.\nExpected keys: \"tls.crt\", \"tls.key\".",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "x-kubernetes-map-type": "atomic"
+                },
+                "keyFilePasswordSecretRef": {
+                  "additionalProperties": false,
+                  "description": "KeyFilePasswordSecret references a Secret with the password (key: \"keyFilePassword\") that\ndecrypts the password-encrypted client private key. Omit when the key is not encrypted.",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                }
+              },
+              "required": [
+                "clientCertificateSecretRef"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "version": {
+          "description": "Version of MongoDB Search (mongot) to run. If unset, the operator picks the most appropriate version.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "clusters"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "Top level Phase field is considered `Running` only when Search STSs and LoadBalancer (status.LoadBalancer) is running.",
+      "properties": {
+        "clusters": {
+          "description": "Clusters reports per-cluster search + load balancer + metrics forwarder state across the topology. In\nsingle-cluster and operator per cluster deployments the list has exactly one entry.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ClusterStatus reports one member cluster's search + LB + metrics forwarder state.",
+            "properties": {
+              "index": {
+                "description": "Index is the spec.clusters[] pinned index so the status entries map back to their spec\nentry independently of list order.",
+                "type": "integer"
+              },
+              "loadBalancer": {
+                "description": "LoadBalancer is this cluster's managed Envoy load balancer phase; empty when no managed LB.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "loadBalancerMessage": {
+                "description": "LoadBalancerMessage contains reason when LoadBalancer is not Running.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metricsForwarder": {
+                "description": "MetricsForwarder is this cluster's Ops Manager metrics-forwarder Deployment phase;\nempty when the metrics forwarder is not enabled.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metricsForwarderMessage": {
+                "description": "MetricsForwarderMessage contians the reason when metrics-forwarder is not Running.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name is the member cluster name; empty in single-cluster deployments.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "search": {
+                "description": "Search is the worst-of phase of this cluster's mongot StatefulSet(s).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "searchMessage": {
+                "description": "SearchMessage contains the reason when Search is not Running.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "index"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "index"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "lastTransition": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loadBalancer": {
+          "additionalProperties": false,
+          "description": "LoadBalancer reports the state of the operator-managed load balancer.\nOnly populated when spec.clusters[].loadBalancer.managed is set.",
+          "properties": {
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phase": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metricsForwarder": {
+          "additionalProperties": false,
+          "description": "MetricsForwarder reports the state of the Ops Manager metrics forwarder.",
+          "properties": {
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phase": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": "string"
+        },
+        "pvc": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "phase": {
+                "type": "string"
+              },
+              "statefulsetName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "phase",
+              "statefulsetName"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "resourcesNotReady": {
+          "items": {
+            "additionalProperties": false,
+            "description": "ResourceNotReady describes the dependent resource which is not ready yet",
+            "properties": {
+              "errors": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "kind": {
+                "description": "ResourceKind specifies a kind of a Kubernetes resource. Used in status of a Custom Resource",
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "phase"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
