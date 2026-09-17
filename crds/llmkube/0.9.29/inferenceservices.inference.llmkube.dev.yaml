@@ -950,8 +950,11 @@ spec:
                   type: object
                 args:
                   description: |-
-                    Args overrides the container arguments entirely.
-                    Only used when Runtime is "generic". For llamacpp, use ExtraArgs instead.
+                    Args overrides the container arguments entirely. Used when Runtime is
+                    "generic", and — whenever spec.command is set — under any runtime: a
+                    custom entrypoint receives spec.args verbatim (with spec.extraArgs
+                    appended) instead of the runtime's built args. Without a command override,
+                    non-generic runtimes build their own args; use ExtraArgs there instead.
                   items:
                     type: string
                   type: array
@@ -1075,8 +1078,16 @@ spec:
                   type: string
                 command:
                   description: |-
-                    Command overrides the container entrypoint.
-                    Only used when Runtime is "generic" or for advanced customization.
+                    Command overrides the container entrypoint. Its effect on the container's
+                    arguments depends on whether the runtime injects its own CLI:
+                    for runtimes that build a command (vllm, sglang, personaplex), setting
+                    Command declares a bring-your-own launcher, so the runtime's generated args
+                    are dropped and the container receives Args followed by ExtraArgs verbatim;
+                    for runtimes that serve via the image entrypoint (llamacpp, tgi,
+                    llamacpp-router, generic), Command overrides the entrypoint only and
+                    whatever args that runtime generates still apply -- llamacpp's model path,
+                    context size and host/port, tgi's --model-id, llamacpp-router's
+                    --models-dir. generic generates none of its own and passes Args through.
                   items:
                     type: string
                   type: array
@@ -1236,7 +1247,9 @@ spec:
                             description: Selects a key of a ConfigMap.
                             properties:
                               key:
-                                description: The key to select.
+                                description: |-
+                                  The key to select from the ConfigMap's Data field.
+                                  Keys in the BinaryData field are not currently propagated to container env vars.
                                 type: string
                               name:
                                 default: ""
@@ -1374,7 +1387,8 @@ spec:
                     Arguments are appended after all other configured flags.
                     Supported by the "llamacpp", "llamacpp-router", "sglang", "tgi" and
                     "vllm" runtimes. Ignored by "generic" (which takes spec.args instead)
-                    and "personaplex".
+                    and "personaplex" — except that whenever spec.command is set, extraArgs
+                    are appended after spec.args regardless of runtime.
                     Example: ["--seed", "42", "--log-disable"]
                   items:
                     type: string
@@ -1387,10 +1401,20 @@ spec:
                   items:
                     description: VolumeMount describes a mounting of a Volume within a container.
                     properties:
-                      mountPath:
+                      bindMountOptions:
                         description: |-
-                          Path within the container at which the volume should be mounted.  Must
-                          not contain ':'.
+                          bindMountOptions is the list of additional bind mount options to apply when
+                          mounting this volume into the container. Allowed values are noexec,
+                          nodev, and nosuid. These are Linux mount options and have no effect on
+                          Windows nodes.
+                          This field is not supported with image volumes.
+                          This is an alpha field and requires enabling the VolumeBindMountOptions feature gate.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      mountPath:
+                        description: Path within the container at which the volume should be mounted.
                         type: string
                       mountPropagation:
                         description: |-
@@ -1656,6 +1680,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           items:
                             description: |-
                               items if unspecified, each key-value pair in the Data field of the referenced
@@ -1688,6 +1719,13 @@ spec:
                                     May not contain the path element '..'.
                                     May not start with the string '..'.
                                   type: string
+                                user:
+                                  description: |-
+                                    user is Optional: The owner UID of the created file.
+                                    If specified, the item-level user field takes precedence over defaultUser.
+                                    (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                  format: int64
+                                  type: integer
                               required:
                                 - key
                                 - path
@@ -1771,6 +1809,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           items:
                             description: Items is a list of downward API volume file
                             items:
@@ -1824,6 +1869,13 @@ spec:
                                     - resource
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                user:
+                                  description: |-
+                                    user is Optional: The owner UID of the created file.
+                                    If specified, the item-level user field takes precedence over defaultUser.
+                                    (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                  format: int64
+                                  type: integer
                               required:
                                 - path
                               type: object
@@ -1842,6 +1894,18 @@ spec:
                               Must be an empty string (default) or Memory.
                               More info: https://kubernetes.io/docs/concepts/storage/volumes#emptydir
                             type: string
+                          mode:
+                            description: |-
+                              mode specifies the permission bits for the emptyDir directory, in numeric
+                              notation (e.g., 0755, 01777). Must be a value between 0000 and 01777.
+                              If not specified, defaults to 0777.
+                              This might be in conflict with other options that affect the file
+                              mode, like fsGroup. If fsGroup is specified, the fsGroup permissions
+                              will override the mode specified here.
+                              This field has no effect on Windows.
+                              This field is alpha and requires EmptyDirVolumeMode featuregate to be enabled.
+                            format: int32
+                            type: integer
                           sizeLimit:
                             anyOf:
                               - type: integer
@@ -1935,8 +1999,8 @@ spec:
                                       * An existing PVC (PersistentVolumeClaim)
                                       If the provisioner or an external controller can support the specified data source,
                                       it will create a new volume based on the contents of the specified data source.
-                                      When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                      and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                      dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                      copied to dataSource when dataSourceRef.namespace is not specified.
                                       If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                     properties:
                                       apiGroup:
@@ -1979,7 +2043,6 @@ spec:
                                         specified.
                                       * While dataSource only allows local objects, dataSourceRef allows objects
                                         in any namespaces.
-                                      (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                       (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                     properties:
                                       apiGroup:
@@ -2526,6 +2589,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           sources:
                             description: |-
                               sources is the list of volume projections. Each entry in this list
@@ -2621,6 +2691,13 @@ spec:
                                         Mutually-exclusive with name.  The contents of all selected
                                         ClusterTrustBundles will be unified and deduplicated.
                                       type: string
+                                    user:
+                                      description: |-
+                                        user is Optional: The owner UID of the created file.
+                                        If specified, the item-level user field takes precedence over defaultUser.
+                                        (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                      format: int64
+                                      type: integer
                                   required:
                                     - path
                                   type: object
@@ -2659,6 +2736,13 @@ spec:
                                               May not contain the path element '..'.
                                               May not start with the string '..'.
                                             type: string
+                                          user:
+                                            description: |-
+                                              user is Optional: The owner UID of the created file.
+                                              If specified, the item-level user field takes precedence over defaultUser.
+                                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                            format: int64
+                                            type: integer
                                         required:
                                           - key
                                           - path
@@ -2735,6 +2819,13 @@ spec:
                                               - resource
                                             type: object
                                             x-kubernetes-map-type: atomic
+                                          user:
+                                            description: |-
+                                              user is Optional: The owner UID of the created file.
+                                              If specified, the item-level user field takes precedence over defaultUser.
+                                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                            format: int64
+                                            type: integer
                                         required:
                                           - path
                                         type: object
@@ -2841,6 +2932,13 @@ spec:
                                     signerName:
                                       description: Kubelet's generated CSRs will be addressed to this signer.
                                       type: string
+                                    user:
+                                      description: |-
+                                        user is Optional: The owner UID of the created file.
+                                        If specified, the item-level user field takes precedence over defaultUser.
+                                        (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                      format: int64
+                                      type: integer
                                     userAnnotations:
                                       additionalProperties:
                                         type: string
@@ -2898,6 +2996,13 @@ spec:
                                               May not contain the path element '..'.
                                               May not start with the string '..'.
                                             type: string
+                                          user:
+                                            description: |-
+                                              user is Optional: The owner UID of the created file.
+                                              If specified, the item-level user field takes precedence over defaultUser.
+                                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                            format: int64
+                                            type: integer
                                         required:
                                           - key
                                           - path
@@ -2943,6 +3048,13 @@ spec:
                                         path is the path relative to the mount point of the file to project the
                                         token into.
                                       type: string
+                                    user:
+                                      description: |-
+                                        user is Optional: The owner UID of the created file.
+                                        If specified, the item-level user field takes precedence over defaultUser.
+                                        (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                      format: int64
+                                      type: integer
                                   required:
                                     - path
                                   type: object
@@ -3143,6 +3255,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           items:
                             description: |-
                               items If unspecified, each key-value pair in the Data field of the referenced
@@ -3175,6 +3294,13 @@ spec:
                                     May not contain the path element '..'.
                                     May not start with the string '..'.
                                   type: string
+                                user:
+                                  description: |-
+                                    user is Optional: The owner UID of the created file.
+                                    If specified, the item-level user field takes precedence over defaultUser.
+                                    (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                  format: int64
+                                  type: integer
                               required:
                                 - key
                                 - path
@@ -3452,6 +3578,86 @@ spec:
                     hardware by keeping attention layers on GPU while expert weights use system RAM.
                     Maps to llama.cpp --cpu-moe flag. Requires sufficient system RAM via resources.memory.
                   type: boolean
+                multiNode:
+                  description: |-
+                    MultiNode serves this model across several nodes as one gang of pods.
+                    Rank 0 serves the endpoint; the Service selects it as usual. Replicas
+                    must be 1 or unset. See docs/multi-node-inference.md.
+                  properties:
+                    ibGIDIndex:
+                      description: |-
+                        IBGIDIndex sets NCCL_IB_GID_INDEX for every member (3 is RoCE v2 on the
+                        ConnectX-7 parts we run). Unset leaves NCCL's default.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    members:
+                      description: Members lists the ranks in order. At least two.
+                      items:
+                        description: MultiNodeMember is one rank of a multi-node serving group.
+                        properties:
+                          fabric:
+                            description: Fabric is this member's fabric configuration.
+                            properties:
+                              address:
+                                description: |-
+                                  Address is the member's IP on the fabric. Rank 0's address is the
+                                  rendezvous address every other rank dials; for other ranks it seeds the
+                                  runtime's own host IP (vLLM: VLLM_HOST_IP). Optional on ranks >= 1.
+                                type: string
+                              ibHCA:
+                                description: |-
+                                  IBHCA is the RDMA device NCCL may use (NCCL_IB_HCA). An exact device
+                                  name (rocep1s0f0) or a prefix (mlx5). Unset lets NCCL enumerate.
+                                type: string
+                              socketInterface:
+                                description: |-
+                                  SocketInterface is the NIC that carries the bootstrap traffic
+                                  (NCCL_SOCKET_IFNAME, GLOO_SOCKET_IFNAME, TP_SOCKET_IFNAME).
+                                type: string
+                            type: object
+                          modelCache:
+                            description: ModelCache overrides spec.modelCache for this member.
+                            properties:
+                              claimName:
+                                description: |-
+                                  ClaimName is an existing PersistentVolumeClaim in the service namespace
+                                  holding the model files for this member.
+                                minLength: 1
+                                type: string
+                            required:
+                              - claimName
+                            type: object
+                          node:
+                            description: Node is the Kubernetes node this rank is pinned to.
+                            minLength: 1
+                            type: string
+                        required:
+                          - node
+                        type: object
+                      maxItems: 64
+                      minItems: 2
+                      type: array
+                    rdmaResource:
+                      description: |-
+                        RDMAResource is an extended resource name advertised by an RDMA device
+                        plugin (e.g. rdma/rdma_shared_device_a). When set, every member requests
+                        one and gets CAP_IPC_LOCK, which NCCL needs to pin registered memory.
+                      type: string
+                    rendezvousPort:
+                      description: |-
+                        RendezvousPort is the port rank 0 listens on for torch.distributed.
+                        Defaults to 29500.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1024
+                      type: integer
+                  required:
+                    - members
+                  type: object
+                  x-kubernetes-validations:
+                    - message: 'members[0].fabric.address is required: it is the rendezvous address every other rank dials'
+                      rule: has(self.members[0].fabric) && has(self.members[0].fabric.address) && self.members[0].fabric.address.size() > 0
                 noKvOffload:
                   description: |-
                     NoKvOffload keeps the KV cache in system RAM instead of VRAM.
@@ -3654,11 +3860,8 @@ spec:
                         Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                         whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                         CSIDriver instance. Other volumes are always re-labelled recursively.
-                        "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                        If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                        If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                        and "Recursive" for all other volumes.
+                        If not specified, "MountOption" is used.
 
                         This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -3836,6 +4039,13 @@ spec:
                         grpc:
                           description: GRPC specifies a GRPC HealthCheckRequest.
                           properties:
+                            mode:
+                              description: |-
+                                mode specifies the connection mode for the gRPC health probe.
+                                Set to "TLS" to use TLS without certificate verification.
+                                Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                                If not specified, the probe uses a plaintext (insecure) connection.
+                              type: string
                             port:
                               description: Port number of the gRPC service. Number must be in the range 1 to 65535.
                               format: int32
@@ -3890,6 +4100,11 @@ spec:
                                 Number must be in the range 1 to 65535.
                                 Name must be an IANA_SVC_NAME.
                               x-kubernetes-int-or-string: true
+                            protocol:
+                              description: |-
+                                Protocol selects the wire protocol for the probe connection.
+                                Nil defaults to HTTP/1.1.
+                              type: string
                             scheme:
                               description: |-
                                 Scheme to use for connecting to the host.
@@ -3983,6 +4198,13 @@ spec:
                         grpc:
                           description: GRPC specifies a GRPC HealthCheckRequest.
                           properties:
+                            mode:
+                              description: |-
+                                mode specifies the connection mode for the gRPC health probe.
+                                Set to "TLS" to use TLS without certificate verification.
+                                Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                                If not specified, the probe uses a plaintext (insecure) connection.
+                              type: string
                             port:
                               description: Port number of the gRPC service. Number must be in the range 1 to 65535.
                               format: int32
@@ -4037,6 +4259,11 @@ spec:
                                 Number must be in the range 1 to 65535.
                                 Name must be an IANA_SVC_NAME.
                               x-kubernetes-int-or-string: true
+                            protocol:
+                              description: |-
+                                Protocol selects the wire protocol for the probe connection.
+                                Nil defaults to HTTP/1.1.
+                              type: string
                             scheme:
                               description: |-
                                 Scheme to use for connecting to the host.
@@ -4130,6 +4357,13 @@ spec:
                         grpc:
                           description: GRPC specifies a GRPC HealthCheckRequest.
                           properties:
+                            mode:
+                              description: |-
+                                mode specifies the connection mode for the gRPC health probe.
+                                Set to "TLS" to use TLS without certificate verification.
+                                Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                                If not specified, the probe uses a plaintext (insecure) connection.
+                              type: string
                             port:
                               description: Port number of the gRPC service. Number must be in the range 1 to 65535.
                               format: int32
@@ -4184,6 +4418,11 @@ spec:
                                 Number must be in the range 1 to 65535.
                                 Name must be an IANA_SVC_NAME.
                               x-kubernetes-int-or-string: true
+                            protocol:
+                              description: |-
+                                Protocol selects the wire protocol for the probe connection.
+                                Nil defaults to HTTP/1.1.
+                              type: string
                             scheme:
                               description: |-
                                 Scheme to use for connecting to the host.
@@ -4303,10 +4542,7 @@ spec:
                         everywhere and none is applied.
 
                         The pattern is the Kubernetes quantity format, so a malformed value is
-                        rejected at admission. The sibling quantity fields above predate this and
-                        carry no pattern; they reach resource.MustParse, which panics on
-                        malformed input and takes the controller down for every workload rather
-                        than failing the one object at fault.
+                        rejected at admission.
                       pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
                       type: string
                     gpu:
@@ -4384,11 +4620,39 @@ spec:
                         HostMemory specifies the system RAM required for hybrid GPU/CPU offloading (e.g., "64Gi").
                         Used when MoE expert weights or KV cache are offloaded to CPU via moeCPUOffload or noKvOffload.
                         Translated to pod resources.requests.memory, taking precedence over Memory when set.
+                        Sets limits.memory too unless MemoryLimit is given.
                         Without this, the K8s scheduler has no visibility into the pod's actual RAM consumption,
                         which can lead to OOM kills after model load.
+                      pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
                       type: string
                     memory:
-                      description: Memory requests (e.g., "4Gi")
+                      description: |-
+                        Memory is the pod's memory RESERVATION (e.g., "4Gi"), translated to
+                        requests.memory. It also sets limits.memory unless MemoryLimit is given,
+                        so by default request and limit are the same quantity and the container
+                        is Guaranteed for memory.
+                      pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
+                      type: string
+                    memoryLimit:
+                      description: |-
+                        MemoryLimit is the pod's memory CEILING (e.g., "64Gi"), translated to
+                        limits.memory. Set it to let a workload burst above its reservation.
+
+                        Without it, limits.memory equals the request, so a workload has to
+                        RESERVE its peak in order to be allowed to reach it. A server whose
+                        resident set idles low and grows into a large cache would have to reserve
+                        the peak permanently, taking that memory from the scheduler for the whole
+                        life of the pod even though it is free almost all the time (#1763).
+
+                        Leaving this unset preserves the equal request-and-limit behaviour, so
+                        the protection added in #1724 -- an unbounded container crossing
+                        MemoryPressure and taking the node NotReady instead of being OOM-killed
+                        -- still holds by default. This only widens the ceiling when a value is
+                        given, and a limit below the effective request is ignored rather than
+                        applied, since the kubelet rejects such a pod outright.
+
+                        Applies to whichever of Memory/HostMemory drives the request.
+                      pattern: ^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$
                       type: string
                   type: object
                 revisionHistoryLimit:
@@ -5585,6 +5849,15 @@ spec:
                       format: int32
                       minimum: 512
                       type: integer
+                    pipelineParallelSize:
+                      description: |-
+                        PipelineParallelSize is the number of pipeline stages (vLLM
+                        --pipeline-parallel-size). Together with tensorParallelSize it defines the
+                        world size; for a multiNode service tensorParallelSize x
+                        pipelineParallelSize must equal members x resources.gpu.
+                      format: int32
+                      minimum: 1
+                      type: integer
                     quantization:
                       description: |-
                         Quantization method.
@@ -5656,6 +5929,11 @@ spec:
               required:
                 - modelRef
               type: object
+              x-kubernetes-validations:
+                - message: 'multiNode serves one group: replicas must be 1 or unset'
+                  rule: '!has(self.multiNode) || !has(self.replicas) || self.replicas <= 1'
+                - message: multiNode is supported for runtime vllm in this release
+                  rule: '!has(self.multiNode) || (has(self.runtime) && self.runtime == ''vllm'')'
             status:
               description: status defines the observed state of InferenceService
               properties:
@@ -5814,6 +6092,47 @@ spec:
                 modelReady:
                   description: ModelReady indicates if the referenced Model is in Ready state
                   type: boolean
+                multiNode:
+                  description: MultiNode is the observed state of a multi-node serving group.
+                  properties:
+                    members:
+                      description: Members is per-rank detail in rank order.
+                      items:
+                        description: MultiNodeMemberStatus is the observed state of one rank.
+                        properties:
+                          node:
+                            type: string
+                          phase:
+                            type: string
+                          pod:
+                            type: string
+                          rank:
+                            format: int32
+                            type: integer
+                          ready:
+                            type: boolean
+                          restarts:
+                            format: int32
+                            type: integer
+                        required:
+                          - node
+                          - rank
+                        type: object
+                      type: array
+                    readyMembers:
+                      description: |-
+                        ReadyMembers counts members whose pod is Ready. The group condition
+                        additionally requires every member Running before the group serves.
+                      format: int32
+                      type: integer
+                    size:
+                      description: Size is the number of members in the spec.
+                      format: int32
+                      type: integer
+                  required:
+                    - readyMembers
+                    - size
+                  type: object
                 phase:
                   description: |-
                     Phase represents the current lifecycle phase of the InferenceService.

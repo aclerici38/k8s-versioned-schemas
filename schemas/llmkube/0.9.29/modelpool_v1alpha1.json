@@ -84,6 +84,14 @@
             "null"
           ]
         },
+        "reclaimAfter": {
+          "default": "300s",
+          "description": "ReclaimAfter is how long the resident non-default member must be\ncontinuously idle before the slot is reclaimed for spec.default. Only\nconsulted when SwapPolicy is \"reclaim\" and Default is set. It MUST be set\ncomfortably longer than the on-demand member's typical inter-request gap:\na value shorter than that gap trades cross-model request coalescing for\nload-side thrash, reclaiming the default only to swap it straight back\nout on the next on-demand request. Defaults to 300s.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "swapBudget": {
           "default": "300s",
           "description": "SwapBudget bounds how long the router holds a cross-model request open\nwhile it drains the incumbent and cold-loads the target member. It is\ndeliberately decoupled from the router's response-header (generation)\ntimeout: a large model can take minutes to load without forcing operators\nto loosen the per-request generation cap for every request. When the\nbudget elapses before the target becomes resident, the held request is\nfailed with 503 + Retry-After (the caller can retry; the now-warm member\nserves the next request). Defaults to 300s.",
@@ -94,9 +102,10 @@
         },
         "swapPolicy": {
           "default": "sticky",
-          "description": "SwapPolicy selects how the slot owner is chosen when demand crosses model\nboundaries. \"sticky\" (default) keeps the incumbent until a different\nmember is requested. It is the only policy in v1; a priority-based reclaim\npolicy is a planned follow-up.",
+          "description": "SwapPolicy selects how the slot owner is chosen when demand crosses model\nboundaries. \"sticky\" (default) keeps the incumbent until a different\nmember is requested. \"reclaim\" additionally returns the slot to\nspec.default after the resident non-default member has been idle for\nspec.reclaimAfter.",
           "enum": [
-            "sticky"
+            "sticky",
+            "reclaim"
           ],
           "type": [
             "string",
@@ -241,6 +250,14 @@
             "Swapping",
             "Degraded"
           ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "residentIdleSince": {
+          "description": "ResidentIdleSince is when the resident non-default member was first\nobserved idle under the \"reclaim\" swap policy. It is cleared when the\nmember serves a request again or when spec.default becomes resident, and\nis used to time the reclaim of the slot back to spec.default.",
+          "format": "date-time",
           "type": [
             "string",
             "null"
