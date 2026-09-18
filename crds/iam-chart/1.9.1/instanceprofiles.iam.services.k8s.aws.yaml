@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.19.0
-  name: functionurlconfigs.lambda.services.k8s.aws
+  name: instanceprofiles.iam.services.k8s.aws
 spec:
-  group: lambda.services.k8s.aws
+  group: iam.services.k8s.aws
   names:
-    kind: FunctionURLConfig
-    listKind: FunctionURLConfigList
-    plural: functionurlconfigs
-    singular: functionurlconfig
+    kind: InstanceProfile
+    listKind: InstanceProfileList
+    plural: instanceprofiles
+    singular: instanceprofile
   scope: Namespaced
   versions:
     - name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: FunctionURLConfig is the Schema for the FunctionURLConfigs API
+          description: InstanceProfile is the Schema for the InstanceProfiles API
           properties:
             apiVersion:
               description: |-
@@ -38,62 +38,54 @@ spec:
               type: object
             spec:
               description: |-
-                FunctionUrlConfigSpec defines the desired state of FunctionUrlConfig.
+                InstanceProfileSpec defines the desired state of InstanceProfile.
 
-                Details about a Lambda function URL.
+                Contains information about an instance profile.
+
+                This data type is used as a response element in the following operations:
+
+                  - CreateInstanceProfile
+
+                  - GetInstanceProfile
+
+                  - ListInstanceProfiles
+
+                  - ListInstanceProfilesForRole
               properties:
-                authType:
+                name:
                   description: |-
-                    The type of authentication that your function URL uses. Set to AWS_IAM if
-                    you want to restrict access to authenticated users only. Set to NONE if you
-                    want to bypass IAM authentication to create a public endpoint. For more information,
-                    see Control access to Lambda function URLs (https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html).
+                    The name of the instance profile to create.
+
+                    This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+                    a string of characters consisting of upper and lowercase alphanumeric characters
+                    with no spaces. You can also include any of the following characters: _+=,.@-
+
+                    Regex Pattern: `^[\w+=,.@-]+$`
                   type: string
-                cors:
+                path:
                   description: |-
-                    The cross-origin resource sharing (CORS) (https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
-                    settings for your function URL.
-                  properties:
-                    allowCredentials:
-                      type: boolean
-                    allowHeaders:
-                      items:
-                        type: string
-                      type: array
-                    allowMethods:
-                      items:
-                        type: string
-                      type: array
-                    allowOrigins:
-                      items:
-                        type: string
-                      type: array
-                    exposeHeaders:
-                      items:
-                        type: string
-                      type: array
-                    maxAge:
-                      format: int64
-                      type: integer
-                  type: object
-                functionName:
-                  description: |-
-                    The name or ARN of the Lambda function.
+                    The path to the instance profile. For more information about paths, see IAM
+                    Identifiers (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html)
+                    in the IAM User Guide.
 
-                    Name formats
+                    This parameter is optional. If it is not included, it defaults to a slash
+                    (/).
 
-                      - Function name – my-function.
+                    This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+                    a string of characters consisting of either a forward slash (/) by itself
+                    or a string that must begin and end with forward slashes. In addition, it
+                    can contain any ASCII character from the ! (\u0021) through the DEL character
+                    (\u007F), including most punctuation characters, digits, and upper and lowercased
+                    letters.
 
-                      - Function ARN – arn:aws:lambda:us-west-2:123456789012:function:my-function.
-
-                      - Partial ARN – 123456789012:function:my-function.
-
-                    The length constraint applies only to the full ARN. If you specify only the
-                    function name, it is limited to 64 characters in length.
-
-                    Regex Pattern: `^(arn:(aws[a-zA-Z-]*)?:lambda:)?([a-z]{2}((-gov)|(-iso([a-z]?)))?-[a-z]+-\d{1}:)?(\d{12}:)?(function:)?([a-zA-Z0-9-_]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`
+                    Regex Pattern: `^(\u002F)|(\u002F[\u0021-\u007E]+\u002F)$`
                   type: string
-                functionRef:
+                  x-kubernetes-validations:
+                    - message: Value is immutable once set
+                      rule: self == oldSelf
+                role:
+                  type: string
+                roleRef:
                   description: "AWSResourceReferenceWrapper provides a wrapper around *AWSResourceReference\ntype to provide more user friendly syntax for references using 'from' field\nEx:\nAPIIDRef:\n\n\tfrom:\n\t  name: my-api"
                   properties:
                     from:
@@ -107,31 +99,33 @@ spec:
                           type: string
                       type: object
                   type: object
-                qualifier:
+                tags:
                   description: |-
-                    The alias name.
+                    A list of tags that you want to attach to the newly created IAM instance
+                    profile. Each tag consists of a key name and an associated value. For more
+                    information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
+                    in the IAM User Guide.
 
-                    Regex Pattern: `^((?!^\d+$)^[0-9a-zA-Z-_]+$)$`
-                  type: string
-                qualifierRef:
-                  description: "AWSResourceReferenceWrapper provides a wrapper around *AWSResourceReference\ntype to provide more user friendly syntax for references using 'from' field\nEx:\nAPIIDRef:\n\n\tfrom:\n\t  name: my-api"
-                  properties:
-                    from:
-                      description: |-
-                        AWSResourceReference provides all the values necessary to reference another
-                        k8s resource for finding the identifier(Id/ARN/Name)
-                      properties:
-                        name:
-                          type: string
-                        namespace:
-                          type: string
-                      type: object
-                  type: object
+                    If any one of the tags is invalid or if you exceed the allowed maximum number
+                    of tags, then the entire request fails and the resource is not created.
+                  items:
+                    description: |-
+                      A structure that represents user-provided metadata that can be associated
+                      with an IAM resource. For more information about tagging, see Tagging IAM
+                      resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
+                      in the IAM User Guide.
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+                    type: object
+                  type: array
               required:
-                - authType
+                - name
               type: object
             status:
-              description: FunctionURLConfigStatus defines the observed state of FunctionURLConfig
+              description: InstanceProfileStatus defines the observed state of InstanceProfile
               properties:
                 ackResourceMetadata:
                   description: |-
@@ -197,19 +191,17 @@ spec:
                       - type
                     type: object
                   type: array
-                creationTime:
-                  description: |-
-                    When the function URL was created, in ISO-8601 format (https://www.w3.org/TR/NOTE-datetime)
-                    (YYYY-MM-DDThh:mm:ss.sTZD).
+                createDate:
+                  description: The date when the instance profile was created.
+                  format: date-time
                   type: string
-                functionARN:
+                instanceProfileID:
                   description: |-
-                    The Amazon Resource Name (ARN) of your function.
+                    The stable and unique string identifying the instance profile. For more information
+                    about IDs, see IAM identifiers (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html)
+                    in the IAM User Guide.
 
-                    Regex Pattern: `^arn:(aws[a-zA-Z-]*)?:lambda:[a-z]{2}((-gov)|(-iso([a-z]?)))?-[a-z]+-\d{1}:\d{12}:function:[a-zA-Z0-9-_]+(:(\$LATEST|[a-zA-Z0-9-_]+))?$`
-                  type: string
-                functionURL:
-                  description: The HTTP URL endpoint for your function.
+                    Regex Pattern: `^[\w]+$`
                   type: string
               type: object
           type: object

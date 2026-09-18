@@ -1,5 +1,5 @@
 {
-  "description": "FunctionURLConfig is the Schema for the FunctionURLConfigs API",
+  "description": "LayerVersion is the Schema for the LayerVersions API",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,152 +23,114 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "FunctionUrlConfigSpec defines the desired state of FunctionUrlConfig.\n\nDetails about a Lambda function URL.",
+      "description": "LayerVersionSpec defines the desired state of LayerVersion.",
       "properties": {
-        "authType": {
-          "description": "The type of authentication that your function URL uses. Set to AWS_IAM if\nyou want to restrict access to authenticated users only. Set to NONE if you\nwant to bypass IAM authentication to create a public endpoint. For more information,\nsee Control access to Lambda function URLs (https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html).",
+        "compatibleArchitectures": {
+          "description": "A list of compatible instruction set architectures (https://docs.aws.amazon.com/lambda/latest/dg/foundation-arch.html).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "compatibleRuntimes": {
+          "description": "A list of compatible function runtimes (https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html).\nUsed for filtering with ListLayers and ListLayerVersions.\n\nThe following list includes deprecated runtimes. For more information, see\nRuntime deprecation policy (https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html#runtime-support-policy).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "content": {
+          "additionalProperties": false,
+          "description": "The function layer archive.",
+          "properties": {
+            "s3Bucket": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "s3BucketRef": {
+              "additionalProperties": false,
+              "description": "Reference field for S3Bucket",
+              "properties": {
+                "from": {
+                  "additionalProperties": false,
+                  "description": "AWSResourceReference provides all the values necessary to reference another\nk8s resource for finding the identifier(Id/ARN/Name)",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "namespace": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "s3Key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "s3ObjectVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zipFile": {
+              "format": "byte",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "description": {
+          "description": "The description of the version.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layerName": {
+          "description": "The name or Amazon Resource Name (ARN) of the layer.\n\nRegex Pattern: `^(arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:\\d{12}:layer:[a-zA-Z0-9-_]+)|[a-zA-Z0-9-_]+$`",
           "type": "string"
         },
-        "cors": {
-          "additionalProperties": false,
-          "description": "The cross-origin resource sharing (CORS) (https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)\nsettings for your function URL.",
-          "properties": {
-            "allowCredentials": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "allowHeaders": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "allowMethods": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "allowOrigins": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "exposeHeaders": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "maxAge": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "functionName": {
-          "description": "The name or ARN of the Lambda function.\n\nName formats\n\n  - Function name – my-function.\n\n  - Function ARN – arn:aws:lambda:us-west-2:123456789012:function:my-function.\n\n  - Partial ARN – 123456789012:function:my-function.\n\nThe length constraint applies only to the full ARN. If you specify only the\nfunction name, it is limited to 64 characters in length.\n\nRegex Pattern: `^(arn:(aws[a-zA-Z-]*)?:lambda:)?([a-z]{2}((-gov)|(-iso([a-z]?)))?-[a-z]+-\\d{1}:)?(\\d{12}:)?(function:)?([a-zA-Z0-9-_]+)(:(\\$LATEST|[a-zA-Z0-9-_]+))?$`",
+        "licenseInfo": {
+          "description": "The layer's software license. It can be any of the following:\n\n   * An SPDX license identifier (https://spdx.org/licenses/). For example,\n   MIT.\n\n   * The URL of a license hosted on the internet. For example, https://opensource.org/licenses/MIT.\n\n   * The full text of the license.",
           "type": [
             "string",
-            "null"
-          ]
-        },
-        "functionRef": {
-          "additionalProperties": false,
-          "description": "AWSResourceReferenceWrapper provides a wrapper around *AWSResourceReference\ntype to provide more user friendly syntax for references using 'from' field\nEx:\nAPIIDRef:\n\n\tfrom:\n\t  name: my-api",
-          "properties": {
-            "from": {
-              "additionalProperties": false,
-              "description": "AWSResourceReference provides all the values necessary to reference another\nk8s resource for finding the identifier(Id/ARN/Name)",
-              "properties": {
-                "name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "namespace": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "qualifier": {
-          "description": "The alias name.\n\nRegex Pattern: `^((?!^\\d+$)^[0-9a-zA-Z-_]+$)$`",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "qualifierRef": {
-          "additionalProperties": false,
-          "description": "AWSResourceReferenceWrapper provides a wrapper around *AWSResourceReference\ntype to provide more user friendly syntax for references using 'from' field\nEx:\nAPIIDRef:\n\n\tfrom:\n\t  name: my-api",
-          "properties": {
-            "from": {
-              "additionalProperties": false,
-              "description": "AWSResourceReference provides all the values necessary to reference another\nk8s resource for finding the identifier(Id/ARN/Name)",
-              "properties": {
-                "name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "namespace": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
             "null"
           ]
         }
       },
       "required": [
-        "authType"
+        "content",
+        "layerName"
       ],
       "type": [
         "object",
@@ -177,7 +139,7 @@
     },
     "status": {
       "additionalProperties": false,
-      "description": "FunctionURLConfigStatus defines the observed state of FunctionURLConfig",
+      "description": "LayerVersionStatus defines the observed state of LayerVersion",
       "properties": {
         "ackResourceMetadata": {
           "additionalProperties": false,
@@ -263,24 +225,25 @@
             "null"
           ]
         },
-        "creationTime": {
-          "description": "When the function URL was created, in ISO-8601 format (https://www.w3.org/TR/NOTE-datetime)\n(YYYY-MM-DDThh:mm:ss.sTZD).",
+        "createdDate": {
+          "description": "The date that the layer version was created, in ISO-8601 format (https://www.w3.org/TR/NOTE-datetime)\n(YYYY-MM-DDThh:mm:ss.sTZD).",
           "type": [
             "string",
             "null"
           ]
         },
-        "functionARN": {
-          "description": "The Amazon Resource Name (ARN) of your function.\n\nRegex Pattern: `^arn:(aws[a-zA-Z-]*)?:lambda:[a-z]{2}((-gov)|(-iso([a-z]?)))?-[a-z]+-\\d{1}:\\d{12}:function:[a-zA-Z0-9-_]+(:(\\$LATEST|[a-zA-Z0-9-_]+))?$`",
+        "layerARN": {
+          "description": "The ARN of the layer.\n\nRegex Pattern: `^arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:\\d{12}:layer:[a-zA-Z0-9-_]+$`",
           "type": [
             "string",
             "null"
           ]
         },
-        "functionURL": {
-          "description": "The HTTP URL endpoint for your function.",
+        "versionNumber": {
+          "description": "The version number.",
+          "format": "int64",
           "type": [
-            "string",
+            "integer",
             "null"
           ]
         }

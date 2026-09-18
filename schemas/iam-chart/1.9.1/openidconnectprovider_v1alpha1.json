@@ -1,5 +1,5 @@
 {
-  "description": "LayerVersion is the Schema for the LayerVersions API",
+  "description": "OpenIDConnectProvider is the Schema for the OpenIDConnectProviders API",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,10 +23,10 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "LayerVersionSpec defines the desired state of LayerVersion.",
+      "description": "OpenIDConnectProviderSpec defines the desired state of OpenIDConnectProvider.",
       "properties": {
-        "compatibleArchitectures": {
-          "description": "A list of compatible instruction set architectures (https://docs.aws.amazon.com/lambda/latest/dg/foundation-arch.html).",
+        "clientIDs": {
+          "description": "Provides a list of client IDs, also known as audiences. When a mobile or\nweb app registers with an OpenID Connect provider, they establish a value\nthat identifies the application. This is the value that's sent as the client_id\nparameter on OAuth requests.\n\nYou can register multiple client IDs with the same provider. For example,\nyou might have multiple applications that use the same OIDC provider. You\ncannot register more than 100 client IDs with a single IAM OIDC provider.\n\nThere is no defined format for a client ID. The CreateOpenIDConnectProviderRequest\noperation accepts client IDs up to 255 characters long.",
           "items": {
             "type": "string"
           },
@@ -35,102 +35,55 @@
             "null"
           ]
         },
-        "compatibleRuntimes": {
-          "description": "A list of compatible function runtimes (https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html).\nUsed for filtering with ListLayers and ListLayerVersions.\n\nThe following list includes deprecated runtimes. For more information, see\nRuntime deprecation policy (https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html#runtime-support-policy).",
+        "tags": {
+          "description": "A list of tags that you want to attach to the new IAM OpenID Connect (OIDC)\nprovider. Each tag consists of a key name and an associated value. For more\ninformation about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)\nin the IAM User Guide.\n\nIf any one of the tags is invalid or if you exceed the allowed maximum number\nof tags, then the entire request fails and the resource is not created.",
           "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "content": {
-          "additionalProperties": false,
-          "description": "The function layer archive.",
-          "properties": {
-            "s3Bucket": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "s3BucketRef": {
-              "additionalProperties": false,
-              "description": "Reference field for S3Bucket",
-              "properties": {
-                "from": {
-                  "additionalProperties": false,
-                  "description": "AWSResourceReference provides all the values necessary to reference another\nk8s resource for finding the identifier(Id/ARN/Name)",
-                  "properties": {
-                    "name": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "namespace": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                }
+            "additionalProperties": false,
+            "description": "A structure that represents user-provided metadata that can be associated\nwith an IAM resource. For more information about tagging, see Tagging IAM\nresources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)\nin the IAM User Guide.",
+            "properties": {
+              "key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
-              "type": [
-                "object",
-                "null"
-              ]
+              "value": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             },
-            "s3Key": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "s3ObjectVersion": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "zipFile": {
-              "format": "byte",
-              "type": [
-                "string",
-                "null"
-              ]
-            }
+            "type": "object"
           },
-          "type": "object"
-        },
-        "description": {
-          "description": "The description of the version.",
           "type": [
-            "string",
+            "array",
             "null"
           ]
         },
-        "layerName": {
-          "description": "The name or Amazon Resource Name (ARN) of the layer.\n\nRegex Pattern: `^(arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:\\d{12}:layer:[a-zA-Z0-9-_]+)|[a-zA-Z0-9-_]+$`",
-          "type": "string"
-        },
-        "licenseInfo": {
-          "description": "The layer's software license. It can be any of the following:\n\n  - An SPDX license identifier (https://spdx.org/licenses/). For example,\n    MIT.\n\n  - The URL of a license hosted on the internet. For example, https://opensource.org/licenses/MIT.\n\n  - The full text of the license.",
+        "thumbprints": {
+          "description": "A list of server certificate thumbprints for the OpenID Connect (OIDC) identity\nprovider's server certificates. Typically this list includes only one entry.\nHowever, IAM lets you have up to five thumbprints for an OIDC provider. This\nlets you maintain multiple thumbprints if the identity provider is rotating\ncertificates.\n\nThis parameter is optional. If it is not included, IAM will retrieve and\nuse the top intermediate certificate authority (CA) thumbprint of the OpenID\nConnect identity provider server certificate.\n\nThe server certificate thumbprint is the hex-encoded SHA-1 hash value of\nthe X.509 certificate used by the domain where the OpenID Connect provider\nmakes its keys available. It is always a 40-character string.\n\nFor example, assume that the OIDC provider is server.example.com and the\nprovider stores its keys at https://keys.server.example.com/openid-connect.\nIn that case, the thumbprint string would be the hex-encoded SHA-1 hash value\nof the certificate used by https://keys.server.example.com.\n\nFor more information about obtaining the OIDC provider thumbprint, see Obtaining\nthe thumbprint for an OpenID Connect provider (https://docs.aws.amazon.com/IAM/latest/UserGuide/identity-providers-oidc-obtain-thumbprint.html)\nin the IAM user Guide.",
+          "items": {
+            "type": "string"
+          },
           "type": [
-            "string",
+            "array",
             "null"
+          ]
+        },
+        "url": {
+          "description": "The URL of the identity provider. The URL must begin with https:// and should\ncorrespond to the iss claim in the provider's OpenID Connect ID tokens. Per\nthe OIDC standard, path components are allowed but query parameters are not.\nTypically the URL consists of only a hostname, like https://server.example.org\nor https://example.com. The URL should not contain a port number.\n\nYou cannot register the same provider multiple times in a single Amazon Web\nServices account. If you try to submit a URL that has already been used for\nan OpenID Connect provider in the Amazon Web Services account, you will get\nan error.",
+          "type": "string",
+          "x-kubernetes-validations": [
+            {
+              "message": "Value is immutable once set",
+              "rule": "self == oldSelf"
+            }
           ]
         }
       },
       "required": [
-        "content",
-        "layerName"
+        "url"
       ],
       "type": [
         "object",
@@ -139,7 +92,7 @@
     },
     "status": {
       "additionalProperties": false,
-      "description": "LayerVersionStatus defines the observed state of LayerVersion",
+      "description": "OpenIDConnectProviderStatus defines the observed state of OpenIDConnectProvider",
       "properties": {
         "ackResourceMetadata": {
           "additionalProperties": false,
@@ -222,28 +175,6 @@
           },
           "type": [
             "array",
-            "null"
-          ]
-        },
-        "createdDate": {
-          "description": "The date that the layer version was created, in ISO-8601 format (https://www.w3.org/TR/NOTE-datetime)\n(YYYY-MM-DDThh:mm:ss.sTZD).",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "layerARN": {
-          "description": "The ARN of the layer.\n\nRegex Pattern: `^arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:\\d{12}:layer:[a-zA-Z0-9-_]+$`",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "versionNumber": {
-          "description": "The version number.",
-          "format": "int64",
-          "type": [
-            "integer",
             "null"
           ]
         }
