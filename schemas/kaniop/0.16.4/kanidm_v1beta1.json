@@ -13,45 +13,6 @@
             "null"
           ]
         },
-        "backup": {
-          "additionalProperties": false,
-          "description": "Configures Kanidm-native online logical backups.\n\nBackups are written to `/data/backups` on the single replica group marked as the\nprimary node. Local backup configuration requires persistent PVC-backed storage.",
-          "nullable": true,
-          "properties": {
-            "schedule": {
-              "description": "Cron expression passed to Kanidm's native online backup scheduler.",
-              "type": "string",
-              "x-kubernetes-validations": [
-                {
-                  "message": "backup.schedule cannot be empty",
-                  "rule": "self.size() \u003e 0"
-                }
-              ]
-            },
-            "versions": {
-              "default": 7,
-              "description": "Number of completed local backups retained by Kanidm.",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ],
-              "x-kubernetes-validations": [
-                {
-                  "message": "backup.versions must be greater than zero",
-                  "rule": "self \u003e 0"
-                }
-              ]
-            }
-          },
-          "required": [
-            "schedule"
-          ],
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "containers": {
           "description": "Containers allows injecting additional containers or modifying operator generated\ncontainers. This can be used to allow adding an authentication proxy to the Pods or to\nchange the behavior of an operator generated container. Containers described here modify\nan operator generated container if they share the same name and modifications are done\nvia a strategic merge patch.\n\nThe name of container managed by the operator is: kanidm\n\nOverriding containers is entirely outside the scope of what the maintainers will support\nand by doing so, you accept that this behaviour may break at any time without notice.",
           "items": {
@@ -11827,17 +11788,7 @@
         "domain",
         "replicaGroups"
       ],
-      "type": "object",
-      "x-kubernetes-validations": [
-        {
-          "message": "backup requires PVC-backed storage",
-          "rule": "!has(self.backup) || (has(self.storage) \u0026\u0026 has(self.storage.volumeClaimTemplate) \u0026\u0026 !has(self.storage.emptyDir) \u0026\u0026 !has(self.storage.ephemeral))"
-        },
-        {
-          "message": "backup requires exactly one primary replica group",
-          "rule": "!has(self.backup) || self.replicaGroups.filter(r, r.primaryNode == true).size() == 1"
-        }
-      ]
+      "type": "object"
     },
     "status": {
       "additionalProperties": false,
