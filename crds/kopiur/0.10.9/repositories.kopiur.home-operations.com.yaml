@@ -521,7 +521,12 @@ spec:
                         Failure policy for the bootstrap Job. `activeDeadlineSeconds` caps how long
                         a connect may run before the Job is marked failed (default 120s); raise it
                         for a slow backend — e.g. an rclone remote whose repository metadata and
-                        indexes load through kopia's embedded `rclone serve`/WebDAV bridge.
+                        indexes load through kopia's embedded `rclone serve`/WebDAV bridge, or a
+                        large repository whose cold-cache connect outgrows the default. The value
+                        is a BASE, not a ceiling: after consecutive deadline-killed attempts the
+                        operator escalates the effective deadline itself (doubling per attempt, up
+                        to 30 minutes or the configured value, whichever is larger — never below
+                        it), so a slow-but-alive backend self-heals without a spec edit.
                         `backoffLimit` bounds retries. `podStartupDeadlineSeconds` is accepted for
                         shape parity but is not honored by the bootstrap Job.
                       nullable: true
@@ -612,6 +617,39 @@ spec:
                           nullable: true
                           type: integer
                       type: object
+                  type: object
+                concurrency:
+                  description: Concurrency limits for mover Jobs against this repository (absent = unlimited).
+                  nullable: true
+                  properties:
+                    maxConcurrentJobs:
+                      description: |-
+                        Ceiling on how many of this repository's mover Jobs may be in flight at
+                        once. Backup snapshots, restores, and replication runs that READ FROM this
+                        repository all draw from ONE pool — a repository's backend (and the
+                        bandwidth to it) is the shared resource, so splitting the budget per work
+                        kind would let three "safe" limits still saturate it.
+
+                        Restores are **always admitted** and never parked: a restore is a recovery
+                        in progress, and holding one behind a queue of routine backups is exactly
+                        backwards. An in-flight restore still COUNTS toward the pool, so it
+                        displaces backups rather than adding to them.
+
+                        Excluded from the pool entirely: maintenance (already single-flight per
+                        repository), verification, pin, and snapshot-delete batch Jobs. These are
+                        operator-driven housekeeping that must not be starved by a saturated
+                        backup pool.
+
+                        Absent or `0` means unlimited — the default, and today's behavior.
+
+                        No schema `default:` is emitted for this field (api-conventions §4a):
+                        absent and `0` are the SAME state (unlimited), so a materialized default
+                        would stamp `{maxConcurrentJobs: 0}` onto every stored repository — GitOps
+                        diff noise for a value that changes nothing.
+                      format: uint32
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
                   type: object
                 create:
                   description: What to do when the repository does not yet exist (absent means it must already exist).
@@ -754,10 +792,13 @@ spec:
                           description: |-
                             What sustained backend-probe failure (past `failureThreshold`) does to the
                             repository (default `Degrade`). `Degrade` moves it to `Degraded`, pausing
-                            backups, maintenance, and replication until a re-connect succeeds —
-                            recovery is automatic. `Alert` keeps the repository `Ready` and only raises
-                            the `BackendReachable` condition + Warning event + metric; backups keep
-                            running against the failing backend. Neither ever auto-recreates.
+                            backups and replication until a re-connect succeeds — recovery is
+                            automatic (maintenance also pauses for a confirmed-unreachable/vanished
+                            backend, but keeps running for a probe deadline kill, where index
+                            compaction is often the cure). `Alert` keeps the repository `Ready` and
+                            only raises the `BackendReachable` condition + Warning event + metric;
+                            backups keep running against the failing backend. Neither ever
+                            auto-recreates.
                           enum:
                             - Degrade
                             - Alert
@@ -1842,6 +1883,39 @@ spec:
                       description: Pod `nodeSelector` for every mover.
                       nullable: true
                       type: object
+                    podAnnotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Extra annotations for every mover pod. Unlike `podLabels`
+                        these are **pod-template-only** — they are not mirrored onto the `Job`
+                        object, because the common case is a sidecar-injection opt-out
+                        (`sidecar.istio.io/inject: "false"`, `linkerd.io/inject: disabled`,
+                        `vault.hashicorp.com/agent-inject: "false"`) that only means anything on
+                        the pod a mesh webhook actually sees. A mover is a short-lived batch pod;
+                        an injected sidecar that never exits keeps its Job running forever.
+
+                        Same reserved keys as `podLabels`, rejected at admission.
+                      nullable: true
+                      type: object
+                    podLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Extra labels for every mover POD (and the `Job` that owns it), merged
+                        UNDER kopiur's own labels — a key kopiur sets always wins, so a
+                        user-supplied value can never break the selectors the controller counts
+                        and reaps by.
+
+                        This is the hook for cluster machinery that keys off pod labels and that
+                        kopiur has no field of its own for: a Kueue `kueue.x-k8s.io/queue-name` to
+                        put movers under a cluster queue, a monitoring/`NetworkPolicy` selector, a
+                        service-mesh exclusion label.
+
+                        Keys under `kopiur.home-operations.com/` and the exact key
+                        `app.kubernetes.io/managed-by` are reserved and rejected at admission.
+                      nullable: true
+                      type: object
                     podSecurityContext:
                       description: Pod security-context base (notably `fsGroup`) for every mover.
                       nullable: true
@@ -2244,7 +2318,7 @@ spec:
                             A `bool` rather than a unit variant because an externally-tagged unit variant
                             serializes as the bare string `"Disabled"`, mixing string and object forms in one
                             `oneOf` and breaking the structural schema. Same shape, and same reason, as
-                            [`crate::cluster_repository::AllowedNamespaces::All`].
+                            [`AllowedNamespaces::All`](crate::cluster_repository::AllowedNamespaces::All).
 
                             This is distinct from omitting `blobRetention` entirely: absent means "leave the
                             repository alone", so deleting the block from a manifest can never silently strip
@@ -2278,6 +2352,8 @@ spec:
                           description: |-
                             Index blobs in an epoch that trigger an advance, once older than `minDuration`
                             (kopia default `20`).
+
+                            At least `10` — kopia refuses anything lower with "epoch advance on count too low".
                           format: int64
                           nullable: true
                           type: integer
@@ -2285,6 +2361,9 @@ spec:
                           description: |-
                             Total index size in an epoch that triggers an advance, once older than `minDuration`
                             (kopia default `10` MiB).
+
+                            At least `1` — kopia refuses anything lower with "epoch advance on size too low",
+                            and 1 MiB is the smallest threshold the flag can express.
 
                             Named `MiB`, not `MB`, with an explicit rename rather than the derived camelCase
                             (`advanceOnSizeMb`, which reads as *megabit*). The unit is genuinely mebibytes —
@@ -2295,12 +2374,20 @@ spec:
                           nullable: true
                           type: integer
                         checkpointFrequency:
-                          description: Epochs between full index checkpoints (kopia default `7`).
+                          description: |-
+                            Epochs between full index checkpoints (kopia default `7`).
+
+                            At least `1` — kopia refuses anything lower with "invalid epoch range compaction
+                            period".
                           format: int64
                           nullable: true
                           type: integer
                         deleteParallelism:
-                          description: Parallelism for epoch cleanup deletions (kopia default `4`).
+                          description: |-
+                            Parallelism for epoch cleanup deletions (kopia default `4`).
+
+                            At least `1`. This floor is kopiur's own: kopia does not validate the field, so a
+                            non-positive value would ask it to run epoch cleanup with no workers.
                           format: int64
                           nullable: true
                           type: integer
@@ -2308,21 +2395,46 @@ spec:
                           description: |-
                             Minimum epoch age before it may advance (kopia default `24h`). A Go-style duration
                             (`6h`, `90m`). The advance **gate** — no blob count closes an epoch younger than this.
+
+                            Must be at least `10m` (kopia's absolute floor) AND at least 3x `refreshFrequency`.
+                            When `refreshFrequency` is not declared, that second bound is measured against
+                            kopia's untouched `20m` default, so `10m` on its own is rejected: use `60m`, or
+                            declare a `refreshFrequency` of a third of it or less alongside it.
                           nullable: true
                           type: string
                         refreshFrequency:
-                          description: How often clients re-read epoch state (kopia default `20m`). Go-style duration.
+                          description: |-
+                            How often clients re-read epoch state (kopia default `20m`). Go-style duration.
+
+                            At most `80m`: kopia requires `cleanupSafetyMargin >= 3x` this value, and
+                            `cleanupSafetyMargin` is observable-but-not-settable here, so it stays at kopia's
+                            `4h` default and `4h / 3` is a hard ceiling.
                           nullable: true
                           type: string
                       type: object
                   type: object
                 scheduleDefaults:
                   description: |-
-                    Scheduling defaults (e.g. `timezone`) inherited by consumers that don't set
-                    their own equivalent field — verification, replication, and maintenance
-                    schedules today; set once here instead of repeating it on every cron.
+                    Scheduling defaults (`timezone`, `jitter`) inherited by consumers that don't
+                    set their own equivalent field — backup, verification, replication, and
+                    maintenance schedules; set once here instead of repeating it on every cron.
                   nullable: true
                   properties:
+                    jitter:
+                      description: |-
+                        Deterministic jitter window (Go-style duration, e.g. `10m`) applied to every
+                        consuming cron that doesn't set its own `jitter` — `SnapshotSchedule`,
+                        `Maintenance` (quick and full), `SnapshotPolicy` verification (quick and
+                        deep), and both replication kinds. Set once here instead of repeating it on
+                        every cron, so a whole repository's schedules spread their load off the
+                        top-of-the-hour thundering herd.
+
+                        The spread is deterministic per `(scheduleUID, slot)`, not random: the same
+                        slot always lands on the same instant, so a restart never re-rolls it.
+                        Capped at 24h by validation — jitter is a spread WITHIN a cron period, not a
+                        schedule offset.
+                      nullable: true
+                      type: string
                     timezone:
                       description: |-
                         IANA timezone name applied to every consuming cron that doesn't set its own
@@ -2947,6 +3059,85 @@ spec:
                             - copy
                             - copyOverwrite
                           type: string
+                        throttle:
+                          description: |-
+                            Bandwidth/ops caps for THIS seed's copy, per side. A migrate seed opens
+                            two repositories under two kopia connections and `snapshot migrate` has
+                            no speed flags of its own, so each side is applied as `kopia repository
+                            throttle set` on that side's connection:
+
+                            * `source` caps the REPLICA — the repository named by
+                              `spec.seed.from.repository`, opened read-only — overriding **its**
+                              `moverDefaults.throttle`;
+                            * `destination` caps THIS repository, the one being seeded, overriding
+                              **its own** `moverDefaults.throttle`.
+
+                            Each side overrides field by field: a knob set here wins, a knob left
+                            unset keeps that repository's default. Absent: both sides use their
+                            repository's defaults. Applies only while the seed is armed — an
+                            ordinary connect to the now-initialized repository is capped by
+                            `moverDefaults.throttle` alone.
+                          nullable: true
+                          properties:
+                            destination:
+                              description: |-
+                                Caps for the DESTINATION (write) side, overriding the destination
+                                repository's `moverDefaults.throttle` field by field. Applied with
+                                `repository throttle set` on the destination connection the migrate
+                                writes through.
+                              nullable: true
+                              properties:
+                                downloadBytesPerSecond:
+                                  description: Cap download throughput in bytes/sec (`--download-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                readOpsPerSecond:
+                                  description: Cap read/list ops/sec (`--read-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                uploadBytesPerSecond:
+                                  description: Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                writeOpsPerSecond:
+                                  description: Cap write ops/sec (`--write-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                              type: object
+                            source:
+                              description: |-
+                                Caps for the SOURCE (read) side, overriding the source repository's
+                                `moverDefaults.throttle` field by field. Applied with `repository
+                                throttle set` on the migrate's read-only source connection — accepted
+                                there, so a read-only source is throttled like any other.
+                              nullable: true
+                              properties:
+                                downloadBytesPerSecond:
+                                  description: Cap download throughput in bytes/sec (`--download-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                readOpsPerSecond:
+                                  description: Cap read/list ops/sec (`--read-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                uploadBytesPerSecond:
+                                  description: Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                                writeOpsPerSecond:
+                                  description: Cap write ops/sec (`--write-requests-per-second`).
+                                  format: int64
+                                  nullable: true
+                                  type: integer
+                              type: object
+                          type: object
                       type: object
                     sync:
                       description: |-
@@ -3523,7 +3714,13 @@ spec:
                           format: int64
                           type: integer
                         advanceOnSizeMiB:
-                          description: Observed total index size (MiB) that triggers an epoch advance.
+                          description: |-
+                            Observed total index size (MiB) that triggers an epoch advance, **rounded up**.
+
+                            kopia reports this threshold in BYTES and it need not be a whole number of MiB, so
+                            the mirror rounds up to keep a sub-MiB remainder visible rather than reporting a
+                            value the repository does not actually hold. Drift against `spec` is computed on the
+                            exact byte count, never on this rounded mirror.
                           format: int64
                           type: integer
                         checkpointFrequency:
@@ -3682,10 +3879,35 @@ spec:
                   nullable: true
                   properties:
                     indexBlobCount:
-                      description: Number of content-index blobs (`kopia index list`) observed at the last bootstrap.
+                      description: |-
+                        Number of content-index blobs (`kopia index list`): the freshest count
+                        available, from either the last bootstrap or the recount a maintenance
+                        run takes right after compacting. `indexBlobCountAt` says when.
                       format: int64
                       nullable: true
                       type: integer
+                    indexBlobCountAt:
+                      description: |-
+                        RFC3339 instant `indexBlobCount` was observed.
+
+                        Distinct from `lastObservedAt` (the catalog scan's timestamp) and from
+                        `status.health.lastProbeAt` (the backend probe's): the index-blob count
+                        has its own writers, and this is what lets the reconciler decide whether
+                        a post-maintenance recount is fresher than the bootstrap's own count.
+                        Without it the two observations were incomparable, so the
+                        `IndexBlobHealth` warning could only ever quote the bootstrap figure —
+                        which is pre-compaction, and stayed pre-compaction until the next
+                        bootstrap ran (#458).
+
+                        The two writers mean subtly different things, deliberately. A bootstrap
+                        stamps "when this count was FIRST seen at this value", reusing the
+                        previous stamp while the number is unchanged — that arm re-observes on
+                        every reconcile, and a stamp that always moved would make the status
+                        always-changed and the reconcile a hot loop. A post-maintenance recount
+                        always carries its own instant, because it is a distinct observation
+                        taken at a known time and its whole purpose is to be comparable.
+                      nullable: true
+                      type: string
                     lastObservedAt:
                       description: RFC 3339 timestamp these stats were last observed.
                       nullable: true
@@ -3711,7 +3933,21 @@ spec:
                       type: integer
                   type: object
                 uniqueId:
-                  description: Kopia repository unique ID.
+                  description: |-
+                    Kopia repository unique ID, pinned on the first successful bootstrap.
+
+                    Its presence is the "this repository has been Ready" flag that makes
+                    auto-create one-way in time: `spec.create.enabled` governs the FIRST
+                    bootstrap only, and once this is set kopiur will never create a fresh
+                    empty repository over the backend, however empty the backend goes. A
+                    wiped backend therefore parks at `Failed` with reason
+                    `RepositoryReinitializeBlocked` instead of being silently re-created.
+
+                    To deliberately re-initialize a wiped repository, annotate it with
+                    `kopiur.home-operations.com/allow-reinitialize` set to THIS value; the
+                    ack is honored only while it matches, so the new ID minted by a
+                    successful re-initialize makes it inert. This discards the history the
+                    old repository held.
                   nullable: true
                   type: string
               type: object
