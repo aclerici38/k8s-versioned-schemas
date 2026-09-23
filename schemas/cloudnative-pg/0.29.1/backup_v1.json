@@ -3,19 +3,27 @@
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
       "type": "object"
     },
     "spec": {
+      "additionalProperties": false,
       "description": "Specification of the desired behavior of the backup.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status",
       "properties": {
         "cluster": {
+          "additionalProperties": false,
           "description": "The cluster to backup",
           "properties": {
             "name": {
@@ -26,8 +34,7 @@
           "required": [
             "name"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": "object"
         },
         "method": {
           "default": "barmanObjectStore",
@@ -37,29 +44,45 @@
             "volumeSnapshot",
             "plugin"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "online": {
           "description": "Whether the default type of backup with volume snapshots is\nonline/hot (`true`, default) or offline/cold (`false`)\nOverrides the default setting specified in the cluster field '.spec.backup.volumeSnapshot.online'",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "onlineConfiguration": {
+          "additionalProperties": false,
           "description": "Configuration parameters to control the online/hot backup with volume snapshots\nOverrides the default settings specified in the cluster '.backup.volumeSnapshot.onlineConfiguration' stanza",
           "properties": {
             "immediateCheckpoint": {
               "description": "Control whether the I/O workload for the backup initial checkpoint will\nbe limited, according to the `checkpoint_completion_target` setting on\nthe PostgreSQL server. If set to true, an immediate checkpoint will be\nused, meaning PostgreSQL will complete the checkpoint as soon as\npossible. `false` by default.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "waitForArchive": {
               "default": true,
               "description": "If false, the function will return immediately after the backup is completed,\nwithout waiting for WAL to be archived.\nThis behavior is only useful with backup software that independently monitors WAL archiving.\nOtherwise, WAL required to make the backup consistent might be missing and make the backup useless.\nBy default, or when this parameter is true, pg_backup_stop will wait for WAL to be archived when archiving is\nenabled.\nOn a standby, this means that it will wait only when archive_mode = always.\nIf write activity on the primary is low, it may be useful to run pg_switch_wal on the primary in order to trigger\nan immediate segment switch.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "pluginConfiguration": {
+          "additionalProperties": false,
           "description": "Configuration parameters passed to the plugin managing this backup",
           "properties": {
             "name": {
@@ -71,14 +94,19 @@
                 "type": "string"
               },
               "description": "Parameters are the configuration parameters passed to the backup\nplugin for this backup",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
           "required": [
             "name"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "target": {
           "description": "The policy to decide which instance should perform this backup. If empty,\nit defaults to `cluster.spec.backup.target`.\nAvailable options are empty string, `primary` and `prefer-standby`.\n`primary` to have backups run always on primary instances,\n`prefer-standby` to have backups run preferably on the most updated\nstandby, if available.",
@@ -86,7 +114,10 @@
             "primary",
             "prefer-standby"
           ],
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -98,16 +129,18 @@
           "message": "BackupSpec is immutable once set",
           "rule": "oldSelf == self"
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "status": {
+      "additionalProperties": false,
       "description": "Most recently observed status of the backup. This data may not be up to\ndate. Populated by the system. Read-only.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status",
       "properties": {
         "azureCredentials": {
+          "additionalProperties": false,
           "description": "The credentials to use to upload data to Azure Blob Storage",
           "properties": {
             "connectionString": {
+              "additionalProperties": false,
               "description": "The connection string to be used",
               "properties": {
                 "key": {
@@ -123,14 +156,20 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "inheritFromAzureAD": {
               "description": "Use the Azure AD based authentication without providing explicitly the keys.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "storageAccount": {
+              "additionalProperties": false,
               "description": "The storage account where to upload data",
               "properties": {
                 "key": {
@@ -146,10 +185,13 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "storageKey": {
+              "additionalProperties": false,
               "description": "The storage account key to be used in conjunction\nwith the storage account name",
               "properties": {
                 "key": {
@@ -165,10 +207,13 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "storageSasToken": {
+              "additionalProperties": false,
               "description": "A shared-access-signature to be used in conjunction with\nthe storage account name",
               "properties": {
                 "key": {
@@ -184,63 +229,104 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "useDefaultAzureCredentials": {
               "description": "Use the default Azure authentication flow, which includes DefaultAzureCredential.\nThis allows authentication using environment variables and managed identities.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "backupId": {
           "description": "The ID of the Barman backup",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "backupLabelFile": {
           "description": "Backup label file content as returned by Postgres in case of online (hot) backups",
           "format": "byte",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "backupName": {
           "description": "The Name of the Barman backup",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "beginLSN": {
           "description": "The starting xlog",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "beginWal": {
           "description": "The starting WAL",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "commandError": {
           "description": "The backup command output in case of error",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "commandOutput": {
           "description": "Unused. Retained for compatibility with old versions.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "destinationPath": {
           "description": "The path where to store the backup (i.e. s3://bucket/path/to/folder)\nthis path, with different destination folders, will be used for WALs\nand for data. This may not be populated in case of errors.",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "encryption": {
           "description": "Encryption method required to S3 API",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "endLSN": {
           "description": "The ending xlog",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "endWal": {
           "description": "The ending WAL",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "endpointCA": {
+          "additionalProperties": false,
           "description": "EndpointCA store the CA bundle of the barman endpoint.\nUseful when using self-signed certificates to avoid\nerrors with certificate issuer and barman-cloud-wal-archive.",
           "properties": {
             "key": {
@@ -256,21 +342,31 @@
             "key",
             "name"
           ],
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "endpointURL": {
           "description": "Endpoint to be used to upload data to the cloud,\noverriding the automatic endpoint discovery",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "error": {
           "description": "The detected error",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "googleCredentials": {
+          "additionalProperties": false,
           "description": "The credentials to use to upload data to Google Cloud Storage",
           "properties": {
             "applicationCredentials": {
+              "additionalProperties": false,
               "description": "The secret containing the Google Cloud Storage JSON file with the credentials",
               "properties": {
                 "key": {
@@ -286,73 +382,115 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "gkeEnvironment": {
               "description": "If set to true, will presume that it's running inside a GKE environment,\ndefault to false.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "instanceID": {
+          "additionalProperties": false,
           "description": "Information to identify the instance where the backup has been taken from",
           "properties": {
             "ContainerID": {
               "description": "The container ID",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "podName": {
               "description": "The pod name",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "sessionID": {
               "description": "The instance manager session ID. This is a unique identifier generated at instance manager\nstartup and changes on every restart (including container reboots). Used to detect if\nthe instance manager was restarted during long-running operations like backups, which\nwould terminate any running backup process.",
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "majorVersion": {
           "description": "The PostgreSQL major version that was running when the\nbackup was taken.",
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "method": {
           "description": "The backup method being used",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "online": {
           "description": "Whether the backup was online/hot (`true`) or offline/cold (`false`)",
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "phase": {
           "description": "The last backup status",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "pluginMetadata": {
           "additionalProperties": {
             "type": "string"
           },
           "description": "A map containing the plugin metadata",
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "reconciliationStartedAt": {
           "description": "When the backup process was started by the operator",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "reconciliationTerminatedAt": {
           "description": "When the reconciliation was terminated by the operator (either successfully or not)",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "s3Credentials": {
+          "additionalProperties": false,
           "description": "The credentials to use to upload data to S3",
           "properties": {
             "accessKeyId": {
+              "additionalProperties": false,
               "description": "The reference to the access key id",
               "properties": {
                 "key": {
@@ -368,14 +506,20 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "inheritFromIAMRole": {
               "description": "Use the role based authentication without providing explicitly the keys.",
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "region": {
+              "additionalProperties": false,
               "description": "The reference to the secret containing the region name",
               "properties": {
                 "key": {
@@ -391,10 +535,13 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "secretAccessKey": {
+              "additionalProperties": false,
               "description": "The reference to the secret access key",
               "properties": {
                 "key": {
@@ -410,10 +557,13 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "sessionToken": {
+              "additionalProperties": false,
               "description": "The references to the session key",
               "properties": {
                 "key": {
@@ -429,23 +579,32 @@
                 "key",
                 "name"
               ],
-              "type": "object",
-              "additionalProperties": false
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "serverName": {
           "description": "The server name on S3, the cluster name is used if this\nparameter is omitted",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "snapshotBackupStatus": {
+          "additionalProperties": false,
           "description": "Status of the volumeSnapshot backup",
           "properties": {
             "elements": {
               "description": "The elements list, populated with the gathered volume snapshots",
               "items": {
+                "additionalProperties": false,
                 "description": "BackupSnapshotElementStatus is a volume snapshot that is part of a volume snapshot method backup",
                 "properties": {
                   "name": {
@@ -454,7 +613,10 @@
                   },
                   "tablespaceName": {
                     "description": "TablespaceName is the name of the snapshotted tablespace. Only set\nwhen type is PG_TABLESPACE",
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "type": {
                     "description": "Type is tho role of the snapshot in the cluster, such as PG_DATA, PG_WAL and PG_TABLESPACE",
@@ -465,33 +627,48 @@
                   "name",
                   "type"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
-              "type": "array"
+              "type": [
+                "array",
+                "null"
+              ]
             }
           },
-          "type": "object",
-          "additionalProperties": false
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "startedAt": {
           "description": "When the backup execution was started by the backup tool",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "stoppedAt": {
           "description": "When the backup execution was terminated by the backup tool",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "tablespaceMapFile": {
           "description": "Tablespace map file content as returned by Postgres in case of online (hot) backups",
           "format": "byte",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
