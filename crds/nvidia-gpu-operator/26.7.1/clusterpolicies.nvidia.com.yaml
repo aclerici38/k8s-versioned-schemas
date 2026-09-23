@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: clusterpolicies.nvidia.com
 spec:
   group: nvidia.com
@@ -80,6 +80,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the CC Manager pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: CC Manager image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -470,6 +473,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the DCGM pod uses the host's network namespace.
+                      type: boolean
                     hostPort:
                       description: 'Deprecated: HostPort represents host port that needs to be bound for DCGM engine (Default: 5555)'
                       format: int32
@@ -524,6 +530,14 @@ spec:
                 dcgmExporter:
                   description: DCGMExporter spec
                   properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Optional: Annotations is an unstructured key value map stored with a resource that may be
+                        set by external tools to store and retrieve arbitrary metadata. They are not
+                        queryable and should be preserved when modifying objects.
+                      type: object
                     args:
                       description: 'Optional: List of arguments'
                       items:
@@ -536,6 +550,16 @@ spec:
                           description: ConfigMap name with file dcgm-metrics.csv for metrics to be collected by NVIDIA DCGM Exporter
                           type: string
                       type: object
+                    enablePodLabels:
+                      description: |-
+                        Enable Kubernetes pod labels as Prometheus label dimensions in DCGM exporter metrics.
+                        (Requires cluster-level read access to pods.)
+                      type: boolean
+                    enablePodUID:
+                      description: |-
+                        Enable Kubernetes pod UID as a Prometheus label dimension in DCGM exporter metrics.
+                        (Requires cluster-level read access to pods.)
+                      type: boolean
                     enabled:
                       description: Enabled indicates if deployment of NVIDIA DCGM Exporter through operator is enabled
                       type: boolean
@@ -581,6 +605,13 @@ spec:
                       type: string
                     imagePullSecrets:
                       description: Image pull secrets
+                      items:
+                        type: string
+                      type: array
+                    podLabelAllowlistRegex:
+                      description: |-
+                        Regex list for filtering which Kubernetes pod labels are included in DCGM exporter metrics.
+                        Empty means all pod labels are included.
                       items:
                         type: string
                       type: array
@@ -631,22 +662,22 @@ spec:
                         additionalLabels:
                           additionalProperties:
                             type: string
-                          description: AdditionalLabels to add to ServiceMonitor instance for NVIDIA DCGM Exporter
+                          description: AdditionalLabels to add to ServiceMonitor instance
                           type: object
                         enabled:
-                          description: Enabled indicates if ServiceMonitor is deployed for NVIDIA DCGM Exporter
+                          description: Enabled indicates if ServiceMonitor is deployed
                           type: boolean
                         honorLabels:
                           description: HonorLabels chooses the metric’s labels on collisions with target labels.
                           type: boolean
                         interval:
                           description: |-
-                            Interval which metrics should be scraped from NVIDIA DCGM Exporter. If not specified Prometheus’ global scrape interval is used.
+                            Interval at which metrics should be scraped. If not specified, Prometheus’ global scrape interval is used.
                             Supported units: y, w, d, h, m, s, ms
                           pattern: ^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$
                           type: string
                         relabelings:
-                          description: Relabelings allows to rewrite labels on metric sets for NVIDIA DCGM Exporter
+                          description: Relabelings allows to rewrite labels on metric sets
                           items:
                             description: |-
                               RelabelConfig allows dynamic rewriting of the label set for targets, alerts,
@@ -693,6 +724,7 @@ spec:
 
                                   Only applicable when the action is `HashMod`.
                                 format: int64
+                                minimum: 0
                                 type: integer
                               regex:
                                 description: regex defines the regular expression against which the extracted value is matched.
@@ -730,6 +762,13 @@ spec:
                                 type: string
                             type: object
                           type: array
+                        scrapeTimeout:
+                          description: |-
+                            ScrapeTimeout to use when scraping metrics. Must not be greater than Interval.
+                            If not specified, Prometheus' global scrape timeout is used.
+                            Supported units: y, w, d, h, m, s, ms
+                          pattern: ^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$
+                          type: string
                       type: object
                     version:
                       description: NVIDIA DCGM Exporter image tag
@@ -771,6 +810,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Device Plugin pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA Device Plugin image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -858,6 +900,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Driver pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA Driver image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1337,6 +1382,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the GPU Feature Discovery pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: GFD image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1392,6 +1440,12 @@ spec:
                         DriverInstallDir represents the root at which driver files including libraries,
                         config files, and executables can be found.
                       type: string
+                    kubeletRootDir:
+                      default: /var/lib/kubelet
+                      description: |-
+                        KubeletRootDir represents the location of the kubelet root directory.
+                        If empty, it will default to "/var/lib/kubelet".
+                      type: string
                     rootFS:
                       description: |-
                         RootFS represents the path to the root filesystem of the host.
@@ -1402,7 +1456,9 @@ spec:
                       type: string
                   type: object
                 kataManager:
-                  description: KataManager component spec
+                  description: |-
+                    Deprecated: This field is no longer honored by the GPU Operator. All values under this field are ignored.
+                    KataManager component spec
                   properties:
                     args:
                       description: 'Optional: List of arguments'
@@ -1472,6 +1528,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Kata Manager pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: Kata Manager image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1545,6 +1604,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Kata Sandbox Device Plugin pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA component image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1650,6 +1712,9 @@ spec:
                           description: ConfigMap name
                           type: string
                       type: object
+                    hostNetwork:
+                      description: HostNetwork indicates whether the MIG Manager pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA MIG Manager image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1723,6 +1788,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Node Status Exporter pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: Node Status Exporter image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1814,6 +1882,124 @@ spec:
                         (scope and select) objects. May match selectors of replication controllers
                         and services.
                       type: object
+                    metrics:
+                      description: Metrics configuration for NVIDIA GPU Operator
+                      properties:
+                        serviceMonitor:
+                          description: 'Optional: ServiceMonitor configuration for NVIDIA GPU Operator'
+                          properties:
+                            additionalLabels:
+                              additionalProperties:
+                                type: string
+                              description: AdditionalLabels to add to ServiceMonitor instance
+                              type: object
+                            enabled:
+                              description: Enabled indicates if ServiceMonitor is deployed
+                              type: boolean
+                            honorLabels:
+                              description: HonorLabels chooses the metric’s labels on collisions with target labels.
+                              type: boolean
+                            interval:
+                              description: |-
+                                Interval at which metrics should be scraped. If not specified, Prometheus’ global scrape interval is used.
+                                Supported units: y, w, d, h, m, s, ms
+                              pattern: ^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$
+                              type: string
+                            relabelings:
+                              description: Relabelings allows to rewrite labels on metric sets
+                              items:
+                                description: |-
+                                  RelabelConfig allows dynamic rewriting of the label set for targets, alerts,
+                                  scraped samples and remote write samples.
+
+                                  More info: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config
+                                properties:
+                                  action:
+                                    default: replace
+                                    description: |-
+                                      action to perform based on the regex matching.
+
+                                      `Uppercase` and `Lowercase` actions require Prometheus >= v2.36.0.
+                                      `DropEqual` and `KeepEqual` actions require Prometheus >= v2.41.0.
+
+                                      Default: "Replace"
+                                    enum:
+                                      - replace
+                                      - Replace
+                                      - keep
+                                      - Keep
+                                      - drop
+                                      - Drop
+                                      - hashmod
+                                      - HashMod
+                                      - labelmap
+                                      - LabelMap
+                                      - labeldrop
+                                      - LabelDrop
+                                      - labelkeep
+                                      - LabelKeep
+                                      - lowercase
+                                      - Lowercase
+                                      - uppercase
+                                      - Uppercase
+                                      - keepequal
+                                      - KeepEqual
+                                      - dropequal
+                                      - DropEqual
+                                    type: string
+                                  modulus:
+                                    description: |-
+                                      modulus to take of the hash of the source label values.
+
+                                      Only applicable when the action is `HashMod`.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  regex:
+                                    description: regex defines the regular expression against which the extracted value is matched.
+                                    type: string
+                                  replacement:
+                                    description: |-
+                                      replacement value against which a Replace action is performed if the
+                                      regular expression matches.
+
+                                      Regex capture groups are available.
+                                    type: string
+                                  separator:
+                                    description: separator defines the string between concatenated SourceLabels.
+                                    type: string
+                                  sourceLabels:
+                                    description: |-
+                                      sourceLabels defines the source labels select values from existing labels. Their content is
+                                      concatenated using the configured Separator and matched against the
+                                      configured regular expression.
+                                    items:
+                                      description: |-
+                                        LabelName is a valid Prometheus label name.
+                                        For Prometheus 3.x, a label name is valid if it contains UTF-8 characters.
+                                        For Prometheus 2.x, a label name is only valid if it contains ASCII characters, letters, numbers, as well as underscores.
+                                      type: string
+                                    type: array
+                                  targetLabel:
+                                    description: |-
+                                      targetLabel defines the label to which the resulting string is written in a replacement.
+
+                                      It is mandatory for `Replace`, `HashMod`, `Lowercase`, `Uppercase`,
+                                      `KeepEqual` and `DropEqual` actions.
+
+                                      Regex capture groups are available.
+                                    type: string
+                                type: object
+                              type: array
+                            scrapeTimeout:
+                              description: |-
+                                ScrapeTimeout to use when scraping metrics. Must not be greater than Interval.
+                                If not specified, Prometheus' global scrape timeout is used.
+                                Supported units: y, w, d, h, m, s, ms
+                              pattern: ^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$
+                              type: string
+                          type: object
+                      type: object
                     runtimeClass:
                       default: nvidia
                       type: string
@@ -1863,6 +2049,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Sandbox Device Plugin pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA Sandbox Device Plugin image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -1964,6 +2153,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Container Toolkit pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA Container Toolkit image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -2076,6 +2268,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the Validator pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: Validator image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -2281,6 +2476,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the VFIO Manager pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: VFIO Manager image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -2365,6 +2563,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the vGPU Device Manager pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA vGPU Device Manager image name
                       pattern: '[a-zA-Z0-9\-]+'
@@ -2475,6 +2676,9 @@ spec:
                           - name
                         type: object
                       type: array
+                    hostNetwork:
+                      description: HostNetwork indicates whether the vGPU Manager pod uses the host's network namespace.
+                      type: boolean
                     image:
                       description: NVIDIA vGPU Manager  image name
                       pattern: '[a-zA-Z0-9\-]+'
