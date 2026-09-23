@@ -1,0 +1,264 @@
+# Source: courier/templates/crds.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+    helm.sh/resource-policy: keep
+  name: coderruns.courier.misospace.dev
+spec:
+  group: courier.misospace.dev
+  names:
+    kind: CoderRun
+    listKind: CoderRunList
+    plural: coderruns
+    singular: coderrun
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.mode
+          name: Mode
+          type: string
+        - jsonPath: .spec.repo
+          name: Repo
+          type: string
+        - jsonPath: .spec.ref
+          name: Ref
+          type: integer
+        - jsonPath: .spec.lane
+          name: Lane
+          type: string
+        - jsonPath: .status.branch
+          name: Branch
+          type: string
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .status.pr
+          name: PR
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: 'CoderRun is one immutable attempt at one goal: resolve an issue or fix a PR.'
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                CoderRunSpec is set once by a source adapter and is then immutable.
+
+                There is deliberately no attempts field: each CoderRun is one immutable
+                attempt at one goal. History is the sequence of runs linked by the branch/PR.
+              properties:
+                debug:
+                  description: Debug, when true, raises the pod log level for this run only.
+                  type: boolean
+                lane:
+                  description: Lane names the LaneProfile that supplies the model ensemble and framing.
+                  minLength: 1
+                  type: string
+                mode:
+                  description: 'Mode is the kind of work: resolve-issue or fix-pr.'
+                  enum:
+                    - resolve-issue
+                    - fix-pr
+                  type: string
+                ref:
+                  description: Ref is the issue number (resolve-issue) or PR number (fix-pr).
+                  minimum: 1
+                  type: integer
+                repo:
+                  description: Repo is the target repository, "owner/name".
+                  minLength: 3
+                  pattern: ^[^/]+/[^/]+$
+                  type: string
+                source:
+                  description: |-
+                    Source names the adapter that created this run
+                    (dispatch, github-label, cron, cli, web).
+                  minLength: 1
+                  type: string
+                workItemID:
+                  description: |-
+                    WorkItemID is the opaque identifier assigned by the source adapter. It
+                    is persisted so lifecycle calls never need to infer source identity from
+                    the Kubernetes name or the numeric ref.
+                  minLength: 1
+                  type: string
+              required:
+                - lane
+                - mode
+                - ref
+                - repo
+                - source
+                - workItemID
+              type: object
+              x-kubernetes-validations:
+                - message: spec is immutable
+                  rule: self == oldSelf
+            status:
+              description: CoderRunStatus is the observed state of a CoderRun.
+              properties:
+                branch:
+                  description: |-
+                    Branch is the observed work branch. Resolve-issue runs derive it from the
+                    repository and issue; fix-pr runs adopt the branch attached to the PR.
+                  type: string
+                checkFingerprint:
+                  description: |-
+                    CheckFingerprint is the operator's compact identity of the last all-green
+                    CI check observation while Verifying: the head commit plus the sorted
+                    external check identifiers. A run leaves Verifying for AwaitingReview
+                    only when two consecutive all-green observations carry the same
+                    fingerprint; a pending or empty observation clears it, and a changed
+                    check set resets it, so checks that are still registering cannot pass.
+                  type: string
+                checkpoint:
+                  description: Checkpoint is the compact resumable state written by the harness.
+                  properties:
+                    completedBriefs:
+                      description: CompletedBriefs are the delegation units finished so far, in order.
+                      items:
+                        description: Brief is a completed delegation unit recorded in the checkpoint.
+                        properties:
+                          commit:
+                            description: Commit is the pushed commit produced by the brief, if any.
+                            type: string
+                          id:
+                            description: ID identifies the brief within the run.
+                            type: string
+                          summary:
+                            description: |-
+                              Summary is the objective/outcome of the brief; it also serves as the
+                              recovery record when the checkpoint is lost and only git remains.
+                            type: string
+                        required:
+                          - id
+                          - summary
+                        type: object
+                      type: array
+                    plan:
+                      description: Plan is the coordinator's working plan.
+                      type: string
+                  type: object
+                conditions:
+                  description: Conditions is the standard condition set.
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                heartbeat:
+                  description: Heartbeat is the last successful coordinator activity.
+                  properties:
+                    at:
+                      description: At is when the last successful activity occurred.
+                      format: date-time
+                      type: string
+                    kind:
+                      description: 'Kind is the activity kind: "stream" or "tool".'
+                      type: string
+                  required:
+                    - at
+                    - kind
+                  type: object
+                lastCommit:
+                  description: LastCommit is the last commit pushed to the work branch.
+                  type: string
+                phase:
+                  description: Phase is the current lifecycle phase.
+                  enum:
+                    - Pending
+                    - Claimed
+                    - Running
+                    - Verifying
+                    - AwaitingReview
+                    - NeedsHuman
+                    - Done
+                    - Failed
+                  type: string
+                pr:
+                  description: PR is the pull request opened by this run (number or URL).
+                  type: string
+                restarts:
+                  description: |-
+                    Restarts counts infra relaunches (the crashloop backstop), not work
+                    retries.
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
