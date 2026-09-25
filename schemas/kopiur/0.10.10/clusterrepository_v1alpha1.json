@@ -1,10 +1,107 @@
 {
-  "description": "Auto-generated derived type for RepositorySpec via `CustomResource`",
+  "description": "Auto-generated derived type for ClusterRepositorySpec via `CustomResource`",
   "properties": {
     "spec": {
       "additionalProperties": false,
-      "description": "A kopia repository owned by one namespace, referenced by `SnapshotPolicy`s and `Restore`s.",
+      "description": "A cluster-scoped kopia repository referenceable from allow-listed namespaces.",
       "properties": {
+        "allowedNamespaces": {
+          "additionalProperties": false,
+          "description": "Which namespaces are permitted to reference this repository.",
+          "oneOf": [
+            {
+              "required": [
+                "list"
+              ]
+            },
+            {
+              "required": [
+                "selector"
+              ]
+            },
+            {
+              "required": [
+                "all"
+              ]
+            }
+          ],
+          "properties": {
+            "all": {
+              "description": "Allow all namespaces (must be `true`).",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "list": {
+              "description": "Explicit namespace names.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "selector": {
+              "additionalProperties": false,
+              "description": "Match namespaces by label.",
+              "properties": {
+                "matchExpressions": {
+                  "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+                    "properties": {
+                      "key": {
+                        "description": "key is the label key that the selector applies to.",
+                        "type": "string"
+                      },
+                      "operator": {
+                        "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+                        "type": "string"
+                      },
+                      "values": {
+                        "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "operator"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "matchLabels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
         "backend": {
           "additionalProperties": false,
           "description": "Exactly one storage backend.",
@@ -876,6 +973,37 @@
             "null"
           ]
         },
+        "concurrency": {
+          "additionalProperties": false,
+          "description": "Concurrency limits for mover Jobs against this repository (absent = unlimited).",
+          "nullable": true,
+          "properties": {
+            "maxConcurrentDeleteJobs": {
+              "description": "Ceiling on how many snapshot-delete batch Jobs may run against this\nrepository at once. **Absent means 1**: one batch at a time, and the next\nbatch starts when the current one finishes.\n\nA batch Job deletes hundreds of snapshots in a single kopia call. kopia\nserializes manifest deletes on the repository's index anyway, so running\nseveral batches in parallel adds no throughput. Each extra Job only loads\nthe full index again against the same backend (issue #477). Raise it only\nfor a fast local backend with a very large deletion backlog.\n\nMust be at least 1. There is no \"unlimited\" value. Omit the field for the\ndefault. The controller-wide `maxConcurrentDeleteJobs` Helm value still\ncaps delete Jobs across ALL repositories on top of this.\n\nNo schema `default:` is emitted (api-conventions §4a); the controller\nresolves absent to 1, so stored repositories carry no diff noise.",
+              "format": "uint32",
+              "minimum": 1,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "maxConcurrentJobs": {
+              "description": "Ceiling on how many of this repository's mover Jobs may be in flight at\nonce. Backup snapshots, restores, and replication runs that READ FROM this\nrepository all draw from ONE pool — a repository's backend (and the\nbandwidth to it) is the shared resource, so splitting the budget per work\nkind would let three \"safe\" limits still saturate it.\n\nRestores are **always admitted** and never parked: a restore is a recovery\nin progress, and holding one behind a queue of routine backups is exactly\nbackwards. An in-flight restore still COUNTS toward the pool, so it\ndisplaces backups rather than adding to them.\n\nExcluded from the pool entirely: maintenance (already single-flight per\nrepository), verification, pin, and snapshot-delete batch Jobs. These are\noperator-driven housekeeping that must not be starved by a saturated\nbackup pool. Delete batches have their own cap, `maxConcurrentDeleteJobs`.\n\nAbsent or `0` means unlimited — the default, and today's behavior.\n\nNo schema `default:` is emitted for this field (api-conventions §4a):\nabsent and `0` are the SAME state (unlimited), so a materialized default\nwould stamp `{maxConcurrentJobs: 0}` onto every stored repository — GitOps\ndiff noise for a value that changes nothing.",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "create": {
           "additionalProperties": false,
           "description": "What to do when the repository does not yet exist (absent means it must already exist).",
@@ -947,6 +1075,25 @@
             "null"
           ]
         },
+        "credentialProjection": {
+          "additionalProperties": false,
+          "description": "Repository-owner gate for projecting credential Secrets into a foreign consumer namespace.",
+          "nullable": true,
+          "properties": {
+            "allowed": {
+              "default": false,
+              "description": "When `true`, the owner permits projecting this repository's credential Secret(s) into a consumer namespace.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "deletionProtection": {
           "additionalProperties": false,
           "description": "Mass-deletion circuit breaker for this repository's Snapshots.",
@@ -971,7 +1118,7 @@
         },
         "encryption": {
           "additionalProperties": false,
-          "description": "Repository password (a Secret reference).",
+          "description": "Repository password (a Secret reference that must carry an explicit `namespace`).",
           "properties": {
             "passwordSecretRef": {
               "additionalProperties": false,
@@ -1084,7 +1231,7 @@
         },
         "identityDefaults": {
           "additionalProperties": false,
-          "description": "Identity defaults (CEL `*Expr`) applied when consumers don't override.\nSet `cluster` when this repository's backend is shared across clusters\n(e.g. one bucket backed up from more than one Kubernetes cluster) — the\ndefault kopia identity hostname then becomes `\u003cnamespace\u003e.\u003ccluster\u003e`\ninstead of bare `\u003cnamespace\u003e`, so same-named namespaces on different\nclusters never collide. Same semantics as `ClusterRepository`'s field of\nthe same name (ADR-0004 §5); a consumer's explicit `spec.identity` still\nwins over anything here.",
+          "description": "Identity defaults (CEL `*Expr`) applied when consumers don't override.",
           "nullable": true,
           "properties": {
             "cluster": {
@@ -1119,7 +1266,7 @@
         },
         "maintenance": {
           "additionalProperties": false,
-          "description": "Maintenance control; when absent or enabled the reconciler creates and owns a `Maintenance` CR.",
+          "description": "Maintenance control; `maintenance.namespace` selects where the owned `Maintenance` CR lands.",
           "nullable": true,
           "properties": {
             "enabled": {
@@ -3012,6 +3159,28 @@
                 "null"
               ]
             },
+            "podAnnotations": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Extra annotations for every mover pod. Unlike `podLabels`\nthese are **pod-template-only** — they are not mirrored onto the `Job`\nobject, because the common case is a sidecar-injection opt-out\n(`sidecar.istio.io/inject: \"false\"`, `linkerd.io/inject: disabled`,\n`vault.hashicorp.com/agent-inject: \"false\"`) that only means anything on\nthe pod a mesh webhook actually sees. A mover is a short-lived batch pod;\nan injected sidecar that never exits keeps its Job running forever.\n\nSame reserved keys as `podLabels`, rejected at admission.",
+              "nullable": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "podLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Extra labels for every mover POD (and the `Job` that owns it), merged\nUNDER kopiur's own labels — a key kopiur sets always wins, so a\nuser-supplied value can never break the selectors the controller counts\nand reaps by.\n\nThis is the hook for cluster machinery that keys off pod labels and that\nkopiur has no field of its own for: a Kueue `kueue.x-k8s.io/queue-name` to\nput movers under a cluster queue, a monitoring/`NetworkPolicy` selector, a\nservice-mesh exclusion label.\n\nKeys under `kopiur.home-operations.com/` and the exact key\n`app.kubernetes.io/managed-by` are reserved and rejected at admission.",
+              "nullable": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "podSecurityContext": {
               "additionalProperties": false,
               "description": "Pod security-context base (notably `fsGroup`) for every mover.",
@@ -3750,7 +3919,7 @@
                   ]
                 },
                 "disabled": {
-                  "description": "Actively disable retention (`--retention-mode=none`). Must be `true`.\n\nA `bool` rather than a unit variant because an externally-tagged unit variant\nserializes as the bare string `\"Disabled\"`, mixing string and object forms in one\n`oneOf` and breaking the structural schema. Same shape, and same reason, as\n[`crate::cluster_repository::AllowedNamespaces::All`].\n\nThis is distinct from omitting `blobRetention` entirely: absent means \"leave the\nrepository alone\", so deleting the block from a manifest can never silently strip\nransomware protection someone configured deliberately.",
+                  "description": "Actively disable retention (`--retention-mode=none`). Must be `true`.\n\nA `bool` rather than a unit variant because an externally-tagged unit variant\nserializes as the bare string `\"Disabled\"`, mixing string and object forms in one\n`oneOf` and breaking the structural schema. Same shape, and same reason, as\n[`AllowedNamespaces::All`](crate::cluster_repository::AllowedNamespaces::All).\n\nThis is distinct from omitting `blobRetention` entirely: absent means \"leave the\nrepository alone\", so deleting the block from a manifest can never silently strip\nransomware protection someone configured deliberately.",
                   "type": [
                     "boolean",
                     "null"
@@ -3782,7 +3951,7 @@
               "nullable": true,
               "properties": {
                 "advanceOnCount": {
-                  "description": "Index blobs in an epoch that trigger an advance, once older than `minDuration`\n(kopia default `20`).",
+                  "description": "Index blobs in an epoch that trigger an advance, once older than `minDuration`\n(kopia default `20`).\n\nAt least `10` — kopia refuses anything lower with \"epoch advance on count too low\".",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -3791,7 +3960,7 @@
                   ]
                 },
                 "advanceOnSizeMiB": {
-                  "description": "Total index size in an epoch that triggers an advance, once older than `minDuration`\n(kopia default `10` MiB).\n\nNamed `MiB`, not `MB`, with an explicit rename rather than the derived camelCase\n(`advanceOnSizeMb`, which reads as *megabit*). The unit is genuinely mebibytes —\nkopia's `--epoch-advance-on-size-mb` multiplies by 1048576, so `10` is 10485760\nbytes — even though kopia's own log renders the result as \"MB\". That ambiguity is\nthis field's main hazard; the API surface should not reproduce it.",
+                  "description": "Total index size in an epoch that triggers an advance, once older than `minDuration`\n(kopia default `10` MiB).\n\nAt least `1` — kopia refuses anything lower with \"epoch advance on size too low\",\nand 1 MiB is the smallest threshold the flag can express.\n\nNamed `MiB`, not `MB`, with an explicit rename rather than the derived camelCase\n(`advanceOnSizeMb`, which reads as *megabit*). The unit is genuinely mebibytes —\nkopia's `--epoch-advance-on-size-mb` multiplies by 1048576, so `10` is 10485760\nbytes — even though kopia's own log renders the result as \"MB\". That ambiguity is\nthis field's main hazard; the API surface should not reproduce it.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -3800,7 +3969,7 @@
                   ]
                 },
                 "checkpointFrequency": {
-                  "description": "Epochs between full index checkpoints (kopia default `7`).",
+                  "description": "Epochs between full index checkpoints (kopia default `7`).\n\nAt least `1` — kopia refuses anything lower with \"invalid epoch range compaction\nperiod\".",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -3809,7 +3978,7 @@
                   ]
                 },
                 "deleteParallelism": {
-                  "description": "Parallelism for epoch cleanup deletions (kopia default `4`).",
+                  "description": "Parallelism for epoch cleanup deletions (kopia default `4`).\n\nAt least `1`. This floor is kopiur's own: kopia does not validate the field, so a\nnon-positive value would ask it to run epoch cleanup with no workers.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -3818,7 +3987,7 @@
                   ]
                 },
                 "minDuration": {
-                  "description": "Minimum epoch age before it may advance (kopia default `24h`). A Go-style duration\n(`6h`, `90m`). The advance **gate** — no blob count closes an epoch younger than this.",
+                  "description": "Minimum epoch age before it may advance (kopia default `24h`). A Go-style duration\n(`6h`, `90m`). The advance **gate** — no blob count closes an epoch younger than this.\n\nMust be at least `10m` (kopia's absolute floor) AND at least 3x `refreshFrequency`.\nWhen `refreshFrequency` is not declared, that second bound is measured against\nkopia's untouched `20m` default, so `10m` on its own is rejected: use `60m`, or\ndeclare a `refreshFrequency` of a third of it or less alongside it.",
                   "nullable": true,
                   "type": [
                     "string",
@@ -3826,7 +3995,7 @@
                   ]
                 },
                 "refreshFrequency": {
-                  "description": "How often clients re-read epoch state (kopia default `20m`). Go-style duration.",
+                  "description": "How often clients re-read epoch state (kopia default `20m`). Go-style duration.\n\nAt most `80m`: kopia requires `cleanupSafetyMargin \u003e= 3x` this value, and\n`cleanupSafetyMargin` is observable-but-not-settable here, so it stays at kopia's\n`4h` default and `4h / 3` is a hard ceiling.",
                   "nullable": true,
                   "type": [
                     "string",
@@ -3847,9 +4016,17 @@
         },
         "scheduleDefaults": {
           "additionalProperties": false,
-          "description": "Scheduling defaults (e.g. `timezone`) inherited by consumers that don't set\ntheir own equivalent field — verification, replication, and maintenance\nschedules today; set once here instead of repeating it on every cron.",
+          "description": "Scheduling defaults (`timezone`, `jitter`) inherited by consumers that don't\nset their own equivalent field — backup, verification, replication, and\nmaintenance schedules; set once here instead of repeating it on every cron.",
           "nullable": true,
           "properties": {
+            "jitter": {
+              "description": "Deterministic jitter window (Go-style duration, e.g. `10m`) applied to every\nconsuming cron that doesn't set its own `jitter` — `SnapshotSchedule`,\n`Maintenance` (quick and full), `SnapshotPolicy` verification (quick and\ndeep), and both replication kinds. Set once here instead of repeating it on\nevery cron, so a whole repository's schedules spread their load off the\ntop-of-the-hour thundering herd.\n\nThe spread is deterministic per `(scheduleUID, slot)`, not random: the same\nslot always lands on the same instant, so a restart never re-rolls it.\nCapped at 24h by validation — jitter is a spread WITHIN a cron period, not a\nschedule offset.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "timezone": {
               "description": "IANA timezone name applied to every consuming cron that doesn't set its own\n`timezone` (e.g. `America/New_York`). Set once here instead of repeating it\non every `SnapshotPolicy.verification`, `RepositoryReplication.schedule`, and\n`Maintenance.schedule` cron.",
               "nullable": true,
@@ -4919,7 +5096,7 @@
         },
         "server": {
           "additionalProperties": false,
-          "description": "Optional kopia web-UI server, exposed via a `Service` in this namespace.",
+          "description": "Optional kopia web-UI server (the target `namespace` is required).",
           "nullable": true,
           "properties": {
             "auth": {
@@ -5009,6 +5186,10 @@
                 }
               },
               "type": "object"
+            },
+            "namespace": {
+              "description": "Target namespace for the server Deployment/Service (and generated Secret).",
+              "type": "string"
             },
             "podSecurityContext": {
               "additionalProperties": false,
@@ -5582,13 +5763,16 @@
               ]
             }
           },
+          "required": [
+            "namespace"
+          ],
           "type": [
             "object",
             "null"
           ]
         },
         "suspend": {
-          "description": "Pause this repository: skip connect/bootstrap and maintenance projection.",
+          "description": "Pause this cluster repository: skip connect/bootstrap and maintenance projection.",
           "type": [
             "boolean",
             "null"
@@ -5596,6 +5780,7 @@
         }
       },
       "required": [
+        "allowedNamespaces",
         "backend",
         "encryption"
       ],
@@ -5621,9 +5806,18 @@
     },
     "status": {
       "additionalProperties": false,
-      "description": "Observed state of a `Repository`, carrying resolved values pinned by the reconciler.",
+      "description": "Observed state of a `ClusterRepository`; mirrors `RepositoryStatus` plus `allowedNamespaceCount`.",
       "nullable": true,
       "properties": {
+        "allowedNamespaceCount": {
+          "description": "Number of namespaces currently resolved by `spec.allowedNamespaces`.",
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "backend": {
           "description": "Mirror of `spec.backend` discriminant for the print column.",
           "nullable": true,
@@ -5634,7 +5828,7 @@
         },
         "catalog": {
           "additionalProperties": false,
-          "description": "Catalog-materialization status (how many discovered `Snapshot`s, last refresh).",
+          "description": "Catalog-materialization status (discovered-backup count, last refresh).",
           "nullable": true,
           "properties": {
             "discoveredBackupCount": {
@@ -5848,7 +6042,7 @@
                   "type": "integer"
                 },
                 "advanceOnSizeMiB": {
-                  "description": "Observed total index size (MiB) that triggers an epoch advance.",
+                  "description": "Observed total index size (MiB) that triggers an epoch advance, **rounded up**.\n\nkopia reports this threshold in BYTES and it need not be a whole number of MiB, so\nthe mirror rounds up to keep a sub-MiB remainder visible rather than reporting a\nvalue the repository does not actually hold. Drift against `spec` is computed on the\nexact byte count, never on this rounded mirror.",
                   "format": "int64",
                   "type": "integer"
                 },
@@ -6063,11 +6257,19 @@
           "nullable": true,
           "properties": {
             "indexBlobCount": {
-              "description": "Number of content-index blobs (`kopia index list`) observed at the last bootstrap.",
+              "description": "Number of content-index blobs (`kopia index list`): the freshest count\navailable, from either the last bootstrap or the recount a maintenance\nrun takes right after compacting. `indexBlobCountAt` says when.",
               "format": "int64",
               "nullable": true,
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "indexBlobCountAt": {
+              "description": "RFC3339 instant `indexBlobCount` was observed.\n\nDistinct from `lastObservedAt` (the catalog scan's timestamp) and from\n`status.health.lastProbeAt` (the backend probe's): the index-blob count\nhas its own writers, and this is what lets the reconciler decide whether\na post-maintenance recount is fresher than the bootstrap's own count.\nWithout it the two observations were incomparable, so the\n`IndexBlobHealth` warning could only ever quote the bootstrap figure —\nwhich is pre-compaction, and stayed pre-compaction until the next\nbootstrap ran (#458).\n\nThe two writers mean subtly different things, deliberately. A bootstrap\nstamps \"when this count was FIRST seen at this value\", reusing the\nprevious stamp while the number is unchanged — that arm re-observes on\nevery reconcile, and a stamp that always moved would make the status\nalways-changed and the reconcile a hot loop. A post-maintenance recount\nalways carries its own instant, because it is a distinct observation\ntaken at a known time and its whole purpose is to be comparable.",
+              "nullable": true,
+              "type": [
+                "string",
                 "null"
               ]
             },
@@ -6080,7 +6282,7 @@
               ]
             },
             "snapshotCount": {
-              "description": "Total snapshots present in the repository (across all identities).",
+              "description": "Total COMPLETE snapshots present in the repository (across all\nidentities). Incomplete checkpoints an interrupted `kopia snapshot\ncreate` left behind are not snapshots and are not counted.",
               "format": "int64",
               "nullable": true,
               "type": [
@@ -6112,7 +6314,7 @@
           ]
         },
         "uniqueId": {
-          "description": "Kopia repository unique ID.",
+          "description": "Kopia repository unique ID, pinned on the first successful bootstrap.\n\nIts presence is the \"this repository has been Ready\" flag that makes\nauto-create one-way in time: `spec.create.enabled` governs the FIRST\nbootstrap only, and once this is set kopiur will never create a fresh\nempty repository over the backend, however empty the backend goes. A\nwiped backend therefore parks at `Failed` with reason\n`RepositoryReinitializeBlocked` instead of being silently re-created.\n\nTo deliberately re-initialize a wiped repository, annotate it with\n`kopiur.home-operations.com/allow-reinitialize` set to THIS value; the\nack is honored only while it matches, so the new ID minted by a\nsuccessful re-initialize makes it inert. This discards the history the\nold repository held.",
           "nullable": true,
           "type": [
             "string",
@@ -6129,6 +6331,6 @@
   "required": [
     "spec"
   ],
-  "title": "Repository",
+  "title": "ClusterRepository",
   "type": "object"
 }

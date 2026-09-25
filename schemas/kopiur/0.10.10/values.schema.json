@@ -45,7 +45,7 @@
           "properties": {
             "enabled": {
               "default": false,
-              "description": "Grant the operator `secrets` create+patch+delete so\n`spec.credentialProjection` works: the operator copies a repository's\ncredential Secret(s) into each mover Job's namespace (the chief win is a shared\nClusterRepository whose Secret is pinned to one namespace) and cleans its\ncopies up again (legacy-copy sweep, reap-on-shrink, reap-on-disable).\nSECURITY TRADE-OFF: `create` cannot be scoped to a Secret name, so the\noperator can write a Secret in any namespace it manages.",
+              "description": "Enable `spec.credentialProjection` (copy a repository's credential\nSecret(s) into each mover Job's namespace) by granting the operator `secrets`\ncreate+patch+delete. The chief win is a shared ClusterRepository whose Secret\nis pinned to one namespace; the operator also cleans its copies up again\n(legacy-copy sweep, reap-on-shrink, reap-on-disable).\nSECURITY TRADE-OFF: `create` cannot be scoped to a Secret name, so the\noperator can write a Secret in any namespace it manages.",
               "title": "enabled",
               "type": "boolean"
             }
@@ -58,7 +58,7 @@
           "properties": {
             "enabled": {
               "default": false,
-              "description": "Grant the operator `secrets` create+patch+delete so `spec.server` (the\nkopia web-UI) works: it creates a generated-auth Secret, mirrors a\nClusterRepository's credentials into the server namespace, and deletes both on\nteardown. SECURITY TRADE-OFF: grants unscoped create/delete on Secrets in any\nnamespace the operator manages.",
+              "description": "Enable `spec.server` (the kopia web-UI) by granting the operator `secrets`\ncreate+patch+delete. The server needs a generated-auth Secret, a mirror of\neach of a ClusterRepository's credential Secrets in the server namespace, and\ndeletion of all of them on teardown.\nSECURITY TRADE-OFF: grants unscoped create/delete on Secrets in any namespace\nthe operator manages.",
               "title": "enabled",
               "type": "boolean"
             }
@@ -266,9 +266,16 @@
     },
     "maxConcurrentDeleteJobs": {
       "default": 0,
-      "description": "0 = uncapped (default); set to bound concurrent snapshot-delete batch\nJobs across repositories (mass-deletion protection). Batching itself is the\nprimary protection — one Job per repository per accumulation window, not\none per Snapshot — so this cap is an opt-in backstop for a\nresource-constrained cluster, not a load-bearing safety mechanism: a small\ncap risks head-of-line-blocking every OTHER repository's deletions behind\none slow/failing one. It does NOT bound how many Snapshots one batch Job\ndeletes, nor does it gate whether a deletion is allowed at all — that's\ndeletionProtection.threshold on the Repository/ClusterRepository.",
+      "description": "0 = no cluster-wide cap (default); set to bound concurrent snapshot-delete\nbatch Jobs across ALL repositories. Each repository is already capped on its\nown by spec.concurrency.maxConcurrentDeleteJobs (default 1: one batch at a\ntime, each deleting hundreds of Snapshots in one kopia call), so this is an\nopt-in backstop for a resource-constrained cluster, not a load-bearing safety\nmechanism: a small cap risks head-of-line-blocking every OTHER repository's\ndeletions behind one slow/failing one. It does NOT bound how many Snapshots\none batch Job deletes, nor does it gate whether a deletion is allowed at all —\nthat's deletionProtection.threshold on the Repository/ClusterRepository.",
       "minimum": 0,
       "title": "maxConcurrentDeleteJobs",
+      "type": "integer"
+    },
+    "maxConcurrentJobs": {
+      "default": 0,
+      "description": "0 = uncapped (default); set to bound how many POOLED mover Jobs — backup\nsnapshots, restores, and the source side of either replication — may run at\nonce across ALL repositories. This is the cluster-operator BACKSTOP beneath\neach repository's own spec.concurrency.maxConcurrentJobs, which stays the\nprimary knob: a run must satisfy both, and whichever cap it meets first\nholds it. Set this when the node pool cannot host N movers no matter which\nrepositories they belong to; set the per-repository field when one BACKEND\nis the thing that must not be saturated. Restores are ALWAYS admitted and\nnever queued (a recovery in progress must not wait behind routine backups),\nthough a running restore still occupies a slot and so displaces backups.\nMaintenance, verification, pin and snapshot-delete Jobs are outside the pool\nentirely. Leaving this at 0 costs nothing: with no cap set anywhere the\noperator performs no extra API calls at all.",
+      "minimum": 0,
+      "title": "maxConcurrentJobs",
       "type": "integer"
     },
     "metrics": {
@@ -647,6 +654,12 @@
       "required": [],
       "title": "rbac",
       "type": "object"
+    },
+    "rbacNamespaceReadForStreamSources": {
+      "default": false,
+      "description": "Under `installScope: namespaced`, also grant the operator cluster-scoped\n`get` on `namespaces` (and nothing else) via a small supplementary ClusterRole.\n\nONLY needed for `stream` sources. A stream source execs a command inside a\nworkload pod, which requires the operator to mint `pods/exec` for the mover —\narbitrary code execution in every pod in that namespace, on a ServiceAccount\nthat outlives the Job. Kopiur therefore refuses unless a cluster admin has\nannotated the namespace `kopiur.home-operations.com/stream-exec-movers=true`,\nand it FAILS CLOSED when it cannot read the Namespace to check (unlike the\nelevated-mover opt-in, which fails open — `pods/exec` is the larger grant, and\na 403 on `namespaces get` cannot be distinguished from a deny an admin added on\npurpose).\n\nA namespaced install has no `namespaces` rule at all, so stream sources are\nrefused permanently there. Set this to `true` to add just that one read, or use\n`installScope: cluster` (which already has it). Leave it `false` if you do not\nuse stream sources: PVC and NFS sources need nothing here.\n\nIgnored under `installScope: cluster`.",
+      "title": "rbacNamespaceReadForStreamSources",
+      "type": "boolean"
     },
     "readinessProbe": {
       "description": "Readiness probe for the controller container (same passthrough as\nlivenessProbe; set to `{}` to drop it).",
