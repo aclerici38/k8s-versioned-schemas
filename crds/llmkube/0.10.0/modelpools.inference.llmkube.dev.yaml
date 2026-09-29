@@ -109,6 +109,17 @@ spec:
                     are expected to schedule onto the same node so they contend for the same
                     device memory. Mirrors a standard Kubernetes node selector.
                   type: object
+                reclaimAfter:
+                  default: 300s
+                  description: |-
+                    ReclaimAfter is how long the resident non-default member must be
+                    continuously idle before the slot is reclaimed for spec.default. Only
+                    consulted when SwapPolicy is "reclaim" and Default is set. It MUST be set
+                    comfortably longer than the on-demand member's typical inter-request gap:
+                    a value shorter than that gap trades cross-model request coalescing for
+                    load-side thrash, reclaiming the default only to swap it straight back
+                    out on the next on-demand request. Defaults to 300s.
+                  type: string
                 swapBudget:
                   default: 300s
                   description: |-
@@ -126,10 +137,12 @@ spec:
                   description: |-
                     SwapPolicy selects how the slot owner is chosen when demand crosses model
                     boundaries. "sticky" (default) keeps the incumbent until a different
-                    member is requested. It is the only policy in v1; a priority-based reclaim
-                    policy is a planned follow-up.
+                    member is requested. "reclaim" additionally returns the slot to
+                    spec.default after the resident non-default member has been idle for
+                    spec.reclaimAfter.
                   enum:
                     - sticky
+                    - reclaim
                   type: string
               required:
                 - members
@@ -233,6 +246,14 @@ spec:
                     - Ready
                     - Swapping
                     - Degraded
+                  type: string
+                residentIdleSince:
+                  description: |-
+                    ResidentIdleSince is when the resident non-default member was first
+                    observed idle under the "reclaim" swap policy. It is cleared when the
+                    member serves a request again or when spec.default becomes resident, and
+                    is used to time the reclaim of the slot back to spec.default.
+                  format: date-time
                   type: string
                 residentMember:
                   description: |-

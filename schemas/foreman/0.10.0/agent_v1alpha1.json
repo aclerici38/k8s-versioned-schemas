@@ -248,6 +248,15 @@
             "null"
           ]
         },
+        "maxScanIterations": {
+          "description": "MaxScanIterations bounds how many times the executor re-runs a coder\nafter the post-push container-image scan gate fails, feeding the scan\nfindings back so the coder fixes them and the branch is re-scanned.\nThree-valued: nil defaults to 1; an explicit 0 downgrades a failing\nscan on the first failure; N allows up to N retries. Applies only to\ncoder issue-fix tasks that declare spec.scanGate and whose scan runner\nis wired.",
+          "format": "int32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "maxTurns": {
           "default": 50,
           "description": "MaxTurns caps the agent loop's iterations before it gives up. Each\nturn is one chat-completions call plus its tool dispatches.",
@@ -424,7 +433,8 @@
           "description": "Provider selects the model-serving backend. Default \"local\" keeps\nthe v0.1 behavior (resolve InferenceServiceRef). v0.2 adds\n\"cloud-proxy\" for OpenAI-compatible HTTP endpoints (typically a\nLiteLLM gateway); see ProviderConfig. Cloud-proxy Agents are\nsubject to the foreman-operator's --allow-cloud-providers kill\nswitch and to per-Workload spec.allowCloudReviewers gating.",
           "enum": [
             "local",
-            "cloud-proxy"
+            "cloud-proxy",
+            "anthropic"
           ],
           "type": [
             "string",
@@ -437,7 +447,7 @@
           "properties": {
             "apiKeySecretRef": {
               "additionalProperties": false,
-              "description": "APIKeySecretRef references a Secret carrying the bearer token\nthe executor sends as the Authorization header. Optional: when\nnil, the proxy is dialed without auth (LAN-only LiteLLM behind\na network policy is a common case).",
+              "description": "APIKeySecretRef references a Secret carrying the credential the\nexecutor sends with every request. The header is provider-shaped:\ncloud-proxy sends it as Authorization: Bearer \u003cvalue\u003e (the\nLiteLLM gateway contract); anthropic sends it verbatim as the\nx-api-key header (the Messages API contract). Optional: when nil,\nthe endpoint is dialed without auth (LAN-only proxies behind a\nnetwork policy are a common case).",
               "properties": {
                 "key": {
                   "description": "The key of the secret to select from.  Must be a valid secret key.",
@@ -469,7 +479,7 @@
               "x-kubernetes-map-type": "atomic"
             },
             "baseURL": {
-              "description": "BaseURL is the OpenAI-compatible HTTP endpoint the executor\ndispatches chat-completions requests to. The /chat/completions\npath is appended; supply the /v1 prefix (e.g.\n\"http://foundation-router.lan:4000/v1\"). Required for\ncloud-proxy.",
+              "description": "BaseURL is the HTTP endpoint the executor dispatches to. The path\nappended depends on the provider: cloud-proxy posts to\n/chat/completions (supply the /v1 prefix, e.g.\n\"http://foundation-router.lan:4000/v1\"); anthropic posts to\n/messages (supply the /v1 prefix, e.g.\n\"https://api.anthropic.com/v1\"). Required for non-local providers.",
               "minLength": 1,
               "type": [
                 "string",
@@ -477,7 +487,7 @@
               ]
             },
             "model": {
-              "description": "Model is the identifier the proxy expects in the request body\n(e.g. \"claude-sonnet-4-6\", \"gpt-4o\", \"anthropic/claude-sonnet-4-6\"\nwhen LiteLLM is in front). Required for cloud-proxy; overrides\nAgentSpec.Model on the wire while AgentSpec.Model remains the\nhuman-readable handle.",
+              "description": "Model is the identifier the upstream expects in the request body\n(e.g. \"claude-sonnet-4-6\", \"gpt-4o\", \"anthropic/claude-sonnet-4-6\"\nwhen LiteLLM is in front). Required for non-local providers;\noverrides AgentSpec.Model on the wire while AgentSpec.Model\nremains the human-readable handle.",
               "minLength": 1,
               "type": [
                 "string",

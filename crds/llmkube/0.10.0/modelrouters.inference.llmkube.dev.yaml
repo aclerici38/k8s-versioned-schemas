@@ -235,6 +235,19 @@ spec:
                           Must be lowercase alphanumeric or '-'.
                         pattern: ^[a-z0-9][a-z0-9-]{0,62}$
                         type: string
+                      resolution:
+                        default: service
+                        description: |-
+                          Resolution selects how a local (inferenceServiceRef) backend's upstream
+                          address is resolved. "service" (the default) dispatches to the
+                          InferenceService's ClusterIP Service DNS name, so a keep-alive client
+                          can pin to one pod through conntrack. "endpoint" compiles one address
+                          per ready pod and the router-proxy balances requests across them.
+                          External backends ignore this field.
+                        enum:
+                          - service
+                          - endpoint
+                        type: string
                       tier:
                         default: local
                         description: |-
@@ -884,6 +897,23 @@ spec:
                               type: string
                             minItems: 1
                             type: array
+                          poolActivation:
+                            default: Wait
+                            description: |-
+                              PoolActivation decides what the proxy does when a backend in
+                              Backends is a ModelPool member that is not resident and the resident
+                              member is busy. "Wait" (default) holds the request open until the
+                              incumbent drains and the target loads, bounded by the pool's
+                              swapBudget. "IfIdle" only starts a swap when the incumbent is idle;
+                              while it is busy the pooled backend is skipped immediately and the
+                              request falls through to the next entry in Backends, so a rule such
+                              as [preferred-model, resident-model] serves on whichever is warm
+                              instead of queueing behind in-flight work. Non-pooled backends and
+                              same-model requests are unaffected.
+                            enum:
+                              - Wait
+                              - IfIdle
+                            type: string
                           strategy:
                             default: primary-fallback
                             description: Strategy selects how multiple backends are used.

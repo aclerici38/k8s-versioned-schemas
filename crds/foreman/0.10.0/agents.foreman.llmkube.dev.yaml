@@ -286,6 +286,18 @@ spec:
                   maximum: 20
                   minimum: 0
                   type: integer
+                maxScanIterations:
+                  description: |-
+                    MaxScanIterations bounds how many times the executor re-runs a coder
+                    after the post-push container-image scan gate fails, feeding the scan
+                    findings back so the coder fixes them and the branch is re-scanned.
+                    Three-valued: nil defaults to 1; an explicit 0 downgrades a failing
+                    scan on the first failure; N allows up to N retries. Applies only to
+                    coder issue-fix tasks that declare spec.scanGate and whose scan runner
+                    is wired.
+                  format: int32
+                  minimum: 0
+                  type: integer
                 maxTurns:
                   default: 50
                   description: |-
@@ -446,6 +458,7 @@ spec:
                   enum:
                     - local
                     - cloud-proxy
+                    - anthropic
                   type: string
                 providerConfig:
                   description: |-
@@ -454,10 +467,13 @@ spec:
                   properties:
                     apiKeySecretRef:
                       description: |-
-                        APIKeySecretRef references a Secret carrying the bearer token
-                        the executor sends as the Authorization header. Optional: when
-                        nil, the proxy is dialed without auth (LAN-only LiteLLM behind
-                        a network policy is a common case).
+                        APIKeySecretRef references a Secret carrying the credential the
+                        executor sends with every request. The header is provider-shaped:
+                        cloud-proxy sends it as Authorization: Bearer <value> (the
+                        LiteLLM gateway contract); anthropic sends it verbatim as the
+                        x-api-key header (the Messages API contract). Optional: when nil,
+                        the endpoint is dialed without auth (LAN-only proxies behind a
+                        network policy are a common case).
                       properties:
                         key:
                           description: The key of the secret to select from.  Must be a valid secret key.
@@ -480,20 +496,21 @@ spec:
                       x-kubernetes-map-type: atomic
                     baseURL:
                       description: |-
-                        BaseURL is the OpenAI-compatible HTTP endpoint the executor
-                        dispatches chat-completions requests to. The /chat/completions
-                        path is appended; supply the /v1 prefix (e.g.
-                        "http://foundation-router.lan:4000/v1"). Required for
-                        cloud-proxy.
+                        BaseURL is the HTTP endpoint the executor dispatches to. The path
+                        appended depends on the provider: cloud-proxy posts to
+                        /chat/completions (supply the /v1 prefix, e.g.
+                        "http://foundation-router.lan:4000/v1"); anthropic posts to
+                        /messages (supply the /v1 prefix, e.g.
+                        "https://api.anthropic.com/v1"). Required for non-local providers.
                       minLength: 1
                       type: string
                     model:
                       description: |-
-                        Model is the identifier the proxy expects in the request body
+                        Model is the identifier the upstream expects in the request body
                         (e.g. "claude-sonnet-4-6", "gpt-4o", "anthropic/claude-sonnet-4-6"
-                        when LiteLLM is in front). Required for cloud-proxy; overrides
-                        AgentSpec.Model on the wire while AgentSpec.Model remains the
-                        human-readable handle.
+                        when LiteLLM is in front). Required for non-local providers;
+                        overrides AgentSpec.Model on the wire while AgentSpec.Model
+                        remains the human-readable handle.
                       minLength: 1
                       type: string
                   type: object

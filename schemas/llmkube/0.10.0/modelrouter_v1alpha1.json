@@ -227,6 +227,18 @@
                 "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
                 "type": "string"
               },
+              "resolution": {
+                "default": "service",
+                "description": "Resolution selects how a local (inferenceServiceRef) backend's upstream\naddress is resolved. \"service\" (the default) dispatches to the\nInferenceService's ClusterIP Service DNS name, so a keep-alive client\ncan pin to one pod through conntrack. \"endpoint\" compiles one address\nper ready pod and the router-proxy balances requests across them.\nExternal backends ignore this field.",
+                "enum": [
+                  "service",
+                  "endpoint"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "tier": {
                 "default": "local",
                 "description": "Tier classifies the backend for rule matching. \"local\" backends are\nserved from inside the cluster; \"cloud\" backends egress the cluster\nboundary. Fail-closed rules can only route to local-tier backends.",
@@ -945,6 +957,18 @@
                     },
                     "minItems": 1,
                     "type": "array"
+                  },
+                  "poolActivation": {
+                    "default": "Wait",
+                    "description": "PoolActivation decides what the proxy does when a backend in\nBackends is a ModelPool member that is not resident and the resident\nmember is busy. \"Wait\" (default) holds the request open until the\nincumbent drains and the target loads, bounded by the pool's\nswapBudget. \"IfIdle\" only starts a swap when the incumbent is idle;\nwhile it is busy the pooled backend is skipped immediately and the\nrequest falls through to the next entry in Backends, so a rule such\nas [preferred-model, resident-model] serves on whichever is warm\ninstead of queueing behind in-flight work. Non-pooled backends and\nsame-model requests are unaffected.",
+                    "enum": [
+                      "Wait",
+                      "IfIdle"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "strategy": {
                     "default": "primary-fallback",
