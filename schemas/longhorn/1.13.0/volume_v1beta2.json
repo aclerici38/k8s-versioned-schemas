@@ -1,0 +1,837 @@
+{
+  "description": "Volume is where Longhorn stores volume object.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "VolumeSpec defines the desired state of the Longhorn volume",
+      "properties": {
+        "Standby": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "accessMode": {
+          "enum": [
+            "rwo",
+            "rwop",
+            "rwx"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backingImage": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "BackingImage is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
+        },
+        "backupBlockSize": {
+          "description": "BackupBlockSize indicate the block size to create backups. The block size is immutable.",
+          "enum": [
+            "2097152",
+            "16777216"
+          ],
+          "format": "int64",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backupCompressionMethod": {
+          "enum": [
+            "none",
+            "lz4",
+            "gzip"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backupTargetName": {
+          "description": "The backup target name that the volume will be backed up to or is synced.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cloneMode": {
+          "enum": [
+            "",
+            "full-copy",
+            "linked-clone"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dataEngine": {
+          "enum": [
+            "v1",
+            "v2"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dataLayout": {
+          "additionalProperties": false,
+          "description": "DataLayout declares the user's intended data layout (topology type, protection mode, and EC parameters).\nThe entire struct is immutable after creation.",
+          "properties": {
+            "dataChunks": {
+              "description": "DataChunks is the number of data chunks (k) in the EC array.\nRequired when Type is sharded; must be 0 for replicated volumes.",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mode": {
+              "description": "Mode describes the specific data protection mechanism in use.\nEmpty for V1 volumes where no SPDK-level mode applies.",
+              "enum": [
+                "raid1",
+                "erasureCoding",
+                ""
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parityChunks": {
+              "description": "ParityChunks is the number of parity chunks (m) in the EC array.\nThe volume tolerates up to m simultaneous disk failures.\nRequired when Type is sharded; must be 0 for replicated volumes.",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "stripSizeKB": {
+              "description": "StripSizeKB is the chunk size in KiB used by the EC bdev.\nMust be a power of two in the range [4, 1024].\nRequired when Type is sharded; must be 0 for replicated volumes.",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "type": {
+              "description": "Type describes how volume data is distributed across nodes.",
+              "enum": [
+                "replicated",
+                "sharded",
+                ""
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "DataLayout is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
+        },
+        "dataLocality": {
+          "enum": [
+            "disabled",
+            "best-effort",
+            "strict-local"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dataSource": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "disableFrontend": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "diskSelector": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "encrypted": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "Encrypted is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
+        },
+        "engineNodeID": {
+          "description": "engineNodeID defines the node where the backend engine (target) runs.\nIf empty, falls back to NodeID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "freezeFilesystemForSnapshot": {
+          "description": "Setting that freezes the filesystem on the root partition before a snapshot is created.",
+          "enum": [
+            "ignored",
+            "enabled",
+            "disabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fromBackup": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "frontend": {
+          "enum": [
+            "blockdev",
+            "iscsi",
+            "nvmf",
+            "ublk",
+            ""
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastAttachedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "migratable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "migrationNodeID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nodeID": {
+          "description": "nodeID defines the node where the volume is attached (where the frontend initiator runs).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nodeSelector": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "numberOfReplicas": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "nvmeTcpNrIoQueues": {
+          "description": "nvmeTcpNrIoQueues limits the number of I/O queues the kernel initiator\ncreates when connecting the blockdev frontend over NVMe-TCP.\n0 means inheriting the global setting default-nvme-tcp-nr-io-queues.\nTakes effect on (re)attach.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offlineRebuilding": {
+          "description": "Specifies whether Longhorn should rebuild replicas while the detached volume is degraded.\n- ignored: Use the global setting for offline replica rebuilding.\n- enabled: Enable offline rebuilding for this volume, regardless of the global setting.\n- disabled: Disable offline rebuilding for this volume, regardless of the global setting",
+          "enum": [
+            "ignored",
+            "disabled",
+            "enabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rebuildConcurrentSyncLimit": {
+          "description": "RebuildConcurrentSyncLimit controls the maximum number of file synchronization operations that can run\nconcurrently during a single replica rebuild.\nWhen set to 0, it means following the global setting.",
+          "maximum": 5,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "replicaAutoBalance": {
+          "enum": [
+            "ignored",
+            "disabled",
+            "least-effort",
+            "best-effort"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replicaDiskSoftAntiAffinity": {
+          "description": "Replica disk soft anti affinity of the volume. Set enabled to allow replicas to be scheduled in the same disk.",
+          "enum": [
+            "ignored",
+            "enabled",
+            "disabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replicaRebuildingBandwidthLimit": {
+          "description": "ReplicaRebuildingBandwidthLimit controls the maximum write bandwidth (in megabytes per second) allowed on the destination replica during the rebuilding process. Set this value to 0 to disable bandwidth limiting.",
+          "format": "int64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "replicaSoftAntiAffinity": {
+          "description": "Replica soft anti affinity of the volume. Set enabled to allow replicas to be scheduled on the same node.",
+          "enum": [
+            "ignored",
+            "enabled",
+            "disabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replicaZoneSoftAntiAffinity": {
+          "description": "Replica zone soft anti affinity of the volume. Set enabled to allow replicas to be scheduled in the same zone.",
+          "enum": [
+            "ignored",
+            "enabled",
+            "disabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "restoreVolumeRecurringJob": {
+          "enum": [
+            "ignored",
+            "enabled",
+            "disabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revisionCounterDisabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "size": {
+          "format": "int64",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshotDataIntegrity": {
+          "enum": [
+            "ignored",
+            "disabled",
+            "enabled",
+            "fast-check"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshotHashingRequestedAt": {
+          "description": "SnapshotHashingRequestedAt is the RFC3339 timestamp (e.g., \"2026-03-16T10:30:00Z\") when an on-demand snapshot checksum calculation is requested.\nWhen this value is set and is later than LastOnDemandSnapshotHashingCompleteAt, the system will calculate checksums\nfor all user snapshots.\n\nIf SnapshotHashingRequestedAt differs from LastOnDemandSnapshotHashingCompleteAt, it indicates that a hashing request\nis still in progress, and a new request will be rejected.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshotMaxCount": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "snapshotMaxSize": {
+          "format": "int64",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "staleReplicaTimeout": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "topologyRequirement": {
+          "description": "TopologyRequirement lists the failure domains the volume's replicas must\nbe scheduled in, derived from the CSI accessible topology at creation —\nthe same failure domains as the PV nodeAffinity terms (a node must match\nat least one term). Empty means unconstrained.",
+          "items": {
+            "additionalProperties": false,
+            "description": "VolumeTopologyTerm is one failure domain a volume's replicas may be\nscheduled in. A node satisfies the term when its zone and region match the\nnon-empty fields.",
+            "properties": {
+              "region": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "zone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "TopologyRequirement is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
+        },
+        "ublkNumberOfQueue": {
+          "description": "ublkNumberOfQueue controls the number of queues for ublk frontend.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ublkQueueDepth": {
+          "description": "ublkQueueDepth controls the depth of each queue for ublk frontend.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unmapMarkSnapChainRemoved": {
+          "enum": [
+            "ignored",
+            "disabled",
+            "enabled"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "VolumeStatus defines the observed state of the Longhorn volume",
+      "properties": {
+        "actualSize": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cloneStatus": {
+          "additionalProperties": false,
+          "properties": {
+            "attemptCount": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "nextAllowedAttemptAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "snapshot": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sourceVolume": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "state": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "conditions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "lastProbeTime": {
+                "description": "Last time we probed the condition.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastTransitionTime": {
+                "description": "Last time the condition transitioned from one status to another.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "Human-readable message indicating details about last transition.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "Unique, one-word, CamelCase reason for the condition's last transition.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "description": "Status is the status of the condition.\nCan be True, False, Unknown.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "description": "Type is the type of the condition.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "nullable": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "currentEngineNodeID": {
+          "description": "the node that the engine (target) is currently running on.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currentImage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currentMigrationNodeID": {
+          "description": "the node that this volume is currently migrating to",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currentNodeID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expansionRequired": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "frontendDisabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "isStandby": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "kubernetesStatus": {
+          "additionalProperties": false,
+          "properties": {
+            "lastPVCRefAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lastPodRefAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "namespace": {
+              "description": "determine if PVC/Namespace is history or not",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pvName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pvStatus": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pvcName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workloadsStatus": {
+              "description": "determine if Pod/Workload is history or not",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "podName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "podStatus": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "workloadName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "workloadType": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "nullable": true,
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lastAutoSalvagedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastBackup": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastBackupAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastDegradedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastOnDemandSnapshotHashingCompleteAt": {
+          "description": "LastOnDemandSnapshotHashingCompleteAt is the RFC3339 timestamp (e.g., \"2026-03-16T10:30:00Z\") when the\nmost recent on-demand snapshot checksum calculation completed.\nWhen this value matches SnapshotHashingRequestedAt, the requested on-demand checksum calculation is considered complete.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remountRequestedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "restoreInitiated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "restoreRequired": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "robustness": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shareEndpoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shareState": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "switchoverState": {
+          "description": "SwitchoverState describes the current progress of a v2 engine live switchover.\nEmpty when no switchover is in progress.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}

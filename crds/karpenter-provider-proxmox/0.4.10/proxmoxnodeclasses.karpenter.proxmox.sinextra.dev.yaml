@@ -1,0 +1,388 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: proxmoxnodeclasses.karpenter.proxmox.sinextra.dev
+spec:
+  group: karpenter.proxmox.sinextra.dev
+  names:
+    categories:
+      - karpenter
+    kind: ProxmoxNodeClass
+    listKind: ProxmoxNodeClassList
+    plural: proxmoxnodeclasses
+    singular: proxmoxnodeclass
+  scope: Cluster
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.resources.zones
+          name: Zones
+          type: string
+        - jsonPath: .spec.placementStrategy.zoneBalance
+          name: Balance
+          type: string
+        - jsonPath: .spec.instanceTemplateRef.name
+          name: Template
+          type: string
+        - jsonPath: .spec.metadataOptions.type
+          name: Metadata
+          type: string
+        - jsonPath: .spec.bootDevice.size
+          name: Disk
+          type: string
+        - jsonPath: .status.conditions[?(@.type=="Ready")].status
+          name: Ready
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: ProxmoxNodeClass is the Schema for the ProxmoxNodeClass API
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: Spec defines the desired state of ProxmoxNodeClass
+              properties:
+                bootDevice:
+                  default:
+                    size: 30G
+                  description: |-
+                    BootDevice defines the root device for the VM
+                    If not specified, a block storage device will be used from the instance template.
+                  properties:
+                    size:
+                      allOf:
+                        - pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        - pattern: ^\d+(T|G|Ti|Gi)$
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: Size is the size of the block device in `Gi`, `G`, `Ti`, or `T`
+                      type: string
+                      x-kubernetes-int-or-string: true
+                    storage:
+                      description: Storage is the proxmox storage-id to create the block device
+                      maxLength: 30
+                      type: string
+                  type: object
+                instanceTemplateRef:
+                  description: InstanceTemplateRef is the template reference for the VM template
+                  properties:
+                    kind:
+                      description: 'Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"'
+                      enum:
+                        - ProxmoxTemplate
+                        - ProxmoxUnmanagedTemplate
+                      type: string
+                    name:
+                      description: 'Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names'
+                      minLength: 1
+                      type: string
+                  required:
+                    - kind
+                    - name
+                  type: object
+                kubeletConfiguration:
+                  description: KubeletConfiguration defines kubelet config file
+                  properties:
+                    allowedUnsafeSysctls:
+                      description: |-
+                        A comma separated whitelist of unsafe sysctls or sysctl patterns (ending in `*`).
+                        Unsafe sysctl groups are `kernel.shm*`, `kernel.msg*`, `kernel.sem`, `fs.mqueue.*`,
+                        and `net.*`. For example: "`kernel.msg*,net.ipv4.route.min_pmtu`"
+                      items:
+                        type: string
+                      type: array
+                    clusterDNS:
+                      description: |-
+                        ClusterDNS is a list of IP addresses for a cluster DNS server. If set,
+                        kubelet will configure all containers to use this for DNS resolution
+                        instead of the host's DNS servers.
+                      items:
+                        type: string
+                      maxItems: 3
+                      type: array
+                    cpuCFSQuota:
+                      description: CPUCFSQuota enables CPU CFS quota enforcement for containers that specify CPU limits.
+                      type: boolean
+                    cpuCFSQuotaPeriod:
+                      description: |-
+                        cpuCFSQuotaPeriod sets the CPU CFS quota period value, `cpu.cfs_period_us`.
+                        The value must be between 1 ms and 1 second, inclusive.
+                      type: string
+                    cpuManagerPolicy:
+                      description: CPUManagerPolicy is the name of the policy to use.
+                      enum:
+                        - none
+                        - static
+                      type: string
+                    failSwapOn:
+                      description: FailSwapOn tells the Kubelet to fail to start if swap is enabled on the node.
+                      type: boolean
+                    imageGCHighThresholdPercent:
+                      description: |-
+                        ImageGCHighThresholdPercent is the percent of disk usage after which image
+                        garbage collection is always run. The percent is calculated by dividing this
+                        field value by 100, so this field must be between 0 and 100, inclusive.
+                        When specified, the value must be greater than ImageGCLowThresholdPercent.
+                      format: int32
+                      maximum: 100
+                      minimum: 0
+                      type: integer
+                    imageGCLowThresholdPercent:
+                      description: |-
+                        ImageGCLowThresholdPercent is the percent of disk usage before which image
+                        garbage collection is never run. Lowest disk usage to garbage collect to.
+                        The percent is calculated by dividing this field value by 100,
+                        so the field value must be between 0 and 100, inclusive.
+                        When specified, the value must be less than imageGCHighThresholdPercent
+                      format: int32
+                      maximum: 100
+                      minimum: 0
+                      type: integer
+                    maxPods:
+                      description: |-
+                        MaxPods is an override for the maximum number of pods that can run on
+                        a worker node instance.
+                      format: int32
+                      maximum: 250
+                      minimum: 10
+                      type: integer
+                    shutdownGracePeriod:
+                      description: |-
+                        ShutdownGracePeriod specifies the total duration that the node should delay the
+                        shutdown and total grace period for pod termination during a node shutdown.
+                      type: string
+                    topologyManagerPolicy:
+                      description: |-
+                        TopologyManagerPolicy is the name of the topology manager policy to use.
+                        Valid values include:
+
+                        - `restricted`: kubelet only allows pods with optimal NUMA node alignment for requested resources;
+                        - `best-effort`: kubelet will favor pods with NUMA alignment of CPU and device resources;
+                        - `none`: kubelet has no knowledge of NUMA alignment of a pod's CPU and device resources.
+                        - `single-numa-node`: kubelet only allows pods with a single NUMA alignment
+                          of CPU and device resources.
+                      enum:
+                        - restricted
+                        - best-effort
+                        - none
+                        - single-numa-node
+                      type: string
+                    topologyManagerScope:
+                      description: |-
+                        TopologyManagerScope represents the scope of topology hint generation
+                        that topology manager requests and hint providers generate.
+                        Valid values include:
+
+                        - `container`: topology policy is applied on a per-container basis.
+                        - `pod`: topology policy is applied on a per-pod basis.
+                      enum:
+                        - container
+                        - pod
+                      type: string
+                  type: object
+                metadataOptions:
+                  default:
+                    type: none
+                  description: MetadataOptions for the generated launch template of provisioned nodes.
+                  properties:
+                    templatesRef:
+                      description: |-
+                        templatesRef is a reference to the secret that contains cloud-init metadata templates.
+                        Secret must contain the following keys, each key is optional:
+                        - `user-data` - Userdata for cloud-init
+                        - `meta-data` - Metadata for cloud-init
+                        - `network-config` - Network configuration for cloud-init
+                      properties:
+                        name:
+                          description: name is unique within a namespace to reference a secret resource.
+                          type: string
+                        namespace:
+                          description: namespace defines the space within which the secret name must be unique.
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    type:
+                      default: none
+                      description: |-
+                        If specified, the instance metadata will be exposed to the VMs by CDRom
+                        or virtual machine template.
+                      enum:
+                        - none
+                        - cdrom
+                      type: string
+                    valuesRef:
+                      description: valuesRef is a reference to the secret that contains cloud-init custom template values.
+                      properties:
+                        name:
+                          description: name is unique within a namespace to reference a secret resource.
+                          type: string
+                        namespace:
+                          description: namespace defines the space within which the secret name must be unique.
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                  type: object
+                placementStrategy:
+                  default:
+                    zoneBalance: Balanced
+                  description: PlacementStrategy defines how nodes should be placed across zones
+                  properties:
+                    zoneBalance:
+                      default: Balanced
+                      description: |-
+                        ZoneBalance determines how nodes are distributed across zones
+                        Valid values are:
+                        - "Balanced" (default) - Nodes are evenly distributed across zones
+                        - "AvailabilityFirst" - Prioritize zone availability over even distribution
+                      enum:
+                        - Balanced
+                        - AvailabilityFirst
+                      type: string
+                  type: object
+                region:
+                  description: Region is the Proxmox Cloud region where nodes will be created
+                  minLength: 1
+                  type: string
+                resourcePool:
+                  description: |-
+                    ResourcePool is the Proxmox resource pool name where VMs will be placed.
+                    If specified, cloned VMs will be added to this pool during creation.
+                    The pool must already exist in Proxmox.
+                    Supports nested pools up to 3 levels (e.g., "parent/child/grandchild").
+                    Note: PVE 9+ requires pool names to start with a letter; PVE 8 allows
+                    names starting with digits but this is deprecated.
+                  maxLength: 64
+                  pattern: ^[a-zA-Z0-9][a-zA-Z0-9._-]*(/[a-zA-Z0-9][a-zA-Z0-9._-]*){0,2}$
+                  type: string
+                securityGroups:
+                  description: SecurityGroups to apply to the VMs
+                  items:
+                    description: SecurityGroups defines a term to apply security groups
+                    properties:
+                      interface:
+                        default: net0
+                        description: Interface is the network interface to apply the security group
+                        pattern: net[0-9]+
+                        type: string
+                      name:
+                        description: Name is the security group name in Proxmox.
+                        maxLength: 30
+                        type: string
+                    required:
+                      - name
+                    type: object
+                  maxItems: 10
+                  type: array
+                tags:
+                  description: Tags to apply to the VMs
+                  items:
+                    type: string
+                  maxItems: 10
+                  type: array
+              required:
+                - instanceTemplateRef
+              type: object
+            status:
+              description: Status defines the observed state of ProxmoxNodeClass
+              properties:
+                conditions:
+                  description: Conditions contains signals for health and readiness
+                  items:
+                    description: Condition aliases the upstream type and adds additional helper methods
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                resources:
+                  additionalProperties:
+                    anyOf:
+                      - type: integer
+                      - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  description: Resources is the list of resources that have been provisioned.
+                  type: object
+                selectedZones:
+                  description: |-
+                    SelectedZones is a list of nodes that match this node class
+                    It depends on instanceTemplate and region.
+                    This field is populated by the controller and should not be set manually.
+                  items:
+                    type: string
+                  type: array
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
