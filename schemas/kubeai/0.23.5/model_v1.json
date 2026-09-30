@@ -1,0 +1,468 @@
+{
+  "description": "Model resources define the ML models that will be served by KubeAI.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "ModelSpec defines the desired state of Model.",
+      "properties": {
+        "adapters": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "description": "Name must be a lowercase string with no spaces.",
+                "maxLength": 63,
+                "pattern": "^[a-z0-9-]+$",
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "adapter url must start with \"hf://\", \"s3://\", \"gs://\", or \"oss://\".",
+                    "rule": "self.startsWith(\"hf://\") || self.startsWith(\"s3://\") || self.startsWith(\"gs://\") || self.startsWith(\"oss://\")"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "url"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "args": {
+          "description": "Args to be added to the server process.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "autoscalingDisabled": {
+          "description": "AutoscalingDisabled will stop the controller from managing the replicas\nfor the Model. When disabled, metrics will not be collected on server Pods.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "cacheProfile": {
+          "description": "CacheProfile to be used for caching model artifacts.\nMust be a valid CacheProfile defined in the system config.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "cacheProfile is immutable.",
+              "rule": "self == oldSelf"
+            }
+          ]
+        },
+        "engine": {
+          "description": "Engine to be used for the server process.",
+          "enum": [
+            "OLlama",
+            "VLLM",
+            "FasterWhisper",
+            "Infinity"
+          ],
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Env variables to be added to the server process.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "envFrom": {
+          "description": "Env variables to be added to the server process from Secret or ConfigMap.",
+          "items": {
+            "additionalProperties": false,
+            "description": "EnvFromSource represents the source of a set of ConfigMaps or Secrets",
+            "properties": {
+              "configMapRef": {
+                "additionalProperties": false,
+                "description": "The ConfigMap to select from",
+                "properties": {
+                  "name": {
+                    "default": "",
+                    "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "optional": {
+                    "description": "Specify whether the ConfigMap must be defined",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-map-type": "atomic"
+              },
+              "prefix": {
+                "description": "Optional text to prepend to the name of each environment variable.\nMay consist of any printable ASCII characters except '='.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "secretRef": {
+                "additionalProperties": false,
+                "description": "The Secret to select from",
+                "properties": {
+                  "name": {
+                    "default": "",
+                    "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "optional": {
+                    "description": "Specify whether the Secret must be defined",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-map-type": "atomic"
+              }
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "features": {
+          "description": "Features that the model supports.\nDictates the APIs that are available for the model.",
+          "items": {
+            "enum": [
+              "TextGeneration",
+              "TextEmbedding",
+              "Reranking",
+              "SpeechToText"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "files": {
+          "description": "Files to be mounted in the model Pods.",
+          "items": {
+            "additionalProperties": false,
+            "description": "File represents a file to be mounted in the model pod.",
+            "properties": {
+              "content": {
+                "description": "Content of the file to be mounted.\nWill be injected into a ConfigMap and mounted in the model Pods.",
+                "maxLength": 100000,
+                "type": "string"
+              },
+              "path": {
+                "description": "Path where the file should be mounted in the pod.\nMust be an absolute path.",
+                "maxLength": 1024,
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "Path must be an absolute path, starting with /, and must not contain a ':' character.",
+                    "rule": "self.startsWith('/') \u0026\u0026 !self.contains(':')"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "content",
+              "path"
+            ],
+            "type": "object"
+          },
+          "maxItems": 10,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "image": {
+          "description": "Image to be used for the server process.\nWill be set from ResourceProfile + Engine if not specified.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loadBalancing": {
+          "additionalProperties": false,
+          "default": {},
+          "description": "LoadBalancing configuration for the model.\nIf not specified, a default is used based on the engine and request.",
+          "properties": {
+            "prefixHash": {
+              "additionalProperties": false,
+              "default": {},
+              "properties": {
+                "meanLoadFactor": {
+                  "default": 125,
+                  "description": "MeanLoadPercentage is the percentage that any given endpoint's load must not exceed\nover the mean load of all endpoints in the hash ring. Defaults to 125% which is\na widely accepted value for the Consistent Hashing with Bounded Loads algorithm.",
+                  "minimum": 100,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "prefixCharLength": {
+                  "default": 100,
+                  "description": "PrefixCharLength is the number of characters to count when building the prefix to hash.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "replication": {
+                  "default": 256,
+                  "description": "Replication is the number of replicas of each endpoint on the hash ring.\nHigher values will result in a more even distribution of load but will\ndecrease lookup performance.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "replication is immutable.",
+                      "rule": "self == oldSelf"
+                    }
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "strategy": {
+              "default": "LeastLoad",
+              "enum": [
+                "LeastLoad",
+                "PrefixHash"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "maxReplicas": {
+          "description": "MaxReplicas is the maximum number of Pod replicas that the model can scale up to.\nEmpty value means no limit.",
+          "format": "int32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minReplicas": {
+          "description": "MinReplicas is the minimum number of Pod replicas that the model can scale down to.\nNote: 0 is a valid value.",
+          "format": "int32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "owner": {
+          "description": "Owner of the model. Used solely to populate the owner field in the\nOpenAI /v1/models endpoint.\nDEPRECATED.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priorityClassName": {
+          "description": "PriorityClassName sets the priority class for all pods created for this model.\nIf specified, the PriorityClass must exist before the model is created.\nThis is useful for implementing priority and preemption for models.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replicas": {
+          "description": "Replicas is the number of Pod replicas that should be actively\nserving the model. KubeAI will manage this field unless AutoscalingDisabled\nis set to true.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "resourceProfile": {
+          "description": "ResourceProfile required to serve the model.\nUse the format \"\u003cresource-profile-name\u003e:\u003ccount\u003e\".\nExample: \"nvidia-gpu-l4:2\" - 2x NVIDIA L4 GPUs.\nMust be a valid ResourceProfile defined in the system config.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scaleDownDelaySeconds": {
+          "default": 30,
+          "description": "ScaleDownDelay is the minimum time before a deployment is scaled down after\nthe autoscaling algorithm determines that it should be scaled down.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "targetRequests": {
+          "default": 100,
+          "description": "TargetRequests is average number of active requests that the autoscaler\nwill try to maintain on model server Pods.",
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "url": {
+          "description": "URL of the model to be served.\nCurrently the following formats are supported:\n\nFor VLLM, FasterWhisper, Infinity engines:\n\n\"hf://\u003crepo\u003e/\u003cmodel\u003e\"\n\"pvc://\u003cpvcName\u003e\"\n\"pvc://\u003cpvcName\u003e/\u003cpvcSubpath\u003e\"\n\"oci://\u003cregistry\u003e/\u003crepository\u003e:\u003ctag\u003e\"\n\"gs://\u003cbucket\u003e/\u003cpath\u003e\" (only with cacheProfile)\n\"oss://\u003cbucket\u003e/\u003cpath\u003e\" (only with cacheProfile)\n\"s3://\u003cbucket\u003e/\u003cpath\u003e\" (only with cacheProfile)\n\nFor OLlama engine:\n\n\"ollama://\u003cmodel\u003e\"",
+          "pattern": "^([a-z0-9]+):\\/\\/([a-zA-Z0-9._:/-]+)(\\?.*)?$",
+          "type": "string",
+          "x-kubernetes-validations": [
+            {
+              "message": "url must start with \"oci://\", \"hf://\", \"pvc://\", \"ollama://\", \"s3://\", \"gs://\", or \"oss://\" and not be empty.",
+              "rule": "self.startsWith(\"oci://\") || self.startsWith(\"hf://\") || self.startsWith(\"pvc://\") || self.startsWith(\"ollama://\") || self.startsWith(\"s3://\") || self.startsWith(\"gs://\") || self.startsWith(\"oss://\")"
+            }
+          ]
+        }
+      },
+      "required": [
+        "engine",
+        "features",
+        "scaleDownDelaySeconds",
+        "targetRequests",
+        "url"
+      ],
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "cacheProfile is only supported with urls of format \"hf://...\", \"s3://...\", \"gs://...\", or \"oss://...\" at the moment.",
+          "rule": "!has(self.cacheProfile) || self.url.startsWith(\"hf://\") || self.url.startsWith(\"s3://\") || self.url.startsWith(\"gs://\") || self.url.startsWith(\"oss://\")"
+        },
+        {
+          "message": "urls of format \"gs://...\" only supported when using a cacheProfile",
+          "rule": "!self.url.startsWith(\"gs://\") || has(self.cacheProfile)"
+        },
+        {
+          "message": "urls of format \"oss://...\" only supported when using a cacheProfile",
+          "rule": "!self.url.startsWith(\"oss://\") || has(self.cacheProfile)"
+        },
+        {
+          "message": "minReplicas should be less than or equal to maxReplicas.",
+          "rule": "!has(self.maxReplicas) || self.minReplicas \u003c= self.maxReplicas"
+        },
+        {
+          "message": "adapters only supported with VLLM engine.",
+          "rule": "!has(self.adapters) || self.engine == \"VLLM\""
+        },
+        {
+          "message": "url is immutable when using cacheProfile.",
+          "rule": "!has(oldSelf.cacheProfile) || self.url == oldSelf.url"
+        },
+        {
+          "message": "All file paths must be unique.",
+          "rule": "!has(self.files) || self.files.size() \u003c= 1 || !self.files.exists(f, self.files.filter(other, other.path == f.path).size() \u003e 1)"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "ModelStatus defines the observed state of Model.",
+      "properties": {
+        "cache": {
+          "additionalProperties": false,
+          "properties": {
+            "loaded": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "loaded"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "replicas": {
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "ready": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "all",
+            "ready"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object",
+  "x-kubernetes-validations": [
+    {
+      "message": "name must not exceed 40 characters.",
+      "rule": "size(self.metadata.name) \u003c= 40"
+    }
+  ]
+}
