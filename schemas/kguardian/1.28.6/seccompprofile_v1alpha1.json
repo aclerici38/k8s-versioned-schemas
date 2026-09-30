@@ -8,6 +8,7 @@
         "architectures": {
           "description": "Architectures the profile applies to (seccomp `architectures`).\nOmitted ⇒ the rendered file carries no `architectures` field.",
           "items": {
+            "description": "A seccomp `architectures` entry, named the way libseccomp and the OCI\nruntime-spec name it (`SCMP_ARCH_*`). The runtime resolves each entry\nby name when it creates the container, and one it does not know fails\nthe pod outright (`runc create failed: string SCMP_ARCH_ARM64 is not a\nvalid arch for seccomp`) rather than being skipped. `SCMP_ARCH_ARM64`\nwas kguardian's own spelling of aarch64 and no runtime accepts it; it\nstays accepted here so the CRs written with it keep validating, and the\nController writes it to the node file as `SCMP_ARCH_AARCH64`. Use\n`SCMP_ARCH_AARCH64` in new manifests.",
             "enum": [
               "SCMP_ARCH_X86_64",
               "SCMP_ARCH_ARM64",
@@ -166,6 +167,62 @@
             "type"
           ],
           "x-kubernetes-list-type": "map"
+        },
+        "denials": {
+          "additionalProperties": false,
+          "description": "Seccomp denials the broker has attributed to this CR's workload:\nsyscalls the kernel's own filter acted on, as opposed to `drift`,\nwhich is inferred from what kguardian observed the workload call.\n\nA settled reading, not a live counter, and `refreshedAt` says when it\nwas taken. Every node polls the Broker on its own schedule, so every\nnode holds a slightly different reading; writing each one back would\nhave the fleet rewrite this CR without end. A node therefore\nrepublishes the block only when its own reading is strictly stronger\nthan the published one — a syscall or a verdict not listed there, or\nan order of magnitude more events — and otherwise leaves it alone\nuntil it is more than 15 minutes old, at which point the next node to\nreconcile replaces it outright.\n\nSo `observed` trails live activity by up to 15 minutes, and it trails\nit in one direction: a workload climbing from 1,200 to 9,900 inside\none order of magnitude keeps reporting 1,200 until the refresh, and\nso does a count that falls, whether because the retention window\npruned older events or because the workload stopped. Read it as\n\"denials on this scale, as of `refreshedAt`\", not as a total. `GET\n/seccomp/denials` on the Broker is the live, per-event view.\n\nPresent whenever the Broker gave an answer, including when that\nanswer is zero. `observed: 0` means \"checked, and clean\". The whole\nblock being absent means \"not known\" — the Broker was unreachable, it\npredates denial capture, or nothing on this cluster is capturing\ndenials at all.\n\nKeeping those two apart is the point of the field. Zero is what\nclears a profile for promotion from `SCMP_ACT_LOG` to an enforcing\naction; absent is no evidence whatsoever, and collapsing them would\nhand out that clearance on the strength of nobody having looked. The\n`Denials` printer column reads `observed` straight out of this block,\nso it shows `0` for a cleared workload and stays blank for an unknown\none — readable without going and fetching the condition. The\n`DenialsObserved` condition carries the same distinction with a\nreason attached, and its message renders this block and nothing else,\nso `kubectl get` and `kubectl describe` cannot name two different\nnumbers.",
+          "nullable": true,
+          "properties": {
+            "actions": {
+              "description": "The `SCMP_ACT_*` verdicts the kernel returned in this reading,\nsorted. What separates a profile that is only logging from one\nthat is returning errors to the workload or killing it.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "lastSeen": {
+              "description": "RFC 3339; the most recent denial in this reading, when there has\nbeen one.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "observed": {
+              "description": "Denial events in this reading, across every syscall and action.\nThis is the `Denials` printer column. Up to 15 minutes behind the\nBroker, and coarse — see the note on this block.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "refreshedAt": {
+              "description": "RFC 3339; when this reading was taken from the Broker. Every\nother field in the block is as of this instant. Absent on a block\nwritten by a controller from before this field existed; the next\nreconcile stamps one.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "syscalls": {
+              "description": "Distinct syscall names denied in this reading, sorted.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "observed"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "distribution": {
           "additionalProperties": false,
