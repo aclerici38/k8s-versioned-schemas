@@ -1,5 +1,5 @@
 {
-  "description": "APIVersion defines a version of an API.",
+  "description": "API defines an HTTP interface that is exposed to external clients. It specifies the supported versions\nand provides instructions for accessing its documentation. Once instantiated, an API object is associated\nwith an Ingress, IngressRoute, or HTTPRoute resource, enabling the exposure of the described API to the outside world.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,8 +23,51 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "The desired behavior of this APIVersion.",
+      "description": "APISpec describes the API.",
       "properties": {
+        "apiAuths": {
+          "description": "APIAuths defines the API authentication configuration.",
+          "items": {
+            "additionalProperties": false,
+            "description": "APIAuthReference references an APIAuth resource for authentication configuration.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "operationFilter": {
+                "additionalProperties": false,
+                "description": "OperationFilter specifies the allowed operations on APIs and APIVersions.",
+                "properties": {
+                  "include": {
+                    "description": "Include defines the names of OperationSets that will be accessible.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "cors": {
           "additionalProperties": false,
           "description": "Cors defines the Cross-Origin Resource Sharing configuration.",
@@ -108,7 +151,7 @@
           ]
         },
         "description": {
-          "description": "Description explains what the APIVersion does.",
+          "description": "Description explains what the API does.",
           "type": [
             "string",
             "null"
@@ -323,36 +366,53 @@
             }
           ]
         },
-        "release": {
-          "description": "Release is the version number of the API.\nThis value must follow the SemVer format: https://semver.org/",
-          "maxLength": 100,
-          "type": "string",
-          "x-kubernetes-validations": [
-            {
-              "message": "must be a valid semver version",
-              "rule": "self.matches(r\"\"\"^v?(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$\"\"\")"
-            }
-          ]
-        },
         "title": {
-          "description": "Title is the public facing name of the APIVersion.",
+          "description": "Title is the human-readable name of the API that will be used on the portal.",
+          "maxLength": 253,
           "type": [
             "string",
             "null"
           ]
+        },
+        "versions": {
+          "description": "Versions are the different APIVersions available.",
+          "items": {
+            "additionalProperties": false,
+            "description": "APIVersionRef references an APIVersion.",
+            "properties": {
+              "name": {
+                "description": "Name of the APIVersion.",
+                "maxLength": 253,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
-      "required": [
-        "release"
-      ],
       "type": [
         "object",
         "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "operationFilter.include must only reference operation sets defined in openApiSpec.operationSets",
+          "rule": "!has(self.apiAuths) || self.apiAuths.all(a, !has(a.operationFilter) || !has(a.operationFilter.include) || a.operationFilter.include.all(n, has(self.openApiSpec) \u0026\u0026 has(self.openApiSpec.operationSets) \u0026\u0026 self.openApiSpec.operationSets.exists(s, s.name == n)))"
+        }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "The current status of this APIVersion.",
+      "description": "The current status of this API.",
       "properties": {
         "conditions": {
           "items": {
@@ -416,7 +476,7 @@
           ]
         },
         "hash": {
-          "description": "Hash is a hash representing the APIVersion.",
+          "description": "Hash is a hash representing the API.",
           "type": [
             "string",
             "null"
