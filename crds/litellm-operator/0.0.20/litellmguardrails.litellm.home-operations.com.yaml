@@ -3,25 +3,25 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
-  name: litellmteams.litellm.home-operations.com
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: litellmguardrails.litellm.home-operations.com
 spec:
   group: litellm.home-operations.com
   names:
-    kind: LiteLLMTeam
-    listKind: LiteLLMTeamList
-    plural: litellmteams
+    kind: LiteLLMGuardrail
+    listKind: LiteLLMGuardrailList
+    plural: litellmguardrails
     shortNames:
-      - llteam
-    singular: litellmteam
+      - llguardrail
+    singular: litellmguardrail
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .status.teamID
-          name: Team ID
+        - jsonPath: .spec.guardrail
+          name: Guardrail
           type: string
-        - jsonPath: .spec.proxyRef
-          name: Proxy
+        - jsonPath: .spec.mode
+          name: Mode
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -29,6 +29,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
+          description: LiteLLMGuardrail is a single guardrail served by one or more LiteLLMProxy instances.
           properties:
             apiVersion:
               description: |-
@@ -48,69 +49,78 @@ spec:
             metadata:
               type: object
             spec:
+              description: LiteLLMGuardrailSpec defines a single config.yaml guardrails[] entry.
               properties:
-                alias:
-                  description: Alias is a human-readable LiteLLM alias.
+                apiBase:
+                  description: APIBase is the guardrail provider base URL. Mutually exclusive with APIBaseRef.
                   type: string
-                blocked:
-                  description: Blocked prevents all calls made with keys in this team.
-                  type: boolean
-                budgetDuration:
-                  description: BudgetDuration resets the budget after this duration.
-                  type: string
-                maxBudget:
-                  description: MaxBudget is the maximum spend allowed, expressed as a decimal string.
-                  type: string
-                members:
-                  description: Members is the complete set of team members and their roles.
-                  items:
-                    properties:
-                      role:
-                        description: Role is the member's role within the team.
-                        enum:
-                          - admin
-                          - user
-                        type: string
-                      userEmail:
-                        description: UserEmail identifies or creates a LiteLLM user. Either UserID or UserEmail is required.
-                        type: string
-                      userID:
-                        description: UserID identifies an existing LiteLLM user. Either UserID or UserEmail is required.
-                        type: string
-                    required:
-                      - role
-                    type: object
-                  type: array
-                  x-kubernetes-list-type: atomic
-                metadata:
-                  additionalProperties:
-                    type: string
-                  description: Metadata stores additional string metadata on the team.
+                apiBaseRef:
+                  description: APIBaseRef sources the base URL from a Secret. Mutually exclusive with APIBase.
+                  properties:
+                    key:
+                      description: Key within the Secret holding the value.
+                      type: string
+                    name:
+                      description: Name of the Secret.
+                      type: string
+                  required:
+                    - key
+                    - name
                   type: object
-                models:
-                  description: Models limits models available to keys in this team. An empty list permits all models.
-                  items:
-                    type: string
-                  type: array
-                  x-kubernetes-list-type: atomic
+                apiKey:
+                  description: APIKey is a literal or os.environ/VAR key. Mutually exclusive with APIKeyRef.
+                  type: string
+                apiKeyRef:
+                  description: APIKeyRef sources the provider API key from a Secret. Mutually exclusive with APIKey.
+                  properties:
+                    key:
+                      description: Key within the Secret holding the value.
+                      type: string
+                    name:
+                      description: Name of the Secret.
+                      type: string
+                  required:
+                    - key
+                    - name
+                  type: object
+                defaultOn:
+                  description: DefaultOn applies the guardrail to every request unless overridden.
+                  type: boolean
+                guardrail:
+                  description: Guardrail is the provider integration, e.g. "aporia", "bedrock", "presidio".
+                  type: string
+                guardrailName:
+                  description: GuardrailName is the name clients reference (guardrails[].guardrail_name).
+                  type: string
+                info:
+                  description: Info maps verbatim to guardrails[].guardrail_info.
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                mode:
+                  description: Mode is when the guardrail runs.
+                  enum:
+                    - pre_call
+                    - post_call
+                    - during_call
+                    - logging_only
+                  type: string
+                params:
+                  description: |-
+                    Params holds any further guardrail litellm_params (provider-specific knobs),
+                    merged under the typed fields (which win on conflict).
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
                 proxyRef:
-                  description: ProxyRef is the LiteLLMProxy whose admin API manages this team.
+                  description: |-
+                    ProxyRef explicitly binds this guardrail to a LiteLLMProxy by name in the
+                    same namespace. When set it takes precedence over a proxy's modelSelector.
                   type: string
-                rpmLimit:
-                  description: RPMLimit caps requests per minute for the team.
-                  format: int64
-                  type: integer
-                teamID:
-                  description: TeamID is the LiteLLM team ID. It defaults to the Kubernetes resource name.
-                  type: string
-                tpmLimit:
-                  description: TPMLimit caps tokens per minute for the team.
-                  format: int64
-                  type: integer
               required:
-                - proxyRef
+                - guardrail
+                - guardrailName
               type: object
             status:
+              description: LiteLLMGuardrailStatus reports the observed state of the guardrail.
               properties:
                 conditions:
                   items:
@@ -170,9 +180,6 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                teamID:
-                  description: TeamID is the remote LiteLLM team ID.
-                  type: string
               type: object
           type: object
       served: true

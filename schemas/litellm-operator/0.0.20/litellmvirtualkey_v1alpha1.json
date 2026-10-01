@@ -1,4 +1,5 @@
 {
+  "description": "LiteLLMVirtualKey is a virtual key generated and deleted through LiteLLM's admin API.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -22,67 +23,58 @@
     },
     "spec": {
       "additionalProperties": false,
+      "description": "LiteLLMVirtualKeySpec defines a virtual key managed through a LiteLLMProxy.",
       "properties": {
-        "alias": {
-          "description": "Alias is a human-readable LiteLLM alias.",
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Aliases maps model aliases to their target model names.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "budgetDuration": {
+          "description": "BudgetDuration resets the budget after this duration, such as \"30d\".",
           "type": [
             "string",
             "null"
           ]
         },
-        "blocked": {
-          "description": "Blocked prevents all calls made with keys in this team.",
+        "duration": {
+          "description": "Duration is how long the key remains valid, such as \"30d\".",
           "type": [
-            "boolean",
+            "string",
             "null"
           ]
         },
-        "budgetDuration": {
-          "description": "BudgetDuration resets the budget after this duration.",
+        "keyAlias": {
+          "description": "KeyAlias is a human-readable LiteLLM alias for this key.",
           "type": [
             "string",
             "null"
           ]
         },
         "maxBudget": {
-          "description": "MaxBudget is the maximum spend allowed, expressed as a decimal string.",
+          "description": "MaxBudget is the maximum spend allowed for this key as a decimal string.",
           "type": [
             "string",
             "null"
           ]
         },
-        "members": {
-          "description": "Members is the complete set of team members and their roles.",
+        "maxParallelRequests": {
+          "description": "MaxParallelRequests caps concurrent requests made with this key.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mcpToolsets": {
+          "description": "MCPToolsets lists the LiteLLM MCP toolset IDs assigned to this key.\nAn empty list clears key-level toolset assignments; other MCP permissions still apply.",
           "items": {
-            "additionalProperties": false,
-            "properties": {
-              "role": {
-                "description": "Role is the member's role within the team.",
-                "enum": [
-                  "admin",
-                  "user"
-                ],
-                "type": "string"
-              },
-              "userEmail": {
-                "description": "UserEmail identifies or creates a LiteLLM user. Either UserID or UserEmail is required.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "userID": {
-                "description": "UserID identifies an existing LiteLLM user. Either UserID or UserEmail is required.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "role"
-            ],
-            "type": "object"
+            "type": "string"
           },
           "type": [
             "array",
@@ -94,14 +86,14 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Metadata stores additional string metadata on the team.",
+          "description": "Metadata stores additional string metadata on the LiteLLM key.",
           "type": [
             "object",
             "null"
           ]
         },
         "models": {
-          "description": "Models limits models available to keys in this team. An empty list permits all models.",
+          "description": "Models lists the models this key may call. An empty list permits all models.",
           "items": {
             "type": "string"
           },
@@ -112,35 +104,87 @@
           "x-kubernetes-list-type": "atomic"
         },
         "proxyRef": {
-          "description": "ProxyRef is the LiteLLMProxy whose admin API manages this team.",
+          "description": "ProxyRef is the LiteLLMProxy whose admin API creates and deletes this key.",
           "type": "string"
         },
         "rpmLimit": {
-          "description": "RPMLimit caps requests per minute for the team.",
+          "description": "RPMLimit caps requests per minute for this key.",
           "format": "int64",
           "type": [
             "integer",
             "null"
           ]
         },
+        "secretAnnotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "SecretAnnotations are stamped on the generated Secret, so it can carry\nannotations other controllers act on, such as kubernetes-reflector's\nreflection-allowed on the source Secret. The operator manages only the keys\nnamed here: annotations written by anything else are left alone, and a key\ndropped from this map is removed from the Secret on the next reconcile.\nThe litellm.home-operations.com/managed- prefix is reserved for the\nannotations recording which keys the operator manages.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "secretAnnotations must not use the reserved litellm.home-operations.com/managed- key prefix",
+              "rule": "self.all(k, !k.startsWith('litellm.home-operations.com/managed-'))"
+            }
+          ]
+        },
+        "secretKey": {
+          "default": "key",
+          "description": "SecretKey is the key in SecretName containing the generated virtual key.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "secretLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "SecretLabels are stamped on the generated Secret, under the same\noperator-manages-only-these-keys rule as SecretAnnotations.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "secretLabels must not use the reserved litellm.home-operations.com/managed- key prefix",
+              "rule": "self.all(k, !k.startsWith('litellm.home-operations.com/managed-'))"
+            }
+          ]
+        },
+        "secretName": {
+          "description": "SecretName is the name of the Secret managed by the operator containing the generated key.",
+          "type": "string"
+        },
         "teamID": {
-          "description": "TeamID is the LiteLLM team ID. It defaults to the Kubernetes resource name.",
+          "description": "TeamID associates this key with a LiteLLM team.",
           "type": [
             "string",
             "null"
           ]
         },
         "tpmLimit": {
-          "description": "TPMLimit caps tokens per minute for the team.",
+          "description": "TPMLimit caps tokens per minute for this key.",
           "format": "int64",
           "type": [
             "integer",
             "null"
           ]
+        },
+        "userID": {
+          "description": "UserID associates this key with a LiteLLM user.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
-        "proxyRef"
+        "proxyRef",
+        "secretName"
       ],
       "type": [
         "object",
@@ -149,8 +193,10 @@
     },
     "status": {
       "additionalProperties": false,
+      "description": "LiteLLMVirtualKeyStatus reports the observed state of the virtual key.",
       "properties": {
         "conditions": {
+          "description": "Conditions represent the latest observations of the virtual key's state.",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
@@ -214,13 +260,6 @@
             "type"
           ],
           "x-kubernetes-list-type": "map"
-        },
-        "teamID": {
-          "description": "TeamID is the remote LiteLLM team ID.",
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "type": [
