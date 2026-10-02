@@ -100,7 +100,7 @@
           "description": "APIAccess grants this client permission to request scoped access on the\nreferenced PocketIDAPIs. The client is the sole owner of its API access in\nPocket-ID: while this field is set the operator keeps the access in sync and\nclears it if the field is later emptied. When never set, existing API access\nconfigured out-of-band is left untouched.",
           "items": {
             "additionalProperties": false,
-            "description": "OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.\nPermissions are referenced by their key; the controller resolves them to Pocket-ID\npermission IDs via the PocketIDAPI status.",
+            "description": "OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.\nPermissions are referenced by their key; the controller resolves them to Pocket-ID\npermission IDs via the PocketIDAPI status.\nThe access flags exist to grant a flow that selects no permissions, so setting one to false\nalongside a permission list is rejected rather than silently ignoring the list.",
             "properties": {
               "apiRef": {
                 "additionalProperties": false,
@@ -123,6 +123,13 @@
                 ],
                 "type": "object"
               },
+              "clientAccess": {
+                "description": "ClientAccess grants the client-credentials flow even with no permissions selected.\nDefaults to true when clientPermissions is non-empty, and requires a confidential client.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "clientPermissions": {
                 "description": "ClientPermissions are permission keys granted for the client-credentials\n(machine-to-machine) flow. These require a confidential client.",
                 "items": {
@@ -130,6 +137,13 @@
                 },
                 "type": [
                   "array",
+                  "null"
+                ]
+              },
+              "delegatedAccess": {
+                "description": "DelegatedAccess grants the user-delegated flow even with no permissions selected,\ne.g. a client requesting a resource that doesn't need any scopes.\nDefaults to true when delegatedPermissions is non-empty.",
+                "type": [
+                  "boolean",
                   "null"
                 ]
               },
@@ -147,10 +161,27 @@
             "required": [
               "apiRef"
             ],
-            "type": "object"
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "delegatedAccess: false conflicts with delegatedPermissions; drop the permissions to revoke the flow, or remove the flag to grant them",
+                "rule": "!has(self.delegatedAccess) || self.delegatedAccess || !has(self.delegatedPermissions) || size(self.delegatedPermissions) == 0"
+              },
+              {
+                "message": "clientAccess: false conflicts with clientPermissions; drop the permissions to revoke the flow, or remove the flag to grant them",
+                "rule": "!has(self.clientAccess) || self.clientAccess || !has(self.clientPermissions) || size(self.clientPermissions) == 0"
+              }
+            ]
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "backchannelLogoutUrl": {
+          "description": "Back-channel logout URL Pocket-ID notifies when a user's session for the client ends",
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -173,9 +204,22 @@
             "null"
           ]
         },
+        "clientSecretOverlap": {
+          "description": "ClientSecretOverlap is how long the client-secret a replacement supersedes stays valid in\nPocket-ID, giving consumers that cached it time to pick up the new one. It covers every\nreplacement: scheduled rotations, the regenerate-client-secret annotation, and clientSecretRef updates.\n\nWhen unset or zero the previous secret is deleted as soon as the replacement is stored,\nso exactly one secret is ever valid. Must not exceed 168h, nor clientSecretRotation.interval if set.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "clientSecretOverlap must not exceed 168h (7 days)",
+              "rule": "duration(self) \u003c= duration('168h')"
+            }
+          ]
+        },
         "clientSecretRef": {
           "additionalProperties": false,
-          "description": "ClientSecretRef references a Kubernetes Secret key holding the client secret to set in\nPocket-ID, instead of letting the operator generate one. The value must be at least 16\nprintable ASCII characters. While set, the operator never generates or rotates the secret:\nclientSecretRotation cannot be enabled and the regenerate-client-secret annotation is\nignored. Requires Pocket-ID v2.12.0 or newer.",
+          "description": "ClientSecretRef references a Kubernetes Secret key holding the client secret to set in\nPocket-ID, instead of letting the operator generate one. The value must be at least 16\nprintable ASCII characters. While set, the operator never generates or rotates the secret:\nclientSecretRotation cannot be enabled and the regenerate-client-secret annotation is\nignored.",
           "properties": {
             "key": {
               "description": "The key of the secret to select from.  Must be a valid secret key.",
@@ -311,9 +355,119 @@
                 ]
               },
               "jwks": {
-                "description": "JWKS is the URL or JSON for the identity's JWKS",
+                "description": "JWKS is the URL of the identity's JWKS. Defaults to the issuer's /.well-known/jwks.json",
                 "type": [
                   "string",
+                  "null"
+                ]
+              },
+              "publicKeys": {
+                "description": "PublicKeys are the keys that verify the identity's assertions, used instead of a JWKS URL",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "OIDCClientPublicKey is a public key given inline or read from a ConfigMap or Secret.",
+                  "properties": {
+                    "value": {
+                      "description": "Value is a JWK",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "x-kubernetes-preserve-unknown-fields": true
+                    },
+                    "valueFrom": {
+                      "additionalProperties": false,
+                      "description": "ValueFrom reads a JWK, or a JWKS whose keys are all used, from a ConfigMap or Secret.\nIt is re-read on every reconcile, so key rotation is picked up on the next resync.",
+                      "properties": {
+                        "configMapKeyRef": {
+                          "additionalProperties": false,
+                          "description": "Selects a key from a ConfigMap.",
+                          "properties": {
+                            "key": {
+                              "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
+                              "type": "string"
+                            },
+                            "name": {
+                              "default": "",
+                              "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "optional": {
+                              "description": "Specify whether the ConfigMap or its key must be defined",
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "x-kubernetes-map-type": "atomic"
+                        },
+                        "secretKeyRef": {
+                          "additionalProperties": false,
+                          "description": "SecretKeySelector selects a key of a Secret.",
+                          "properties": {
+                            "key": {
+                              "description": "The key of the secret to select from.  Must be a valid secret key.",
+                              "type": "string"
+                            },
+                            "name": {
+                              "default": "",
+                              "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "optional": {
+                              "description": "Specify whether the Secret or its key must be defined",
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key"
+                          ],
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "x-kubernetes-map-type": "atomic"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "exactly one of configMapKeyRef or secretKeyRef must be set",
+                          "rule": "has(self.configMapKeyRef) != has(self.secretKeyRef)"
+                        }
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "exactly one of value or valueFrom must be set",
+                      "rule": "has(self.value) != has(self.valueFrom)"
+                    }
+                  ]
+                },
+                "type": [
+                  "array",
                   "null"
                 ]
               },
@@ -669,6 +823,22 @@
                     "null"
                   ]
                 },
+                "resource": {
+                  "default": "resource",
+                  "description": "Resource is the key name for the audience to request tokens for, taken from the APIs\nin apiAccess. It also prefixes the per-API key \"\u003cresource\u003e_\u003capiRef.name\u003e\".\nDefaults to resource",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scopes": {
+                  "default": "scopes",
+                  "description": "Scopes is the key name for the space-delimited scopes apiAccess grants the\nclient-credentials flow. It also prefixes the per-API key \"\u003cscopes\u003e_\u003capiRef.name\u003e\".\nDefaults to scopes",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "tokenUrl": {
                   "default": "token_url",
                   "description": "TokenURL is the key name for the OIDC token endpoint URL.\nDefaults to token_url",
@@ -735,8 +905,8 @@
           "rule": "!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled || !has(self.secret) || !has(self.secret.storeClientSecret) || self.secret.storeClientSecret"
         },
         {
-          "message": "clientPermissions require a confidential client (isPublic must be false)",
-          "rule": "!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, !has(a.clientPermissions) || size(a.clientPermissions) == 0)"
+          "message": "clientPermissions and clientAccess require a confidential client (isPublic must be false)",
+          "rule": "!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) \u0026\u0026 (!has(a.clientAccess) || !a.clientAccess))"
         },
         {
           "message": "clientSecretRef requires a confidential client (isPublic must be false)",
@@ -751,16 +921,24 @@
           "rule": "!has(self.clientID) || self.clientID.startsWith('https://') || self.clientID.size() \u003c= 128"
         },
         {
-          "message": "name, callbackUrls, logoutCallbackUrls, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client",
-          "rule": "!(has(self.clientID) \u0026\u0026 self.clientID.startsWith('https://')) || (!has(self.name) \u0026\u0026 !has(self.callbackUrls) \u0026\u0026 !has(self.logoutCallbackUrls) \u0026\u0026 !has(self.federatedIdentities) \u0026\u0026 !self.isPublic \u0026\u0026 !self.pkceEnabled)"
+          "message": "name, callbackUrls, logoutCallbackUrls, backchannelLogoutUrl, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client",
+          "rule": "!(has(self.clientID) \u0026\u0026 self.clientID.startsWith('https://')) || (!has(self.name) \u0026\u0026 !has(self.callbackUrls) \u0026\u0026 !has(self.logoutCallbackUrls) \u0026\u0026 !has(self.backchannelLogoutUrl) \u0026\u0026 !has(self.federatedIdentities) \u0026\u0026 !self.isPublic \u0026\u0026 !self.pkceEnabled)"
         },
         {
           "message": "a CIMD client is always public and has no client secret, so clientSecretRef and clientSecretRotation are not supported",
           "rule": "!(has(self.clientID) \u0026\u0026 self.clientID.startsWith('https://')) || (!has(self.clientSecretRef) \u0026\u0026 (!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled))"
         },
         {
-          "message": "clientPermissions require a confidential client, and a CIMD client is always public",
-          "rule": "!(has(self.clientID) \u0026\u0026 self.clientID.startsWith('https://')) || !has(self.apiAccess) || self.apiAccess.all(a, !has(a.clientPermissions) || size(a.clientPermissions) == 0)"
+          "message": "clientPermissions and clientAccess require a confidential client, and a CIMD client is always public",
+          "rule": "!(has(self.clientID) \u0026\u0026 self.clientID.startsWith('https://')) || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) \u0026\u0026 (!has(a.clientAccess) || !a.clientAccess))"
+        },
+        {
+          "message": "clientSecretOverlap must not exceed clientSecretRotation.interval",
+          "rule": "!has(self.clientSecretOverlap) || !has(self.clientSecretRotation) || !has(self.clientSecretRotation.interval) || duration(self.clientSecretOverlap) \u003c= duration(self.clientSecretRotation.interval)"
+        },
+        {
+          "message": "clientSecretOverlap requires a confidential client (isPublic must be false)",
+          "rule": "!has(self.clientSecretOverlap) || !self.isPublic"
         }
       ]
     },
@@ -780,6 +958,16 @@
         },
         "callbackUrls": {
           "description": "CallbackURLs are the current callback URLs from Pocket-ID",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cimdGrantedAPIs": {
+          "description": "CIMDGrantedAPIs are the API resources this client can reach because the API grants\nevery Client ID Metadata Document client access, rather than because of spec.apiAccess.\nRemoving an apiAccess entry does not revoke access listed here; that is turned off on\nthe PocketIDAPI. Only ever set for a cimd client.",
           "items": {
             "type": "string"
           },
@@ -883,14 +1071,14 @@
           ]
         },
         "darkLogoReachable": {
-          "description": "DarkLogoReachable indicates whether the dark logo URL was reachable when last checked.",
+          "description": "DarkLogoReachable reports whether Pocket-ID could fetch and store the dark logo from the\nURL the spec resolves to. Unset when the spec asks for no dark logo.",
           "type": [
             "boolean",
             "null"
           ]
         },
         "darkLogoUrl": {
-          "description": "DarkLogoURL is the last resolved dark logo URL that was applied to Pocket-ID.",
+          "description": "DarkLogoURL is the dark logo URL the operator last successfully applied to Pocket-ID.",
           "type": [
             "string",
             "null"
@@ -905,14 +1093,14 @@
           ]
         },
         "logoReachable": {
-          "description": "LogoReachable indicates whether the light logo URL was reachable when last checked.",
+          "description": "LogoReachable reports whether Pocket-ID could fetch and store the light logo from the\nURL the spec resolves to. Unset when the spec asks for no light logo.",
           "type": [
             "boolean",
             "null"
           ]
         },
         "logoUrl": {
-          "description": "LogoURL is the last resolved light logo URL that was applied to Pocket-ID.",
+          "description": "LogoURL is the light logo URL the operator last successfully applied to Pocket-ID.",
           "type": [
             "string",
             "null"
@@ -929,7 +1117,17 @@
           ]
         },
         "managedAPIPermissionIDs": {
-          "description": "ManagedAPIPermissionIDs are the Pocket-ID API permission IDs the operator last\npushed as this client's API access (both delegated and client-credentials).\nUsed to detect when spec.apiAccess is emptied so the access can be cleared.",
+          "description": "ManagedAPIPermissionIDs are the Pocket-ID API permission IDs the operator last\npushed as this client's API access (both delegated and client-credentials).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "managedAPIs": {
+          "description": "ManagedAPIs are the Pocket-ID API IDs the operator last granted this client.",
           "items": {
             "type": "string"
           },

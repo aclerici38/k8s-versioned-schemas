@@ -391,7 +391,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -630,7 +630,7 @@
                   },
                   "encryptionKey": {
                     "additionalProperties": false,
-                    "description": "Encryption Key\nRequired since Pocket-ID v2 when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
+                    "description": "Encryption Key\nRequired when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
                     "properties": {
                       "value": {
                         "description": "Plain text value",
@@ -648,7 +648,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -849,7 +849,7 @@
                               "description": "Selects a key of a ConfigMap.",
                               "properties": {
                                 "key": {
-                                  "description": "The key to select.",
+                                  "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                   "type": "string"
                                 },
                                 "name": {
@@ -1121,7 +1121,7 @@
                                 "description": "Selects a key of a ConfigMap.",
                                 "properties": {
                                   "key": {
-                                    "description": "The key to select.",
+                                    "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                     "type": "string"
                                   },
                                   "name": {
@@ -1316,7 +1316,7 @@
                                 "description": "Selects a key of a ConfigMap.",
                                 "properties": {
                                   "key": {
-                                    "description": "The key to select.",
+                                    "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                     "type": "string"
                                   },
                                   "name": {
@@ -1506,8 +1506,7 @@
                     ]
                   },
                   "image": {
-                    "default": "ghcr.io/pocket-id/pocket-id:v2.13.0-distroless@sha256:ccb590169770feb5b23ba16d49386514a2c26a77e95bb687b442ae09f17c15da",
-                    "description": "Container image to run. Defaults to the latest distroless version at time of operator release",
+                    "description": "Container image to run. When empty the operator supplies the latest distroless\nversion tested against this release.",
                     "type": [
                       "string",
                       "null"
@@ -1561,6 +1560,13 @@
                           },
                           "groupUniqueIdentifier": {
                             "description": "LDAP attribute for immutable group identifier",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "userDisplayName": {
+                            "description": "LDAP attribute for display name",
                             "type": [
                               "string",
                               "null"
@@ -1642,7 +1648,7 @@
                                 "description": "Selects a key of a ConfigMap.",
                                 "properties": {
                                   "key": {
-                                    "description": "The key to select.",
+                                    "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                     "type": "string"
                                   },
                                   "name": {
@@ -1897,6 +1903,13 @@
                         "additionalProperties": false,
                         "description": "GRPC specifies a GRPC HealthCheckRequest.",
                         "properties": {
+                          "mode": {
+                            "description": "mode specifies the connection mode for the gRPC health probe.\nSet to \"TLS\" to use TLS without certificate verification.\nSet to \"Plaintext\" to use a plaintext (insecure) connection explicitly.\nIf not specified, the probe uses a plaintext (insecure) connection.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "port": {
                             "description": "Port number of the gRPC service. Number must be in the range 1 to 65535.",
                             "format": "int32",
@@ -1975,6 +1988,13 @@
                               }
                             ],
                             "x-kubernetes-int-or-string": true
+                          },
+                          "protocol": {
+                            "description": "Protocol selects the wire protocol for the probe connection.\nNil defaults to HTTP/1.1.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "scheme": {
                             "description": "Scheme to use for connecting to the host.\nDefaults to HTTP.",
@@ -2178,8 +2198,19 @@
                           "additionalProperties": false,
                           "description": "VolumeMount describes a mounting of a Volume within a container.",
                           "properties": {
+                            "bindMountOptions": {
+                              "description": "bindMountOptions is the list of additional bind mount options to apply when\nmounting this volume into the container. Allowed values are noexec,\nnodev, and nosuid. These are Linux mount options and have no effect on\nWindows nodes.\nThis field is not supported with image volumes.\nThis is an alpha field and requires enabling the VolumeBindMountOptions feature gate.",
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "x-kubernetes-list-type": "set"
+                            },
                             "mountPath": {
-                              "description": "Path within the container at which the volume should be mounted.  Must\nnot contain ':'.",
+                              "description": "Path within the container at which the volume should be mounted.",
                               "type": "string"
                             },
                             "mountPropagation": {
@@ -2348,7 +2379,7 @@
                         ]
                       },
                       "seLinuxChangePolicy": {
-                        "description": "seLinuxChangePolicy defines how the container's SELinux label is applied to all volumes used by the Pod.\nIt has no effect on nodes that do not support SELinux or to volumes does not support SELinux.\nValid values are \"MountOption\" and \"Recursive\".\n\n\"Recursive\" means relabeling of all files on all Pod volumes by the container runtime.\nThis may be slow for large volumes, but allows mixing privileged and unprivileged Pods sharing the same volume on the same node.\n\n\"MountOption\" mounts all eligible Pod volumes with `-o context` mount option.\nThis requires all Pods that share the same volume to use the same SELinux label.\nIt is not possible to share the same volume among privileged and unprivileged Pods.\nEligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes\nwhose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their\nCSIDriver instance. Other volumes are always re-labelled recursively.\n\"MountOption\" value is allowed only when SELinuxMount feature gate is enabled.\n\nIf not specified and SELinuxMount feature gate is enabled, \"MountOption\" is used.\nIf not specified and SELinuxMount feature gate is disabled, \"MountOption\" is used for ReadWriteOncePod volumes\nand \"Recursive\" for all other volumes.\n\nThis field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.\n\nAll Pods that use the same volume should use the same seLinuxChangePolicy, otherwise some pods can get stuck in ContainerCreating state.\nNote that this field cannot be set when spec.os.name is windows.",
+                        "description": "seLinuxChangePolicy defines how the container's SELinux label is applied to all volumes used by the Pod.\nIt has no effect on nodes that do not support SELinux or to volumes does not support SELinux.\nValid values are \"MountOption\" and \"Recursive\".\n\n\"Recursive\" means relabeling of all files on all Pod volumes by the container runtime.\nThis may be slow for large volumes, but allows mixing privileged and unprivileged Pods sharing the same volume on the same node.\n\n\"MountOption\" mounts all eligible Pod volumes with `-o context` mount option.\nThis requires all Pods that share the same volume to use the same SELinux label.\nIt is not possible to share the same volume among privileged and unprivileged Pods.\nEligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes\nwhose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their\nCSIDriver instance. Other volumes are always re-labelled recursively.\n\nIf not specified, \"MountOption\" is used.\n\nThis field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.\n\nAll Pods that use the same volume should use the same seLinuxChangePolicy, otherwise some pods can get stuck in ContainerCreating state.\nNote that this field cannot be set when spec.os.name is windows.",
                         "type": [
                           "string",
                           "null"
@@ -2555,6 +2586,13 @@
                         "additionalProperties": false,
                         "description": "GRPC specifies a GRPC HealthCheckRequest.",
                         "properties": {
+                          "mode": {
+                            "description": "mode specifies the connection mode for the gRPC health probe.\nSet to \"TLS\" to use TLS without certificate verification.\nSet to \"Plaintext\" to use a plaintext (insecure) connection explicitly.\nIf not specified, the probe uses a plaintext (insecure) connection.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "port": {
                             "description": "Port number of the gRPC service. Number must be in the range 1 to 65535.",
                             "format": "int32",
@@ -2633,6 +2671,13 @@
                               }
                             ],
                             "x-kubernetes-int-or-string": true
+                          },
+                          "protocol": {
+                            "description": "Protocol selects the wire protocol for the probe connection.\nNil defaults to HTTP/1.1.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "scheme": {
                             "description": "Scheme to use for connecting to the host.\nDefaults to HTTP.",
@@ -2968,7 +3013,7 @@
                                 "description": "Selects a key of a ConfigMap.",
                                 "properties": {
                                   "key": {
-                                    "description": "The key to select.",
+                                    "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                     "type": "string"
                                   },
                                   "name": {
@@ -3191,7 +3236,7 @@
                                 "description": "Selects a key of a ConfigMap.",
                                 "properties": {
                                   "key": {
-                                    "description": "The key to select.",
+                                    "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                     "type": "string"
                                   },
                                   "name": {
@@ -3376,7 +3421,7 @@
                     ]
                   },
                   "serviceTemplate": {
-                    "description": "ServiceTemplate is merged with the operator-built Service spec.\nOperator-managed fields (the selector and the http/metrics ports) always take precedence.",
+                    "description": "ServiceTemplate is merged with the operator-built Service spec.\nOperator-managed fields (the selector and the number, protocol and appProtocol of\nthe http/metrics ports) always take precedence. A nodePort set on those ports is\nhonoured, as are extra ports and every other field.",
                     "x-kubernetes-preserve-unknown-fields": true
                   },
                   "smtp": {
@@ -3411,7 +3456,7 @@
                                 "description": "Selects a key of a ConfigMap.",
                                 "properties": {
                                   "key": {
-                                    "description": "The key to select.",
+                                    "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                     "type": "string"
                                   },
                                   "name": {
@@ -3790,6 +3835,13 @@
                       "emailsVerified": {
                         "default": false,
                         "description": "Auto-verify emails on signup or change",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "requireUserEmail": {
+                        "description": "Require users to have an email address",
                         "type": [
                           "boolean",
                           "null"
@@ -4737,7 +4789,7 @@
                     "description": "APIAccess grants this client permission to request scoped access on the\nreferenced PocketIDAPIs. The client is the sole owner of its API access in\nPocket-ID: while this field is set the operator keeps the access in sync and\nclears it if the field is later emptied. When never set, existing API access\nconfigured out-of-band is left untouched.",
                     "items": {
                       "additionalProperties": false,
-                      "description": "OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.\nPermissions are referenced by their key; the controller resolves them to Pocket-ID\npermission IDs via the PocketIDAPI status.",
+                      "description": "OIDCClientAPIAccess grants a client scoped permissions on a referenced PocketIDAPI.\nPermissions are referenced by their key; the controller resolves them to Pocket-ID\npermission IDs via the PocketIDAPI status.\nThe access flags exist to grant a flow that selects no permissions, so setting one to false\nalongside a permission list is rejected rather than silently ignoring the list.",
                       "properties": {
                         "apiRef": {
                           "additionalProperties": false,
@@ -4760,6 +4812,13 @@
                           ],
                           "type": "object"
                         },
+                        "clientAccess": {
+                          "description": "ClientAccess grants the client-credentials flow even with no permissions selected.\nDefaults to true when clientPermissions is non-empty, and requires a confidential client.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
                         "clientPermissions": {
                           "description": "ClientPermissions are permission keys granted for the client-credentials\n(machine-to-machine) flow. These require a confidential client.",
                           "items": {
@@ -4767,6 +4826,13 @@
                           },
                           "type": [
                             "array",
+                            "null"
+                          ]
+                        },
+                        "delegatedAccess": {
+                          "description": "DelegatedAccess grants the user-delegated flow even with no permissions selected,\ne.g. a client requesting a resource that doesn't need any scopes.\nDefaults to true when delegatedPermissions is non-empty.",
+                          "type": [
+                            "boolean",
                             "null"
                           ]
                         },
@@ -4784,10 +4850,27 @@
                       "required": [
                         "apiRef"
                       ],
-                      "type": "object"
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "delegatedAccess: false conflicts with delegatedPermissions; drop the permissions to revoke the flow, or remove the flag to grant them",
+                          "rule": "!has(self.delegatedAccess) || self.delegatedAccess || !has(self.delegatedPermissions) || size(self.delegatedPermissions) == 0"
+                        },
+                        {
+                          "message": "clientAccess: false conflicts with clientPermissions; drop the permissions to revoke the flow, or remove the flag to grant them",
+                          "rule": "!has(self.clientAccess) || self.clientAccess || !has(self.clientPermissions) || size(self.clientPermissions) == 0"
+                        }
+                      ]
                     },
                     "type": [
                       "array",
+                      "null"
+                    ]
+                  },
+                  "backchannelLogoutUrl": {
+                    "description": "Back-channel logout URL Pocket-ID notifies when a user's session for the client ends",
+                    "type": [
+                      "string",
                       "null"
                     ]
                   },
@@ -4810,9 +4893,22 @@
                       "null"
                     ]
                   },
+                  "clientSecretOverlap": {
+                    "description": "ClientSecretOverlap is how long the client-secret a replacement supersedes stays valid in\nPocket-ID, giving consumers that cached it time to pick up the new one. It covers every\nreplacement: scheduled rotations, the regenerate-client-secret annotation, and clientSecretRef updates.\n\nWhen unset or zero the previous secret is deleted as soon as the replacement is stored,\nso exactly one secret is ever valid. Must not exceed 168h, nor clientSecretRotation.interval if set.",
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "clientSecretOverlap must not exceed 168h (7 days)",
+                        "rule": "duration(self) <= duration('168h')"
+                      }
+                    ]
+                  },
                   "clientSecretRef": {
                     "additionalProperties": false,
-                    "description": "ClientSecretRef references a Kubernetes Secret key holding the client secret to set in\nPocket-ID, instead of letting the operator generate one. The value must be at least 16\nprintable ASCII characters. While set, the operator never generates or rotates the secret:\nclientSecretRotation cannot be enabled and the regenerate-client-secret annotation is\nignored. Requires Pocket-ID v2.12.0 or newer.",
+                    "description": "ClientSecretRef references a Kubernetes Secret key holding the client secret to set in\nPocket-ID, instead of letting the operator generate one. The value must be at least 16\nprintable ASCII characters. While set, the operator never generates or rotates the secret:\nclientSecretRotation cannot be enabled and the regenerate-client-secret annotation is\nignored.",
                     "properties": {
                       "key": {
                         "description": "The key of the secret to select from.  Must be a valid secret key.",
@@ -4948,9 +5044,119 @@
                           ]
                         },
                         "jwks": {
-                          "description": "JWKS is the URL or JSON for the identity's JWKS",
+                          "description": "JWKS is the URL of the identity's JWKS. Defaults to the issuer's /.well-known/jwks.json",
                           "type": [
                             "string",
+                            "null"
+                          ]
+                        },
+                        "publicKeys": {
+                          "description": "PublicKeys are the keys that verify the identity's assertions, used instead of a JWKS URL",
+                          "items": {
+                            "additionalProperties": false,
+                            "description": "OIDCClientPublicKey is a public key given inline or read from a ConfigMap or Secret.",
+                            "properties": {
+                              "value": {
+                                "description": "Value is a JWK",
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "x-kubernetes-preserve-unknown-fields": true
+                              },
+                              "valueFrom": {
+                                "additionalProperties": false,
+                                "description": "ValueFrom reads a JWK, or a JWKS whose keys are all used, from a ConfigMap or Secret.\nIt is re-read on every reconcile, so key rotation is picked up on the next resync.",
+                                "properties": {
+                                  "configMapKeyRef": {
+                                    "additionalProperties": false,
+                                    "description": "Selects a key from a ConfigMap.",
+                                    "properties": {
+                                      "key": {
+                                        "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "default": "",
+                                        "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "optional": {
+                                        "description": "Specify whether the ConfigMap or its key must be defined",
+                                        "type": [
+                                          "boolean",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "key"
+                                    ],
+                                    "type": [
+                                      "object",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-map-type": "atomic"
+                                  },
+                                  "secretKeyRef": {
+                                    "additionalProperties": false,
+                                    "description": "SecretKeySelector selects a key of a Secret.",
+                                    "properties": {
+                                      "key": {
+                                        "description": "The key of the secret to select from.  Must be a valid secret key.",
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "default": "",
+                                        "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "optional": {
+                                        "description": "Specify whether the Secret or its key must be defined",
+                                        "type": [
+                                          "boolean",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "key"
+                                    ],
+                                    "type": [
+                                      "object",
+                                      "null"
+                                    ],
+                                    "x-kubernetes-map-type": "atomic"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "x-kubernetes-validations": [
+                                  {
+                                    "message": "exactly one of configMapKeyRef or secretKeyRef must be set",
+                                    "rule": "has(self.configMapKeyRef) != has(self.secretKeyRef)"
+                                  }
+                                ]
+                              }
+                            },
+                            "type": "object",
+                            "x-kubernetes-validations": [
+                              {
+                                "message": "exactly one of value or valueFrom must be set",
+                                "rule": "has(self.value) != has(self.valueFrom)"
+                              }
+                            ]
+                          },
+                          "type": [
+                            "array",
                             "null"
                           ]
                         },
@@ -5306,6 +5512,22 @@
                               "null"
                             ]
                           },
+                          "resource": {
+                            "default": "resource",
+                            "description": "Resource is the key name for the audience to request tokens for, taken from the APIs\nin apiAccess. It also prefixes the per-API key \"<resource>_<apiRef.name>\".\nDefaults to resource",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scopes": {
+                            "default": "scopes",
+                            "description": "Scopes is the key name for the space-delimited scopes apiAccess grants the\nclient-credentials flow. It also prefixes the per-API key \"<scopes>_<apiRef.name>\".\nDefaults to scopes",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "tokenUrl": {
                             "default": "token_url",
                             "description": "TokenURL is the key name for the OIDC token endpoint URL.\nDefaults to token_url",
@@ -5372,8 +5594,8 @@
                     "rule": "!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled || !has(self.secret) || !has(self.secret.storeClientSecret) || self.secret.storeClientSecret"
                   },
                   {
-                    "message": "clientPermissions require a confidential client (isPublic must be false)",
-                    "rule": "!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, !has(a.clientPermissions) || size(a.clientPermissions) == 0)"
+                    "message": "clientPermissions and clientAccess require a confidential client (isPublic must be false)",
+                    "rule": "!self.isPublic || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) && (!has(a.clientAccess) || !a.clientAccess))"
                   },
                   {
                     "message": "clientSecretRef requires a confidential client (isPublic must be false)",
@@ -5388,16 +5610,24 @@
                     "rule": "!has(self.clientID) || self.clientID.startsWith('https://') || self.clientID.size() <= 128"
                   },
                   {
-                    "message": "name, callbackUrls, logoutCallbackUrls, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client",
-                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || (!has(self.name) && !has(self.callbackUrls) && !has(self.logoutCallbackUrls) && !has(self.federatedIdentities) && !self.isPublic && !self.pkceEnabled)"
+                    "message": "name, callbackUrls, logoutCallbackUrls, backchannelLogoutUrl, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client",
+                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || (!has(self.name) && !has(self.callbackUrls) && !has(self.logoutCallbackUrls) && !has(self.backchannelLogoutUrl) && !has(self.federatedIdentities) && !self.isPublic && !self.pkceEnabled)"
                   },
                   {
                     "message": "a CIMD client is always public and has no client secret, so clientSecretRef and clientSecretRotation are not supported",
                     "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || (!has(self.clientSecretRef) && (!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled))"
                   },
                   {
-                    "message": "clientPermissions require a confidential client, and a CIMD client is always public",
-                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || !has(self.apiAccess) || self.apiAccess.all(a, !has(a.clientPermissions) || size(a.clientPermissions) == 0)"
+                    "message": "clientPermissions and clientAccess require a confidential client, and a CIMD client is always public",
+                    "rule": "!(has(self.clientID) && self.clientID.startsWith('https://')) || !has(self.apiAccess) || self.apiAccess.all(a, (!has(a.clientPermissions) || size(a.clientPermissions) == 0) && (!has(a.clientAccess) || !a.clientAccess))"
+                  },
+                  {
+                    "message": "clientSecretOverlap must not exceed clientSecretRotation.interval",
+                    "rule": "!has(self.clientSecretOverlap) || !has(self.clientSecretRotation) || !has(self.clientSecretRotation.interval) || duration(self.clientSecretOverlap) <= duration(self.clientSecretRotation.interval)"
+                  },
+                  {
+                    "message": "clientSecretOverlap requires a confidential client (isPublic must be false)",
+                    "rule": "!has(self.clientSecretOverlap) || !self.isPublic"
                   }
                 ]
               }
@@ -5437,6 +5667,13 @@
                 "additionalProperties": false,
                 "description": "spec defines the desired state of PocketIDAPI",
                 "properties": {
+                  "cimdAccess": {
+                    "description": "CIMDAccess grants every client registered through an OAuth Client ID Metadata\nDocument access to this API, so dynamically-registered clients do not each need an\nexplicit grant. Defaults to true when any permission sets cimdAccess. Set it to true\nexplicitly to grant access with no permissions, which is what a client requesting a\nresource without any scopes needs, or to false to revoke access while keeping the\nper-permission marks.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
                   "instanceSelector": {
                     "additionalProperties": false,
                     "description": "InstanceSelector selects the PocketIDInstance to reconcile against.\nIf omitted, the controller expects exactly one instance in the cluster.",
@@ -5511,6 +5748,13 @@
                       "additionalProperties": false,
                       "description": "APIPermission defines a single scoped permission offered by an API.",
                       "properties": {
+                        "cimdAccess": {
+                          "description": "CIMDAccess lets clients registered through a Client ID Metadata Document request\nthis permission. Only takes effect while spec.cimdAccess is true.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
                         "description": {
                           "description": "Description optionally explains what the permission grants.",
                           "maxLength": 500,
@@ -5958,7 +6202,7 @@
                         "description": "Selects a key of a ConfigMap.",
                         "properties": {
                           "key": {
-                            "description": "The key to select.",
+                            "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                             "type": "string"
                           },
                           "name": {
@@ -6197,7 +6441,7 @@
               },
               "encryptionKey": {
                 "additionalProperties": false,
-                "description": "Encryption Key\nRequired since Pocket-ID v2 when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
+                "description": "Encryption Key\nRequired when deploying an instance; omit for external instances.\nSee the official documentation for ENCRYPTION_KEY environment variable",
                 "properties": {
                   "value": {
                     "description": "Plain text value",
@@ -6215,7 +6459,7 @@
                         "description": "Selects a key of a ConfigMap.",
                         "properties": {
                           "key": {
-                            "description": "The key to select.",
+                            "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                             "type": "string"
                           },
                           "name": {
@@ -6416,7 +6660,7 @@
                           "description": "Selects a key of a ConfigMap.",
                           "properties": {
                             "key": {
-                              "description": "The key to select.",
+                              "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                               "type": "string"
                             },
                             "name": {
@@ -6688,7 +6932,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -6883,7 +7127,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -7073,8 +7317,7 @@
                 ]
               },
               "image": {
-                "default": "ghcr.io/pocket-id/pocket-id:v2.13.0-distroless@sha256:ccb590169770feb5b23ba16d49386514a2c26a77e95bb687b442ae09f17c15da",
-                "description": "Container image to run. Defaults to the latest distroless version at time of operator release",
+                "description": "Container image to run. When empty the operator supplies the latest distroless\nversion tested against this release.",
                 "type": [
                   "string",
                   "null"
@@ -7128,6 +7371,13 @@
                       },
                       "groupUniqueIdentifier": {
                         "description": "LDAP attribute for immutable group identifier",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "userDisplayName": {
+                        "description": "LDAP attribute for display name",
                         "type": [
                           "string",
                           "null"
@@ -7209,7 +7459,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -7464,6 +7714,13 @@
                     "additionalProperties": false,
                     "description": "GRPC specifies a GRPC HealthCheckRequest.",
                     "properties": {
+                      "mode": {
+                        "description": "mode specifies the connection mode for the gRPC health probe.\nSet to \"TLS\" to use TLS without certificate verification.\nSet to \"Plaintext\" to use a plaintext (insecure) connection explicitly.\nIf not specified, the probe uses a plaintext (insecure) connection.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "port": {
                         "description": "Port number of the gRPC service. Number must be in the range 1 to 65535.",
                         "format": "int32",
@@ -7542,6 +7799,13 @@
                           }
                         ],
                         "x-kubernetes-int-or-string": true
+                      },
+                      "protocol": {
+                        "description": "Protocol selects the wire protocol for the probe connection.\nNil defaults to HTTP/1.1.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "scheme": {
                         "description": "Scheme to use for connecting to the host.\nDefaults to HTTP.",
@@ -7745,8 +8009,19 @@
                       "additionalProperties": false,
                       "description": "VolumeMount describes a mounting of a Volume within a container.",
                       "properties": {
+                        "bindMountOptions": {
+                          "description": "bindMountOptions is the list of additional bind mount options to apply when\nmounting this volume into the container. Allowed values are noexec,\nnodev, and nosuid. These are Linux mount options and have no effect on\nWindows nodes.\nThis field is not supported with image volumes.\nThis is an alpha field and requires enabling the VolumeBindMountOptions feature gate.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "x-kubernetes-list-type": "set"
+                        },
                         "mountPath": {
-                          "description": "Path within the container at which the volume should be mounted.  Must\nnot contain ':'.",
+                          "description": "Path within the container at which the volume should be mounted.",
                           "type": "string"
                         },
                         "mountPropagation": {
@@ -7915,7 +8190,7 @@
                     ]
                   },
                   "seLinuxChangePolicy": {
-                    "description": "seLinuxChangePolicy defines how the container's SELinux label is applied to all volumes used by the Pod.\nIt has no effect on nodes that do not support SELinux or to volumes does not support SELinux.\nValid values are \"MountOption\" and \"Recursive\".\n\n\"Recursive\" means relabeling of all files on all Pod volumes by the container runtime.\nThis may be slow for large volumes, but allows mixing privileged and unprivileged Pods sharing the same volume on the same node.\n\n\"MountOption\" mounts all eligible Pod volumes with `-o context` mount option.\nThis requires all Pods that share the same volume to use the same SELinux label.\nIt is not possible to share the same volume among privileged and unprivileged Pods.\nEligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes\nwhose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their\nCSIDriver instance. Other volumes are always re-labelled recursively.\n\"MountOption\" value is allowed only when SELinuxMount feature gate is enabled.\n\nIf not specified and SELinuxMount feature gate is enabled, \"MountOption\" is used.\nIf not specified and SELinuxMount feature gate is disabled, \"MountOption\" is used for ReadWriteOncePod volumes\nand \"Recursive\" for all other volumes.\n\nThis field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.\n\nAll Pods that use the same volume should use the same seLinuxChangePolicy, otherwise some pods can get stuck in ContainerCreating state.\nNote that this field cannot be set when spec.os.name is windows.",
+                    "description": "seLinuxChangePolicy defines how the container's SELinux label is applied to all volumes used by the Pod.\nIt has no effect on nodes that do not support SELinux or to volumes does not support SELinux.\nValid values are \"MountOption\" and \"Recursive\".\n\n\"Recursive\" means relabeling of all files on all Pod volumes by the container runtime.\nThis may be slow for large volumes, but allows mixing privileged and unprivileged Pods sharing the same volume on the same node.\n\n\"MountOption\" mounts all eligible Pod volumes with `-o context` mount option.\nThis requires all Pods that share the same volume to use the same SELinux label.\nIt is not possible to share the same volume among privileged and unprivileged Pods.\nEligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes\nwhose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their\nCSIDriver instance. Other volumes are always re-labelled recursively.\n\nIf not specified, \"MountOption\" is used.\n\nThis field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.\n\nAll Pods that use the same volume should use the same seLinuxChangePolicy, otherwise some pods can get stuck in ContainerCreating state.\nNote that this field cannot be set when spec.os.name is windows.",
                     "type": [
                       "string",
                       "null"
@@ -8122,6 +8397,13 @@
                     "additionalProperties": false,
                     "description": "GRPC specifies a GRPC HealthCheckRequest.",
                     "properties": {
+                      "mode": {
+                        "description": "mode specifies the connection mode for the gRPC health probe.\nSet to \"TLS\" to use TLS without certificate verification.\nSet to \"Plaintext\" to use a plaintext (insecure) connection explicitly.\nIf not specified, the probe uses a plaintext (insecure) connection.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "port": {
                         "description": "Port number of the gRPC service. Number must be in the range 1 to 65535.",
                         "format": "int32",
@@ -8200,6 +8482,13 @@
                           }
                         ],
                         "x-kubernetes-int-or-string": true
+                      },
+                      "protocol": {
+                        "description": "Protocol selects the wire protocol for the probe connection.\nNil defaults to HTTP/1.1.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "scheme": {
                         "description": "Scheme to use for connecting to the host.\nDefaults to HTTP.",
@@ -8535,7 +8824,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -8758,7 +9047,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -8943,7 +9232,7 @@
                 ]
               },
               "serviceTemplate": {
-                "description": "ServiceTemplate is merged with the operator-built Service spec.\nOperator-managed fields (the selector and the http/metrics ports) always take precedence.",
+                "description": "ServiceTemplate is merged with the operator-built Service spec.\nOperator-managed fields (the selector and the number, protocol and appProtocol of\nthe http/metrics ports) always take precedence. A nodePort set on those ports is\nhonoured, as are extra ports and every other field.",
                 "x-kubernetes-preserve-unknown-fields": true
               },
               "smtp": {
@@ -8978,7 +9267,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -9357,6 +9646,13 @@
                   "emailsVerified": {
                     "default": false,
                     "description": "Auto-verify emails on signup or change",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "requireUserEmail": {
+                    "description": "Require users to have an email address",
                     "type": [
                       "boolean",
                       "null"
@@ -10288,12 +10584,19 @@
           "default": true
         },
         "defaultLogoUrl": {
-          "type": "string",
-          "description": "Default URL template for light logos. Use {{name}} as placeholder. Defaults to the dashboard-icons CDN."
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "URL template for auto-generated light logos. Use {{name}} as placeholder. Set to \"\" to generate no light logo.",
+          "default": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/{{name}}.webp"
         },
         "defaultDarkLogoUrl": {
-          "type": "string",
-          "description": "Default URL template for dark logos. Use {{name}} as placeholder. Defaults to the dashboard-icons CDN."
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "URL template for auto-generated dark logos. Use {{name}} as placeholder. Unset generates no dark logo."
         }
       }
     },

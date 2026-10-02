@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: pocketidapis.pocketid.internal
 spec:
   group: pocketid.internal
@@ -41,22 +41,29 @@ spec:
             spec:
               description: spec defines the desired state of PocketIDAPI
               properties:
+                cimdAccess:
+                  description: |-
+                    CIMDAccess grants every client registered through an OAuth Client ID Metadata
+                    Document access to this API, so dynamically-registered clients do not each need an
+                    explicit grant. Defaults to true when any permission sets cimdAccess. Set it to true
+                    explicitly to grant access with no permissions, which is what a client requesting a
+                    resource without any scopes needs, or to false to revoke access while keeping the
+                    per-permission marks.
+                  type: boolean
                 instanceSelector:
                   description: |-
                     InstanceSelector selects the PocketIDInstance to reconcile against.
                     If omitted, the controller expects exactly one instance in the cluster.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements.
-                        The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies
-                              to.
+                            description: key is the label key that the selector applies to.
                             type: string
                           operator:
                             description: |-
@@ -102,12 +109,15 @@ spec:
                     the sole owner of the API: the permission set in Pocket-ID is reconciled to
                     exactly this list, so permissions added out-of-band are removed.
                   items:
-                    description: APIPermission defines a single scoped permission
-                      offered by an API.
+                    description: APIPermission defines a single scoped permission offered by an API.
                     properties:
+                      cimdAccess:
+                        description: |-
+                          CIMDAccess lets clients registered through a Client ID Metadata Document request
+                          this permission. Only takes effect while spec.cimdAccess is true.
+                        type: boolean
                       description:
-                        description: Description optionally explains what the permission
-                          grants.
+                        description: Description optionally explains what the permission grants.
                         maxLength: 500
                         type: string
                       key:
@@ -148,20 +158,20 @@ spec:
                 - message: resource is immutable
                   rule: self.resource == oldSelf.resource
                 - message: permission key is reserved by Pocket ID
-                  rule: '!has(self.permissions) || self.permissions.all(p, !(p.key.lowerAscii()
-                    in [''openid'',''profile'',''email'',''email_verified'',''groups'',''offline_access'']))'
+                  rule: '!has(self.permissions) || self.permissions.all(p, !(p.key.lowerAscii() in [''openid'',''profile'',''email'',''email_verified'',''groups'',''offline_access'']))'
             status:
               description: status defines the observed state of PocketIDAPI
               properties:
                 apiID:
                   description: APIID is the ID assigned by Pocket-ID.
                   type: string
+                cimdAccess:
+                  description: CIMDAccess reports whether CIMD clients may reach this API.
+                  type: boolean
                 conditions:
-                  description: Conditions represent the current state of the PocketIDAPI
-                    resource.
+                  description: Conditions represent the current state of the PocketIDAPI resource.
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -195,8 +205,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -229,15 +238,16 @@ spec:
                     Permissions are the permissions resolved from Pocket-ID, including their IDs.
                     This is the lookup table PocketIDOIDCClients use to resolve permission keys.
                   items:
-                    description: ObservedAPIPermission is a permission resolved from
-                      Pocket-ID, including its ID.
+                    description: ObservedAPIPermission is a permission resolved from Pocket-ID, including its ID.
                     properties:
+                      cimdAccess:
+                        description: CIMDAccess reports whether CIMD clients may request this permission.
+                        type: boolean
                       id:
                         description: ID is the Pocket-ID identifier for the permission.
                         type: string
                       key:
-                        description: Key is the permission identifier requested as
-                          a token scope.
+                        description: Key is the permission identifier requested as a token scope.
                         type: string
                       name:
                         description: Name is the human-friendly label from Pocket-ID.
