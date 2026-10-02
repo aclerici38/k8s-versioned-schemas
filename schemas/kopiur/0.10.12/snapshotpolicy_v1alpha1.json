@@ -1669,7 +1669,7 @@
           "description": "What to back up (at least one source; webhook-enforced).",
           "items": {
             "additionalProperties": false,
-            "description": "A single backup source; exactly one of `pvc`, `pvcSelector`, `nfs` (webhook-enforced).",
+            "description": "A single backup source; exactly one of `pvc`, `pvcSelector`, `nfs`, `stream`\n(webhook-enforced).",
             "properties": {
               "acknowledgeLiveMutation": {
                 "description": "Acknowledges that `copyMethod: Direct` + `readOnly: false` lets the kubelet\nrecursively `chgrp` the **live** volume to the mover's `fsGroup` and make it\ngroup-writable — permanently, while the workload is running. Required for that\ncombination alone.\n\nIgnored (not rejected) otherwise: it is an acknowledgement, never harmful to\ncarry, and rejecting a stale one would make switching `copyMethod` between\n`Direct` and `Snapshot`/`Clone` a two-step edit in both directions.",
@@ -1681,7 +1681,7 @@
               },
               "nfs": {
                 "additionalProperties": false,
-                "description": "An inline NFS export to back up directly. Mutually exclusive with `pvc`/`pvcSelector`.",
+                "description": "An inline NFS export to back up directly. Mutually exclusive with `pvc`/`pvcSelector`/`stream`.",
                 "nullable": true,
                 "properties": {
                   "path": {
@@ -1819,7 +1819,7 @@
                 ]
               },
               "sourcePathOverride": {
-                "description": "What kopia records as the source path (default `/pvc/\u003cname\u003e`, or the NFS export `path`).",
+                "description": "What kopia records as the source path (default `/pvc/\u003cname\u003e`, or the NFS export `path`).\n\nOn a `pvcSelector` source this is a footgun. It is ONE literal path, so\nit works only while the selector matches exactly one PVC; the moment a\nsecond PVC matches, both would land on that same kopia source, merging\ntheir histories into one stream where they also prune each other, so the\nBACKUP is refused at run time and no further snapshots are minted for\nthat source.\n\nWatch the failed schedule fire, not verification: the earlier snapshots\nremain at that path, so verification keeps passing while backups have\nstopped. (Verification only fails on a path that never received a\nbackup.) Prefer `sourcePathStrategy`, which derives a distinct path per\nPVC, or put the override on its own `pvc:` source.",
                 "maxLength": 4096,
                 "nullable": true,
                 "type": [
@@ -1839,13 +1839,123 @@
                   "string",
                   "null"
                 ]
+              },
+              "stream": {
+                "additionalProperties": false,
+                "description": "Capture a command's standard output as one virtual file — a logical backup\n(`pg_dumpall`, `mysqldump`, …) rather than a volume copy. Mutually exclusive\nwith `pvc`/`pvcSelector`/`nfs`. No volume is mounted; the mover execs the\ncommand in a running workload Pod and streams its stdout straight into kopia.",
+                "nullable": true,
+                "properties": {
+                  "fileName": {
+                    "description": "Name of the single virtual file stored in the snapshot (e.g. `postgres.sql`).\n\nMust be ONE file name: no `/`, and not `.` or `..`. kopia stores this string\nverbatim as the entry name and does not sanitize it, so a path-shaped value\nwould make a later `kopia restore` write OUTSIDE its destination directory.",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "workloadExec": {
+                    "additionalProperties": false,
+                    "description": "The producer: what to run, and where. Its stdout IS the backup data.",
+                    "properties": {
+                      "command": {
+                        "description": "The argv to execute. NOT a shell line: element 0 is the program, so use\n`[\"sh\", \"-ec\", \"...\"]` explicitly if you want shell semantics.\n\nReference credentials through the container's existing environment or mounted\nSecrets — never inline them here. This argv is copied into the mover Pod's\nspec, so anyone with `pods:get` in the namespace can read it.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "container": {
+                        "description": "Container to exec in; absent uses the Pod's default container.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "podSelector": {
+                        "additionalProperties": false,
+                        "description": "Standard label selector identifying the workload Pod, resolved in the\n`SnapshotPolicy`'s (or `Restore`'s) own namespace. Must not be empty — an\nempty selector matches every Pod in the namespace.",
+                        "properties": {
+                          "matchExpressions": {
+                            "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                            "items": {
+                              "additionalProperties": false,
+                              "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+                              "properties": {
+                                "key": {
+                                  "description": "key is the label key that the selector applies to.",
+                                  "type": "string"
+                                },
+                                "operator": {
+                                  "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+                                  "type": "string"
+                                },
+                                "values": {
+                                  "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "operator"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "array",
+                              "null"
+                            ]
+                          },
+                          "matchLabels": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "timeout": {
+                        "default": "1h",
+                        "description": "Go duration bounding the command (e.g. `2h`; default `1h`). On expiry the\ncommand is abandoned and the run fails, leaving no snapshot behind.\n\nThe same bound applies whether this exec is a backup's producer or a\n`streamExec` restore's consumer.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "command",
+                      "podSelector"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "workloadExec"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             },
             "type": "object",
             "x-kubernetes-validations": [
               {
-                "message": "exactly one of pvc, pvcSelector, nfs",
-                "rule": "(has(self.pvc) ? 1 : 0) + (has(self.pvcSelector) ? 1 : 0) + (has(self.nfs) ? 1 : 0) == 1"
+                "message": "exactly one of pvc, pvcSelector, nfs, stream",
+                "rule": "(has(self.pvc) ? 1 : 0) + (has(self.pvcSelector) ? 1 : 0) + (has(self.nfs) ? 1 : 0) + (has(self.stream) ? 1 : 0) == 1"
               }
             ]
           },
@@ -2295,7 +2405,7 @@
           ]
         },
         "lastVerified": {
-          "description": "RFC3339 timestamp of the most recent successful verification (any tier).\nSingle-repo: stamped directly by the verify mover. Multi-repo: computed\nby the controller as the MINIMUM `lastVerified` across the CURRENT\nrepositories (\"everything is verified as of T\"), absent until every\ncurrent repository has verified at least once.",
+          "description": "RFC3339 timestamp of the most recent successful verification (any tier).\n\nVerification runs once per (repository x source) cell: a\n`spec.repositories` fan-out adds the repository dimension, and a\n`pvcSelector` source adds one cell per matched PVC (each has its own\nkopia source path, so each needs its own verification).\n\n* one repository AND a non-selector source (`pvc`/`nfs`): stamped\n  directly by the verify mover, exactly as before;\n* otherwise — a `spec.repositories` fan-out, or ANY `pvcSelector` source\n  (including one currently matching a single PVC): computed by the\n  controller as the MINIMUM across the CURRENT cells (\"everything is\n  verified as of T\"), and absent until EVERY current cell has verified at\n  least once — a partially verified policy must not display a reassuring\n  timestamp.",
           "nullable": true,
           "type": [
             "string",
@@ -2517,7 +2627,7 @@
             "description": "One repository's verification record on a multi-repository policy\n(`status.verification`). Entry-keyed by the (normalized) repository ref so\nper-repo verify results never collapse into one flat timestamp.",
             "properties": {
               "lastVerified": {
-                "description": "RFC3339 timestamp of the most recent successful verification (any tier)\nagainst THIS repository; absent until its first successful verify.",
+                "description": "RFC3339 timestamp of the most recent successful verification (any tier)\nagainst THIS repository; absent until its first successful verify.\n\nWhen the policy's source is a `pvcSelector`, this is the MINIMUM across\nthat repository's matched PVCs, and absent until every one of them has\nverified — a repository whose volumes are only partly verified must not\nlook fully verified.",
                 "nullable": true,
                 "type": [
                   "string",
@@ -2573,7 +2683,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Internal write channel for per-repository verification (#368): RFC3339\nmarkers keyed by the normalized repository key\n([`repo_key`](crate::common::repo_key)). Each verify mover merge-patches\nONLY its own key — a JSON merge patch merges map keys, so two concurrent\nper-repo verifies can never clobber one another (a Vec would be replaced\nwholesale). The controller folds these into `verification` on its next\npass and prunes keys for repositories no longer in the spec. Never\nwritten for the single-repo shape.",
+          "description": "Internal write channel for per-cell verification: RFC3339 markers keyed\nby the (repository x source) cell a verify run covered.\n\nKey shapes, where the repository segment is the normalized repository\nkey ([`repo_key`](crate::common::repo_key)) and the member segment is a\nstable 12-hex tag over the matched PVC's derived kopia source path:\n\n* `\u003crepository\u003e` — a `spec.repositories` fan-out with a single source;\n* `\u003crepository\u003e#\u003cmember\u003e` — a fan-out over both dimensions;\n* `#\u003cmember\u003e` — one repository, a `pvcSelector` source (the repository\n  segment is empty).\n\n`#` is the separator because a repository key cannot contain one.\n\nEach verify mover merge-patches ONLY its own key — a JSON merge patch\nmerges map keys, so concurrent cells can never clobber one another (a\nVec would be replaced wholesale). The controller folds these into\n`verification` and `lastVerified` on its next pass and prunes keys whose\nrepository or matched PVC is gone. Not written when the policy targets\none repository with a non-selector source, whose wire stays\nbyte-identical; a `pvcSelector` source always uses this map, even while\nit matches a single PVC.",
           "type": [
             "object",
             "null"
