@@ -1,0 +1,1604 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "affinity": {
+      "description": "Affinity rules for pod scheduling.",
+      "required": [],
+      "title": "affinity",
+      "type": "object"
+    },
+    "config": {
+      "description": "How kritika runs and what it reviews with, as the KRITIKA_* variables\n(docs/configuration.md) keyed by their names without the prefix, in\ncamelCase: `pollInterval` is KRITIKA_POLL_INTERVAL, `authOidcIssuer` is\nKRITIKA_AUTH_OIDC_ISSUER. The keys below are every variable that can be\nset; a key left empty sets nothing and kritika's own default applies,\nwhich each description names. A value is a plain value, rendered\nthrough `tpl`, or, for a secret, a map with the variable's `valueFrom`\n(a Secret key). The variables that stand in for the configuration\nfile's sections (auth*, apps*, providers*, embedding*, and the review,\nconfidence and trigger settings reviewModel, reviewFallback,\nreviewFeedback, reviewApprove, reviewFixes, reviewIncremental,\nreviewDiagram, reviewCost, confidenceModel, confidenceThreshold, confidenceGate,\nconfidenceRisk, triggerSettle and triggerLimit) win over the file. The variables the chart derives from its other values\n(the addresses, the database, the config file, the runner image,\nServiceAccount, TTL, resources and tools) cannot be set here; the chart\nrefuses them, as it refuses a KRITIKA_* variable under `env`.",
+      "properties": {
+        "appsAccounts": {
+          "default": "",
+          "description": "The users and organizations the app serves, comma-separated; set it to declare the app here.",
+          "title": "appsAccounts",
+          "type": "string"
+        },
+        "appsClientId": {
+          "default": "",
+          "description": "The GitHub App's client id, inline or from a Secret.",
+          "required": [],
+          "title": "appsClientId",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "appsName": {
+          "default": "",
+          "description": "The app's name, which is its webhook path, `/hooks/\u003cname\u003e`; `github` unless set.",
+          "title": "appsName",
+          "type": "string"
+        },
+        "appsPrivateKey": {
+          "default": "",
+          "description": "The GitHub App's private key (PEM), from a Secret.",
+          "required": [],
+          "title": "appsPrivateKey",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "appsWebhookSecret": {
+          "default": "",
+          "description": "The GitHub App's webhook secret, from a Secret.",
+          "required": [],
+          "title": "appsWebhookSecret",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "authAdminPassword": {
+          "default": "",
+          "description": "The local admin's password, from a Secret. The local admin exists only while one is set: the way into a fresh instance, and a way in when every provider is down.",
+          "required": [],
+          "title": "authAdminPassword",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "authAdminUser": {
+          "default": "",
+          "description": "The local admin's username; `admin` unless set.",
+          "title": "authAdminUser",
+          "type": "string"
+        },
+        "authGithubClientId": {
+          "default": "",
+          "description": "Client id for signing in with GitHub, inline or from a Secret: an OAuth App's, or the GitHub App's own; set it to sign in through GitHub.",
+          "required": [],
+          "title": "authGithubClientId",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "authGithubClientSecret": {
+          "default": "",
+          "description": "Client secret for signing in with GitHub, from a Secret.",
+          "required": [],
+          "title": "authGithubClientSecret",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "authGithubRoleMappingExpr": {
+          "default": "",
+          "description": "CEL expression mapping a GitHub sign-in to a kritika role, e.g. `login == \"user-1\" ? \"admin\" : \"\"`.",
+          "title": "authGithubRoleMappingExpr",
+          "type": "string"
+        },
+        "authOidcClientId": {
+          "default": "",
+          "description": "OIDC client id, inline or from a Secret.",
+          "required": [],
+          "title": "authOidcClientId",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "authOidcClientSecret": {
+          "default": "",
+          "description": "OIDC client secret, from a Secret.",
+          "required": [],
+          "title": "authOidcClientSecret",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "authOidcDefaultRole": {
+          "default": "",
+          "description": "Role of an OIDC sign-in the mapping gives none; none unless set.",
+          "title": "authOidcDefaultRole",
+          "type": "string"
+        },
+        "authOidcIssuer": {
+          "default": "",
+          "description": "OpenID Connect issuer, an https URL; set it to sign in through OIDC.",
+          "title": "authOidcIssuer",
+          "type": "string"
+        },
+        "authOidcName": {
+          "default": "",
+          "description": "Label of the OIDC provider on the sign-in page; \"SSO\" unless set.",
+          "title": "authOidcName",
+          "type": "string"
+        },
+        "authOidcRoleMappingExpr": {
+          "default": "",
+          "description": "CEL expression mapping an OIDC sign-in to a kritika role, `admin`, `member` or \"\" for none, e.g. `\"kritika-admins\" in roles ? \"admin\" : \"member\"`.",
+          "title": "authOidcRoleMappingExpr",
+          "type": "string"
+        },
+        "authOidcRolesClaim": {
+          "default": "",
+          "description": "The ID token claim holding the person's roles or groups, read by `authOidcRoleMappingExpr`.",
+          "title": "authOidcRolesClaim",
+          "type": "string"
+        },
+        "authOidcScopes": {
+          "default": "",
+          "description": "OIDC scopes, comma-separated; `openid,email,profile` unless set.",
+          "title": "authOidcScopes",
+          "type": "string"
+        },
+        "authSessionTtl": {
+          "default": "",
+          "description": "How long a dashboard session lasts, between 5m and 720h; 12h unless set.",
+          "title": "authSessionTtl",
+          "type": "string"
+        },
+        "confidenceGate": {
+          "default": "",
+          "description": "`true` fails the commit status under the threshold, so it can be a required check; off unless set, when the status reports the score and passes.",
+          "required": [],
+          "title": "confidenceGate",
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "confidenceModel": {
+          "default": "",
+          "description": "The model that scores each reviewed pull request from 0 to 5, `\u003cprovider\u003e/\u003cmodel\u003e`; nothing is scored unless set.",
+          "title": "confidenceModel",
+          "type": "string"
+        },
+        "confidenceRisk": {
+          "default": "",
+          "description": "The highest risk a change may be rated and still be approved: `low`, `medium`, `high` or `critical`; `low` unless set.",
+          "title": "confidenceRisk",
+          "type": "string"
+        },
+        "confidenceThreshold": {
+          "default": "",
+          "description": "The score a pull request must reach to be approved and, with the gate, for its commit status to pass, 0 to 5; 5 unless set.",
+          "required": [],
+          "title": "confidenceThreshold",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "diffRetention": {
+          "default": "",
+          "description": "How long a review keeps the diff it was made from, the context it read and the repository files it named, at least 24h; 720h unless set.",
+          "title": "diffRetention",
+          "type": "string"
+        },
+        "embeddingDims": {
+          "default": "",
+          "description": "The embedding's dimensions, which the model must produce.",
+          "required": [],
+          "title": "embeddingDims",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "embeddingModel": {
+          "default": "",
+          "description": "The embedding model, `\u003cprovider\u003e/\u003cmodel\u003e`; set it to index each repository for similar code.",
+          "title": "embeddingModel",
+          "type": "string"
+        },
+        "gatewayTokenTtl": {
+          "default": "",
+          "description": "How long a run's gateway token outlives its Job's deadline, in case the replica that minted it dies before revoking it; 1h unless set.",
+          "title": "gatewayTokenTtl",
+          "type": "string"
+        },
+        "indexGrace": {
+          "default": "",
+          "description": "How long the index of a repository that stopped running is kept; 720h unless set.",
+          "title": "indexGrace",
+          "type": "string"
+        },
+        "indexWorkers": {
+          "default": "",
+          "description": "Index jobs one replica runs at once, rate-limited apart from reviews so onboarding a large account cannot starve them; 1 unless set.",
+          "required": [],
+          "title": "indexWorkers",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "leaderRetryInterval": {
+          "default": "",
+          "description": "How often a replica retries the leader lock, and the holder checks it still has it; 15s unless set.",
+          "title": "leaderRetryInterval",
+          "type": "string"
+        },
+        "logFormat": {
+          "default": "json",
+          "description": "Log format: json or text.",
+          "title": "logFormat",
+          "type": "string"
+        },
+        "logLevel": {
+          "default": "info",
+          "description": "Log level: debug, info, warn or error.",
+          "title": "logLevel",
+          "type": "string"
+        },
+        "onboardWindow": {
+          "default": "",
+          "description": "Onboarding index jobs the leader keeps queued or running at once; 4 unless set.",
+          "required": [],
+          "title": "onboardWindow",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "pollInterval": {
+          "default": "",
+          "description": "How often the leader lists each app's open pull requests, its backstop for missed webhooks; `0s` turns it off; 10m unless set.",
+          "title": "pollInterval",
+          "type": "string"
+        },
+        "pollLookback": {
+          "default": "",
+          "description": "How far back a first or long-idle poll looks; 24h unless set.",
+          "title": "pollLookback",
+          "type": "string"
+        },
+        "providersApiKey": {
+          "default": "",
+          "description": "The provider's API key, from a Secret; set it to declare the provider here.",
+          "required": [],
+          "title": "providersApiKey",
+          "type": [
+            "string",
+            "object"
+          ]
+        },
+        "providersBaseUrl": {
+          "default": "",
+          "description": "The provider's base URL, for an OpenAI-compatible endpoint; the type's own unless set.",
+          "title": "providersBaseUrl",
+          "type": "string"
+        },
+        "providersName": {
+          "default": "",
+          "description": "The provider's name, which models are addressed through as `\u003cname\u003e/\u003cmodel\u003e`; `openrouter` unless set.",
+          "title": "providersName",
+          "type": "string"
+        },
+        "providersRetries": {
+          "default": "",
+          "description": "How many more times a review's model step is tried when the provider fails it in a way another attempt may not (a 5xx, a 429, a timeout), with backoff; 0 unless set, at most 5.",
+          "required": [],
+          "title": "providersRetries",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "providersType": {
+          "default": "",
+          "description": "The provider's type, `openrouter`, `openai`, `anthropic` or `opencode`; the name unless set, when the name is one of those.",
+          "title": "providersType",
+          "type": "string"
+        },
+        "reviewApprove": {
+          "default": "",
+          "description": "`true` has a review that finds nothing blocking or important approve the pull request, or, with a confidence model, one whose score and risk allow it, and dismisses that approval when a later review's do not; off unless set.",
+          "required": [],
+          "title": "reviewApprove",
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "reviewCost": {
+          "default": "",
+          "description": "`true` ends the summary's footer with what the pull request's reviews have cost together; off unless set.",
+          "required": [],
+          "title": "reviewCost",
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "reviewDiagram": {
+          "default": "",
+          "description": "`true` has the summary draw the flow the change adds or alters as a Mermaid diagram; off unless set.",
+          "required": [],
+          "title": "reviewDiagram",
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "reviewFallback": {
+          "default": "",
+          "description": "The model a review falls back to when the review model fails.",
+          "title": "reviewFallback",
+          "type": "string"
+        },
+        "reviewFeedback": {
+          "default": "",
+          "description": "How much a review says: `detailed` (nits, missing tests and questions inline), `standard` (nits in the summary only) or `minimal` (bugs, risks and breaking changes only); `standard` unless set.",
+          "title": "reviewFeedback",
+          "type": "string"
+        },
+        "reviewFixes": {
+          "default": "",
+          "description": "`true` requires a suggested fix on every finding; off unless set.",
+          "required": [],
+          "title": "reviewFixes",
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "reviewIncremental": {
+          "default": "",
+          "description": "How many files may change since the last review before a re-review covers the whole pull request again; 25 unless set.",
+          "required": [],
+          "title": "reviewIncremental",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "reviewModel": {
+          "default": "",
+          "description": "The model every review runs on unless a repository names another, `\u003cprovider\u003e/\u003cmodel\u003e`.",
+          "title": "reviewModel",
+          "type": "string"
+        },
+        "reviewWorkers": {
+          "default": "",
+          "description": "Review jobs one replica runs at once, each holding a runner pod open; 2 unless set.",
+          "required": [],
+          "title": "reviewWorkers",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "runnerDeadline": {
+          "default": "",
+          "description": "A runner Job's deadline; 15m unless set.",
+          "title": "runnerDeadline",
+          "type": "string"
+        },
+        "runnerRuntimeClass": {
+          "default": "",
+          "description": "RuntimeClass runner Jobs run under, e.g. `gvisor` or a Kata class; the cluster default unless set. Advised: a runner parses untrusted repository content and runs what the model asks.",
+          "title": "runnerRuntimeClass",
+          "type": "string"
+        },
+        "transcriptRetention": {
+          "default": "",
+          "description": "How long a review's full model transcript is kept, at least 24h; 720h unless set.",
+          "title": "transcriptRetention",
+          "type": "string"
+        },
+        "triggerLimit": {
+          "default": "",
+          "description": "How many automatic reviews a pull request gets before kritika pauses them, so a long-lived pull request stops spending on every push; unlimited unless set.",
+          "required": [],
+          "title": "triggerLimit",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "triggerSettle": {
+          "default": "",
+          "description": "How long a review waits after a push, so a burst of pushes collapses onto the last one before anything is spent, e.g. `30s`; immediate unless set.",
+          "title": "triggerSettle",
+          "type": "string"
+        },
+        "webUrl": {
+          "default": "",
+          "description": "(required) Public URL the dashboard is reached at, e.g. https://kritika.example.com; the webhooks share it under `/hooks/\u003capp name\u003e`. Must be an absolute http(s) URL with no query or fragment. GitHub delivers webhooks to it and sign-in redirects back to it, so the chart's Ingress or HTTPRoute must route this name.",
+          "title": "webUrl",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "config",
+      "type": "object"
+    },
+    "configFile": {
+      "description": "(optional) The configuration file, as YAML: what is reviewed and how, from `auth` and `apps` to `repositories` and `accounts`. Passed through verbatim, not tpl'd. See docs/configuration.md.",
+      "required": [],
+      "title": "configFile",
+      "type": "object"
+    },
+    "database": {
+      "description": "Three Postgres connection strings, each from its own Secret. The\napplication role must not own the tables (row-level security), the owner\nrole runs migrations and applies configuration on the leader, and the\nrunner role is handed to runner Jobs and can only write its own run. On\nCloudNativePG, declare `app` and `runner` under `spec.managed.roles` and\nuse the bootstrap owner as `owner`; see the README.",
+      "properties": {
+        "app": {
+          "properties": {
+            "existingSecret": {
+              "default": "",
+              "description": "(required) Secret holding the application role's connection URI.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "key": {
+              "default": "uri",
+              "description": "Key in that Secret.",
+              "title": "key",
+              "type": "string"
+            },
+            "role": {
+              "default": "kritika_app",
+              "description": "Name of the application role, asserted at startup (not superuser, no BYPASSRLS, owns nothing).",
+              "title": "role",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "app",
+          "type": "object"
+        },
+        "owner": {
+          "properties": {
+            "existingSecret": {
+              "default": "",
+              "description": "(required) Secret holding the owner role's connection URI, used only by the leader for migrations and configuration sync.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "key": {
+              "default": "uri",
+              "description": "Key in that Secret.",
+              "title": "key",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "owner",
+          "type": "object"
+        },
+        "runner": {
+          "properties": {
+            "existingSecret": {
+              "default": "",
+              "description": "(required) Secret holding the runner role's connection URI; referenced by runner Jobs, never read by kritika serve.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "key": {
+              "default": "uri",
+              "description": "Key in that Secret.",
+              "title": "key",
+              "type": "string"
+            },
+            "role": {
+              "default": "kritika_runner",
+              "description": "Name of the runner role, granted only what runner Jobs need.",
+              "title": "role",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "runner",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "database",
+      "type": "object"
+    },
+    "deploymentAnnotations": {
+      "description": "Annotations added to the Deployment (e.g. `reloader.stakater.com/auto: \"true\"`). Pod-level annotations go in `podAnnotations`.",
+      "required": [],
+      "title": "deploymentAnnotations",
+      "type": "object"
+    },
+    "env": {
+      "description": "Environment variables of the kritika serve container, keyed by name: a plain value, or a map with the variable's `valueFrom` (a Secret, a ConfigMap or a field). Rendered through `tpl`.",
+      "required": [],
+      "title": "env",
+      "type": "object"
+    },
+    "envFrom": {
+      "description": "Secrets and ConfigMaps loaded as environment variables in bulk, each key a variable: the Kubernetes `envFrom` list. A Secret whose keys are the variable names the configuration file references sets them all at once.",
+      "items": {
+        "required": []
+      },
+      "title": "envFrom",
+      "type": "array"
+    },
+    "existingConfigMap": {
+      "default": "",
+      "description": "Existing ConfigMap holding the file under the `config.yaml` key; takes precedence over `configFile`. A change to it takes a restart.",
+      "title": "existingConfigMap",
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "default": "",
+      "description": "Override the full release name.",
+      "title": "fullnameOverride",
+      "type": "string"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "httpRoute": {
+      "description": "Gateway API HTTPRoute, an alternative to `ingress`; one route to the public\nService. Named `httpRoute`, not `route`, to keep clear of the OpenShift\nRoute kind.",
+      "properties": {
+        "additionalRules": {
+          "description": "Custom rules prepended before the default rule (templated).",
+          "items": {
+            "required": []
+          },
+          "title": "additionalRules",
+          "type": "array"
+        },
+        "annotations": {
+          "description": "HTTPRoute annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "apiVersion": {
+          "default": "",
+          "description": "HTTPRoute apiVersion; empty defaults to gateway.networking.k8s.io/v1.",
+          "title": "apiVersion",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Expose the public Service through a Gateway API HTTPRoute (alternative to ingress).",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "filters": {
+          "description": "Filters applied to the default rule.",
+          "items": {
+            "required": []
+          },
+          "title": "filters",
+          "type": "array"
+        },
+        "hostnames": {
+          "description": "Hostnames matched against the Host header; `config.webUrl`'s host (templated).",
+          "items": {
+            "required": []
+          },
+          "title": "hostnames",
+          "type": "array"
+        },
+        "httpsRedirect": {
+          "default": false,
+          "description": "Redirect HTTP to HTTPS (301) instead of routing to the backend (needs HTTP+HTTPS listeners).",
+          "title": "httpsRedirect",
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "",
+          "description": "HTTPRoute kind; empty defaults to HTTPRoute.",
+          "title": "kind",
+          "type": "string"
+        },
+        "labels": {
+          "description": "HTTPRoute labels.",
+          "required": [],
+          "title": "labels",
+          "type": "object"
+        },
+        "matches": {
+          "description": "Match conditions for the default rule.",
+          "items": {
+            "anyOf": [
+              {
+                "properties": {
+                  "path": {
+                    "properties": {
+                      "type": {
+                        "default": "PathPrefix",
+                        "title": "type",
+                        "type": "string"
+                      },
+                      "value": {
+                        "default": "/",
+                        "title": "value",
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "title": "path",
+                    "type": "object"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "matches",
+          "type": "array"
+        },
+        "parentRefs": {
+          "description": "Gateways (and listeners) this route attaches to.",
+          "items": {
+            "required": []
+          },
+          "title": "parentRefs",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "httpRoute",
+      "type": "object"
+    },
+    "image": {
+      "description": "Default values for kritika.\n\nMost string, list and map values below are rendered through Helm's `tpl`, so\nthey may carry template expressions that resolve at install time, e.g.\n  ingress.hosts[0].host: kritika.{{ .Values.global.domain }}\nPlain numbers and booleans, and `configFile`, are passed through as they are.",
+      "properties": {
+        "digest": {
+          "default": "",
+          "description": "Pin the image by digest (sha256:…); when set, overrides the tag. The release pipeline fills it with the published image's digest.",
+          "title": "digest",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Image pull policy.",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "repository": {
+          "default": "ghcr.io/home-operations/kritika",
+          "description": "Image repository.",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Overrides the image tag; defaults to the chart appVersion.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "image",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "description": "Image pull secrets for private registries, for the kritika serve pods and, through the runner ServiceAccount, runner Jobs and the tool images they mount.",
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "ingress": {
+      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s: GitHub delivers webhooks to that URL and sign-in\nredirects back to it, so a route for another name serves a dashboard\nthat cannot sign in.",
+      "properties": {
+        "annotations": {
+          "description": "Ingress annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "className": {
+          "default": "",
+          "description": "IngressClass name.",
+          "title": "className",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Expose the public Service through an Ingress.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "hosts": {
+          "description": "Ingress hosts and their paths; the host is `config.webUrl`'s.",
+          "items": {
+            "anyOf": [
+              {
+                "properties": {
+                  "host": {
+                    "default": "kritika.example.com",
+                    "title": "host",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "path": {
+                              "default": "/",
+                              "title": "path",
+                              "type": "string"
+                            },
+                            "pathType": {
+                              "default": "Prefix",
+                              "title": "pathType",
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "type": "object"
+                        }
+                      ],
+                      "required": []
+                    },
+                    "title": "paths",
+                    "type": "array"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "hosts",
+          "type": "array"
+        },
+        "tls": {
+          "description": "Ingress TLS configuration.",
+          "items": {
+            "required": []
+          },
+          "title": "tls",
+          "type": "array"
+        }
+      },
+      "required": [],
+      "title": "ingress",
+      "type": "object"
+    },
+    "livenessProbe": {
+      "description": "Liveness probe, on the metrics port.",
+      "properties": {
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/healthz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "metrics",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "periodSeconds": {
+          "default": 20,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "livenessProbe",
+      "type": "object"
+    },
+    "monitoring": {
+      "properties": {
+        "dashboards": {
+          "properties": {
+            "annotations": {
+              "description": "Annotations added to the dashboard ConfigMap (templated).",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Render the Grafana dashboard ConfigMap (for the kube-prometheus-stack sidecar or grafana-operator): kritika's health, intake, reviews, model spend, runner Jobs and database pools, from the metrics the ServiceMonitor scrapes.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "grafanaOperator": {
+              "properties": {
+                "allowCrossNamespaceImport": {
+                  "default": true,
+                  "description": "Allow a Grafana in any namespace to import this GrafanaDashboard.",
+                  "title": "allowCrossNamespaceImport",
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "default": false,
+                  "description": "Render a GrafanaDashboard CR (grafana-operator) referencing the ConfigMap, instead of relying on the sidecar label.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "folder": {
+                  "default": "",
+                  "description": "Folder to create the dashboard in (templated); empty uses the Grafana default.",
+                  "title": "folder",
+                  "type": "string"
+                },
+                "matchLabels": {
+                  "description": "Label selector matching the target Grafana instance (templated; required when grafanaOperator is enabled).",
+                  "required": [],
+                  "title": "matchLabels",
+                  "type": "object"
+                },
+                "resyncPeriod": {
+                  "default": "10m",
+                  "description": "Resync period for the operator to re-check the dashboard.",
+                  "title": "resyncPeriod",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "grafanaOperator",
+              "type": "object"
+            },
+            "labels": {
+              "description": "Labels added to the dashboard ConfigMap (templated).",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "namespace": {
+              "default": "",
+              "description": "Namespace for the dashboard objects; defaults to the release namespace.",
+              "title": "namespace",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "dashboards",
+          "type": "object"
+        },
+        "prometheusRule": {
+          "properties": {
+            "additionalRuleAnnotations": {
+              "description": "Extra annotations on every alert rule.",
+              "required": [],
+              "title": "additionalRuleAnnotations",
+              "type": "object"
+            },
+            "additionalRuleLabels": {
+              "description": "Extra labels on every alert rule, e.g. a routing label for Alertmanager. The rule's own `severity` wins.",
+              "required": [],
+              "title": "additionalRuleLabels",
+              "type": "object"
+            },
+            "annotations": {
+              "description": "PrometheusRule annotations.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "configDriftFor": {
+              "default": "15m",
+              "description": "How long a replica's configuration file may differ from the applied one before KritikaConfigDrift fires; a rollout drifts briefly until the new leader applies its file.",
+              "title": "configDriftFor",
+              "type": "string"
+            },
+            "configErrorFor": {
+              "default": "5m",
+              "description": "How long the leader's latest apply of the configuration may stay refused before KritikaConfigError fires.",
+              "title": "configErrorFor",
+              "type": "string"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, and a replica whose configuration file drifted from the applied one.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "labels": {
+              "description": "PrometheusRule labels.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "multipleLeadersFor": {
+              "default": "2m",
+              "description": "How long more than one replica may report the lock before KritikaMultipleLeaders fires. A database failover can show two for one leader retry interval.",
+              "title": "multipleLeadersFor",
+              "type": "string"
+            },
+            "noLeaderFor": {
+              "default": "5m",
+              "description": "How long no replica may hold the leader lock before KritikaNoLeader fires. A standby takes the lock within one leader retry interval of the database answering, and a dead leader's session is dropped by Postgres within about a minute.",
+              "title": "noLeaderFor",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "prometheusRule",
+          "type": "object"
+        },
+        "serviceMonitor": {
+          "properties": {
+            "annotations": {
+              "description": "ServiceMonitor annotations.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Create a Prometheus Operator ServiceMonitor for the metrics Service (requires its CRDs).",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "30s",
+              "description": "Scrape interval.",
+              "title": "interval",
+              "type": "string"
+            },
+            "labels": {
+              "description": "ServiceMonitor labels.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "metricRelabelings": {
+              "description": "Prometheus metric relabelings.",
+              "items": {
+                "required": []
+              },
+              "title": "metricRelabelings",
+              "type": "array"
+            },
+            "relabelings": {
+              "description": "Prometheus relabelings.",
+              "items": {
+                "required": []
+              },
+              "title": "relabelings",
+              "type": "array"
+            },
+            "scrapeTimeout": {
+              "default": "10s",
+              "description": "Scrape timeout.",
+              "title": "scrapeTimeout",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceMonitor",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "monitoring",
+      "type": "object"
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "Override the chart name used in resource names.",
+      "title": "nameOverride",
+      "type": "string"
+    },
+    "networkPolicy": {
+      "description": "NetworkPolicies (off by default): one for the service pods (ingress to the\nwebhook and metrics ports, and to the gateway port from runner pods;\negress to DNS, the forges and models over the egress ports, Postgres and\nthe API server) and one for runner pods (egress only: DNS, Postgres and\nthe gateway port on the service pods, through which everything else is\nreached). The Postgres port is allowed to any peer because the database\nmay live in another namespace.",
+      "properties": {
+        "allowDNS": {
+          "default": true,
+          "description": "Allow DNS egress (UDP/TCP 53); the Cilium flavor allows it to kube-dns alone.",
+          "title": "allowDNS",
+          "type": "boolean"
+        },
+        "egressPorts": {
+          "description": "TCP ports the service pods may egress to for forges and model endpoints. Runner pods reach the gateway alone.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              }
+            ],
+            "required": []
+          },
+          "title": "egressPorts",
+          "type": "array"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Create the NetworkPolicies.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "postgresPort": {
+          "default": 5432,
+          "description": "Postgres port allowed for egress.",
+          "title": "postgresPort",
+          "type": "integer"
+        },
+        "type": {
+          "default": "default",
+          "description": "Policy flavor for your CNI: \"default\" (networking.k8s.io/v1 NetworkPolicy), \"cilium\" (CiliumNetworkPolicy) or \"calico\" (projectcalico.org/v3 NetworkPolicy).",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "networkPolicy",
+      "type": "object"
+    },
+    "nodeSelector": {
+      "description": "Node selector for pod scheduling.",
+      "required": [],
+      "title": "nodeSelector",
+      "type": "object"
+    },
+    "podAnnotations": {
+      "description": "Annotations added to the pods.",
+      "required": [],
+      "title": "podAnnotations",
+      "type": "object"
+    },
+    "podDisruptionBudget": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Create a PodDisruptionBudget when there is more than one replica.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "maxUnavailable": {
+          "default": 1,
+          "description": "Maximum pods that may be unavailable, as a count or percentage; takes precedence over `minAvailable` when set.",
+          "required": [],
+          "title": "maxUnavailable",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "minAvailable": {
+          "default": "",
+          "description": "Minimum pods that must stay available, as a count or percentage. Used unless `maxUnavailable` is set.",
+          "required": [],
+          "title": "minAvailable",
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      },
+      "required": [],
+      "title": "podDisruptionBudget",
+      "type": "object"
+    },
+    "podLabels": {
+      "description": "Labels added to the pods.",
+      "required": [],
+      "title": "podLabels",
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "description": "Pod-level securityContext (non-root uid/gid 65532, RuntimeDefault seccomp).",
+      "properties": {
+        "runAsGroup": {
+          "default": 65532,
+          "title": "runAsGroup",
+          "type": "integer"
+        },
+        "runAsNonRoot": {
+          "default": true,
+          "title": "runAsNonRoot",
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "default": 65532,
+          "title": "runAsUser",
+          "type": "integer"
+        },
+        "seccompProfile": {
+          "properties": {
+            "type": {
+              "default": "RuntimeDefault",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "seccompProfile",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "podSecurityContext",
+      "type": "object"
+    },
+    "priorityClassName": {
+      "default": "",
+      "description": "PriorityClass for the pods. Empty uses the cluster default.",
+      "title": "priorityClassName",
+      "type": "string"
+    },
+    "rbac": {
+      "properties": {
+        "create": {
+          "default": true,
+          "description": "Create the Role and RoleBinding kritika serve needs: Jobs in the release namespace, their pods and logs, and the Secrets it hands them. Nothing cluster-wide.",
+          "title": "create",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "rbac",
+      "type": "object"
+    },
+    "readinessProbe": {
+      "description": "Readiness probe, on the metrics port. A replica is ready once its configuration file has loaded, the database answers and it serves webhooks and the dashboard, so a rollout takes the previous pod down only once the new one can hold a delivery.",
+      "properties": {
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/readyz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "metrics",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "periodSeconds": {
+          "default": 10,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "readinessProbe",
+      "type": "object"
+    },
+    "replicas": {
+      "default": 1,
+      "description": "kritika runs as one Deployment of `kritika serve`: webhooks, the dashboard,\nthe job queues, runner Jobs, the gateway and, on the replica holding the\nleader lock, the leader duties. Runner pods are not part of it: serve\ncreates them as Jobs, one per review and index run.\nReplicas of kritika serve. Every replica serves webhooks and the dashboard and works jobs; exactly one holds the leader lock at a time. A rollout keeps one serving on its own; set 2 for one to keep serving while a pod or node is lost.",
+      "title": "replicas",
+      "type": "integer"
+    },
+    "resources": {
+      "description": "Resource requests and limits of the kritika serve pods.",
+      "properties": {
+        "limits": {
+          "properties": {
+            "memory": {
+              "default": "512Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "limits",
+          "type": "object"
+        },
+        "requests": {
+          "properties": {
+            "cpu": {
+              "default": "50m",
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "128Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "requests",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "resources",
+      "type": "object"
+    },
+    "runner": {
+      "description": "Runner Jobs: one pod per review or index run, created by kritika serve in the\nrelease namespace from the release's -tools image, running as a service\naccount with no permissions and a database role that can only touch its own\nrun. The server's Role reaches every Secret in the release namespace, so\ninstall kritika into a namespace of its own. Their deadline and RuntimeClass\nare `config.runnerDeadline` and `config.runnerRuntimeClass`; a sandboxed\nRuntimeClass (gVisor, Kata) is advised, since a runner parses untrusted\nrepository content and runs what the model asks.",
+      "properties": {
+        "image": {
+          "description": "Image for runner Jobs: the release's `-tools` image, which adds curl, fd,\ngh, jq, rg and yq for an agentic review's `agent.commands`.",
+          "properties": {
+            "digest": {
+              "default": "",
+              "description": "Pin the runner image by digest (sha256:…); when set, overrides the tag. The release pipeline fills it with the published `-tools` image's digest.",
+              "title": "digest",
+              "type": "string"
+            },
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "Runner image pull policy (KRITIKA_RUNNER_IMAGE_PULL_POLICY).",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "ghcr.io/home-operations/kritika",
+              "description": "Runner image repository.",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "",
+              "description": "Overrides the runner image tag; defaults to the chart appVersion with `-tools` appended.",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        },
+        "resources": {
+          "description": "Resources for runner pods (KRITIKA_RUNNER_RESOURCES), copied into the pod spec.",
+          "required": [],
+          "title": "resources",
+          "type": "object"
+        },
+        "serviceAccount": {
+          "properties": {
+            "annotations": {
+              "description": "Annotations for the runner ServiceAccount.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "create": {
+              "default": true,
+              "description": "Create the runner ServiceAccount: no permissions, no token mounted, and the chart's `imagePullSecrets` so runner Jobs can pull from a private registry.",
+              "title": "create",
+              "type": "boolean"
+            },
+            "name": {
+              "default": "",
+              "description": "Runner ServiceAccount name; generated from the release name if empty.",
+              "title": "name",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceAccount",
+          "type": "object"
+        },
+        "tools": {
+          "description": "Command-line tools a runner pod mounts from an image for the agent's run tool (KRITIKA_RUNNER_TOOLS), each a `name`, a digest-pinned `image`, the `path` of its binaries and the `commands` it provides. Needs Kubernetes 1.33 or newer, which mounts an image volume with a subPath; the chart refuses to render them on an older cluster.",
+          "items": {
+            "required": []
+          },
+          "title": "tools",
+          "type": "array"
+        },
+        "ttl": {
+          "default": "10m",
+          "description": "How long a finished Job stays for kubectl before Kubernetes removes it (Go duration); the run row keeps everything the Job knew.",
+          "title": "ttl",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "runner",
+      "type": "object"
+    },
+    "securityContext": {
+      "description": "Container securityContext (no privilege escalation, read-only root filesystem, drops ALL capabilities).",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "default": false,
+          "title": "allowPrivilegeEscalation",
+          "type": "boolean"
+        },
+        "capabilities": {
+          "properties": {
+            "drop": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  }
+                ],
+                "required": []
+              },
+              "title": "drop",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "capabilities",
+          "type": "object"
+        },
+        "readOnlyRootFilesystem": {
+          "default": true,
+          "title": "readOnlyRootFilesystem",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "title": "securityContext",
+      "type": "object"
+    },
+    "service": {
+      "properties": {
+        "gatewayPort": {
+          "default": 8082,
+          "description": "Port of the gateway the kritika serve pods run, on the pods and its Service: the forward proxy runner Jobs are handed as `HTTPS_PROXY`, allowing only the hosts the configuration names (github.com once an app is configured, `egress.allow` less `egress.deny`), so runner pods need no direct internet egress, and the model and similar-code endpoints a runner calls with a per-run token, so no provider key enters a runner pod.",
+          "title": "gatewayPort",
+          "type": "integer"
+        },
+        "metricsPort": {
+          "default": 8081,
+          "description": "Metrics and probe port.",
+          "title": "metricsPort",
+          "type": "integer"
+        },
+        "port": {
+          "default": 8080,
+          "description": "Public port: the webhooks (`POST /hooks/{app}`) and the dashboard.",
+          "title": "port",
+          "type": "integer"
+        },
+        "type": {
+          "default": "ClusterIP",
+          "description": "Service type of the public Service.",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "service",
+      "type": "object"
+    },
+    "serviceAccount": {
+      "properties": {
+        "annotations": {
+          "description": "Annotations for the ServiceAccount.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "automount": {
+          "default": true,
+          "description": "Automount the API token, which kritika serve needs to create runner Jobs.",
+          "title": "automount",
+          "type": "boolean"
+        },
+        "create": {
+          "default": true,
+          "description": "Create the ServiceAccount kritika serve runs as.",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "ServiceAccount name; generated from the release name if empty.",
+          "title": "name",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "serviceAccount",
+      "type": "object"
+    },
+    "startupProbe": {
+      "description": "Startup probe, on the metrics port. The liveness and readiness probes wait until it passes, so a pod still opening its listeners is not reported unready; it allows a minute.",
+      "properties": {
+        "failureThreshold": {
+          "default": 30,
+          "title": "failureThreshold",
+          "type": "integer"
+        },
+        "httpGet": {
+          "properties": {
+            "path": {
+              "default": "/healthz",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "metrics",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "periodSeconds": {
+          "default": 2,
+          "title": "periodSeconds",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "startupProbe",
+      "type": "object"
+    },
+    "strategy": {
+      "description": "Deployment update strategy. A rolling update that surges one pod and takes none down keeps a replica serving while each is replaced. Helm merges maps, so a switch to `Recreate` also sets `rollingUpdate: null`.",
+      "properties": {
+        "rollingUpdate": {
+          "properties": {
+            "maxSurge": {
+              "default": 1,
+              "title": "maxSurge",
+              "type": "integer"
+            },
+            "maxUnavailable": {
+              "default": 0,
+              "title": "maxUnavailable",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "rollingUpdate",
+          "type": "object"
+        },
+        "type": {
+          "default": "RollingUpdate",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "strategy",
+      "type": "object"
+    },
+    "terminationGracePeriodSeconds": {
+      "default": 200,
+      "description": "Grace period for a clean shutdown: kritika serve keeps accepting webhooks, dashboard requests and model steps for 5s while traffic moves off the pod, stops taking jobs and lets running ones finish for up to 100s, then takes up to 90s to hand back the reviews it cut for a retry, and its gateway lets model steps in flight finish for up to 2m.",
+      "title": "terminationGracePeriodSeconds",
+      "type": "integer"
+    },
+    "tests": {
+      "description": "Config for the chart's `helm test` hook: a one-shot pod that curls the\nmetrics Service's /readyz to prove the release serves. Used only by `helm\ntest`, never the workload.",
+      "properties": {
+        "image": {
+          "properties": {
+            "pullPolicy": {
+              "default": "IfNotPresent",
+              "description": "`helm test` image pull policy.",
+              "title": "pullPolicy",
+              "type": "string"
+            },
+            "repository": {
+              "default": "mirror.gcr.io/curlimages/curl",
+              "description": "`helm test` connection-pod image; a gcr-mirrored curl, so the test never pulls from Docker Hub.",
+              "title": "repository",
+              "type": "string"
+            },
+            "tag": {
+              "default": "8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777",
+              "description": "`helm test` image, pinned as `tag",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "image",
+          "type": "object"
+        }
+      },
+      "required": [],
+      "title": "tests",
+      "type": "object"
+    },
+    "tolerations": {
+      "description": "Tolerations for pod scheduling.",
+      "items": {
+        "required": []
+      },
+      "title": "tolerations",
+      "type": "array"
+    },
+    "topologySpreadConstraints": {
+      "description": "Spread the kritika serve pods across nodes, so with `replicas: 2` a node loss takes one of them: a soft constraint, so a one-node cluster still schedules them. Rendered through `tpl`; empty leaves scheduling to Kubernetes.",
+      "items": {
+        "anyOf": [
+          {
+            "properties": {
+              "labelSelector": {
+                "properties": {
+                  "matchLabels": {
+                    "properties": {
+                      "app.kubernetes.io/instance": {
+                        "default": "{{ .Release.Name }}",
+                        "title": "app.kubernetes.io/instance",
+                        "type": "string"
+                      },
+                      "app.kubernetes.io/name": {
+                        "default": "{{ include \"kritika.name\" . }}",
+                        "title": "app.kubernetes.io/name",
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "title": "matchLabels",
+                    "type": "object"
+                  }
+                },
+                "required": [],
+                "title": "labelSelector",
+                "type": "object"
+              },
+              "maxSkew": {
+                "default": 1,
+                "title": "maxSkew",
+                "type": "integer"
+              },
+              "topologyKey": {
+                "default": "kubernetes.io/hostname",
+                "title": "topologyKey",
+                "type": "string"
+              },
+              "whenUnsatisfiable": {
+                "default": "ScheduleAnyway",
+                "title": "whenUnsatisfiable",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        ],
+        "required": []
+      },
+      "title": "topologySpreadConstraints",
+      "type": "array"
+    },
+    "volumeMounts": {
+      "description": "Additional volume mounts on the kritika serve container.",
+      "items": {
+        "required": []
+      },
+      "title": "volumeMounts",
+      "type": "array"
+    },
+    "volumes": {
+      "description": "Additional volumes on the Deployment.",
+      "items": {
+        "required": []
+      },
+      "title": "volumes",
+      "type": "array"
+    }
+  },
+  "required": [],
+  "type": "object"
+}
