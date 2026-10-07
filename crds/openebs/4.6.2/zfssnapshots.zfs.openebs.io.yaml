@@ -1,53 +1,27 @@
 ---
-# Source: openebs/charts/zfs-localpv/charts/crds/templates/zfsvolume.yaml
+# Source: openebs/charts/zfs-localpv/charts/crds/templates/zfssnapshot.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.21.0
     helm.sh/resource-policy: keep
-  name: zfsvolumes.zfs.openebs.io
+  name: zfssnapshots.zfs.openebs.io
 spec:
   group: zfs.openebs.io
   names:
-    kind: ZFSVolume
-    listKind: ZFSVolumeList
-    plural: zfsvolumes
+    kind: ZFSSnapshot
+    listKind: ZFSSnapshotList
+    plural: zfssnapshots
     shortNames:
-      - zfsvol
-      - zv
-    singular: zfsvolume
+      - zfssnap
+    singular: zfssnapshot
   scope: Namespaced
   versions:
-    - additionalPrinterColumns:
-        - description: ZFS Pool where the volume is created
-          jsonPath: .spec.poolName
-          name: ZPool
-          type: string
-        - description: Node where the volume is created
-          jsonPath: .spec.ownerNodeID
-          name: NodeID
-          type: string
-        - description: Size of the volume
-          jsonPath: .spec.capacity
-          name: Size
-          type: string
-        - description: Status of the volume
-          jsonPath: .status.state
-          name: Status
-          type: string
-        - description: filesystem created on the volume
-          jsonPath: .spec.fsType
-          name: Filesystem
-          type: string
-        - description: Age of the volume
-          jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1
+    - name: v1
       schema:
         openAPIV3Schema:
-          description: ZFSVolume represents a ZFS based volume
+          description: ZFSSnapshot represents a ZFS Snapshot of the zfsvolume
           properties:
             apiVersion:
               description: |-
@@ -76,6 +50,18 @@ spec:
                 In case of Cloned volumes, the parameters are assigned the same values
                 as the source volume.
               properties:
+                atime:
+                  description: |-
+                    ATime controls whether the access time for files is updated when they are read.
+                    Turning this property off ("off") avoids producing write traffic when reading files,
+                    which can result in significant performance gains for read-heavy workloads.
+                    This is a filesystem (dataset) only property and is ignored for zvols.
+                    ATime property can be edited after the volume has been created.
+                    Default Value: on.
+                  enum:
+                    - "on"
+                    - "off"
+                  type: string
                 capacity:
                   description: Capacity of the volume
                   minLength: 1
@@ -142,6 +128,18 @@ spec:
                   type: string
                 keylocation:
                   description: KeyLocation is the location of key for the encryption
+                  type: string
+                logbias:
+                  description: |-
+                    LogBias provides a hint to ZFS about how to handle synchronous requests for this volume.
+                    If set to "latency" (the default), ZFS uses the pool's separate log devices, if any, to handle
+                    the requests at low latency. If set to "throughput", ZFS does not use the separate log devices,
+                    instead it optimizes synchronous operations for global pool throughput and efficient use of resources.
+                    LogBias property can be edited after the volume has been created.
+                    Default Value: latency.
+                  enum:
+                    - latency
+                    - throughput
                   type: string
                 ownerNodeID:
                   description: |-
@@ -229,55 +227,21 @@ spec:
                 - volumeType
               type: object
             status:
-              description: VolStatus string that specifies the current state of the volume provisioning request.
+              description: SnapStatus string that reflects if the snapshot was created successfully
               properties:
                 state:
-                  description: |-
-                    State specifies the current state of the volume provisioning request.
-                    The state "Pending" means that the volume creation request has not
-                    processed yet. The state "Ready" means that the volume has been created
-                    and it is ready for the use.
-                  enum:
-                    - Pending
-                    - Ready
-                    - Failed
                   type: string
               type: object
           required:
             - spec
+            - status
           type: object
       served: true
       storage: true
-      subresources: {}
-    - additionalPrinterColumns:
-        - description: ZFS Pool where the volume is created
-          jsonPath: .spec.poolName
-          name: ZPool
-          type: string
-        - description: Node where the volume is created
-          jsonPath: .spec.ownerNodeID
-          name: Node
-          type: string
-        - description: Size of the volume
-          jsonPath: .spec.capacity
-          name: Size
-          type: string
-        - description: Status of the volume
-          jsonPath: .status.state
-          name: Status
-          type: string
-        - description: filesystem created on the volume
-          jsonPath: .spec.fsType
-          name: Filesystem
-          type: string
-        - description: Age of the volume
-          jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1alpha1
+    - name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: ZFSVolume represents a ZFS based volume
+          description: ZFSSnapshot represents a ZFS Snapshot of the zfsvolume
           properties:
             apiVersion:
               description: |-
@@ -441,22 +405,14 @@ spec:
                 - volumeType
               type: object
             status:
-              description: VolStatus string that specifies the current state of the volume provisioning request.
+              description: SnapStatus string that reflects if the snapshot was created successfully
               properties:
                 state:
-                  description: |-
-                    State specifies the current state of the volume provisioning request.
-                    The state "Pending" means that the volume creation request has not
-                    processed yet. The state "Ready" means that the volume has been created
-                    and it is ready for the use.
-                  enum:
-                    - Pending
-                    - Ready
                   type: string
               type: object
           required:
             - spec
+            - status
           type: object
       served: true
       storage: false
-      subresources: {}
