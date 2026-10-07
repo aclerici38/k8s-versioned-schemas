@@ -60,6 +60,61 @@ spec:
             spec:
               description: spec defines the desired state of Model
               properties:
+                attestation:
+                  description: |-
+                    Attestation references a Socair attestation for this Model's artifact:
+                    a DSSE-signed in-toto statement whose subject digest must equal
+                    spec.sha256. When the operator runs with --model-attestation=enforce, a
+                    Model without an attestation that a trusted key signed and the policy
+                    admits never becomes Ready, so no InferenceService serves it. With
+                    --model-attestation=warn the result is reported on the
+                    AttestationVerified condition without blocking.
+                  properties:
+                    configMapKeyRef:
+                      description: |-
+                        ConfigMapKeyRef selects the key, in a ConfigMap in the Model's
+                        namespace, that holds the attestation's DSSE envelope (the
+                        attestation.dsse.json that `socair sign` writes).
+                      properties:
+                        key:
+                          description: |-
+                            The key to select from the ConfigMap's Data field.
+                            Keys in the BinaryData field are not currently propagated to container env vars.
+                          type: string
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                        optional:
+                          description: Specify whether the ConfigMap or its key must be defined
+                          type: boolean
+                      required:
+                        - key
+                      type: object
+                      x-kubernetes-map-type: atomic
+                  required:
+                    - configMapKeyRef
+                  type: object
+                fileSha256:
+                  additionalProperties:
+                    description: SHA256Digest is a hex-encoded SHA256 digest (64 characters, either case).
+                    pattern: ^[a-fA-F0-9]{64}$
+                    type: string
+                  description: |-
+                    FileSHA256 is a per-file SHA256 map for multi-file staging, keyed by
+                    repo-relative path (each key is a spec.files entry or spec.mmproj). Only
+                    listed files are verified; a file with no entry is staged as before. It
+                    is mutually exclusive with spec.sha256, and requires concrete file paths:
+                    a glob cannot be keyed to an unknown expanded name, and a pre-staged
+                    oci:// artifact carries its own digest, so both are rejected at admission
+                    (#1978).
+                  maxProperties: 256
+                  type: object
                 files:
                   description: |-
                     Files lists model weight artifacts to stage from Source. Entries are
@@ -67,7 +122,9 @@ spec:
                     file passed to the runtime. When Files is empty, Source must name a single
                     object directly.
                   items:
+                    maxLength: 512
                     type: string
+                  maxItems: 256
                   type: array
                 format:
                   default: gguf
@@ -331,6 +388,18 @@ spec:
                     source remains the alternative there. Ignored for local and pvc://
                     sources, which need no remote fetch.
                   type: boolean
+                prefetchNodeSelector:
+                  additionalProperties:
+                    type: string
+                  description: |-
+                    PrefetchNodeSelector is applied to the prefetch Job's pod and governs
+                    nothing else: like PrefetchTolerations it says where the download may
+                    run, not where the model will be served. It exists because prefetch
+                    honors a claimName override (#1676), and a node-pinned claim (a
+                    WaitForFirstConsumer local-path PVC) binds to whichever node the
+                    prefetch pod schedules to; without a selector the PV can bind to a
+                    node the InferenceService never runs on (#1964).
+                  type: object
                 prefetchTolerations:
                   description: |-
                     PrefetchTolerations are applied to the prefetch Job's pod, and govern
@@ -412,8 +481,13 @@ spec:
                   type: object
                 sha256:
                   description: |-
-                    SHA256 is the expected SHA256 hash of the model file for integrity verification.
-                    When set, the controller verifies the downloaded/copied file matches this hash.
+                    SHA256 is the expected SHA256 hash of the model file for integrity
+                    verification. When set, a single-file artifact verifies its bytes against
+                    this hash: a downloaded artifact before it becomes the cache, and a
+                    pre-staged pvc:// artifact at pod start. Setting it together with Files or
+                    Mmproj, or on a pre-staged oci:// source, is rejected at admission; use
+                    spec.fileSha256 to pin the files of a multi-file staging set (#1965,
+                    #1978, #1979).
                   pattern: ^[a-fA-F0-9]{64}$
                   type: string
                 source:
@@ -421,13 +495,16 @@ spec:
                     Source defines where to obtain the model.
                     For GGUF models: URL or path to a .gguf file.
                     For MLX models: local directory path containing the model (config.json, weights).
-                    Supported schemes: http://, https://, file://, pvc://, hf://, s3://, or absolute paths.
+                    Supported schemes: http://, https://, file://, pvc://, hf://, s3://, oci://, or absolute paths.
                     Examples:
                       - https://huggingface.co/org/repo/resolve/main/model.gguf
                       - file:///mnt/models/model.gguf
                       - /mnt/models/model.gguf (air-gapped deployments)
                       - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)
                       - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)
+                      - oci://registry.example.com/models/llama-3.1-8b@sha256:... (mounted by a
+                        Kubernetes ImageVolume; requires Kubernetes >= 1.36 and containerd >= 2.1.0
+                        or CRI-O >= 1.31 on the serving node; pin by digest)
                       - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)
 
                     Source may also name a repository or bucket PREFIX rather than a single
@@ -449,7 +526,7 @@ spec:
                     tightly (#405). Workaround: pre-stage on a pvc://, or use the
                     equivalent https://huggingface.co/.../<filename>.gguf URL which
                     the runtime/init container resolves at deploy time.
-                  pattern: ^(https?|file|pvc|hf|s3)://.*|^/[^\s]+$|^[a-zA-Z0-9][\w\-\.\/]+$
+                  pattern: ^(https?|file|pvc|hf|s3|oci)://.*|^/[^\s]+$|^[a-zA-Z0-9][\w\-\.\/]+$
                   type: string
                 sourceSecretRef:
                   description: |-
@@ -484,6 +561,19 @@ spec:
               required:
                 - source
               type: object
+              x-kubernetes-validations:
+                - message: 'sha256 verifies a single artifact: it cannot be combined with files or mmproj, or with a pre-staged oci:// source (use fileSha256 for multi-file staging)'
+                  rule: '!((has(self.sha256) && self.sha256.size() > 0) && ((has(self.files) && self.files.size() > 0) || (has(self.mmproj) && self.mmproj.size() > 0) || self.source.startsWith(''oci://'')))'
+                - message: 'fileSha256 requires spec.files: it names the expected digest of each staged artifact'
+                  rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || (has(self.files) && self.files.size() > 0)'
+                - message: fileSha256 cannot verify a pre-staged oci:// artifact, which is already pinned by its image digest
+                  rule: '!(has(self.fileSha256) && self.fileSha256.size() > 0 && self.source.startsWith(''oci://''))'
+                - message: 'fileSha256 needs concrete file paths: a glob cannot be keyed to an unknown expanded name'
+                  rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || !has(self.files) || self.files.all(f, !f.contains(''*'') && !f.contains(''?'') && !f.contains(''[''))'
+                - message: every fileSha256 key must name a spec.files entry or spec.mmproj
+                  rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, (has(self.files) && self.files.exists(f, f == k)) || (has(self.mmproj) && self.mmproj == k))'
+                - message: fileSha256 keys must not contain whitespace
+                  rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, !k.matches(''[[:space:]]''))'
             status:
               description: status defines the observed state of Model
               properties:

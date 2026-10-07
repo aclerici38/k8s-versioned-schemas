@@ -372,6 +372,30 @@
         }
       }
     },
+    "modelAttestation": {
+      "type": "object",
+      "description": "Socair model attestation policy (see values.yaml).",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["off", "warn", "enforce"]
+        },
+        "trustedKeysConfigMap": {
+          "type": "string",
+          "description": "namespace/name of the ConfigMap holding the trusted *.pub keys",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?/[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
+        },
+        "allowConditions": {
+          "type": "boolean"
+        },
+        "maxAge": {
+          "type": "string",
+          "description": "Go duration such as 2160h; empty disables the age check",
+          "pattern": "^$|^([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))+$"
+        }
+      }
+    },
     "modelSource": {
       "type": "object",
       "additionalProperties": false,
@@ -455,12 +479,23 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "extraObjects": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy with the chart; each item is an object or a string rendered through tpl.",
+      "items": {
+        "type": ["object", "string"]
+      }
+    },
     "networkPolicies": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "additionalEgressCIDRs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "metricsScrapeNamespaces": {
           "type": "array",
           "items": { "type": "string" }
         }
@@ -509,6 +544,21 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" }
+      }
+    },
+    "metalRelay": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Metal relay (macOS metal-agent) settings.",
+      "properties": {
+        "secretCreatePolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "ValidatingAdmissionPolicy that lets only the controller create the llmkube-metal-relay Secret (#1957).",
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        }
       }
     },
     "gpuSharing": {

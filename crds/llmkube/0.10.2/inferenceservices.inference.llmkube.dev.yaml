@@ -1078,8 +1078,16 @@ spec:
                   type: string
                 command:
                   description: |-
-                    Command overrides the container entrypoint.
-                    Only used when Runtime is "generic" or for advanced customization.
+                    Command overrides the container entrypoint. Its effect on the container's
+                    arguments depends on whether the runtime injects its own CLI:
+                    for runtimes that build a command (vllm, sglang, personaplex), setting
+                    Command declares a bring-your-own launcher, so the runtime's generated args
+                    are dropped and the container receives Args followed by ExtraArgs verbatim;
+                    for runtimes that serve via the image entrypoint (llamacpp, tgi,
+                    llamacpp-router, generic), Command overrides the entrypoint only and
+                    whatever args that runtime generates still apply -- llamacpp's model path,
+                    context size and host/port, tgi's --model-id, llamacpp-router's
+                    --models-dir. generic generates none of its own and passes Args through.
                   items:
                     type: string
                   type: array
@@ -1376,7 +1384,9 @@ spec:
                   description: |-
                     ExtraArgs provides additional command-line arguments passed directly to the
                     runtime process. Use for flags not yet supported as typed CRD fields.
-                    Arguments are appended after all other configured flags.
+                    They are added alongside the operator's own flags, but the operator may
+                    still append arguments of its own afterward (for example llama.cpp's
+                    --metrics), so do not rely on extraArgs overriding a flag by position.
                     Supported by the "llamacpp", "llamacpp-router", "sglang", "tgi" and
                     "vllm" runtimes. Ignored by "generic" (which takes spec.args instead)
                     and "personaplex" — except that whenever spec.command is set, extraArgs
@@ -3548,10 +3558,36 @@ spec:
                         - Cached
                         - Ephemeral
                       type: string
+                    storageClassName:
+                      description: |-
+                        StorageClassName overrides the operator's --model-cache-storage-class
+                        flag for the model-cache PVC this operator creates for the service
+                        (#1963). A mixed cluster can then cache on local disk where a
+                        cloud-default class cannot attach, without hand-managing a claimName
+                        PVC per service.
+
+                        In perService mode the field is authoritative: the per-service claim is
+                        created with this class. In shared mode the namespace has one claim
+                        that every service shares, so the field is honored only at first
+                        creation (first writer wins); a service whose request differs from the
+                        existing claim's class gets a ModelCacheStorageClassIgnored warning and
+                        uses the claim as created, because storageClassName is immutable once
+                        bound. An empty value falls back to the flag; with neither set, the
+                        cluster default applies. Existing PVCs are never mutated.
+
+                        Mutually exclusive with claimName (the claim is user-owned) and with
+                        persistence Ephemeral (no PVC exists to class).
+                      maxLength: 63
+                      minLength: 1
+                      type: string
                   type: object
                   x-kubernetes-validations:
                     - message: 'claimName cannot be set when persistence is Ephemeral: one names a cache volume to use, the other declines to use any'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.claimName))'
+                    - message: 'storageClassName cannot be set together with claimName: the named claim is user-owned and its storage class was chosen when the claim itself was created'
+                      rule: '!(has(self.storageClassName) && has(self.claimName))'
+                    - message: 'storageClassName cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to class'
+                      rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.storageClassName))'
                 modelRef:
                   description: ModelRef references the Model CR that contains the model to serve
                   type: string
@@ -4503,7 +4539,7 @@ spec:
                   default: 1
                   description: Replicas is the desired number of inference pods
                   format: int32
-                  maximum: 10
+                  maximum: 100
                   minimum: 0
                   type: integer
                 resources:
@@ -4727,16 +4763,23 @@ spec:
                     - type
                   type: object
                 runtime:
-                  default: llamacpp
                   description: |-
                     Runtime selects the inference server backend.
-                    "llamacpp" (default): llama.cpp server with auto-generated args and /health probes.
+                    Unset: in-cluster, the same as "llamacpp"; on the metal-agent, the
+                    agent's --runtime flag (llama-server unless configured otherwise).
+                    "llamacpp": llama.cpp server with auto-generated args and /health probes.
                     "llamacpp-router": llama.cpp server in router mode for multi-model dynamic loading.
                     "generic": user-provided container with custom command, args, env, and probes.
                     "personaplex": NVIDIA PersonaPlex (Moshi) speech-to-speech server.
                     "vllm": vLLM OpenAI-compatible server with PagedAttention.
                     "tgi": HuggingFace Text Generation Inference server.
                     "sglang": SGLang OpenAI-compatible server with RadixAttention prefix caching.
+                    Metal-agent only (the Model must set hardware.accelerator: metal):
+                    "mlx-server", "omlx", "vllm-swift", "ollama", "tensorfold" (TensorFold,
+                    exact speculative decoding on MLX; serves an MLX model directory). The
+                    agent must have the matching binary configured.
+                    No schema default: an unset value must reach the metal-agent as empty so
+                    its --runtime flag applies (#525).
                   enum:
                     - llamacpp
                     - llamacpp-router
@@ -4745,6 +4788,11 @@ spec:
                     - tgi
                     - sglang
                     - generic
+                    - mlx-server
+                    - omlx
+                    - vllm-swift
+                    - ollama
+                    - tensorfold
                   type: string
                 runtimeClassName:
                   description: |-
@@ -5397,6 +5445,17 @@ spec:
                       rule: (self.type in ['draft','draft-simple','draft-eagle3','draft-dflash','draft-dspark','draft-mtp']) || ((!has(self.draftModelRef) || self.draftModelRef.size() == 0) && (!has(self.draftModel) || self.draftModel.size() == 0))
                     - message: set only one of draftModelRef (a separate Model CR) and draftModel (a file in Model.files), not both
                       rule: '!((has(self.draftModelRef) && self.draftModelRef.size() > 0) && (has(self.draftModel) && self.draftModel.size() > 0))'
+                stageModel:
+                  description: |-
+                    StageModel opts a runtime that does not stage models by default (generic) into
+                    Model-managed staging: the operator downloads the referenced Model into the model
+                    cache with the same init containers and read-only /models mount the built-in
+                    runtimes use, and sets LLMKUBE_MODEL_PATH (the primary file) and LLMKUBE_MODEL_DIR
+                    (the staged directory; for a single file, its directory) in the serving
+                    container's env. Kubernetes expands $(VAR) in args, so args can name
+                    $(LLMKUBE_MODEL_PATH). Runtimes that stage by default ignore it. Cannot be
+                    combined with skipModelInit.
+                  type: boolean
                 suspend:
                   default: false
                   description: |-
@@ -5926,6 +5985,8 @@ spec:
                   rule: '!has(self.multiNode) || !has(self.replicas) || self.replicas <= 1'
                 - message: multiNode is supported for runtime vllm in this release
                   rule: '!has(self.multiNode) || (has(self.runtime) && self.runtime == ''vllm'')'
+                - message: 'stageModel and skipModelInit cannot both be true: one asks the operator to stage the Model, the other declines staging'
+                  rule: '!(has(self.stageModel) && self.stageModel && has(self.skipModelInit) && self.skipModelInit)'
             status:
               description: status defines the observed state of InferenceService
               properties:
@@ -6163,6 +6224,12 @@ spec:
                 schedulingStatus:
                   description: SchedulingStatus indicates why pods cannot be scheduled (e.g., "InsufficientGPU")
                   type: string
+                selector:
+                  description: |-
+                    Selector is the label selector for the pods this service owns. It backs
+                    the /scale subresource's selectorpath; an HPA or KEDA target rejects an
+                    empty selector.
+                  type: string
                 waitingFor:
                   description: 'WaitingFor describes the resource constraint (e.g., "nvidia.com/gpu: 1")'
                   type: string
@@ -6174,6 +6241,7 @@ spec:
       storage: true
       subresources:
         scale:
+          labelSelectorPath: .status.selector
           specReplicasPath: .spec.replicas
           statusReplicasPath: .status.replicas
         status: {}
