@@ -1,5 +1,5 @@
 {
-  "description": "LiteLLMVirtualKey is a virtual key generated and deleted through LiteLLM's admin API.",
+  "description": "LiteLLMGuardrail is a single guardrail served by one or more LiteLLMProxy instances.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,116 +23,119 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "LiteLLMVirtualKeySpec defines a virtual key managed through a LiteLLMProxy.",
+      "description": "LiteLLMGuardrailSpec defines a single config.yaml guardrails[] entry.",
       "properties": {
-        "aliases": {
-          "additionalProperties": {
-            "type": "string"
+        "apiBase": {
+          "description": "APIBase is the guardrail provider base URL. Mutually exclusive with APIBaseRef.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "apiBaseRef": {
+          "additionalProperties": false,
+          "description": "APIBaseRef sources the base URL from a Secret. Mutually exclusive with APIBase.",
+          "properties": {
+            "key": {
+              "description": "Key within the Secret holding the value.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Name of the Secret.",
+              "type": "string"
+            }
           },
-          "description": "Aliases maps model aliases to their target model names.",
+          "required": [
+            "key",
+            "name"
+          ],
           "type": [
             "object",
             "null"
           ]
         },
-        "budgetDuration": {
-          "description": "BudgetDuration resets the budget after this duration, such as \"30d\".",
+        "apiKey": {
+          "description": "APIKey is a literal or os.environ/VAR key. Mutually exclusive with APIKeyRef.",
           "type": [
             "string",
             "null"
           ]
         },
-        "duration": {
-          "description": "Duration is how long the key remains valid, such as \"30d\".",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "keyAlias": {
-          "description": "KeyAlias is a human-readable LiteLLM alias for this key.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "maxBudget": {
-          "description": "MaxBudget is the maximum spend allowed for this key as a decimal string.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "maxParallelRequests": {
-          "description": "MaxParallelRequests caps concurrent requests made with this key.",
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "metadata": {
-          "additionalProperties": {
-            "type": "string"
+        "apiKeyRef": {
+          "additionalProperties": false,
+          "description": "APIKeyRef sources the provider API key from a Secret. Mutually exclusive with APIKey.",
+          "properties": {
+            "key": {
+              "description": "Key within the Secret holding the value.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Name of the Secret.",
+              "type": "string"
+            }
           },
-          "description": "Metadata stores additional string metadata on the LiteLLM key.",
+          "required": [
+            "key",
+            "name"
+          ],
           "type": [
             "object",
             "null"
           ]
         },
-        "models": {
-          "description": "Models lists the models this key may call. An empty list permits all models.",
-          "items": {
-            "type": "string"
-          },
+        "defaultOn": {
+          "description": "DefaultOn applies the guardrail to every request unless overridden.",
           "type": [
-            "array",
+            "boolean",
+            "null"
+          ]
+        },
+        "guardrail": {
+          "description": "Guardrail is the provider integration, e.g. \"aporia\", \"bedrock\", \"presidio\".",
+          "type": "string"
+        },
+        "guardrailName": {
+          "description": "GuardrailName is the name clients reference (guardrails[].guardrail_name).",
+          "type": "string"
+        },
+        "info": {
+          "description": "Info maps verbatim to guardrails[].guardrail_info.",
+          "type": [
+            "object",
             "null"
           ],
-          "x-kubernetes-list-type": "atomic"
+          "x-kubernetes-preserve-unknown-fields": true
+        },
+        "mode": {
+          "description": "Mode is when the guardrail runs.",
+          "enum": [
+            "pre_call",
+            "post_call",
+            "during_call",
+            "logging_only"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "params": {
+          "description": "Params holds any further guardrail litellm_params (provider-specific knobs),\nmerged under the typed fields (which win on conflict).",
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-preserve-unknown-fields": true
+        },
+        "proxyNamespace": {
+          "description": "ProxyNamespace is the proxy's namespace. Defaults to this resource's namespace.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "proxyRef": {
-          "description": "ProxyRef is the LiteLLMProxy whose admin API creates and deletes this key.",
-          "type": "string"
-        },
-        "rpmLimit": {
-          "description": "RPMLimit caps requests per minute for this key.",
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "secretKey": {
-          "default": "key",
-          "description": "SecretKey is the key in SecretName containing the generated virtual key.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "secretName": {
-          "description": "SecretName is the name of the Secret managed by the operator containing the generated key.",
-          "type": "string"
-        },
-        "teamID": {
-          "description": "TeamID associates this key with a LiteLLM team.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "tpmLimit": {
-          "description": "TPMLimit caps tokens per minute for this key.",
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "userID": {
-          "description": "UserID associates this key with a LiteLLM user.",
+          "description": "ProxyRef explicitly binds this guardrail to a LiteLLMProxy by name.\nWhen set it takes precedence over a proxy's modelSelector.",
           "type": [
             "string",
             "null"
@@ -140,20 +143,25 @@
         }
       },
       "required": [
-        "proxyRef",
-        "secretName"
+        "guardrail",
+        "guardrailName"
       ],
       "type": [
         "object",
         "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "proxyNamespace requires proxyRef",
+          "rule": "!has(self.proxyNamespace) || size(self.proxyNamespace) == 0 || (has(self.proxyRef) \u0026\u0026 size(self.proxyRef) \u003e 0)"
+        }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "LiteLLMVirtualKeyStatus reports the observed state of the virtual key.",
+      "description": "LiteLLMGuardrailStatus reports the observed state of the guardrail.",
       "properties": {
         "conditions": {
-          "description": "Conditions represent the latest observations of the virtual key's state.",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
