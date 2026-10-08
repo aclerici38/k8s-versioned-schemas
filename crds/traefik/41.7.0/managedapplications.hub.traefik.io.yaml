@@ -3,21 +3,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
-  name: contentitems.hub.traefik.io
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: managedapplications.hub.traefik.io
 spec:
   group: hub.traefik.io
   names:
-    kind: ContentItem
-    listKind: ContentItemList
-    plural: contentitems
-    singular: contentitem
+    kind: ManagedApplication
+    listKind: ManagedApplicationList
+    plural: managedapplications
+    singular: managedapplication
   scope: Namespaced
   versions:
     - name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: ContentItem defines additional documentation for given resource.
+          description: ManagedApplication represents a managed application.
           properties:
             apiVersion:
               description: |-
@@ -37,63 +37,59 @@ spec:
             metadata:
               type: object
             spec:
-              description: Defines the documentation to attach to the referenced resource.
+              description: ManagedApplicationSpec describes the ManagedApplication.
               properties:
-                content:
-                  description: Content is the valid markdown content.
-                  maxLength: 1500000
-                  type: string
-                link:
-                  description: Link is the link to the content.
-                  properties:
-                    href:
-                      description: Href is the public URL of the content.
-                      type: string
-                      x-kubernetes-validations:
-                        - message: must be a valid URL
-                          rule: isURL(self)
-                  required:
-                    - href
-                  type: object
-                order:
-                  description: Order defines the order of the content in the UI.
-                  format: int32
-                  minimum: 0
-                  type: integer
-                parentRef:
-                  description: ParentRef is the reference to the resource that this content belongs to.
-                  properties:
-                    kind:
-                      description: Kind is the kind of the resource that this content belongs to.
-                      enum:
-                        - APIPortal
-                        - API
-                        - APIBundle
-                      type: string
-                    name:
-                      description: Name is the name of the resource that this content belongs to.
-                      maxLength: 253
-                      type: string
-                  required:
-                    - kind
-                    - name
-                  type: object
-                title:
-                  description: Title is the public-facing name of the ContentItem.
+                apiKeys:
+                  description: APIKeys references the API keys used to authenticate the application when calling APIs.
+                  items:
+                    description: APIKey describes an API key used to authenticate the application when calling APIs.
+                    properties:
+                      secretName:
+                        description: SecretName references the name of the secret containing the API key.
+                        maxLength: 253
+                        type: string
+                      suspended:
+                        type: boolean
+                      title:
+                        type: string
+                      value:
+                        description: Value is the API key value.
+                        maxLength: 4096
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                      - message: secretName and value are mutually exclusive
+                        rule: '[has(self.secretName), has(self.value)].filter(x, x).size() <= 1'
+                  maxItems: 100
+                  type: array
+                appId:
+                  description: |-
+                    AppID is the identifier of the ManagedApplication.
+                    It should be unique.
                   maxLength: 253
-                  minLength: 1
+                  type: string
+                notes:
+                  description: Notes contains notes about application.
+                  type: string
+                owner:
+                  description: |-
+                    Owner represents the owner of the ManagedApplication.
+                    It should be:
+                    - `sub` when using OIDC
+                    - `externalID` when using external IDP
+                  maxLength: 253
                   type: string
               required:
-                - order
-                - parentRef
-                - title
+                - appId
+                - owner
               type: object
-              x-kubernetes-validations:
-                - message: exactly one of content or link must be specified
-                  rule: '[has(self.content), has(self.link)].filter(x, x).size() == 1'
             status:
-              description: The current status of this ContentItem.
+              description: The current status of this ManagedApplication.
               properties:
+                apiKeyVersions:
+                  additionalProperties:
+                    type: string
+                  type: object
                 conditions:
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
@@ -150,7 +146,7 @@ spec:
                     type: object
                   type: array
                 hash:
-                  description: Hash is a hash representing the ContentItem.
+                  description: Hash is a hash representing the ManagedApplication.
                   type: string
                 syncedAt:
                   format: date-time
