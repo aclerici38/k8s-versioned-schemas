@@ -34,7 +34,7 @@
         },
         "authTokenRef": {
           "additionalProperties": false,
-          "description": "AuthTokenRef sources the server's authentication_token from a Secret.",
+          "description": "AuthTokenRef sources the server's authentication_token from a Secret in this resource's namespace.",
           "properties": {
             "key": {
               "description": "Key within the Secret holding the value.",
@@ -69,8 +69,15 @@
           ],
           "x-kubernetes-preserve-unknown-fields": true
         },
+        "proxyNamespace": {
+          "description": "ProxyNamespace is the proxy's namespace. Defaults to this resource's namespace.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "proxyRef": {
-          "description": "ProxyRef explicitly binds this server to a LiteLLMProxy by name in the same\nnamespace. When set it takes precedence over a proxy's modelSelector.",
+          "description": "ProxyRef explicitly binds this server to a LiteLLMProxy by name.\nWhen set it takes precedence over a proxy's modelSelector.",
           "type": [
             "string",
             "null"
@@ -4329,6 +4336,12 @@
       "type": [
         "object",
         "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "proxyNamespace requires proxyRef",
+          "rule": "!has(self.proxyNamespace) || size(self.proxyNamespace) == 0 || (has(self.proxyRef) \u0026\u0026 size(self.proxyRef) \u003e 0)"
+        }
       ]
     },
     "status": {
