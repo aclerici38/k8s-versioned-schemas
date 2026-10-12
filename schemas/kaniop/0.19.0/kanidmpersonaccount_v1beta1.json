@@ -133,6 +133,18 @@
             "object",
             "null"
           ]
+        },
+        "sshPublicKeys": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "SSH public keys managed by Kaniop, indexed by their Kanidm tag.\nKeys added directly in Kanidm under other tags are preserved.\nIf omitted, SSH keys are not managed. An empty map removes previously managed keys.\nKanidm performs the validation of SSH key material.\nThe map is a single atomic unit for server-side apply ownership.",
+          "nullable": true,
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
         }
       },
       "required": [
@@ -200,6 +212,54 @@
           ],
           "x-kubernetes-list-type": "map"
         },
+        "credentialBootstrap": {
+          "additionalProperties": false,
+          "default": {
+            "state": "pending"
+          },
+          "description": "Persistent bootstrap state. Keeping the token expiry in status prevents operator restarts from\ngenerating duplicate reset tokens while preserving the existing retry-after-expiry behaviour.",
+          "properties": {
+            "state": {
+              "default": "pending",
+              "description": "Lifecycle of the initial credential bootstrap for a person account.",
+              "enum": [
+                "pending",
+                "tokenIssued",
+                "complete"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tokenExpiresAt": {
+              "description": "Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.",
+              "format": "date-time",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "credentialState": {
+          "default": "unknown",
+          "description": "Observed credential presence. `Unknown` is fail-closed: it must never trigger credential\nbootstrap or reset-token creation.",
+          "enum": [
+            "unknown",
+            "present",
+            "absent"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "gid": {
           "minimum": 0,
           "nullable": true,
@@ -210,6 +270,18 @@
         },
         "kanidmRef": {
           "type": "string"
+        },
+        "managedSshPublicKeyTags": {
+          "default": [],
+          "description": "Tags claimed by this resource after successful synchronization with Kanidm.\nUsed to revoke only keys previously managed by Kaniop.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-type": "set"
         },
         "ready": {
           "type": "boolean"
