@@ -119,6 +119,10 @@ spec:
                         All other endpoints (token, registration, JWKS) remain derived from the issuer.
                         This is useful when the browser-facing authorization endpoint needs to be on a
                         different host than the issuer used for backend-to-backend calls.
+                        The upstream callback (`redirectUri` on each upstream provider, defaulting to
+                        `{resourceUrl}/oauth/callback`) must share this hostname: the callback only
+                        completes a login for the browser that started it, bound by a host-only cookie
+                        set on this endpoint, so a different callback host rejects every browser login.
                         Must be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts
                         when insecureAllowHTTP is true) without query, fragment, or trailing slash.
                       pattern: ^https?://[^\s?#]+[^/\s?#]$
@@ -620,7 +624,7 @@ spec:
                                   - message: allowedDelegateClients must not combine the wildcard "*" with specific client IDs
                                     rule: '!(''*'' in self.allowedDelegateClients) || size(self.allowedDelegateClients) == 1'
                                   - message: allowMayAct must not be enabled when allowedDelegateClients contains the wildcard "*"
-                                    rule: '!(self.allowMayAct && ''*'' in self.allowedDelegateClients)'
+                                    rule: '!(has(self.allowMayAct) && self.allowMayAct && ''*'' in self.allowedDelegateClients)'
                                   - message: actorClaim must name a readable claim; use client_id or a non-reserved claim such as azp, appid, or cid
                                     rule: '!has(self.actorClaim) || !(self.actorClaim in [''sub'', ''iss'', ''aud'', ''exp'', ''iat'', ''nbf'', ''jti'', ''name'', ''email'', ''scope'', ''scp'', ''may_act''])'
                               maxItems: 20
@@ -954,6 +958,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -967,8 +973,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             tls:
@@ -980,6 +989,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -993,8 +1004,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             writeTimeout:
@@ -1574,6 +1588,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: Scopes are the OAuth scopes to request from the upstream IdP.
@@ -1897,6 +1914,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: |-
@@ -2094,7 +2114,8 @@ spec:
                           description: |-
                             ConflictResolution defines the strategy for resolving tool name conflicts.
                             - prefix: Automatically prefix tool names with workload identifier
-                            - priority: First workload in priority order wins
+                            - priority: Highest-priority workload wins only if all conflicting workloads
+                              are listed; otherwise all candidates are dropped (see PriorityOrder)
                             - manual: Explicitly define overrides for all conflicts
                           enum:
                             - prefix
@@ -2115,8 +2136,14 @@ spec:
                               type: string
                             priorityOrder:
                               description: |-
-                                PriorityOrder defines the workload priority order for the "priority" strategy.
-                                Listed workloads also keep their own prompt names (unlisted workloads'
+                                PriorityOrder defines the workload priority order for the "priority" strategy
+                                (first has highest priority). It is not an allowlist: unique tools remain
+                                unchanged, including those from unlisted workloads. If all workloads in a
+                                tool-name collision are listed, the highest-priority one wins and losers
+                                are dropped. If any conflicting workload is unlisted, all candidates in that
+                                collision are dropped from advertising and routing, with no prefix fallback,
+                                and the collision is logged at ERROR.
+                                Separately, listed workloads keep their own prompt names (unlisted workloads'
                                 prompts stay backend-prefixed).
                               items:
                                 type: string
@@ -3826,6 +3853,22 @@ spec:
                             - memory
                             - redis
                           type: string
+                        tls:
+                          description: |-
+                            TLS enables TLS for session storage and rate limiting. An empty
+                            configuration verifies the Redis server using system roots.
+                            On Kubernetes, set spec.sessionStorage.tls instead: the operator derives this
+                            field from it and rejects a value set under spec.config.sessionStorage.
+                          properties:
+                            caCertFile:
+                              description: |-
+                                CACertFile is the path to a PEM-encoded CA bundle. When configured, this
+                                bundle replaces the system roots used to verify the Redis server.
+                              type: string
+                            insecureSkipVerify:
+                              description: InsecureSkipVerify skips server certificate and hostname verification.
+                              type: boolean
+                          type: object
                       required:
                         - provider
                       type: object
@@ -4367,12 +4410,54 @@ spec:
                         - memory
                         - redis
                       type: string
+                    tls:
+                      description: |-
+                        TLS enables TLS for the Redis session storage connection and, when rate
+                        limiting is configured, for the rate-limit connection to the same Redis.
+                        When omitted, the connections are plaintext and the Redis password and
+                        session data cross the network unencrypted. An empty object enables TLS
+                        with server certificate verification against the system root CAs; set
+                        caCertSecretRef for a private CA. A failed handshake never falls back to
+                        plaintext. Only used when provider is redis.
+                      properties:
+                        caCertSecretRef:
+                          description: |-
+                            CACertSecretRef references a Secret containing a PEM-encoded CA certificate
+                            for verifying the server. When not specified, system root CAs are used.
+                            If the Secret or key does not exist, the pod cannot start (it stays in
+                            ContainerCreating) rather than connecting without verification.
+                          properties:
+                            key:
+                              description: Key is the key within the secret
+                              type: string
+                            name:
+                              description: Name is the name of the secret
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        insecureSkipVerify:
+                          description: |-
+                            InsecureSkipVerify disables server certificate and hostname verification.
+                            The connection is encrypted but not authenticated, so anyone able to
+                            impersonate the server can read the credentials and data sent over it.
+                            Intended for testing only; for self-signed or private CAs set
+                            caCertSecretRef instead.
+                          type: boolean
+                      type: object
                   required:
                     - provider
                   type: object
                   x-kubernetes-validations:
                     - message: address is required
                       rule: 'self.provider == ''redis'' ? has(self.address) : true'
+                    - message: tls is only supported when provider is redis
+                      rule: '!has(self.tls) || self.provider == ''redis'''
+                    - message: tls.insecureSkipVerify disables certificate verification, so tls.caCertSecretRef would be ignored; set only one
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || !has(self.tls.insecureSkipVerify) || !self.tls.insecureSkipVerify'
+                    - message: tls.caCertSecretRef requires a non-empty name and key
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || (size(self.tls.caCertSecretRef.name) > 0 && size(self.tls.caCertSecretRef.key) > 0)'
                 telemetryConfigRef:
                   description: |-
                     TelemetryConfigRef references an MCPTelemetryConfig resource for shared telemetry configuration.
@@ -4404,6 +4489,8 @@ spec:
                   rule: '!(has(self.config) && has(self.config.rateLimiting) && has(self.config.rateLimiting.perUser)) || (has(self.incomingAuth) && self.incomingAuth.type == ''oidc'')'
                 - message: per-tool perUser rate limiting requires incomingAuth.type oidc
                   rule: '!has(self.config) || !has(self.config.rateLimiting) || !has(self.config.rateLimiting.tools) || self.config.rateLimiting.tools.all(t, !has(t.perUser)) || (has(self.incomingAuth) && self.incomingAuth.type == ''oidc'')'
+                - message: config.sessionStorage.tls is ignored by the operator; set sessionStorage.tls instead
+                  rule: '!has(self.config) || !has(self.config.sessionStorage) || !has(self.config.sessionStorage.tls)'
                 - message: embeddingServerRef provisions a managed TEI server and cannot be combined with optimizer.embeddingProvider 'openai'; openai mode uses embeddingService directly
                   rule: '!(has(self.embeddingServerRef) && has(self.config) && has(self.config.optimizer) && has(self.config.optimizer.embeddingProvider) && self.config.optimizer.embeddingProvider == ''openai'')'
             status:
@@ -4816,6 +4903,10 @@ spec:
                         All other endpoints (token, registration, JWKS) remain derived from the issuer.
                         This is useful when the browser-facing authorization endpoint needs to be on a
                         different host than the issuer used for backend-to-backend calls.
+                        The upstream callback (`redirectUri` on each upstream provider, defaulting to
+                        `{resourceUrl}/oauth/callback`) must share this hostname: the callback only
+                        completes a login for the browser that started it, bound by a host-only cookie
+                        set on this endpoint, so a different callback host rejects every browser login.
                         Must be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts
                         when insecureAllowHTTP is true) without query, fragment, or trailing slash.
                       pattern: ^https?://[^\s?#]+[^/\s?#]$
@@ -5317,7 +5408,7 @@ spec:
                                   - message: allowedDelegateClients must not combine the wildcard "*" with specific client IDs
                                     rule: '!(''*'' in self.allowedDelegateClients) || size(self.allowedDelegateClients) == 1'
                                   - message: allowMayAct must not be enabled when allowedDelegateClients contains the wildcard "*"
-                                    rule: '!(self.allowMayAct && ''*'' in self.allowedDelegateClients)'
+                                    rule: '!(has(self.allowMayAct) && self.allowMayAct && ''*'' in self.allowedDelegateClients)'
                                   - message: actorClaim must name a readable claim; use client_id or a non-reserved claim such as azp, appid, or cid
                                     rule: '!has(self.actorClaim) || !(self.actorClaim in [''sub'', ''iss'', ''aud'', ''exp'', ''iat'', ''nbf'', ''jti'', ''name'', ''email'', ''scope'', ''scp'', ''may_act''])'
                               maxItems: 20
@@ -5651,6 +5742,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -5664,8 +5757,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             tls:
@@ -5677,6 +5773,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -5690,8 +5788,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             writeTimeout:
@@ -6271,6 +6372,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: Scopes are the OAuth scopes to request from the upstream IdP.
@@ -6594,6 +6698,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: |-
@@ -6791,7 +6898,8 @@ spec:
                           description: |-
                             ConflictResolution defines the strategy for resolving tool name conflicts.
                             - prefix: Automatically prefix tool names with workload identifier
-                            - priority: First workload in priority order wins
+                            - priority: Highest-priority workload wins only if all conflicting workloads
+                              are listed; otherwise all candidates are dropped (see PriorityOrder)
                             - manual: Explicitly define overrides for all conflicts
                           enum:
                             - prefix
@@ -6812,8 +6920,14 @@ spec:
                               type: string
                             priorityOrder:
                               description: |-
-                                PriorityOrder defines the workload priority order for the "priority" strategy.
-                                Listed workloads also keep their own prompt names (unlisted workloads'
+                                PriorityOrder defines the workload priority order for the "priority" strategy
+                                (first has highest priority). It is not an allowlist: unique tools remain
+                                unchanged, including those from unlisted workloads. If all workloads in a
+                                tool-name collision are listed, the highest-priority one wins and losers
+                                are dropped. If any conflicting workload is unlisted, all candidates in that
+                                collision are dropped from advertising and routing, with no prefix fallback,
+                                and the collision is logged at ERROR.
+                                Separately, listed workloads keep their own prompt names (unlisted workloads'
                                 prompts stay backend-prefixed).
                               items:
                                 type: string
@@ -8523,6 +8637,22 @@ spec:
                             - memory
                             - redis
                           type: string
+                        tls:
+                          description: |-
+                            TLS enables TLS for session storage and rate limiting. An empty
+                            configuration verifies the Redis server using system roots.
+                            On Kubernetes, set spec.sessionStorage.tls instead: the operator derives this
+                            field from it and rejects a value set under spec.config.sessionStorage.
+                          properties:
+                            caCertFile:
+                              description: |-
+                                CACertFile is the path to a PEM-encoded CA bundle. When configured, this
+                                bundle replaces the system roots used to verify the Redis server.
+                              type: string
+                            insecureSkipVerify:
+                              description: InsecureSkipVerify skips server certificate and hostname verification.
+                              type: boolean
+                          type: object
                       required:
                         - provider
                       type: object
@@ -9064,12 +9194,54 @@ spec:
                         - memory
                         - redis
                       type: string
+                    tls:
+                      description: |-
+                        TLS enables TLS for the Redis session storage connection and, when rate
+                        limiting is configured, for the rate-limit connection to the same Redis.
+                        When omitted, the connections are plaintext and the Redis password and
+                        session data cross the network unencrypted. An empty object enables TLS
+                        with server certificate verification against the system root CAs; set
+                        caCertSecretRef for a private CA. A failed handshake never falls back to
+                        plaintext. Only used when provider is redis.
+                      properties:
+                        caCertSecretRef:
+                          description: |-
+                            CACertSecretRef references a Secret containing a PEM-encoded CA certificate
+                            for verifying the server. When not specified, system root CAs are used.
+                            If the Secret or key does not exist, the pod cannot start (it stays in
+                            ContainerCreating) rather than connecting without verification.
+                          properties:
+                            key:
+                              description: Key is the key within the secret
+                              type: string
+                            name:
+                              description: Name is the name of the secret
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        insecureSkipVerify:
+                          description: |-
+                            InsecureSkipVerify disables server certificate and hostname verification.
+                            The connection is encrypted but not authenticated, so anyone able to
+                            impersonate the server can read the credentials and data sent over it.
+                            Intended for testing only; for self-signed or private CAs set
+                            caCertSecretRef instead.
+                          type: boolean
+                      type: object
                   required:
                     - provider
                   type: object
                   x-kubernetes-validations:
                     - message: address is required
                       rule: 'self.provider == ''redis'' ? has(self.address) : true'
+                    - message: tls is only supported when provider is redis
+                      rule: '!has(self.tls) || self.provider == ''redis'''
+                    - message: tls.insecureSkipVerify disables certificate verification, so tls.caCertSecretRef would be ignored; set only one
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || !has(self.tls.insecureSkipVerify) || !self.tls.insecureSkipVerify'
+                    - message: tls.caCertSecretRef requires a non-empty name and key
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || (size(self.tls.caCertSecretRef.name) > 0 && size(self.tls.caCertSecretRef.key) > 0)'
                 telemetryConfigRef:
                   description: |-
                     TelemetryConfigRef references an MCPTelemetryConfig resource for shared telemetry configuration.
@@ -9101,6 +9273,8 @@ spec:
                   rule: '!(has(self.config) && has(self.config.rateLimiting) && has(self.config.rateLimiting.perUser)) || (has(self.incomingAuth) && self.incomingAuth.type == ''oidc'')'
                 - message: per-tool perUser rate limiting requires incomingAuth.type oidc
                   rule: '!has(self.config) || !has(self.config.rateLimiting) || !has(self.config.rateLimiting.tools) || self.config.rateLimiting.tools.all(t, !has(t.perUser)) || (has(self.incomingAuth) && self.incomingAuth.type == ''oidc'')'
+                - message: config.sessionStorage.tls is ignored by the operator; set sessionStorage.tls instead
+                  rule: '!has(self.config) || !has(self.config.sessionStorage) || !has(self.config.sessionStorage.tls)'
                 - message: embeddingServerRef provisions a managed TEI server and cannot be combined with optimizer.embeddingProvider 'openai'; openai mode uses embeddingService directly
                   rule: '!(has(self.embeddingServerRef) && has(self.config) && has(self.config.optimizer) && has(self.config.optimizer.embeddingProvider) && self.config.optimizer.embeddingProvider == ''openai'')'
             status:

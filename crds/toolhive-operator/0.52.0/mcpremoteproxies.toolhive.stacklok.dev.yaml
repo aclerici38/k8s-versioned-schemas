@@ -1,5 +1,5 @@
 ---
-# Source: toolhive-operator-crds/templates/toolhive.stacklok.dev_mcpservers.yaml
+# Source: toolhive-operator-crds/templates/toolhive.stacklok.dev_mcpremoteproxies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -8,30 +8,33 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.17.3
   labels:
     toolhive.stacklok.dev/auto-migrate-storage-version: "true"
-  name: mcpservers.toolhive.stacklok.dev
+  name: mcpremoteproxies.toolhive.stacklok.dev
 spec:
   group: toolhive.stacklok.dev
   names:
     categories:
       - toolhive
-    kind: MCPServer
-    listKind: MCPServerList
-    plural: mcpservers
-    singular: mcpserver
+    kind: MCPRemoteProxy
+    listKind: MCPRemoteProxyList
+    plural: mcpremoteproxies
+    shortNames:
+      - rp
+      - mcprp
+    singular: mcpremoteproxy
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .status.phase
-          name: Status
+          name: Phase
+          type: string
+        - jsonPath: .spec.remoteUrl
+          name: Remote URL
+          type: string
+        - jsonPath: .status.url
+          name: URL
           type: string
         - jsonPath: .status.conditions[?(@.type=='Ready')].status
           name: Ready
-          type: string
-        - jsonPath: .status.readyReplicas
-          name: Replicas
-          type: integer
-        - jsonPath: .status.url
-          name: URL
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -41,7 +44,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: MCPServer is the deprecated v1alpha1 version of the MCPServer resource.
+          description: MCPRemoteProxy is the deprecated v1alpha1 version of the MCPRemoteProxy resource.
           properties:
             apiVersion:
               description: |-
@@ -61,16 +64,22 @@ spec:
             metadata:
               type: object
             spec:
-              description: MCPServerSpec defines the desired state of MCPServer
+              description: MCPRemoteProxySpec defines the desired state of MCPRemoteProxy
               properties:
-                args:
-                  description: Args are additional arguments to pass to the MCP server
-                  items:
-                    type: string
-                  type: array
-                  x-kubernetes-list-type: atomic
+                allowPrivateEndpoint:
+                  default: false
+                  description: |-
+                    AllowPrivateEndpoint permits RemoteURL to point at a private or
+                    in-cluster endpoint: RFC 1918 and IPv6 unique-local addresses, and
+                    hostnames ending in "cluster.local". (Bare ".svc" hostnames are never
+                    blocked, since no DNS resolution is performed.) Enable this to reach a
+                    co-located in-cluster backend in-mesh so the backend's workload-identity
+                    authorization policy still applies. Loopback, link-local, cloud-metadata,
+                    and kubernetes.default endpoints remain blocked regardless of this
+                    setting.
+                  type: boolean
                 audit:
-                  description: Audit defines audit logging configuration for the MCP server
+                  description: Audit defines audit logging configuration for the proxy
                   properties:
                     enabled:
                       default: false
@@ -101,7 +110,7 @@ spec:
                   type: object
                 authzConfig:
                   description: |-
-                    AuthzConfig defines authorization policy configuration for the MCP server.
+                    AuthzConfig defines authorization policy configuration for the proxy.
                     AuthzConfig and AuthzConfigRef are mutually exclusive.
                   properties:
                     configMap:
@@ -210,7 +219,7 @@ spec:
                 authzConfigRef:
                   description: |-
                     AuthzConfigRef references a shared MCPAuthzConfig resource for authorization.
-                    The referenced MCPAuthzConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPAuthzConfig must exist in the same namespace as this MCPRemoteProxy.
                     Mutually exclusive with authzConfig.
                   properties:
                     name:
@@ -220,45 +229,17 @@ spec:
                   required:
                     - name
                   type: object
-                backendReplicas:
-                  description: |-
-                    BackendReplicas is the desired number of MCP server backend pod replicas.
-                    This controls the backend Deployment (the MCP server container itself),
-                    independent of the proxy runner controlled by Replicas.
-                    When nil, the operator does not set Deployment.Spec.Replicas, leaving replica
-                    management to an HPA or other external controller.
-                  format: int32
-                  minimum: 0
-                  type: integer
                 endpointPrefix:
                   description: |-
                     EndpointPrefix is the path prefix to prepend to SSE endpoint URLs.
                     This is used to handle path-based ingress routing scenarios where the ingress
                     strips a path prefix before forwarding to the backend.
                   type: string
-                env:
-                  description: Env are environment variables to set in the MCP server container
-                  items:
-                    description: EnvVar represents an environment variable in a container
-                    properties:
-                      name:
-                        description: Name of the environment variable
-                        type: string
-                      value:
-                        description: Value of the environment variable
-                        type: string
-                    required:
-                      - name
-                      - value
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - name
-                  x-kubernetes-list-type: map
                 externalAuthConfigRef:
                   description: |-
-                    ExternalAuthConfigRef references a MCPExternalAuthConfig resource for external authentication.
-                    The referenced MCPExternalAuthConfig must exist in the same namespace as this MCPServer.
+                    ExternalAuthConfigRef references a MCPExternalAuthConfig resource for token exchange.
+                    When specified, the proxy will exchange validated incoming tokens for remote service tokens.
+                    The referenced MCPExternalAuthConfig must exist in the same namespace as this MCPRemoteProxy.
                   properties:
                     name:
                       description: Name is the name of the MCPExternalAuthConfig resource
@@ -268,7 +249,7 @@ spec:
                   type: object
                 groupRef:
                   description: |-
-                    GroupRef references the MCPGroup this server belongs to.
+                    GroupRef references the MCPGroup this proxy belongs to.
                     The referenced MCPGroup must be in the same namespace.
                   properties:
                     name:
@@ -278,33 +259,63 @@ spec:
                   required:
                     - name
                   type: object
-                image:
-                  description: Image is the container image for the MCP server
-                  type: string
-                maxRequestBodySize:
+                headerForward:
                   description: |-
-                    MaxRequestBodySize is the maximum inbound MCP proxy request body size in bytes.
-                    Zero uses the default limit of 8 MiB.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                mcpPort:
-                  description: MCPPort is the port that MCP server listens to
-                  format: int32
-                  maximum: 65535
-                  minimum: 1
-                  type: integer
+                    HeaderForward configures headers to inject into requests to the remote MCP server.
+                    Use this to add custom headers like X-Tenant-ID or correlation IDs.
+                  properties:
+                    addHeadersFromSecret:
+                      description: AddHeadersFromSecret references Kubernetes Secrets for sensitive header values.
+                      items:
+                        description: HeaderFromSecret defines a header whose value comes from a Kubernetes Secret.
+                        properties:
+                          headerName:
+                            description: HeaderName is the HTTP header name (e.g., "X-API-Key")
+                            maxLength: 255
+                            minLength: 1
+                            type: string
+                          valueSecretRef:
+                            description: ValueSecretRef references the Secret and key containing the header value
+                            properties:
+                              key:
+                                description: Key is the key within the secret
+                                type: string
+                              name:
+                                description: Name is the name of the secret
+                                type: string
+                            required:
+                              - key
+                              - name
+                            type: object
+                        required:
+                          - headerName
+                          - valueSecretRef
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - headerName
+                      x-kubernetes-list-type: map
+                    addPlaintextHeaders:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        AddPlaintextHeaders is a map of header names to literal values to inject into requests.
+                        WARNING: Values are stored in plaintext and visible via kubectl commands.
+                        Use addHeadersFromSecret for sensitive data like API keys or tokens.
+                      type: object
+                  type: object
                 oidcConfigRef:
                   description: |-
                     OIDCConfigRef references a shared MCPOIDCConfig resource for OIDC authentication.
-                    The referenced MCPOIDCConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPOIDCConfig must exist in the same namespace as this MCPRemoteProxy.
                     Per-server overrides (audience, scopes) are specified here; shared provider config
                     lives in the MCPOIDCConfig resource.
 
                     SECURITY: if this field is omitted and no other authentication source is configured,
                     the proxy runs UNAUTHENTICATED. It accepts every request that can reach its port and
-                    forwards it to the MCP server under a synthetic local-user identity, with no token or
-                    credential check. Set this field to enforce identity-based access control per request.
+                    forwards it to the remote MCP server under a synthetic local-user identity, with no
+                    token or credential check. Set this field to enforce identity-based access control
+                    per request.
                   properties:
                     audience:
                       description: |-
@@ -335,196 +346,36 @@ spec:
                     - audience
                     - name
                   type: object
-                permissionProfile:
-                  description: PermissionProfile defines the permission profile to use
-                  properties:
-                    key:
-                      description: |-
-                        Key is the key in the ConfigMap that contains the permission profile
-                        Only used when Type is "configmap"
-                      type: string
-                    name:
-                      description: |-
-                        Name is the name of the permission profile
-                        If Type is "builtin", Name must be one of: "none", "network"
-                        If Type is "configmap", Name is the name of the ConfigMap
-                      type: string
-                    type:
-                      default: builtin
-                      description: Type is the type of permission profile reference
-                      enum:
-                        - builtin
-                        - configmap
-                      type: string
-                  required:
-                    - name
-                    - type
-                  type: object
                 podTemplateSpec:
                   description: |-
-                    PodTemplateSpec defines the pod template to use for the MCP server
+                    PodTemplateSpec defines the pod template to use for the MCPRemoteProxy
                     This allows for customizing the pod configuration beyond what is provided by the other fields.
-                    Note that to modify the specific container the MCP server runs in, you must specify
-                    the `mcp` container name in the PodTemplateSpec.
+                    Note that to modify the specific container the remote proxy runs in, you must specify
+                    the `toolhive` container name in the PodTemplateSpec.
                     This field accepts a PodTemplateSpec object as JSON/YAML.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
-                proxyMode:
-                  default: streamable-http
-                  description: |-
-                    ProxyMode is the proxy mode for stdio transport (sse or streamable-http)
-                    This setting is ONLY applicable when Transport is "stdio".
-                    For direct transports (sse, streamable-http), this field is ignored.
-                    The default value is applied by Kubernetes but will be ignored for non-stdio transports.
-                  enum:
-                    - sse
-                    - streamable-http
-                  type: string
                 proxyPort:
                   default: 8080
-                  description: ProxyPort is the port to expose the proxy runner on
+                  description: ProxyPort is the port to expose the MCP proxy on
                   format: int32
                   maximum: 65535
                   minimum: 1
                   type: integer
-                proxyReadTimeout:
-                  description: |-
-                    ProxyReadTimeout bounds how long the proxy spends reading a full request
-                    (headers + body), mitigating slow-upload connection exhaustion. Applies to
-                    all transports. Defaults to 30s if not specified. Example: "1m".
-                  format: duration
+                remoteUrl:
+                  description: RemoteURL is the URL of the remote MCP server to proxy
+                  pattern: ^https?://
                   type: string
-                  x-kubernetes-validations:
-                    - message: proxyReadTimeout must be non-negative
-                      rule: duration(self) >= duration('0s')
-                rateLimiting:
-                  description: |-
-                    RateLimiting defines rate limiting configuration for the MCP server.
-                    Requires Redis session storage to be configured for distributed rate limiting.
-                  properties:
-                    perUser:
-                      description: |-
-                        PerUser is a token bucket applied independently to each authenticated user
-                        at the server level. Requires authentication to be enabled.
-                        Each unique userID creates Redis keys that expire after 2x refillPeriod.
-                        Memory formula: unique_users_per_TTL_window * (1 + num_tools_with_per_user_limits) keys.
-                      properties:
-                        maxTokens:
-                          description: |-
-                            MaxTokens is the maximum number of tokens (bucket capacity).
-                            This is also the burst size: the maximum number of requests that can be served
-                            instantaneously before the bucket is depleted.
-                          format: int32
-                          minimum: 1
-                          type: integer
-                        refillPeriod:
-                          description: |-
-                            RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                            The effective refill rate is maxTokens / refillPeriod tokens per second.
-                            Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                          type: string
-                      required:
-                        - maxTokens
-                        - refillPeriod
-                      type: object
-                    shared:
-                      description: Shared is a token bucket shared across all users for the entire server.
-                      properties:
-                        maxTokens:
-                          description: |-
-                            MaxTokens is the maximum number of tokens (bucket capacity).
-                            This is also the burst size: the maximum number of requests that can be served
-                            instantaneously before the bucket is depleted.
-                          format: int32
-                          minimum: 1
-                          type: integer
-                        refillPeriod:
-                          description: |-
-                            RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                            The effective refill rate is maxTokens / refillPeriod tokens per second.
-                            Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                          type: string
-                      required:
-                        - maxTokens
-                        - refillPeriod
-                      type: object
-                    tools:
-                      description: |-
-                        Tools defines per-tool rate limit overrides.
-                        Each entry applies additional rate limits to calls targeting a specific tool name.
-                        A request must pass both the server-level limit and the per-tool limit.
-                      items:
-                        description: |-
-                          ToolRateLimitConfig defines rate limits for a specific tool.
-                          At least one of shared or perUser must be configured.
-                        properties:
-                          name:
-                            description: Name is the MCP tool name this limit applies to.
-                            minLength: 1
-                            type: string
-                          perUser:
-                            description: PerUser token bucket configuration for this tool.
-                            properties:
-                              maxTokens:
-                                description: |-
-                                  MaxTokens is the maximum number of tokens (bucket capacity).
-                                  This is also the burst size: the maximum number of requests that can be served
-                                  instantaneously before the bucket is depleted.
-                                format: int32
-                                minimum: 1
-                                type: integer
-                              refillPeriod:
-                                description: |-
-                                  RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                                  The effective refill rate is maxTokens / refillPeriod tokens per second.
-                                  Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                                type: string
-                            required:
-                              - maxTokens
-                              - refillPeriod
-                            type: object
-                          shared:
-                            description: Shared token bucket for this specific tool.
-                            properties:
-                              maxTokens:
-                                description: |-
-                                  MaxTokens is the maximum number of tokens (bucket capacity).
-                                  This is also the burst size: the maximum number of requests that can be served
-                                  instantaneously before the bucket is depleted.
-                                format: int32
-                                minimum: 1
-                                type: integer
-                              refillPeriod:
-                                description: |-
-                                  RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                                  The effective refill rate is maxTokens / refillPeriod tokens per second.
-                                  Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                                type: string
-                            required:
-                              - maxTokens
-                              - refillPeriod
-                            type: object
-                        required:
-                          - name
-                        type: object
-                        x-kubernetes-validations:
-                          - message: at least one of shared or perUser must be configured
-                            rule: has(self.shared) || has(self.perUser)
-                      type: array
-                      x-kubernetes-list-map-keys:
-                        - name
-                      x-kubernetes-list-type: map
-                  type: object
-                  x-kubernetes-validations:
-                    - message: at least one of shared, perUser, or tools must be configured
-                      rule: has(self.shared) || has(self.perUser) || (has(self.tools) && size(self.tools) > 0)
                 replicas:
                   description: |-
-                    Replicas is the desired number of proxy runner (thv run) pod replicas.
-                    MCPServer creates two separate Deployments: one for the proxy runner and one
-                    for the MCP server backend. This field controls the proxy runner Deployment.
+                    Replicas is the desired number of proxy pod replicas.
+                    MCPRemoteProxy creates a single Deployment for the proxy process, so there
+                    is only one replicas field (mirrors VirtualMCPServer.spec.replicas).
                     When nil, the operator does not set Deployment.Spec.Replicas, leaving replica
                     management to an HPA or other external controller.
+                    When set above 1, also configure sessionStorage with the redis provider and
+                    sessionAffinity: "None" so sessions resolve across replicas; otherwise a
+                    SessionStorageWarning condition is surfaced on the resource status.
                   format: int32
                   minimum: 0
                   type: integer
@@ -1551,7 +1402,7 @@ spec:
                       type: object
                   type: object
                 resources:
-                  description: Resources defines the resource requirements for the MCP server container
+                  description: Resources defines the resource requirements for the proxy container
                   properties:
                     limits:
                       description: Limits describes the maximum amount of compute resources allowed
@@ -1574,34 +1425,10 @@ spec:
                           type: string
                       type: object
                   type: object
-                secrets:
-                  description: Secrets are references to secrets to mount in the MCP server container
-                  items:
-                    description: SecretRef is a reference to a secret
-                    properties:
-                      key:
-                        description: Key is the key in the secret itself
-                        type: string
-                      name:
-                        description: Name is the name of the secret
-                        type: string
-                      targetEnvName:
-                        description: |-
-                          TargetEnvName is the environment variable to be used when setting up the secret in the MCP server
-                          If left unspecified, it defaults to the key
-                        type: string
-                    required:
-                      - key
-                      - name
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - name
-                  x-kubernetes-list-type: map
                 serviceAccount:
                   description: |-
-                    ServiceAccount is the name of an already existing service account to use by the MCP server.
-                    If not specified, a ServiceAccount will be created automatically and used by the MCP server.
+                    ServiceAccount is the name of an already existing service account to use by the proxy.
+                    If not specified, a ServiceAccount will be created automatically and used by the proxy.
                   type: string
                 sessionAffinity:
                   default: ClientIP
@@ -1609,6 +1436,13 @@ spec:
                     SessionAffinity controls whether the Service routes repeated client connections to the same pod.
                     MCP protocols (SSE, streamable-http) are stateful, so ClientIP is the default.
                     Set to "None" for stateless servers or when using an external load balancer with its own affinity.
+
+                    Interaction with sessionStorage: when running multiple replicas with
+                    sessionStorage.provider "redis", set this to "None" so requests are
+                    distributed across replicas and sessions resolve via the shared store.
+                    Conversely, "None" without Redis-backed sessionStorage breaks session
+                    continuity — any request landing on a different pod fails with
+                    "Session not found".
                   enum:
                     - ClientIP
                     - None
@@ -1616,7 +1450,22 @@ spec:
                 sessionStorage:
                   description: |-
                     SessionStorage configures session storage for stateful horizontal scaling.
-                    When nil, no session storage is configured.
+                    When nil, no session storage is configured and the proxy falls back to
+                    pod-local in-memory session state — incompatible with multi-replica
+                    deployments behind load balancers that don't preserve client-IP affinity
+                    (e.g. AWS ALB across multiple AZs).
+
+                    The transparent proxy validates `Mcp-Session-Id` against this store on
+                    every non-initialize request (see pkg/transport/proxy/transparent/
+                    transparent_proxy.go) and rewrites client-facing session IDs to backend
+                    session IDs using session metadata. Both lookups require shared state
+                    across replicas.
+
+                    When using the Redis provider, also set sessionAffinity to "None" so the
+                    Service routes requests round-robin and all replicas rely on the shared
+                    session store rather than pod-local state.
+
+                    Mirrors MCPServer.spec.sessionStorage and VirtualMCPServer.spec.sessionStorage.
                   properties:
                     address:
                       description: Address is the Redis server address (required when provider is redis)
@@ -1650,16 +1499,58 @@ spec:
                         - memory
                         - redis
                       type: string
+                    tls:
+                      description: |-
+                        TLS enables TLS for the Redis session storage connection and, when rate
+                        limiting is configured, for the rate-limit connection to the same Redis.
+                        When omitted, the connections are plaintext and the Redis password and
+                        session data cross the network unencrypted. An empty object enables TLS
+                        with server certificate verification against the system root CAs; set
+                        caCertSecretRef for a private CA. A failed handshake never falls back to
+                        plaintext. Only used when provider is redis.
+                      properties:
+                        caCertSecretRef:
+                          description: |-
+                            CACertSecretRef references a Secret containing a PEM-encoded CA certificate
+                            for verifying the server. When not specified, system root CAs are used.
+                            If the Secret or key does not exist, the pod cannot start (it stays in
+                            ContainerCreating) rather than connecting without verification.
+                          properties:
+                            key:
+                              description: Key is the key within the secret
+                              type: string
+                            name:
+                              description: Name is the name of the secret
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        insecureSkipVerify:
+                          description: |-
+                            InsecureSkipVerify disables server certificate and hostname verification.
+                            The connection is encrypted but not authenticated, so anyone able to
+                            impersonate the server can read the credentials and data sent over it.
+                            Intended for testing only; for self-signed or private CAs set
+                            caCertSecretRef instead.
+                          type: boolean
+                      type: object
                   required:
                     - provider
                   type: object
                   x-kubernetes-validations:
                     - message: address is required
                       rule: 'self.provider == ''redis'' ? has(self.address) : true'
+                    - message: tls is only supported when provider is redis
+                      rule: '!has(self.tls) || self.provider == ''redis'''
+                    - message: tls.insecureSkipVerify disables certificate verification, so tls.caCertSecretRef would be ignored; set only one
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || !has(self.tls.insecureSkipVerify) || !self.tls.insecureSkipVerify'
+                    - message: tls.caCertSecretRef requires a non-empty name and key
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || (size(self.tls.caCertSecretRef.name) > 0 && size(self.tls.caCertSecretRef.key) > 0)'
                 telemetryConfigRef:
                   description: |-
                     TelemetryConfigRef references an MCPTelemetryConfig resource for shared telemetry configuration.
-                    The referenced MCPTelemetryConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPTelemetryConfig must exist in the same namespace as this MCPRemoteProxy.
                     Cross-namespace references are not supported for security and isolation reasons.
                   properties:
                     name:
@@ -1679,8 +1570,9 @@ spec:
                 toolConfigRef:
                   description: |-
                     ToolConfigRef references a MCPToolConfig resource for tool filtering and renaming.
-                    The referenced MCPToolConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPToolConfig must exist in the same namespace as this MCPRemoteProxy.
                     Cross-namespace references are not supported for security and isolation reasons.
+                    If specified, this allows filtering and overriding tools from the remote MCP server.
                   properties:
                     name:
                       description: Name is the name of the MCPToolConfig resource in the same namespace
@@ -1689,12 +1581,11 @@ spec:
                     - name
                   type: object
                 transport:
-                  default: stdio
-                  description: Transport is the transport method for the MCP server (stdio, streamable-http or sse)
+                  default: streamable-http
+                  description: Transport is the transport method for the remote proxy (sse or streamable-http)
                   enum:
-                    - stdio
-                    - streamable-http
                     - sse
+                    - streamable-http
                   type: string
                 trustProxyHeaders:
                   default: false
@@ -1703,58 +1594,14 @@ spec:
                     When enabled, the proxy will use X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Port,
                     and X-Forwarded-Prefix headers to construct endpoint URLs
                   type: boolean
-                volumes:
-                  description: Volumes are volumes to mount in the MCP server container
-                  items:
-                    description: Volume represents a volume to mount in a container
-                    properties:
-                      hostPath:
-                        description: HostPath is the path on the host to mount
-                        type: string
-                      mountPath:
-                        description: MountPath is the path in the container to mount to
-                        type: string
-                      name:
-                        description: Name is the name of the volume
-                        type: string
-                      readOnly:
-                        default: false
-                        description: ReadOnly specifies whether the volume should be mounted read-only
-                        type: boolean
-                    required:
-                      - hostPath
-                      - mountPath
-                      - name
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - name
-                  x-kubernetes-list-type: map
-                webhookConfigRef:
-                  description: |-
-                    WebhookConfigRef references a MCPWebhookConfig resource for webhook middleware configuration.
-                    The referenced MCPWebhookConfig must exist in the same namespace as this MCPServer.
-                  properties:
-                    name:
-                      description: Name is the name of the MCPWebhookConfig resource
-                      type: string
-                  required:
-                    - name
-                  type: object
               required:
-                - image
+                - remoteUrl
               type: object
               x-kubernetes-validations:
                 - message: authzConfig and authzConfigRef are mutually exclusive; use authzConfigRef to reference a shared MCPAuthzConfig
                   rule: '!(has(self.authzConfig) && has(self.authzConfigRef))'
-                - message: rateLimiting requires sessionStorage with provider 'redis'
-                  rule: '!has(self.rateLimiting) || (has(self.sessionStorage) && self.sessionStorage.provider == ''redis'')'
-                - message: rateLimiting.perUser requires authentication (oidcConfigRef or externalAuthConfigRef)
-                  rule: '!(has(self.rateLimiting) && has(self.rateLimiting.perUser)) || has(self.oidcConfigRef) || has(self.externalAuthConfigRef)'
-                - message: per-tool perUser rate limiting requires authentication (oidcConfigRef or externalAuthConfigRef)
-                  rule: '!has(self.rateLimiting) || !has(self.rateLimiting.tools) || self.rateLimiting.tools.all(t, !has(t.perUser)) || has(self.oidcConfigRef) || has(self.externalAuthConfigRef)'
             status:
-              description: MCPServerStatus defines the observed state of MCPServer
+              description: MCPRemoteProxyStatus defines the observed state of MCPRemoteProxy
               properties:
                 authServerConfigHash:
                   description: |-
@@ -1765,7 +1612,7 @@ spec:
                   description: AuthzConfigHash is the hash of the referenced MCPAuthzConfig spec for change detection
                   type: string
                 conditions:
-                  description: Conditions represent the latest available observations of the MCPServer's state
+                  description: Conditions represent the latest available observations of the MCPRemoteProxy's state
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -1826,40 +1673,35 @@ spec:
                 externalAuthConfigHash:
                   description: ExternalAuthConfigHash is the hash of the referenced MCPExternalAuthConfig spec
                   type: string
+                externalUrl:
+                  description: ExternalURL is the external URL where the proxy can be accessed (if exposed externally)
+                  type: string
                 message:
                   description: Message provides additional information about the current phase
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration reflects the generation most recently observed by the controller
+                  description: ObservedGeneration reflects the generation of the most recently observed MCPRemoteProxy
                   format: int64
                   type: integer
                 oidcConfigHash:
                   description: OIDCConfigHash is the hash of the referenced MCPOIDCConfig spec for change detection
                   type: string
                 phase:
-                  description: Phase is the current phase of the MCPServer
+                  description: Phase is the current phase of the MCPRemoteProxy
                   enum:
                     - Pending
                     - Ready
                     - Failed
                     - Terminating
-                    - Stopped
                   type: string
-                readyReplicas:
-                  description: ReadyReplicas is the number of ready proxy replicas
-                  format: int32
-                  type: integer
                 telemetryConfigHash:
-                  description: TelemetryConfigHash is the hash of the referenced MCPTelemetryConfig spec for change detection
+                  description: TelemetryConfigHash stores the hash of the referenced MCPTelemetryConfig for change detection
                   type: string
                 toolConfigHash:
                   description: ToolConfigHash stores the hash of the referenced ToolConfig for change detection
                   type: string
                 url:
-                  description: URL is the URL where the MCP server can be accessed
-                  type: string
-                webhookConfigHash:
-                  description: WebhookConfigHash is the hash of the referenced MCPWebhookConfig spec
+                  description: URL is the internal cluster URL where the proxy can be accessed
                   type: string
               type: object
           type: object
@@ -1869,16 +1711,16 @@ spec:
         status: {}
     - additionalPrinterColumns:
         - jsonPath: .status.phase
-          name: Status
+          name: Phase
+          type: string
+        - jsonPath: .spec.remoteUrl
+          name: Remote URL
+          type: string
+        - jsonPath: .status.url
+          name: URL
           type: string
         - jsonPath: .status.conditions[?(@.type=='Ready')].status
           name: Ready
-          type: string
-        - jsonPath: .status.readyReplicas
-          name: Replicas
-          type: integer
-        - jsonPath: .status.url
-          name: URL
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -1886,7 +1728,9 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: MCPServer is the Schema for the mcpservers API
+          description: |-
+            MCPRemoteProxy is the Schema for the mcpremoteproxies API
+            It enables proxying remote MCP servers with authentication, authorization, audit logging, and tool filtering
           properties:
             apiVersion:
               description: |-
@@ -1906,16 +1750,22 @@ spec:
             metadata:
               type: object
             spec:
-              description: MCPServerSpec defines the desired state of MCPServer
+              description: MCPRemoteProxySpec defines the desired state of MCPRemoteProxy
               properties:
-                args:
-                  description: Args are additional arguments to pass to the MCP server
-                  items:
-                    type: string
-                  type: array
-                  x-kubernetes-list-type: atomic
+                allowPrivateEndpoint:
+                  default: false
+                  description: |-
+                    AllowPrivateEndpoint permits RemoteURL to point at a private or
+                    in-cluster endpoint: RFC 1918 and IPv6 unique-local addresses, and
+                    hostnames ending in "cluster.local". (Bare ".svc" hostnames are never
+                    blocked, since no DNS resolution is performed.) Enable this to reach a
+                    co-located in-cluster backend in-mesh so the backend's workload-identity
+                    authorization policy still applies. Loopback, link-local, cloud-metadata,
+                    and kubernetes.default endpoints remain blocked regardless of this
+                    setting.
+                  type: boolean
                 audit:
-                  description: Audit defines audit logging configuration for the MCP server
+                  description: Audit defines audit logging configuration for the proxy
                   properties:
                     enabled:
                       default: false
@@ -1946,7 +1796,7 @@ spec:
                   type: object
                 authzConfig:
                   description: |-
-                    AuthzConfig defines authorization policy configuration for the MCP server.
+                    AuthzConfig defines authorization policy configuration for the proxy.
                     AuthzConfig and AuthzConfigRef are mutually exclusive.
                   properties:
                     configMap:
@@ -2055,7 +1905,7 @@ spec:
                 authzConfigRef:
                   description: |-
                     AuthzConfigRef references a shared MCPAuthzConfig resource for authorization.
-                    The referenced MCPAuthzConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPAuthzConfig must exist in the same namespace as this MCPRemoteProxy.
                     Mutually exclusive with authzConfig.
                   properties:
                     name:
@@ -2065,45 +1915,17 @@ spec:
                   required:
                     - name
                   type: object
-                backendReplicas:
-                  description: |-
-                    BackendReplicas is the desired number of MCP server backend pod replicas.
-                    This controls the backend Deployment (the MCP server container itself),
-                    independent of the proxy runner controlled by Replicas.
-                    When nil, the operator does not set Deployment.Spec.Replicas, leaving replica
-                    management to an HPA or other external controller.
-                  format: int32
-                  minimum: 0
-                  type: integer
                 endpointPrefix:
                   description: |-
                     EndpointPrefix is the path prefix to prepend to SSE endpoint URLs.
                     This is used to handle path-based ingress routing scenarios where the ingress
                     strips a path prefix before forwarding to the backend.
                   type: string
-                env:
-                  description: Env are environment variables to set in the MCP server container
-                  items:
-                    description: EnvVar represents an environment variable in a container
-                    properties:
-                      name:
-                        description: Name of the environment variable
-                        type: string
-                      value:
-                        description: Value of the environment variable
-                        type: string
-                    required:
-                      - name
-                      - value
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - name
-                  x-kubernetes-list-type: map
                 externalAuthConfigRef:
                   description: |-
-                    ExternalAuthConfigRef references a MCPExternalAuthConfig resource for external authentication.
-                    The referenced MCPExternalAuthConfig must exist in the same namespace as this MCPServer.
+                    ExternalAuthConfigRef references a MCPExternalAuthConfig resource for token exchange.
+                    When specified, the proxy will exchange validated incoming tokens for remote service tokens.
+                    The referenced MCPExternalAuthConfig must exist in the same namespace as this MCPRemoteProxy.
                   properties:
                     name:
                       description: Name is the name of the MCPExternalAuthConfig resource
@@ -2113,7 +1935,7 @@ spec:
                   type: object
                 groupRef:
                   description: |-
-                    GroupRef references the MCPGroup this server belongs to.
+                    GroupRef references the MCPGroup this proxy belongs to.
                     The referenced MCPGroup must be in the same namespace.
                   properties:
                     name:
@@ -2123,33 +1945,63 @@ spec:
                   required:
                     - name
                   type: object
-                image:
-                  description: Image is the container image for the MCP server
-                  type: string
-                maxRequestBodySize:
+                headerForward:
                   description: |-
-                    MaxRequestBodySize is the maximum inbound MCP proxy request body size in bytes.
-                    Zero uses the default limit of 8 MiB.
-                  format: int64
-                  minimum: 0
-                  type: integer
-                mcpPort:
-                  description: MCPPort is the port that MCP server listens to
-                  format: int32
-                  maximum: 65535
-                  minimum: 1
-                  type: integer
+                    HeaderForward configures headers to inject into requests to the remote MCP server.
+                    Use this to add custom headers like X-Tenant-ID or correlation IDs.
+                  properties:
+                    addHeadersFromSecret:
+                      description: AddHeadersFromSecret references Kubernetes Secrets for sensitive header values.
+                      items:
+                        description: HeaderFromSecret defines a header whose value comes from a Kubernetes Secret.
+                        properties:
+                          headerName:
+                            description: HeaderName is the HTTP header name (e.g., "X-API-Key")
+                            maxLength: 255
+                            minLength: 1
+                            type: string
+                          valueSecretRef:
+                            description: ValueSecretRef references the Secret and key containing the header value
+                            properties:
+                              key:
+                                description: Key is the key within the secret
+                                type: string
+                              name:
+                                description: Name is the name of the secret
+                                type: string
+                            required:
+                              - key
+                              - name
+                            type: object
+                        required:
+                          - headerName
+                          - valueSecretRef
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - headerName
+                      x-kubernetes-list-type: map
+                    addPlaintextHeaders:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        AddPlaintextHeaders is a map of header names to literal values to inject into requests.
+                        WARNING: Values are stored in plaintext and visible via kubectl commands.
+                        Use addHeadersFromSecret for sensitive data like API keys or tokens.
+                      type: object
+                  type: object
                 oidcConfigRef:
                   description: |-
                     OIDCConfigRef references a shared MCPOIDCConfig resource for OIDC authentication.
-                    The referenced MCPOIDCConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPOIDCConfig must exist in the same namespace as this MCPRemoteProxy.
                     Per-server overrides (audience, scopes) are specified here; shared provider config
                     lives in the MCPOIDCConfig resource.
 
                     SECURITY: if this field is omitted and no other authentication source is configured,
                     the proxy runs UNAUTHENTICATED. It accepts every request that can reach its port and
-                    forwards it to the MCP server under a synthetic local-user identity, with no token or
-                    credential check. Set this field to enforce identity-based access control per request.
+                    forwards it to the remote MCP server under a synthetic local-user identity, with no
+                    token or credential check. Set this field to enforce identity-based access control
+                    per request.
                   properties:
                     audience:
                       description: |-
@@ -2180,196 +2032,36 @@ spec:
                     - audience
                     - name
                   type: object
-                permissionProfile:
-                  description: PermissionProfile defines the permission profile to use
-                  properties:
-                    key:
-                      description: |-
-                        Key is the key in the ConfigMap that contains the permission profile
-                        Only used when Type is "configmap"
-                      type: string
-                    name:
-                      description: |-
-                        Name is the name of the permission profile
-                        If Type is "builtin", Name must be one of: "none", "network"
-                        If Type is "configmap", Name is the name of the ConfigMap
-                      type: string
-                    type:
-                      default: builtin
-                      description: Type is the type of permission profile reference
-                      enum:
-                        - builtin
-                        - configmap
-                      type: string
-                  required:
-                    - name
-                    - type
-                  type: object
                 podTemplateSpec:
                   description: |-
-                    PodTemplateSpec defines the pod template to use for the MCP server
+                    PodTemplateSpec defines the pod template to use for the MCPRemoteProxy
                     This allows for customizing the pod configuration beyond what is provided by the other fields.
-                    Note that to modify the specific container the MCP server runs in, you must specify
-                    the `mcp` container name in the PodTemplateSpec.
+                    Note that to modify the specific container the remote proxy runs in, you must specify
+                    the `toolhive` container name in the PodTemplateSpec.
                     This field accepts a PodTemplateSpec object as JSON/YAML.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
-                proxyMode:
-                  default: streamable-http
-                  description: |-
-                    ProxyMode is the proxy mode for stdio transport (sse or streamable-http)
-                    This setting is ONLY applicable when Transport is "stdio".
-                    For direct transports (sse, streamable-http), this field is ignored.
-                    The default value is applied by Kubernetes but will be ignored for non-stdio transports.
-                  enum:
-                    - sse
-                    - streamable-http
-                  type: string
                 proxyPort:
                   default: 8080
-                  description: ProxyPort is the port to expose the proxy runner on
+                  description: ProxyPort is the port to expose the MCP proxy on
                   format: int32
                   maximum: 65535
                   minimum: 1
                   type: integer
-                proxyReadTimeout:
-                  description: |-
-                    ProxyReadTimeout bounds how long the proxy spends reading a full request
-                    (headers + body), mitigating slow-upload connection exhaustion. Applies to
-                    all transports. Defaults to 30s if not specified. Example: "1m".
-                  format: duration
+                remoteUrl:
+                  description: RemoteURL is the URL of the remote MCP server to proxy
+                  pattern: ^https?://
                   type: string
-                  x-kubernetes-validations:
-                    - message: proxyReadTimeout must be non-negative
-                      rule: duration(self) >= duration('0s')
-                rateLimiting:
-                  description: |-
-                    RateLimiting defines rate limiting configuration for the MCP server.
-                    Requires Redis session storage to be configured for distributed rate limiting.
-                  properties:
-                    perUser:
-                      description: |-
-                        PerUser is a token bucket applied independently to each authenticated user
-                        at the server level. Requires authentication to be enabled.
-                        Each unique userID creates Redis keys that expire after 2x refillPeriod.
-                        Memory formula: unique_users_per_TTL_window * (1 + num_tools_with_per_user_limits) keys.
-                      properties:
-                        maxTokens:
-                          description: |-
-                            MaxTokens is the maximum number of tokens (bucket capacity).
-                            This is also the burst size: the maximum number of requests that can be served
-                            instantaneously before the bucket is depleted.
-                          format: int32
-                          minimum: 1
-                          type: integer
-                        refillPeriod:
-                          description: |-
-                            RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                            The effective refill rate is maxTokens / refillPeriod tokens per second.
-                            Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                          type: string
-                      required:
-                        - maxTokens
-                        - refillPeriod
-                      type: object
-                    shared:
-                      description: Shared is a token bucket shared across all users for the entire server.
-                      properties:
-                        maxTokens:
-                          description: |-
-                            MaxTokens is the maximum number of tokens (bucket capacity).
-                            This is also the burst size: the maximum number of requests that can be served
-                            instantaneously before the bucket is depleted.
-                          format: int32
-                          minimum: 1
-                          type: integer
-                        refillPeriod:
-                          description: |-
-                            RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                            The effective refill rate is maxTokens / refillPeriod tokens per second.
-                            Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                          type: string
-                      required:
-                        - maxTokens
-                        - refillPeriod
-                      type: object
-                    tools:
-                      description: |-
-                        Tools defines per-tool rate limit overrides.
-                        Each entry applies additional rate limits to calls targeting a specific tool name.
-                        A request must pass both the server-level limit and the per-tool limit.
-                      items:
-                        description: |-
-                          ToolRateLimitConfig defines rate limits for a specific tool.
-                          At least one of shared or perUser must be configured.
-                        properties:
-                          name:
-                            description: Name is the MCP tool name this limit applies to.
-                            minLength: 1
-                            type: string
-                          perUser:
-                            description: PerUser token bucket configuration for this tool.
-                            properties:
-                              maxTokens:
-                                description: |-
-                                  MaxTokens is the maximum number of tokens (bucket capacity).
-                                  This is also the burst size: the maximum number of requests that can be served
-                                  instantaneously before the bucket is depleted.
-                                format: int32
-                                minimum: 1
-                                type: integer
-                              refillPeriod:
-                                description: |-
-                                  RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                                  The effective refill rate is maxTokens / refillPeriod tokens per second.
-                                  Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                                type: string
-                            required:
-                              - maxTokens
-                              - refillPeriod
-                            type: object
-                          shared:
-                            description: Shared token bucket for this specific tool.
-                            properties:
-                              maxTokens:
-                                description: |-
-                                  MaxTokens is the maximum number of tokens (bucket capacity).
-                                  This is also the burst size: the maximum number of requests that can be served
-                                  instantaneously before the bucket is depleted.
-                                format: int32
-                                minimum: 1
-                                type: integer
-                              refillPeriod:
-                                description: |-
-                                  RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.
-                                  The effective refill rate is maxTokens / refillPeriod tokens per second.
-                                  Format: Go duration string (e.g., "1m0s", "30s", "1h0m0s").
-                                type: string
-                            required:
-                              - maxTokens
-                              - refillPeriod
-                            type: object
-                        required:
-                          - name
-                        type: object
-                        x-kubernetes-validations:
-                          - message: at least one of shared or perUser must be configured
-                            rule: has(self.shared) || has(self.perUser)
-                      type: array
-                      x-kubernetes-list-map-keys:
-                        - name
-                      x-kubernetes-list-type: map
-                  type: object
-                  x-kubernetes-validations:
-                    - message: at least one of shared, perUser, or tools must be configured
-                      rule: has(self.shared) || has(self.perUser) || (has(self.tools) && size(self.tools) > 0)
                 replicas:
                   description: |-
-                    Replicas is the desired number of proxy runner (thv run) pod replicas.
-                    MCPServer creates two separate Deployments: one for the proxy runner and one
-                    for the MCP server backend. This field controls the proxy runner Deployment.
+                    Replicas is the desired number of proxy pod replicas.
+                    MCPRemoteProxy creates a single Deployment for the proxy process, so there
+                    is only one replicas field (mirrors VirtualMCPServer.spec.replicas).
                     When nil, the operator does not set Deployment.Spec.Replicas, leaving replica
                     management to an HPA or other external controller.
+                    When set above 1, also configure sessionStorage with the redis provider and
+                    sessionAffinity: "None" so sessions resolve across replicas; otherwise a
+                    SessionStorageWarning condition is surfaced on the resource status.
                   format: int32
                   minimum: 0
                   type: integer
@@ -3396,7 +3088,7 @@ spec:
                       type: object
                   type: object
                 resources:
-                  description: Resources defines the resource requirements for the MCP server container
+                  description: Resources defines the resource requirements for the proxy container
                   properties:
                     limits:
                       description: Limits describes the maximum amount of compute resources allowed
@@ -3419,34 +3111,10 @@ spec:
                           type: string
                       type: object
                   type: object
-                secrets:
-                  description: Secrets are references to secrets to mount in the MCP server container
-                  items:
-                    description: SecretRef is a reference to a secret
-                    properties:
-                      key:
-                        description: Key is the key in the secret itself
-                        type: string
-                      name:
-                        description: Name is the name of the secret
-                        type: string
-                      targetEnvName:
-                        description: |-
-                          TargetEnvName is the environment variable to be used when setting up the secret in the MCP server
-                          If left unspecified, it defaults to the key
-                        type: string
-                    required:
-                      - key
-                      - name
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - name
-                  x-kubernetes-list-type: map
                 serviceAccount:
                   description: |-
-                    ServiceAccount is the name of an already existing service account to use by the MCP server.
-                    If not specified, a ServiceAccount will be created automatically and used by the MCP server.
+                    ServiceAccount is the name of an already existing service account to use by the proxy.
+                    If not specified, a ServiceAccount will be created automatically and used by the proxy.
                   type: string
                 sessionAffinity:
                   default: ClientIP
@@ -3454,6 +3122,13 @@ spec:
                     SessionAffinity controls whether the Service routes repeated client connections to the same pod.
                     MCP protocols (SSE, streamable-http) are stateful, so ClientIP is the default.
                     Set to "None" for stateless servers or when using an external load balancer with its own affinity.
+
+                    Interaction with sessionStorage: when running multiple replicas with
+                    sessionStorage.provider "redis", set this to "None" so requests are
+                    distributed across replicas and sessions resolve via the shared store.
+                    Conversely, "None" without Redis-backed sessionStorage breaks session
+                    continuity — any request landing on a different pod fails with
+                    "Session not found".
                   enum:
                     - ClientIP
                     - None
@@ -3461,7 +3136,22 @@ spec:
                 sessionStorage:
                   description: |-
                     SessionStorage configures session storage for stateful horizontal scaling.
-                    When nil, no session storage is configured.
+                    When nil, no session storage is configured and the proxy falls back to
+                    pod-local in-memory session state — incompatible with multi-replica
+                    deployments behind load balancers that don't preserve client-IP affinity
+                    (e.g. AWS ALB across multiple AZs).
+
+                    The transparent proxy validates `Mcp-Session-Id` against this store on
+                    every non-initialize request (see pkg/transport/proxy/transparent/
+                    transparent_proxy.go) and rewrites client-facing session IDs to backend
+                    session IDs using session metadata. Both lookups require shared state
+                    across replicas.
+
+                    When using the Redis provider, also set sessionAffinity to "None" so the
+                    Service routes requests round-robin and all replicas rely on the shared
+                    session store rather than pod-local state.
+
+                    Mirrors MCPServer.spec.sessionStorage and VirtualMCPServer.spec.sessionStorage.
                   properties:
                     address:
                       description: Address is the Redis server address (required when provider is redis)
@@ -3495,16 +3185,58 @@ spec:
                         - memory
                         - redis
                       type: string
+                    tls:
+                      description: |-
+                        TLS enables TLS for the Redis session storage connection and, when rate
+                        limiting is configured, for the rate-limit connection to the same Redis.
+                        When omitted, the connections are plaintext and the Redis password and
+                        session data cross the network unencrypted. An empty object enables TLS
+                        with server certificate verification against the system root CAs; set
+                        caCertSecretRef for a private CA. A failed handshake never falls back to
+                        plaintext. Only used when provider is redis.
+                      properties:
+                        caCertSecretRef:
+                          description: |-
+                            CACertSecretRef references a Secret containing a PEM-encoded CA certificate
+                            for verifying the server. When not specified, system root CAs are used.
+                            If the Secret or key does not exist, the pod cannot start (it stays in
+                            ContainerCreating) rather than connecting without verification.
+                          properties:
+                            key:
+                              description: Key is the key within the secret
+                              type: string
+                            name:
+                              description: Name is the name of the secret
+                              type: string
+                          required:
+                            - key
+                            - name
+                          type: object
+                        insecureSkipVerify:
+                          description: |-
+                            InsecureSkipVerify disables server certificate and hostname verification.
+                            The connection is encrypted but not authenticated, so anyone able to
+                            impersonate the server can read the credentials and data sent over it.
+                            Intended for testing only; for self-signed or private CAs set
+                            caCertSecretRef instead.
+                          type: boolean
+                      type: object
                   required:
                     - provider
                   type: object
                   x-kubernetes-validations:
                     - message: address is required
                       rule: 'self.provider == ''redis'' ? has(self.address) : true'
+                    - message: tls is only supported when provider is redis
+                      rule: '!has(self.tls) || self.provider == ''redis'''
+                    - message: tls.insecureSkipVerify disables certificate verification, so tls.caCertSecretRef would be ignored; set only one
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || !has(self.tls.insecureSkipVerify) || !self.tls.insecureSkipVerify'
+                    - message: tls.caCertSecretRef requires a non-empty name and key
+                      rule: '!has(self.tls) || !has(self.tls.caCertSecretRef) || (size(self.tls.caCertSecretRef.name) > 0 && size(self.tls.caCertSecretRef.key) > 0)'
                 telemetryConfigRef:
                   description: |-
                     TelemetryConfigRef references an MCPTelemetryConfig resource for shared telemetry configuration.
-                    The referenced MCPTelemetryConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPTelemetryConfig must exist in the same namespace as this MCPRemoteProxy.
                     Cross-namespace references are not supported for security and isolation reasons.
                   properties:
                     name:
@@ -3524,8 +3256,9 @@ spec:
                 toolConfigRef:
                   description: |-
                     ToolConfigRef references a MCPToolConfig resource for tool filtering and renaming.
-                    The referenced MCPToolConfig must exist in the same namespace as this MCPServer.
+                    The referenced MCPToolConfig must exist in the same namespace as this MCPRemoteProxy.
                     Cross-namespace references are not supported for security and isolation reasons.
+                    If specified, this allows filtering and overriding tools from the remote MCP server.
                   properties:
                     name:
                       description: Name is the name of the MCPToolConfig resource in the same namespace
@@ -3534,12 +3267,11 @@ spec:
                     - name
                   type: object
                 transport:
-                  default: stdio
-                  description: Transport is the transport method for the MCP server (stdio, streamable-http or sse)
+                  default: streamable-http
+                  description: Transport is the transport method for the remote proxy (sse or streamable-http)
                   enum:
-                    - stdio
-                    - streamable-http
                     - sse
+                    - streamable-http
                   type: string
                 trustProxyHeaders:
                   default: false
@@ -3548,58 +3280,14 @@ spec:
                     When enabled, the proxy will use X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Port,
                     and X-Forwarded-Prefix headers to construct endpoint URLs
                   type: boolean
-                volumes:
-                  description: Volumes are volumes to mount in the MCP server container
-                  items:
-                    description: Volume represents a volume to mount in a container
-                    properties:
-                      hostPath:
-                        description: HostPath is the path on the host to mount
-                        type: string
-                      mountPath:
-                        description: MountPath is the path in the container to mount to
-                        type: string
-                      name:
-                        description: Name is the name of the volume
-                        type: string
-                      readOnly:
-                        default: false
-                        description: ReadOnly specifies whether the volume should be mounted read-only
-                        type: boolean
-                    required:
-                      - hostPath
-                      - mountPath
-                      - name
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - name
-                  x-kubernetes-list-type: map
-                webhookConfigRef:
-                  description: |-
-                    WebhookConfigRef references a MCPWebhookConfig resource for webhook middleware configuration.
-                    The referenced MCPWebhookConfig must exist in the same namespace as this MCPServer.
-                  properties:
-                    name:
-                      description: Name is the name of the MCPWebhookConfig resource
-                      type: string
-                  required:
-                    - name
-                  type: object
               required:
-                - image
+                - remoteUrl
               type: object
               x-kubernetes-validations:
                 - message: authzConfig and authzConfigRef are mutually exclusive; use authzConfigRef to reference a shared MCPAuthzConfig
                   rule: '!(has(self.authzConfig) && has(self.authzConfigRef))'
-                - message: rateLimiting requires sessionStorage with provider 'redis'
-                  rule: '!has(self.rateLimiting) || (has(self.sessionStorage) && self.sessionStorage.provider == ''redis'')'
-                - message: rateLimiting.perUser requires authentication (oidcConfigRef or externalAuthConfigRef)
-                  rule: '!(has(self.rateLimiting) && has(self.rateLimiting.perUser)) || has(self.oidcConfigRef) || has(self.externalAuthConfigRef)'
-                - message: per-tool perUser rate limiting requires authentication (oidcConfigRef or externalAuthConfigRef)
-                  rule: '!has(self.rateLimiting) || !has(self.rateLimiting.tools) || self.rateLimiting.tools.all(t, !has(t.perUser)) || has(self.oidcConfigRef) || has(self.externalAuthConfigRef)'
             status:
-              description: MCPServerStatus defines the observed state of MCPServer
+              description: MCPRemoteProxyStatus defines the observed state of MCPRemoteProxy
               properties:
                 authServerConfigHash:
                   description: |-
@@ -3610,7 +3298,7 @@ spec:
                   description: AuthzConfigHash is the hash of the referenced MCPAuthzConfig spec for change detection
                   type: string
                 conditions:
-                  description: Conditions represent the latest available observations of the MCPServer's state
+                  description: Conditions represent the latest available observations of the MCPRemoteProxy's state
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -3671,40 +3359,35 @@ spec:
                 externalAuthConfigHash:
                   description: ExternalAuthConfigHash is the hash of the referenced MCPExternalAuthConfig spec
                   type: string
+                externalUrl:
+                  description: ExternalURL is the external URL where the proxy can be accessed (if exposed externally)
+                  type: string
                 message:
                   description: Message provides additional information about the current phase
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration reflects the generation most recently observed by the controller
+                  description: ObservedGeneration reflects the generation of the most recently observed MCPRemoteProxy
                   format: int64
                   type: integer
                 oidcConfigHash:
                   description: OIDCConfigHash is the hash of the referenced MCPOIDCConfig spec for change detection
                   type: string
                 phase:
-                  description: Phase is the current phase of the MCPServer
+                  description: Phase is the current phase of the MCPRemoteProxy
                   enum:
                     - Pending
                     - Ready
                     - Failed
                     - Terminating
-                    - Stopped
                   type: string
-                readyReplicas:
-                  description: ReadyReplicas is the number of ready proxy replicas
-                  format: int32
-                  type: integer
                 telemetryConfigHash:
-                  description: TelemetryConfigHash is the hash of the referenced MCPTelemetryConfig spec for change detection
+                  description: TelemetryConfigHash stores the hash of the referenced MCPTelemetryConfig for change detection
                   type: string
                 toolConfigHash:
                   description: ToolConfigHash stores the hash of the referenced ToolConfig for change detection
                   type: string
                 url:
-                  description: URL is the URL where the MCP server can be accessed
-                  type: string
-                webhookConfigHash:
-                  description: WebhookConfigHash is the hash of the referenced MCPWebhookConfig spec
+                  description: URL is the internal cluster URL where the proxy can be accessed
                   type: string
               type: object
           type: object

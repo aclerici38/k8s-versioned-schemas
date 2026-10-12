@@ -46,7 +46,7 @@
               ]
             },
             "authorizationEndpointBaseUrl": {
-              "description": "AuthorizationEndpointBaseURL overrides the base URL used for the authorization_endpoint\nin the OAuth discovery document. When set, the discovery document will advertise\n`{authorizationEndpointBaseUrl}/oauth/authorize` instead of `{issuer}/oauth/authorize`.\nAll other endpoints (token, registration, JWKS) remain derived from the issuer.\nThis is useful when the browser-facing authorization endpoint needs to be on a\ndifferent host than the issuer used for backend-to-backend calls.\nMust be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts\nwhen insecureAllowHTTP is true) without query, fragment, or trailing slash.",
+              "description": "AuthorizationEndpointBaseURL overrides the base URL used for the authorization_endpoint\nin the OAuth discovery document. When set, the discovery document will advertise\n`{authorizationEndpointBaseUrl}/oauth/authorize` instead of `{issuer}/oauth/authorize`.\nAll other endpoints (token, registration, JWKS) remain derived from the issuer.\nThis is useful when the browser-facing authorization endpoint needs to be on a\ndifferent host than the issuer used for backend-to-backend calls.\nThe upstream callback (`redirectUri` on each upstream provider, defaulting to\n`{resourceUrl}/oauth/callback`) must share this hostname: the callback only\ncompletes a login for the browser that started it, bound by a host-only cookie\nset on this endpoint, so a different callback host rejects every browser login.\nMust be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts\nwhen insecureAllowHTTP is true) without query, fragment, or trailing slash.",
               "pattern": "^https?://[^\\s?#]+[^/\\s?#]$",
               "type": [
                 "string",
@@ -594,7 +594,7 @@
                           },
                           {
                             "message": "allowMayAct must not be enabled when allowedDelegateClients contains the wildcard \"*\"",
-                            "rule": "!(self.allowMayAct \u0026\u0026 '*' in self.allowedDelegateClients)"
+                            "rule": "!(has(self.allowMayAct) \u0026\u0026 self.allowMayAct \u0026\u0026 '*' in self.allowedDelegateClients)"
                           },
                           {
                             "message": "actorClaim must name a readable claim; use client_id or a non-reserved claim such as azp, appid, or cid",
@@ -961,7 +961,7 @@
                       "properties": {
                         "caCertSecretRef": {
                           "additionalProperties": false,
-                          "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.",
+                          "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.\nIf the Secret or key does not exist, the pod cannot start (it stays in\nContainerCreating) rather than connecting without verification.",
                           "properties": {
                             "key": {
                               "description": "Key is the key within the secret",
@@ -982,7 +982,7 @@
                           ]
                         },
                         "insecureSkipVerify": {
-                          "description": "InsecureSkipVerify skips TLS certificate verification.\nUse when connecting to services with self-signed certificates.",
+                          "description": "InsecureSkipVerify disables server certificate and hostname verification.\nThe connection is encrypted but not authenticated, so anyone able to\nimpersonate the server can read the credentials and data sent over it.\nIntended for testing only; for self-signed or private CAs set\ncaCertSecretRef instead.",
                           "type": [
                             "boolean",
                             "null"
@@ -1000,7 +1000,7 @@
                       "properties": {
                         "caCertSecretRef": {
                           "additionalProperties": false,
-                          "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.",
+                          "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.\nIf the Secret or key does not exist, the pod cannot start (it stays in\nContainerCreating) rather than connecting without verification.",
                           "properties": {
                             "key": {
                               "description": "Key is the key within the secret",
@@ -1021,7 +1021,7 @@
                           ]
                         },
                         "insecureSkipVerify": {
-                          "description": "InsecureSkipVerify skips TLS certificate verification.\nUse when connecting to services with self-signed certificates.",
+                          "description": "InsecureSkipVerify disables server certificate and hostname verification.\nThe connection is encrypted but not authenticated, so anyone able to\nimpersonate the server can read the credentials and data sent over it.\nIntended for testing only; for self-signed or private CAs set\ncaCertSecretRef instead.",
                           "type": [
                             "boolean",
                             "null"
@@ -1633,7 +1633,7 @@
                         ]
                       },
                       "redirectUri": {
-                        "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.",
+                        "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.\nIts hostname must match the browser-facing authorization endpoint (`issuer`, or\n`authorizationEndpointBaseUrl` when set): the callback is bound to the browser that\nstarted the login by a host-only cookie, so a different host rejects every browser login.",
                         "type": [
                           "string",
                           "null"
@@ -2001,7 +2001,7 @@
                         "type": "string"
                       },
                       "redirectUri": {
-                        "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.",
+                        "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.\nIts hostname must match the browser-facing authorization endpoint (`issuer`, or\n`authorizationEndpointBaseUrl` when set): the callback is bound to the browser that\nstarted the login by a host-only cookie, so a different host rejects every browser login.",
                         "type": [
                           "string",
                           "null"
@@ -2271,7 +2271,7 @@
               "properties": {
                 "conflictResolution": {
                   "default": "prefix",
-                  "description": "ConflictResolution defines the strategy for resolving tool name conflicts.\n- prefix: Automatically prefix tool names with workload identifier\n- priority: First workload in priority order wins\n- manual: Explicitly define overrides for all conflicts",
+                  "description": "ConflictResolution defines the strategy for resolving tool name conflicts.\n- prefix: Automatically prefix tool names with workload identifier\n- priority: Highest-priority workload wins only if all conflicting workloads\n  are listed; otherwise all candidates are dropped (see PriorityOrder)\n- manual: Explicitly define overrides for all conflicts",
                   "enum": [
                     "prefix",
                     "priority",
@@ -2295,7 +2295,7 @@
                       ]
                     },
                     "priorityOrder": {
-                      "description": "PriorityOrder defines the workload priority order for the \"priority\" strategy.\nListed workloads also keep their own prompt names (unlisted workloads'\nprompts stay backend-prefixed).",
+                      "description": "PriorityOrder defines the workload priority order for the \"priority\" strategy\n(first has highest priority). It is not an allowlist: unique tools remain\nunchanged, including those from unlisted workloads. If all workloads in a\ntool-name collision are listed, the highest-priority one wins and losers\nare dropped. If any conflicting workload is unlisted, all candidates in that\ncollision are dropped from advertising and routing, with no prefix fallback,\nand the collision is logged at ERROR.\nSeparately, listed workloads keep their own prompt names (unlisted workloads'\nprompts stay backend-prefixed).",
                       "items": {
                         "type": "string"
                       },
@@ -4582,6 +4582,30 @@
                     "redis"
                   ],
                   "type": "string"
+                },
+                "tls": {
+                  "additionalProperties": false,
+                  "description": "TLS enables TLS for session storage and rate limiting. An empty\nconfiguration verifies the Redis server using system roots.\nOn Kubernetes, set spec.sessionStorage.tls instead: the operator derives this\nfield from it and rejects a value set under spec.config.sessionStorage.",
+                  "properties": {
+                    "caCertFile": {
+                      "description": "CACertFile is the path to a PEM-encoded CA bundle. When configured, this\nbundle replaces the system roots used to verify the Redis server.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "insecureSkipVerify": {
+                      "description": "InsecureSkipVerify skips server certificate and hostname verification.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -5215,6 +5239,45 @@
                 "redis"
               ],
               "type": "string"
+            },
+            "tls": {
+              "additionalProperties": false,
+              "description": "TLS enables TLS for the Redis session storage connection and, when rate\nlimiting is configured, for the rate-limit connection to the same Redis.\nWhen omitted, the connections are plaintext and the Redis password and\nsession data cross the network unencrypted. An empty object enables TLS\nwith server certificate verification against the system root CAs; set\ncaCertSecretRef for a private CA. A failed handshake never falls back to\nplaintext. Only used when provider is redis.",
+              "properties": {
+                "caCertSecretRef": {
+                  "additionalProperties": false,
+                  "description": "CACertSecretRef references a Secret containing a PEM-encoded CA certificate\nfor verifying the server. When not specified, system root CAs are used.\nIf the Secret or key does not exist, the pod cannot start (it stays in\nContainerCreating) rather than connecting without verification.",
+                  "properties": {
+                    "key": {
+                      "description": "Key is the key within the secret",
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "Name is the name of the secret",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "insecureSkipVerify": {
+                  "description": "InsecureSkipVerify disables server certificate and hostname verification.\nThe connection is encrypted but not authenticated, so anyone able to\nimpersonate the server can read the credentials and data sent over it.\nIntended for testing only; for self-signed or private CAs set\ncaCertSecretRef instead.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
           "required": [
@@ -5228,6 +5291,18 @@
             {
               "message": "address is required",
               "rule": "self.provider == 'redis' ? has(self.address) : true"
+            },
+            {
+              "message": "tls is only supported when provider is redis",
+              "rule": "!has(self.tls) || self.provider == 'redis'"
+            },
+            {
+              "message": "tls.insecureSkipVerify disables certificate verification, so tls.caCertSecretRef would be ignored; set only one",
+              "rule": "!has(self.tls) || !has(self.tls.caCertSecretRef) || !has(self.tls.insecureSkipVerify) || !self.tls.insecureSkipVerify"
+            },
+            {
+              "message": "tls.caCertSecretRef requires a non-empty name and key",
+              "rule": "!has(self.tls) || !has(self.tls.caCertSecretRef) || (size(self.tls.caCertSecretRef.name) \u003e 0 \u0026\u0026 size(self.tls.caCertSecretRef.key) \u003e 0)"
             }
           ]
         },
@@ -5277,6 +5352,10 @@
         {
           "message": "per-tool perUser rate limiting requires incomingAuth.type oidc",
           "rule": "!has(self.config) || !has(self.config.rateLimiting) || !has(self.config.rateLimiting.tools) || self.config.rateLimiting.tools.all(t, !has(t.perUser)) || (has(self.incomingAuth) \u0026\u0026 self.incomingAuth.type == 'oidc')"
+        },
+        {
+          "message": "config.sessionStorage.tls is ignored by the operator; set sessionStorage.tls instead",
+          "rule": "!has(self.config) || !has(self.config.sessionStorage) || !has(self.config.sessionStorage.tls)"
         },
         {
           "message": "embeddingServerRef provisions a managed TEI server and cannot be combined with optimizer.embeddingProvider 'openai'; openai mode uses embeddingService directly",
