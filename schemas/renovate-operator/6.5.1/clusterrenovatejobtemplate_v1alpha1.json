@@ -1,4 +1,5 @@
 {
+  "description": "ClusterRenovateJobTemplate holds shared RenovateJob configuration that\nRenovateJobs in any namespace inherit through spec.templateRef. Secret,\nConfigMap and token references it carries resolve in the consuming RenovateJob's\nown namespace.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -3714,8 +3715,11 @@
           ]
         },
         "image": {
-          "description": "Renovate Docker image to use",
-          "type": "string"
+          "description": "Renovate Docker image to use. Required, but may be inherited from templateRef,\nso it can be left unset here.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "imagePullSecrets": {
           "description": "Image pull secrets for the renovate pods",
@@ -3779,9 +3783,12 @@
           ]
         },
         "parallelism": {
-          "description": "Maximum number of projects to process in parallel",
+          "description": "Maximum number of projects to process in parallel. Required, but may be\ninherited from templateRef, so it can be left unset here.",
           "format": "int32",
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "priorityClassName": {
           "description": "PriorityClassName for the resulting pod, used to set the pod's scheduling priority.",
@@ -3792,7 +3799,7 @@
         },
         "provider": {
           "additionalProperties": false,
-          "description": "Renovate Provider Information to fill \"RENOVATE_ENDPOINT\" and \"RENOVATE_PLATFORM\" environment variables in the renovate container",
+          "description": "Renovate Provider Information to fill \"RENOVATE_ENDPOINT\" and \"RENOVATE_PLATFORM\" environment variables in the renovate container.\nRequired, but may be inherited from templateRef, so it can be left unset here.",
           "properties": {
             "endpoint": {
               "description": "Endpoint is the platform API base URL. Its host must be listed in the\noperator's policy.allowedHosts, otherwise the job is refused.",
@@ -3817,7 +3824,10 @@
           "required": [
             "name"
           ],
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "renovateConfig": {
           "additionalProperties": false,
@@ -3967,8 +3977,11 @@
           ]
         },
         "schedule": {
-          "description": "Cron schedule in standard cron format",
-          "type": "string"
+          "description": "Cron schedule in standard cron format. Required, but may be inherited from\ntemplateRef, so it can be left unset here.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "scratchVolume": {
           "additionalProperties": false,
@@ -4762,16 +4775,54 @@
           ]
         },
         "skipForks": {
-          "description": "If true, forked repositories discovered during autodiscovery will be excluded by querying the platform API",
+          "description": "If true, forked repositories discovered during autodiscovery will be excluded by querying the platform API.\nA pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.",
           "type": [
             "boolean",
             "null"
           ]
         },
         "skipPendingDeletion": {
-          "description": "If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.",
+          "description": "If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.\nA pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.",
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "suspend": {
+          "description": "If true, the operator starts no new run for this RenovateJob: the schedule\ndoes not fire, discovery is refused and queued projects are not dispatched.\nRuns already in progress finish. Projects queued meanwhile, by webhooks,\nthe UI or annotation triggers, stay Scheduled and run once it is resumed.\nA pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "templateRef": {
+          "additionalProperties": false,
+          "description": "TemplateRef inherits shared configuration from a RenovateJobTemplate (in the\nsame namespace) or a cluster-scoped ClusterRenovateJobTemplate. Fields set on\nthis RenovateJob override the template's per field; fields left unset are\ninherited. A templateRef set on a template itself is ignored: templates do not\nnest.",
+          "properties": {
+            "kind": {
+              "default": "RenovateJobTemplate",
+              "description": "Kind of the referenced template. Defaults to RenovateJobTemplate.",
+              "enum": [
+                "RenovateJobTemplate",
+                "ClusterRenovateJobTemplate"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Name of the referenced template.",
+              "maxLength": 253,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
             "null"
           ]
         },
@@ -5051,12 +5102,6 @@
           ]
         }
       },
-      "required": [
-        "image",
-        "parallelism",
-        "provider",
-        "schedule"
-      ],
       "type": [
         "object",
         "null"
@@ -5066,82 +5111,6 @@
           "message": "allowedGroups and access are mutually exclusive; migrate allowedGroups to access.adminGroups",
           "rule": "!(has(self.allowedGroups) \u0026\u0026 has(self.access))"
         }
-      ]
-    },
-    "status": {
-      "additionalProperties": false,
-      "description": "RenovateJobStatus defines the observed state of RenovateJob",
-      "properties": {
-        "conditions": {
-          "description": "Conditions holds the observed state of the RenovateJob. The operator sets the\n\"Accepted\" condition to False when the job violates the operator's policy, with\na reason and a message naming the value to fix; nothing runs while it is False.",
-          "items": {
-            "additionalProperties": false,
-            "description": "Condition contains details for one aspect of the current state of this API Resource.",
-            "properties": {
-              "lastTransitionTime": {
-                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
-                "format": "date-time",
-                "type": "string"
-              },
-              "message": {
-                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
-                "maxLength": 32768,
-                "type": "string"
-              },
-              "observedGeneration": {
-                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
-                "format": "int64",
-                "minimum": 0,
-                "type": [
-                  "integer",
-                  "null"
-                ]
-              },
-              "reason": {
-                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
-                "maxLength": 1024,
-                "minLength": 1,
-                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
-                "type": "string"
-              },
-              "status": {
-                "description": "status of the condition, one of True, False, Unknown.",
-                "enum": [
-                  "True",
-                  "False",
-                  "Unknown"
-                ],
-                "type": "string"
-              },
-              "type": {
-                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
-                "maxLength": 316,
-                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
-                "type": "string"
-              }
-            },
-            "required": [
-              "lastTransitionTime",
-              "message",
-              "reason",
-              "status",
-              "type"
-            ],
-            "type": "object"
-          },
-          "type": [
-            "array",
-            "null"
-          ],
-          "x-kubernetes-list-map-keys": [
-            "type"
-          ],
-          "x-kubernetes-list-type": "map"
-        }
-      },
-      "type": [
-        "object",
-        "null"
       ]
     }
   },
