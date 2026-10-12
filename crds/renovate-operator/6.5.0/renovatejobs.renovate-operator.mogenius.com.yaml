@@ -1,10 +1,9 @@
 ---
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: renovatejobs.renovate-operator.mogenius.com
 spec:
   group: renovate-operator.mogenius.com
@@ -19,6 +18,9 @@ spec:
         - jsonPath: .spec.schedule
           name: Schedule
           type: string
+        - jsonPath: .spec.suspend
+          name: Suspend
+          type: boolean
         - jsonPath: .spec.provider.name
           name: Provider
           type: string
@@ -1020,7 +1022,9 @@ spec:
                             description: Selects a key of a ConfigMap.
                             properties:
                               key:
-                                description: The key to select.
+                                description: |-
+                                  The key to select from the ConfigMap's Data field.
+                                  Keys in the BinaryData field are not currently propagated to container env vars.
                                 type: string
                               name:
                                 default: ""
@@ -1189,10 +1193,20 @@ spec:
                   items:
                     description: VolumeMount describes a mounting of a Volume within a container.
                     properties:
-                      mountPath:
+                      bindMountOptions:
                         description: |-
-                          Path within the container at which the volume should be mounted.  Must
-                          not contain ':'.
+                          bindMountOptions is the list of additional bind mount options to apply when
+                          mounting this volume into the container. Allowed values are noexec,
+                          nodev, and nosuid. These are Linux mount options and have no effect on
+                          Windows nodes.
+                          This field is not supported with image volumes.
+                          This is an alpha field and requires enabling the VolumeBindMountOptions feature gate.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      mountPath:
+                        description: Path within the container at which the volume should be mounted.
                         type: string
                       mountPropagation:
                         description: |-
@@ -1456,6 +1470,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           items:
                             description: |-
                               items if unspecified, each key-value pair in the Data field of the referenced
@@ -1488,6 +1509,13 @@ spec:
                                     May not contain the path element '..'.
                                     May not start with the string '..'.
                                   type: string
+                                user:
+                                  description: |-
+                                    user is Optional: The owner UID of the created file.
+                                    If specified, the item-level user field takes precedence over defaultUser.
+                                    (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                  format: int64
+                                  type: integer
                               required:
                                 - key
                                 - path
@@ -1571,6 +1599,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           items:
                             description: Items is a list of downward API volume file
                             items:
@@ -1624,6 +1659,13 @@ spec:
                                     - resource
                                   type: object
                                   x-kubernetes-map-type: atomic
+                                user:
+                                  description: |-
+                                    user is Optional: The owner UID of the created file.
+                                    If specified, the item-level user field takes precedence over defaultUser.
+                                    (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                  format: int64
+                                  type: integer
                               required:
                                 - path
                               type: object
@@ -1642,6 +1684,18 @@ spec:
                               Must be an empty string (default) or Memory.
                               More info: https://kubernetes.io/docs/concepts/storage/volumes#emptydir
                             type: string
+                          mode:
+                            description: |-
+                              mode specifies the permission bits for the emptyDir directory, in numeric
+                              notation (e.g., 0755, 01777). Must be a value between 0000 and 01777.
+                              If not specified, defaults to 0777.
+                              This might be in conflict with other options that affect the file
+                              mode, like fsGroup. If fsGroup is specified, the fsGroup permissions
+                              will override the mode specified here.
+                              This field has no effect on Windows.
+                              This field is alpha and requires EmptyDirVolumeMode featuregate to be enabled.
+                            format: int32
+                            type: integer
                           sizeLimit:
                             anyOf:
                               - type: integer
@@ -1735,8 +1789,8 @@ spec:
                                       * An existing PVC (PersistentVolumeClaim)
                                       If the provisioner or an external controller can support the specified data source,
                                       it will create a new volume based on the contents of the specified data source.
-                                      When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                      and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                      dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                      copied to dataSource when dataSourceRef.namespace is not specified.
                                       If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                     properties:
                                       apiGroup:
@@ -1779,7 +1833,6 @@ spec:
                                         specified.
                                       * While dataSource only allows local objects, dataSourceRef allows objects
                                         in any namespaces.
-                                      (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                       (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                     properties:
                                       apiGroup:
@@ -2326,6 +2379,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           sources:
                             description: |-
                               sources is the list of volume projections. Each entry in this list
@@ -2421,6 +2481,13 @@ spec:
                                         Mutually-exclusive with name.  The contents of all selected
                                         ClusterTrustBundles will be unified and deduplicated.
                                       type: string
+                                    user:
+                                      description: |-
+                                        user is Optional: The owner UID of the created file.
+                                        If specified, the item-level user field takes precedence over defaultUser.
+                                        (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                      format: int64
+                                      type: integer
                                   required:
                                     - path
                                   type: object
@@ -2459,6 +2526,13 @@ spec:
                                               May not contain the path element '..'.
                                               May not start with the string '..'.
                                             type: string
+                                          user:
+                                            description: |-
+                                              user is Optional: The owner UID of the created file.
+                                              If specified, the item-level user field takes precedence over defaultUser.
+                                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                            format: int64
+                                            type: integer
                                         required:
                                           - key
                                           - path
@@ -2535,6 +2609,13 @@ spec:
                                               - resource
                                             type: object
                                             x-kubernetes-map-type: atomic
+                                          user:
+                                            description: |-
+                                              user is Optional: The owner UID of the created file.
+                                              If specified, the item-level user field takes precedence over defaultUser.
+                                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                            format: int64
+                                            type: integer
                                         required:
                                           - path
                                         type: object
@@ -2641,6 +2722,13 @@ spec:
                                     signerName:
                                       description: Kubelet's generated CSRs will be addressed to this signer.
                                       type: string
+                                    user:
+                                      description: |-
+                                        user is Optional: The owner UID of the created file.
+                                        If specified, the item-level user field takes precedence over defaultUser.
+                                        (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                      format: int64
+                                      type: integer
                                     userAnnotations:
                                       additionalProperties:
                                         type: string
@@ -2698,6 +2786,13 @@ spec:
                                               May not contain the path element '..'.
                                               May not start with the string '..'.
                                             type: string
+                                          user:
+                                            description: |-
+                                              user is Optional: The owner UID of the created file.
+                                              If specified, the item-level user field takes precedence over defaultUser.
+                                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                            format: int64
+                                            type: integer
                                         required:
                                           - key
                                           - path
@@ -2743,6 +2838,13 @@ spec:
                                         path is the path relative to the mount point of the file to project the
                                         token into.
                                       type: string
+                                    user:
+                                      description: |-
+                                        user is Optional: The owner UID of the created file.
+                                        If specified, the item-level user field takes precedence over defaultUser.
+                                        (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                      format: int64
+                                      type: integer
                                   required:
                                     - path
                                   type: object
@@ -2943,6 +3045,13 @@ spec:
                               mode, like fsGroup, and the result can be other mode bits set.
                             format: int32
                             type: integer
+                          defaultUser:
+                            description: |-
+                              defaultUser is Optional: The owner UID of the created files by default.
+                              The defaultUser field is only used as a fallback when the item-level user field is unset.
+                              (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                            format: int64
+                            type: integer
                           items:
                             description: |-
                               items If unspecified, each key-value pair in the Data field of the referenced
@@ -2975,6 +3084,13 @@ spec:
                                     May not contain the path element '..'.
                                     May not start with the string '..'.
                                   type: string
+                                user:
+                                  description: |-
+                                    user is Optional: The owner UID of the created file.
+                                    If specified, the item-level user field takes precedence over defaultUser.
+                                    (Alpha) This field requires the AtomicWriteVolumeUserFields feature gate to be enabled.
+                                  format: int64
+                                  type: integer
                               required:
                                 - key
                                 - path
@@ -3089,7 +3205,9 @@ spec:
                     - secretName
                   type: object
                 image:
-                  description: Renovate Docker image to use
+                  description: |-
+                    Renovate Docker image to use. Required, but may be inherited from templateRef,
+                    so it can be left unset here.
                   type: string
                 imagePullSecrets:
                   description: Image pull secrets for the renovate pods
@@ -3128,14 +3246,18 @@ spec:
                   description: Node selector for scheduling the resulting pod
                   type: object
                 parallelism:
-                  description: Maximum number of projects to process in parallel
+                  description: |-
+                    Maximum number of projects to process in parallel. Required, but may be
+                    inherited from templateRef, so it can be left unset here.
                   format: int32
                   type: integer
                 priorityClassName:
                   description: PriorityClassName for the resulting pod, used to set the pod's scheduling priority.
                   type: string
                 provider:
-                  description: Renovate Provider Information to fill "RENOVATE_ENDPOINT" and "RENOVATE_PLATFORM" environment variables in the renovate container
+                  description: |-
+                    Renovate Provider Information to fill "RENOVATE_ENDPOINT" and "RENOVATE_PLATFORM" environment variables in the renovate container.
+                    Required, but may be inherited from templateRef, so it can be left unset here.
                   properties:
                     endpoint:
                       description: |-
@@ -3253,7 +3375,9 @@ spec:
                   description: RuntimeClassName for the resulting pod, used to select a non-default container runtime
                   type: string
                 schedule:
-                  description: Cron schedule in standard cron format
+                  description: |-
+                    Cron schedule in standard cron format. Required, but may be inherited from
+                    templateRef, so it can be left unset here.
                   type: string
                 scratchVolume:
                   description: Configuration for the scratch volume
@@ -3319,8 +3443,8 @@ spec:
                                     * An existing PVC (PersistentVolumeClaim)
                                     If the provisioner or an external controller can support the specified data source,
                                     it will create a new volume based on the contents of the specified data source.
-                                    When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-                                    and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                                    dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be
+                                    copied to dataSource when dataSourceRef.namespace is not specified.
                                     If the namespace is specified, then dataSourceRef will not be copied to dataSource.
                                   properties:
                                     apiGroup:
@@ -3363,7 +3487,6 @@ spec:
                                       specified.
                                     * While dataSource only allows local objects, dataSourceRef allows objects
                                       in any namespaces.
-                                    (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
                                     (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
                                   properties:
                                     apiGroup:
@@ -3809,11 +3932,8 @@ spec:
                             Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                             whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
                             CSIDriver instance. Other volumes are always re-labelled recursively.
-                            "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
-                            If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
-                            If not specified and SELinuxMount feature gate is disabled, "MountOption" is used for ReadWriteOncePod volumes
-                            and "Recursive" for all other volumes.
+                            If not specified, "MountOption" is used.
 
                             This field affects only Pods that have SELinux label set, either in PodSecurityContext or in SecurityContext of all containers.
 
@@ -3952,11 +4072,46 @@ spec:
                       type: string
                   type: object
                 skipForks:
-                  description: If true, forked repositories discovered during autodiscovery will be excluded by querying the platform API
+                  description: |-
+                    If true, forked repositories discovered during autodiscovery will be excluded by querying the platform API.
+                    A pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.
                   type: boolean
                 skipPendingDeletion:
-                  description: If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.
+                  description: |-
+                    If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.
+                    A pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.
                   type: boolean
+                suspend:
+                  description: |-
+                    If true, the operator starts no new run for this RenovateJob: the schedule
+                    does not fire, discovery is refused and queued projects are not dispatched.
+                    Runs already in progress finish. Projects queued meanwhile, by webhooks,
+                    the UI or annotation triggers, stay Scheduled and run once it is resumed.
+                    A pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.
+                  type: boolean
+                templateRef:
+                  description: |-
+                    TemplateRef inherits shared configuration from a RenovateJobTemplate (in the
+                    same namespace) or a cluster-scoped ClusterRenovateJobTemplate. Fields set on
+                    this RenovateJob override the template's per field; fields left unset are
+                    inherited. A templateRef set on a template itself is ignored: templates do not
+                    nest.
+                  properties:
+                    kind:
+                      default: RenovateJobTemplate
+                      description: Kind of the referenced template. Defaults to RenovateJobTemplate.
+                      enum:
+                        - RenovateJobTemplate
+                        - ClusterRenovateJobTemplate
+                      type: string
+                    name:
+                      description: Name of the referenced template.
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                  required:
+                    - name
+                  type: object
                 tolerations:
                   description: Tolerations for scheduling the resulting pod
                   items:
@@ -4225,11 +4380,6 @@ spec:
                   required:
                     - enabled
                   type: object
-              required:
-                - image
-                - parallelism
-                - provider
-                - schedule
               type: object
               x-kubernetes-validations:
                 - message: allowedGroups and access are mutually exclusive; migrate allowedGroups to access.adminGroups
@@ -4299,102 +4449,6 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                projects:
-                  items:
-                    description: Status of a single project within a RenovateJob
-                    properties:
-                      duration:
-                        type: string
-                      executionOptions:
-                        properties:
-                          debug:
-                            description: If true, the renovate job will be executed with RENOVATE_LOG_LEVEL=debug
-                            type: boolean
-                        type: object
-                      lastTransition:
-                        description: LastTransition records when the project most recently changed state.
-                        format: date-time
-                        type: string
-                      logIssues:
-                        description: LogIssues contains aggregate counts and individual issue messages from a Renovate run.
-                        properties:
-                          errorCount:
-                            type: integer
-                          issues:
-                            items:
-                              description: LogIssue represents a single warning or error from Renovate logs.
-                              properties:
-                                level:
-                                  type: integer
-                                message:
-                                  type: string
-                              required:
-                                - level
-                                - message
-                              type: object
-                            type: array
-                          truncated:
-                            type: boolean
-                          warnCount:
-                            type: integer
-                        required:
-                          - errorCount
-                          - warnCount
-                        type: object
-                      name:
-                        type: string
-                      prActivity:
-                        description: PRActivity contains aggregate counts and individual details of PR activity from a run.
-                        properties:
-                          automerged:
-                            type: integer
-                          created:
-                            type: integer
-                          needsApproval:
-                            type: integer
-                          prs:
-                            items:
-                              description: PRDetail represents a single PR found in Renovate logs.
-                              properties:
-                                action:
-                                  description: PRAction represents what happened to a PR in a Renovate run.
-                                  type: string
-                                branch:
-                                  type: string
-                                number:
-                                  type: integer
-                                title:
-                                  type: string
-                              required:
-                                - action
-                                - branch
-                              type: object
-                            type: array
-                          truncated:
-                            type: boolean
-                          unchanged:
-                            type: integer
-                          updated:
-                            type: integer
-                        required:
-                          - automerged
-                          - created
-                          - needsApproval
-                          - unchanged
-                          - updated
-                        type: object
-                      priority:
-                        format: int32
-                        type: integer
-                      renovateResultStatus:
-                        type: string
-                      status:
-                        type: string
-                    required:
-                      - name
-                      - status
-                    type: object
-                  type: array
               type: object
           type: object
       served: true
