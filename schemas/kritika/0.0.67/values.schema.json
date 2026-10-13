@@ -412,6 +412,16 @@
           "title": "runnerRuntimeClass",
           "type": "string"
         },
+        "threadWorkers": {
+          "default": "",
+          "description": "Finding resolution/restoration jobs one replica runs at once, independently of model follow-ups and without runner pods; 1 unless set.",
+          "required": [],
+          "title": "threadWorkers",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
         "transcriptRetention": {
           "default": "",
           "description": "How long a review's full model transcript is kept, at least 24h; 720h unless set.",
@@ -837,7 +847,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Render the Grafana dashboard ConfigMap (for the kube-prometheus-stack sidecar or grafana-operator): kritika's health, intake, reviews, model spend, runner Jobs and database pools, from the metrics the ServiceMonitor scrapes.",
+              "description": "Render the Grafana dashboard ConfigMap (for the kube-prometheus-stack sidecar or grafana-operator): kritika's health, intake, reviews, model spend, runner Jobs, database pools, queue delays and vector searches, from the metrics the ServiceMonitor scrapes.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -929,7 +939,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, and a replica whose configuration file drifted from the applied one.",
+              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics and vector-search errors.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -949,6 +959,30 @@
               "default": "5m",
               "description": "How long no replica may hold the leader lock before KritikaNoLeader fires. A standby takes the lock within one leader retry interval of the database answering, and a dead leader's session is dropped by Postgres within about a minute.",
               "title": "noLeaderFor",
+              "type": "string"
+            },
+            "queueAgeSeconds": {
+              "default": 600,
+              "description": "Oldest runnable review/followup/thread job age in seconds that triggers KritikaQueueDelayed. Index onboarding is excluded; its age remains on the dashboard.",
+              "title": "queueAgeSeconds",
+              "type": "integer"
+            },
+            "queueDelayFor": {
+              "default": "15m",
+              "description": "How long runnable work must exceed queueAgeSeconds before warning.",
+              "title": "queueDelayFor",
+              "type": "string"
+            },
+            "queueStatsUnavailableFor": {
+              "default": "5m",
+              "description": "How long every scraped replica may succeed on fewer than 75% of queue snapshot reads over 5 minutes before warning.",
+              "title": "queueStatsUnavailableFor",
+              "type": "string"
+            },
+            "vectorSearchErrorsFor": {
+              "default": "10m",
+              "description": "How long the vector-search error ratio must exceed 10% (at least 10 non-canceled requests in 15 minutes) before warning.",
+              "title": "vectorSearchErrorsFor",
               "type": "string"
             }
           },
