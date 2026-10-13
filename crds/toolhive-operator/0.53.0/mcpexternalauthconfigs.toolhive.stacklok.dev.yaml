@@ -240,6 +240,10 @@ spec:
                         All other endpoints (token, registration, JWKS) remain derived from the issuer.
                         This is useful when the browser-facing authorization endpoint needs to be on a
                         different host than the issuer used for backend-to-backend calls.
+                        The upstream callback (`redirectUri` on each upstream provider, defaulting to
+                        `{resourceUrl}/oauth/callback`) must share this hostname: the callback only
+                        completes a login for the browser that started it, bound by a host-only cookie
+                        set on this endpoint, so a different callback host rejects every browser login.
                         Must be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts
                         when insecureAllowHTTP is true) without query, fragment, or trailing slash.
                       pattern: ^https?://[^\s?#]+[^/\s?#]$
@@ -741,7 +745,7 @@ spec:
                                   - message: allowedDelegateClients must not combine the wildcard "*" with specific client IDs
                                     rule: '!(''*'' in self.allowedDelegateClients) || size(self.allowedDelegateClients) == 1'
                                   - message: allowMayAct must not be enabled when allowedDelegateClients contains the wildcard "*"
-                                    rule: '!(self.allowMayAct && ''*'' in self.allowedDelegateClients)'
+                                    rule: '!(has(self.allowMayAct) && self.allowMayAct && ''*'' in self.allowedDelegateClients)'
                                   - message: actorClaim must name a readable claim; use client_id or a non-reserved claim such as azp, appid, or cid
                                     rule: '!has(self.actorClaim) || !(self.actorClaim in [''sub'', ''iss'', ''aud'', ''exp'', ''iat'', ''nbf'', ''jti'', ''name'', ''email'', ''scope'', ''scp'', ''may_act''])'
                               maxItems: 20
@@ -1075,6 +1079,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -1088,8 +1094,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             tls:
@@ -1101,6 +1110,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -1114,8 +1125,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             writeTimeout:
@@ -1695,6 +1709,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: Scopes are the OAuth scopes to request from the upstream IdP.
@@ -2018,6 +2035,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: |-
@@ -2864,6 +2884,10 @@ spec:
                         All other endpoints (token, registration, JWKS) remain derived from the issuer.
                         This is useful when the browser-facing authorization endpoint needs to be on a
                         different host than the issuer used for backend-to-backend calls.
+                        The upstream callback (`redirectUri` on each upstream provider, defaulting to
+                        `{resourceUrl}/oauth/callback`) must share this hostname: the callback only
+                        completes a login for the browser that started it, bound by a host-only cookie
+                        set on this endpoint, so a different callback host rejects every browser login.
                         Must be a valid HTTPS URL (or HTTP for localhost, or HTTP for trusted in-cluster hosts
                         when insecureAllowHTTP is true) without query, fragment, or trailing slash.
                       pattern: ^https?://[^\s?#]+[^/\s?#]$
@@ -3365,7 +3389,7 @@ spec:
                                   - message: allowedDelegateClients must not combine the wildcard "*" with specific client IDs
                                     rule: '!(''*'' in self.allowedDelegateClients) || size(self.allowedDelegateClients) == 1'
                                   - message: allowMayAct must not be enabled when allowedDelegateClients contains the wildcard "*"
-                                    rule: '!(self.allowMayAct && ''*'' in self.allowedDelegateClients)'
+                                    rule: '!(has(self.allowMayAct) && self.allowMayAct && ''*'' in self.allowedDelegateClients)'
                                   - message: actorClaim must name a readable claim; use client_id or a non-reserved claim such as azp, appid, or cid
                                     rule: '!has(self.actorClaim) || !(self.actorClaim in [''sub'', ''iss'', ''aud'', ''exp'', ''iat'', ''nbf'', ''jti'', ''name'', ''email'', ''scope'', ''scp'', ''may_act''])'
                               maxItems: 20
@@ -3699,6 +3723,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -3712,8 +3738,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             tls:
@@ -3725,6 +3754,8 @@ spec:
                                   description: |-
                                     CACertSecretRef references a Secret containing a PEM-encoded CA certificate
                                     for verifying the server. When not specified, system root CAs are used.
+                                    If the Secret or key does not exist, the pod cannot start (it stays in
+                                    ContainerCreating) rather than connecting without verification.
                                   properties:
                                     key:
                                       description: Key is the key within the secret
@@ -3738,8 +3769,11 @@ spec:
                                   type: object
                                 insecureSkipVerify:
                                   description: |-
-                                    InsecureSkipVerify skips TLS certificate verification.
-                                    Use when connecting to services with self-signed certificates.
+                                    InsecureSkipVerify disables server certificate and hostname verification.
+                                    The connection is encrypted but not authenticated, so anyone able to
+                                    impersonate the server can read the credentials and data sent over it.
+                                    Intended for testing only; for self-signed or private CAs set
+                                    caCertSecretRef instead.
                                   type: boolean
                               type: object
                             writeTimeout:
@@ -4319,6 +4353,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: Scopes are the OAuth scopes to request from the upstream IdP.
@@ -4642,6 +4679,9 @@ spec:
                                   RedirectURI is the callback URL where the upstream IdP will redirect after authentication.
                                   When not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the
                                   URL associated with the resource (e.g., MCPServer or vMCP) using this config.
+                                  Its hostname must match the browser-facing authorization endpoint (`issuer`, or
+                                  `authorizationEndpointBaseUrl` when set): the callback is bound to the browser that
+                                  started the login by a host-only cookie, so a different host rejects every browser login.
                                 type: string
                               scopes:
                                 description: |-
