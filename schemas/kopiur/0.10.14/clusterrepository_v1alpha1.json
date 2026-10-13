@@ -978,8 +978,18 @@
           "description": "Concurrency limits for mover Jobs against this repository (absent = unlimited).",
           "nullable": true,
           "properties": {
+            "maxConcurrentDeleteJobs": {
+              "description": "Ceiling on how many snapshot-delete batch Jobs may run against this\nrepository at once. **Absent means 1**: one batch at a time, and the next\nbatch starts when the current one finishes.\n\nA batch Job deletes hundreds of snapshots in a single kopia call. kopia\nserializes manifest deletes on the repository's index anyway, so running\nseveral batches in parallel adds no throughput. Each extra Job only loads\nthe full index again against the same backend (issue #477). Raise it only\nfor a fast local backend with a very large deletion backlog.\n\nMust be at least 1. There is no \"unlimited\" value. Omit the field for the\ndefault. The controller-wide `maxConcurrentDeleteJobs` Helm value still\ncaps delete Jobs across ALL repositories on top of this.\n\nNo schema `default:` is emitted (api-conventions §4a); the controller\nresolves absent to 1, so stored repositories carry no diff noise.",
+              "format": "uint32",
+              "minimum": 1,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "maxConcurrentJobs": {
-              "description": "Ceiling on how many of this repository's mover Jobs may be in flight at\nonce. Backup snapshots, restores, and replication runs that READ FROM this\nrepository all draw from ONE pool — a repository's backend (and the\nbandwidth to it) is the shared resource, so splitting the budget per work\nkind would let three \"safe\" limits still saturate it.\n\nRestores are **always admitted** and never parked: a restore is a recovery\nin progress, and holding one behind a queue of routine backups is exactly\nbackwards. An in-flight restore still COUNTS toward the pool, so it\ndisplaces backups rather than adding to them.\n\nExcluded from the pool entirely: maintenance (already single-flight per\nrepository), verification, pin, and snapshot-delete batch Jobs. These are\noperator-driven housekeeping that must not be starved by a saturated\nbackup pool.\n\nAbsent or `0` means unlimited — the default, and today's behavior.\n\nNo schema `default:` is emitted for this field (api-conventions §4a):\nabsent and `0` are the SAME state (unlimited), so a materialized default\nwould stamp `{maxConcurrentJobs: 0}` onto every stored repository — GitOps\ndiff noise for a value that changes nothing.",
+              "description": "Ceiling on how many of this repository's mover Jobs may be in flight at\nonce. Backup snapshots, restores, and replication runs that READ FROM this\nrepository all draw from ONE pool — a repository's backend (and the\nbandwidth to it) is the shared resource, so splitting the budget per work\nkind would let three \"safe\" limits still saturate it.\n\nRestores are **always admitted** and never parked: a restore is a recovery\nin progress, and holding one behind a queue of routine backups is exactly\nbackwards. An in-flight restore still COUNTS toward the pool, so it\ndisplaces backups rather than adding to them.\n\nExcluded from the pool entirely: maintenance (already single-flight per\nrepository), verification, pin, and snapshot-delete batch Jobs. These are\noperator-driven housekeeping that must not be starved by a saturated\nbackup pool. Delete batches have their own cap, `maxConcurrentDeleteJobs`.\n\nAbsent or `0` means unlimited — the default, and today's behavior.\n\nNo schema `default:` is emitted for this field (api-conventions §4a):\nabsent and `0` are the SAME state (unlimited), so a materialized default\nwould stamp `{maxConcurrentJobs: 0}` onto every stored repository — GitOps\ndiff noise for a value that changes nothing.",
               "format": "uint32",
               "minimum": 0,
               "nullable": true,
@@ -5821,6 +5831,19 @@
           "description": "Catalog-materialization status (discovered-backup count, last refresh).",
           "nullable": true,
           "properties": {
+            "coverage": {
+              "description": "How much of the repository a catalog scan could see.",
+              "enum": [
+                "Complete",
+                "Capped",
+                "Partial"
+              ],
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "discoveredBackupCount": {
               "description": "How many `Snapshot` CRs were materialized from the catalog scan.",
               "format": "int64",
@@ -6272,7 +6295,7 @@
               ]
             },
             "snapshotCount": {
-              "description": "Total snapshots present in the repository (across all identities).",
+              "description": "Total COMPLETE snapshots present in the repository (across all\nidentities). Incomplete checkpoints an interrupted `kopia snapshot\ncreate` left behind are not snapshots and are not counted.",
               "format": "int64",
               "nullable": true,
               "type": [
