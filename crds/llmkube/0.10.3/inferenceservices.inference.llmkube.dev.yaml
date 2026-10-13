@@ -1023,7 +1023,10 @@ spec:
                   description: |-
                     BindAddress sets the network address the runtime listens on.
                     Maps to --host for llamacpp/llamacpp-router/vllm/sglang and --hostname
-                    for tgi. Default is "::" (dual-stack wildcard; see #972/#973). Prefer
+                    for tgi. Default is "::" (dual-stack wildcard; see #972/#973), except
+                    for sglang, whose default is "" (every interface, both address
+                    families): sglang binds "::" IPv6-only, so it would have no IPv4
+                    listener (#2027). Prefer
                     this over raw spec.extraArgs: it is validated and discoverable via
                     `kubectl explain`. If --host (or --hostname for TGI) is also present in
                     spec.extraArgs, extraArgs wins and this is skipped.
@@ -1384,7 +1387,9 @@ spec:
                   description: |-
                     ExtraArgs provides additional command-line arguments passed directly to the
                     runtime process. Use for flags not yet supported as typed CRD fields.
-                    Arguments are appended after all other configured flags.
+                    They are added alongside the operator's own flags, but the operator may
+                    still append arguments of its own afterward (for example llama.cpp's
+                    --metrics), so do not rely on extraArgs overriding a flag by position.
                     Supported by the "llamacpp", "llamacpp-router", "sglang", "tgi" and
                     "vllm" runtimes. Ignored by "generic" (which takes spec.args instead)
                     and "personaplex" — except that whenever spec.command is set, extraArgs
@@ -3556,10 +3561,36 @@ spec:
                         - Cached
                         - Ephemeral
                       type: string
+                    storageClassName:
+                      description: |-
+                        StorageClassName overrides the operator's --model-cache-storage-class
+                        flag for the model-cache PVC this operator creates for the service
+                        (#1963). A mixed cluster can then cache on local disk where a
+                        cloud-default class cannot attach, without hand-managing a claimName
+                        PVC per service.
+
+                        In perService mode the field is authoritative: the per-service claim is
+                        created with this class. In shared mode the namespace has one claim
+                        that every service shares, so the field is honored only at first
+                        creation (first writer wins); a service whose request differs from the
+                        existing claim's class gets a ModelCacheStorageClassIgnored warning and
+                        uses the claim as created, because storageClassName is immutable once
+                        bound. An empty value falls back to the flag; with neither set, the
+                        cluster default applies. Existing PVCs are never mutated.
+
+                        Mutually exclusive with claimName (the claim is user-owned) and with
+                        persistence Ephemeral (no PVC exists to class).
+                      maxLength: 63
+                      minLength: 1
+                      type: string
                   type: object
                   x-kubernetes-validations:
                     - message: 'claimName cannot be set when persistence is Ephemeral: one names a cache volume to use, the other declines to use any'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.claimName))'
+                    - message: 'storageClassName cannot be set together with claimName: the named claim is user-owned and its storage class was chosen when the claim itself was created'
+                      rule: '!(has(self.storageClassName) && has(self.claimName))'
+                    - message: 'storageClassName cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to class'
+                      rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.storageClassName))'
                 modelRef:
                   description: ModelRef references the Model CR that contains the model to serve
                   type: string
@@ -4511,7 +4542,7 @@ spec:
                   default: 1
                   description: Replicas is the desired number of inference pods
                   format: int32
-                  maximum: 10
+                  maximum: 100
                   minimum: 0
                   type: integer
                 resources:
@@ -4735,16 +4766,23 @@ spec:
                     - type
                   type: object
                 runtime:
-                  default: llamacpp
                   description: |-
                     Runtime selects the inference server backend.
-                    "llamacpp" (default): llama.cpp server with auto-generated args and /health probes.
+                    Unset: in-cluster, the same as "llamacpp"; on the metal-agent, the
+                    agent's --runtime flag (llama-server unless configured otherwise).
+                    "llamacpp": llama.cpp server with auto-generated args and /health probes.
                     "llamacpp-router": llama.cpp server in router mode for multi-model dynamic loading.
                     "generic": user-provided container with custom command, args, env, and probes.
                     "personaplex": NVIDIA PersonaPlex (Moshi) speech-to-speech server.
                     "vllm": vLLM OpenAI-compatible server with PagedAttention.
                     "tgi": HuggingFace Text Generation Inference server.
                     "sglang": SGLang OpenAI-compatible server with RadixAttention prefix caching.
+                    Metal-agent only (the Model must set hardware.accelerator: metal):
+                    "mlx-server", "omlx", "vllm-swift", "ollama", "tensorfold" (TensorFold,
+                    exact speculative decoding on MLX; serves an MLX model directory). The
+                    agent must have the matching binary configured.
+                    No schema default: an unset value must reach the metal-agent as empty so
+                    its --runtime flag applies (#525).
                   enum:
                     - llamacpp
                     - llamacpp-router
@@ -4753,6 +4791,11 @@ spec:
                     - tgi
                     - sglang
                     - generic
+                    - mlx-server
+                    - omlx
+                    - vllm-swift
+                    - ollama
+                    - tensorfold
                   type: string
                 runtimeClassName:
                   description: |-
@@ -4959,13 +5002,38 @@ spec:
                     attentionBackend:
                       description: |-
                         Attention
-                        AttentionBackend selects the attention implementation. flashinfer is
-                        fastest on recent NVIDIA GPUs; flash_attn is portable; torch_native is
-                        the fallback. Maps to SGLang --attention-backend flag.
+                        AttentionBackend selects the attention implementation. Unset lets SGLang
+                        choose per model and GPU: fa3 on Hopper, trtllm_mha (MHA) or flashinfer
+                        (MLA) on Blackwell, flashinfer or triton elsewhere. Some models override
+                        that: Qwen3.5-family hybrid models on Blackwell get triton while the
+                        prefix cache runs without the mamba extra buffer, which is slow on long
+                        prompts; flashinfer is the typed fix (see the SGLang on Blackwell guide).
+                        The values are SGLang v0.5.15's --attention-backend choices. flash_attn
+                        is not one (SGLang exits with an invalid-choice error); it stays
+                        accepted so existing objects remain valid, and the SGLangSpecValid
+                        condition reports it. Maps to SGLang --attention-backend flag.
                       enum:
-                        - flashinfer
-                        - flash_attn
+                        - triton
                         - torch_native
+                        - flex_attention
+                        - dsa
+                        - dsv4
+                        - cutlass_mla
+                        - fa3
+                        - fa4
+                        - flashinfer
+                        - flashmla
+                        - trtllm_mla
+                        - cutedsl_mla
+                        - tokenspeed_mla
+                        - trtllm_mha
+                        - dual_chunk_flash_attn
+                        - aiter
+                        - wave
+                        - intel_amx
+                        - ascend
+                        - intel_xpu
+                        - flash_attn
                       type: string
                     chatTemplate:
                       description: |-
@@ -5230,6 +5298,47 @@ spec:
                           minimum: 1
                           type: integer
                       type: object
+                    stallDetection:
+                      description: |-
+                        StallDetection opts the service into a liveness probe that detects a
+                        silently wedged SGLang engine: work in flight while it stops making
+                        progress, which /health does not see. The probe execs a small check
+                        against the local /metrics endpoint and fails once the engine is busy
+                        (sglang:num_running_reqs > 0 or sglang:kv_used_tokens > 0) with
+                        sglang:realtime_tokens_total, the prompt and generation counters, and
+                        sglang:kv_used_tokens all flat for windowSeconds.
+
+                        SGLang's signals differ from vLLM's (measured on SGLang v0.5.15): a
+                        request being prefilled is not counted in num_running_reqs, and the
+                        prompt and generation counters only advance when a request finishes.
+                        kv_used_tokens marks the engine busy through prefill and decode, and
+                        realtime_tokens_total advances on every prefill chunk and decode step,
+                        so a wedge mid-prefill is caught and a long prefill is not mistaken
+                        for one. Prefill chunks arrive further apart as context grows, so the
+                        window must exceed the slowest single chunk on the hardware.
+
+                        The check replaces the /health liveness probe only; startup and
+                        readiness stay on /health_generate. spec.probeOverrides.liveness still
+                        wins when set. The field is inert unless spec.runtime is "sglang". The
+                        probe execs python3 and keeps its state under /tmp, so it needs an
+                        image with python3 on PATH and a writable /tmp. Default off.
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled turns on the stall-detecting exec liveness probe. When nil
+                            or false, the liveness probe is the standard /health HTTP check.
+                          type: boolean
+                        windowSeconds:
+                          description: |-
+                            WindowSeconds is how long every progress signal must stay flat while
+                            the engine is busy before it is declared stalled. Defaults to 120
+                            when unset. Restart latency is roughly window + liveness period x
+                            failure threshold (about 165s at the defaults).
+                          format: int32
+                          maximum: 3600
+                          minimum: 10
+                          type: integer
+                      type: object
                     tensorParallelSize:
                       description: |-
                         Sharding
@@ -5405,6 +5514,17 @@ spec:
                       rule: (self.type in ['draft','draft-simple','draft-eagle3','draft-dflash','draft-dspark','draft-mtp']) || ((!has(self.draftModelRef) || self.draftModelRef.size() == 0) && (!has(self.draftModel) || self.draftModel.size() == 0))
                     - message: set only one of draftModelRef (a separate Model CR) and draftModel (a file in Model.files), not both
                       rule: '!((has(self.draftModelRef) && self.draftModelRef.size() > 0) && (has(self.draftModel) && self.draftModel.size() > 0))'
+                stageModel:
+                  description: |-
+                    StageModel opts a runtime that does not stage models by default (generic) into
+                    Model-managed staging: the operator downloads the referenced Model into the model
+                    cache with the same init containers and read-only /models mount the built-in
+                    runtimes use, and sets LLMKUBE_MODEL_PATH (the primary file) and LLMKUBE_MODEL_DIR
+                    (the staged directory; for a single file, its directory) in the serving
+                    container's env. Kubernetes expands $(VAR) in args, so args can name
+                    $(LLMKUBE_MODEL_PATH). Runtimes that stage by default ignore it. Cannot be
+                    combined with skipModelInit.
+                  type: boolean
                 suspend:
                   default: false
                   description: |-
@@ -5921,6 +6041,59 @@ spec:
                           minimum: 1
                           type: integer
                       type: object
+                    stallDetection:
+                      description: |-
+                        StallDetection opts into a liveness probe that detects a silently
+                        stalled vLLM engine: requests stay "running" while generation stops,
+                        yet /health keeps returning 200, so every probe LLMKube configures
+                        looks healthy and the router keeps sending traffic to a wedged pod
+                        (observed on vLLM v0.31.0; upstream vllm-project/vllm#58422).
+
+                        The probe execs a small Python check against the local /metrics
+                        endpoint: while vllm:num_requests_running > 0 and neither
+                        vllm:generation_tokens_total nor vllm:prompt_tokens_total has
+                        changed and vllm:kv_cache_usage_perc has not moved for the window,
+                        the probe fails and kubelet restarts the container. A restart
+                        clears the wedge (only deleting the pod recovered it in the
+                        field). Idle engines (running == 0) never fail the probe.
+
+                        Measured on vLLM v0.31.0 (B200, chunked prefill, 16384 batched
+                        tokens): a ~200K-token prefill kept both token counters flat for
+                        its whole 13.7s while vllm:kv_cache_usage_perc climbed steadily,
+                        so the kv gauge is the mid-prefill heartbeat and a long prefill is
+                        not a stall. A counter that decreases resets the window (the
+                        metrics registry restarted). The kv gauge is optional; without it
+                        the judgment falls back to the token counters alone.
+
+                        The check replaces the /health liveness probe only; startup and
+                        readiness stay on /health. spec.probeOverrides.liveness still wins
+                        when set. In-cluster only: metal-agent services run no Kubernetes
+                        probes, and the field is inert unless spec.runtime is "vllm".
+                        The probe execs python3 and keeps its state under /tmp, so it needs
+                        an image with python3 on PATH and a writable /tmp (not a read-only
+                        root filesystem). Default off; the /health liveness is unchanged
+                        when not enabled.
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled turns on the stall-detecting exec liveness probe. When nil
+                            or false, the liveness probe is the standard /health HTTP check.
+                          type: boolean
+                        windowSeconds:
+                          description: |-
+                            WindowSeconds is how long the token counters and
+                            vllm:kv_cache_usage_perc must stay flat while
+                            vllm:num_requests_running > 0 before the engine is declared
+                            stalled. Defaults to 120 when unset. The kv-cache heartbeat keeps
+                            long prefills safe, so the margin guards against restarting pods
+                            over ordinary scheduler hiccups between probes. Restart latency is
+                            roughly window + liveness period x failure threshold (about 165s at
+                            the defaults).
+                          format: int32
+                          maximum: 3600
+                          minimum: 10
+                          type: integer
+                      type: object
                     tensorParallelSize:
                       description: TensorParallelSize sets the number of GPUs for tensor parallelism.
                       format: int32
@@ -5934,6 +6107,8 @@ spec:
                   rule: '!has(self.multiNode) || !has(self.replicas) || self.replicas <= 1'
                 - message: multiNode is supported for runtime vllm in this release
                   rule: '!has(self.multiNode) || (has(self.runtime) && self.runtime == ''vllm'')'
+                - message: 'stageModel and skipModelInit cannot both be true: one asks the operator to stage the Model, the other declines staging'
+                  rule: '!(has(self.stageModel) && self.stageModel && has(self.skipModelInit) && self.skipModelInit)'
             status:
               description: status defines the observed state of InferenceService
               properties:
@@ -6125,6 +6300,55 @@ spec:
                         additionally requires every member Running before the group serves.
                       format: int32
                       type: integer
+                    recreates:
+                      description: |-
+                        Recreates records the failure-driven recreates of the group since it
+                        last served. A recreate replaces every member pod, so the per-member
+                        restart counts start from zero each time; this is the count that
+                        accumulates. Absent while the group has not failed, and cleared once
+                        the group has stayed Ready, the spec changes, or the service is scaled
+                        to zero.
+                      properties:
+                        count:
+                          description: |-
+                            Count is the number of consecutive member failures that tore the group
+                            down without it serving in between.
+                          format: int32
+                          type: integer
+                        groupHash:
+                          description: |-
+                            GroupHash is the group hash the count belongs to: a spec change that
+                            moves the hash starts a fresh count.
+                          type: string
+                        lastFailureTime:
+                          description: LastFailureTime is when the most recent failure was observed.
+                          format: date-time
+                          type: string
+                        message:
+                          description: |-
+                            Message names the member and carries the evidence of the most recent
+                            failure (container, exit code, reason, and an excerpt of the
+                            termination message). It survives the deletion of the pod it describes.
+                          type: string
+                        nextRecreateTime:
+                          description: |-
+                            NextRecreateTime is the earliest time the group is recreated after the
+                            most recent failure. Unset once the bound is reached.
+                          format: date-time
+                          type: string
+                        podUID:
+                          description: |-
+                            PodUID is the member pod whose failure was counted last, so a teardown
+                            that spans several reconciles is counted once.
+                          type: string
+                        reason:
+                          description: |-
+                            Reason is the recreate reason of the most recent failure, for example
+                            MemberRestarted or MemberFailed.
+                          type: string
+                      required:
+                        - count
+                      type: object
                     size:
                       description: Size is the number of members in the spec.
                       format: int32
@@ -6171,6 +6395,12 @@ spec:
                 schedulingStatus:
                   description: SchedulingStatus indicates why pods cannot be scheduled (e.g., "InsufficientGPU")
                   type: string
+                selector:
+                  description: |-
+                    Selector is the label selector for the pods this service owns. It backs
+                    the /scale subresource's selectorpath; an HPA or KEDA target rejects an
+                    empty selector.
+                  type: string
                 waitingFor:
                   description: 'WaitingFor describes the resource constraint (e.g., "nvidia.com/gpu: 1")'
                   type: string
@@ -6182,6 +6412,7 @@ spec:
       storage: true
       subresources:
         scale:
+          labelSelectorPath: .status.selector
           specReplicasPath: .spec.replicas
           statusReplicasPath: .status.replicas
         status: {}

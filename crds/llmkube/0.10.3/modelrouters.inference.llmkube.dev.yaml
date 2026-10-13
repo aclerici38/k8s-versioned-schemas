@@ -63,18 +63,41 @@ spec:
                 agentGatewayRef:
                   description: |-
                     AgentGatewayRef identifies the pre-installed agentgateway data plane the
-                    generated InferencePool/InferenceModel/HTTPRoute attach to when DataPlane
-                    is "AgentGateway". Required in AgentGateway mode; ignored otherwise. The
-                    Gateway, the Gateway API Inference Extension CRDs, and an Endpoint Picker
-                    (EPP) service are documented prerequisites; LLMKube does not install or own
-                    them. The EndpointPicker is referenced by every generated InferencePool so
-                    agentgateway can select a model-server endpoint per request.
+                    generated InferencePool/HTTPRoute/model-extraction AgentgatewayPolicy
+                    attach to when DataPlane is "AgentGateway". Required in AgentGateway mode;
+                    ignored otherwise. The Gateway, the Gateway API Inference Extension CRDs
+                    (InferencePool at inference.networking.k8s.io/v1), the agentgateway.dev
+                    CRDs, and an Endpoint Picker (EPP) service are documented prerequisites;
+                    LLMKube does not install or own them. The agentgateway controller must run
+                    with Inference-Pool backendRef support (inferenceExtension.enabled=true in
+                    the agentgateway chart). The EndpointPicker is referenced by every
+                    generated InferencePool so agentgateway can select a model-server endpoint
+                    per request. The Gateway may be in another namespace: the generated
+                    AgentgatewayPolicy then lives in the Gateway's namespace (its targetRefs
+                    are same-namespace), is not owner-referenced, and is cleaned up via a
+                    finalizer on this ModelRouter. Because that policy targets the whole
+                    Gateway, its body-model extraction runs on EVERY request through that
+                    Gateway, including routes LLMKube did not generate. The Gateway must not
+                    already carry another PreRouting transformation policy: the router is
+                    refused (ConflictingPreRoutingPolicy) rather than silently shadowed.
+                    agentgateway keeps the OLDEST same-specificity policy's transformation,
+                    so LLMKube does not retract its policy on conflict; the condition clears
+                    when the foreign policy is removed, and the reconciler rechecks every
+                    two minutes (a foreign policy created after the router went Ready is
+                    otherwise silently shadowed). agentgateway inspects at most 2 MiB of the
+                    request body by default (its DEFAULT_BUFFER_LIMIT); larger bodies (long
+                    contexts, images) are not routed on this path - the CEL extraction
+                    fails and the model header is removed. A Gateway owner can raise the
+                    limit with a frontend.http.maxBufferSize policy, a different field that
+                    does not conflict with the extraction policy.
                   properties:
                     endpointPicker:
                       description: |-
                         EndpointPicker names the EPP Service agentgateway consults for endpoint
                         selection. Required so each generated InferencePool can reference the
-                        picker; agentgateway cannot select endpoints without it.
+                        picker; agentgateway cannot select endpoints without it. The Service
+                        lives in this ModelRouter's namespace: GIE v1's endpointPickerRef has no
+                        namespace field, so the pool references it same-namespace.
                       type: string
                     endpointPickerPort:
                       description: |-
@@ -90,7 +113,13 @@ spec:
                     namespace:
                       description: |-
                         Namespace is the Gateway's namespace. Empty means the ModelRouter's own
-                        namespace.
+                        namespace. A different namespace is supported: the generated
+                        model-extraction AgentgatewayPolicy then lives in the Gateway's
+                        namespace (it cannot be owner-referenced across namespaces and is
+                        cleaned up via a finalizer on this ModelRouter), while the pools and
+                        route stay here. The pools, the referenced InferenceServices, and the
+                        EndpointPicker Service all live in this ModelRouter's namespace
+                        regardless.
                       type: string
                   required:
                     - endpointPicker
@@ -787,11 +816,12 @@ spec:
                         ResponseHeaderTimeout caps how long the proxy waits for the
                         upstream to begin sending response headers. For non-streaming
                         chat completions this is effectively a max-generation-time
-                        cap; for streaming dispatches the first SSE chunk arrives well
-                        inside the window so the cap is invisible. Default 120s when
-                        unset. Per-rule and per-backend timeouts (see RouterRule.Timeout
-                        and RouterBackend.Timeout) tighten this on a per-request basis
-                        but cannot extend it beyond this cap.
+                        cap, because their headers arrive when generation completes. It
+                        does not bound a streaming response once its headers arrive;
+                        StreamIdleTimeout guards those. Default 120s when unset.
+                        Per-rule and per-backend timeouts (see RouterRule.Timeout and
+                        RouterBackend.Timeout) tighten this on a per-request basis but
+                        cannot extend it beyond this cap.
                       type: string
                     revisionHistoryLimit:
                       description: |-
@@ -802,6 +832,17 @@ spec:
                       format: int32
                       minimum: 0
                       type: integer
+                    streamIdleTimeout:
+                      description: |-
+                        StreamIdleTimeout caps how long a response body may go without a
+                        single byte from the upstream once its headers have arrived. A
+                        healthy stream emits bytes continuously; the longest gap is the
+                        prefill before the first content token, which can take minutes
+                        for a very long prompt on slow hardware. When the window passes
+                        with no bytes, the proxy aborts the request and quarantines that
+                        backend endpoint, so a wedged replica stops receiving traffic.
+                        Default 300s when unset; "0s" disables the guard.
+                      type: string
                   type: object
                 rules:
                   description: |-
@@ -955,7 +996,8 @@ spec:
                 agentGateway:
                   description: |-
                     AgentGateway reports the observed state of dataPlane: AgentGateway
-                    exposure: whether the InferencePool / InferenceModel / HTTPRoute reconciled
+                    exposure: whether the InferencePool / HTTPRoute / model-extraction
+                    AgentgatewayPolicy reconciled
                     against the referenced agentgateway Gateway, and the resolved endpoint.
                     nil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady
                     condition.

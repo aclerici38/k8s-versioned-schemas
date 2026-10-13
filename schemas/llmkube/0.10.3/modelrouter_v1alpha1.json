@@ -27,10 +27,10 @@
       "properties": {
         "agentGatewayRef": {
           "additionalProperties": false,
-          "description": "AgentGatewayRef identifies the pre-installed agentgateway data plane the\ngenerated InferencePool/InferenceModel/HTTPRoute attach to when DataPlane\nis \"AgentGateway\". Required in AgentGateway mode; ignored otherwise. The\nGateway, the Gateway API Inference Extension CRDs, and an Endpoint Picker\n(EPP) service are documented prerequisites; LLMKube does not install or own\nthem. The EndpointPicker is referenced by every generated InferencePool so\nagentgateway can select a model-server endpoint per request.",
+          "description": "AgentGatewayRef identifies the pre-installed agentgateway data plane the\ngenerated InferencePool/HTTPRoute/model-extraction AgentgatewayPolicy\nattach to when DataPlane is \"AgentGateway\". Required in AgentGateway mode;\nignored otherwise. The Gateway, the Gateway API Inference Extension CRDs\n(InferencePool at inference.networking.k8s.io/v1), the agentgateway.dev\nCRDs, and an Endpoint Picker (EPP) service are documented prerequisites;\nLLMKube does not install or own them. The agentgateway controller must run\nwith Inference-Pool backendRef support (inferenceExtension.enabled=true in\nthe agentgateway chart). The EndpointPicker is referenced by every\ngenerated InferencePool so agentgateway can select a model-server endpoint\nper request. The Gateway may be in another namespace: the generated\nAgentgatewayPolicy then lives in the Gateway's namespace (its targetRefs\nare same-namespace), is not owner-referenced, and is cleaned up via a\nfinalizer on this ModelRouter. Because that policy targets the whole\nGateway, its body-model extraction runs on EVERY request through that\nGateway, including routes LLMKube did not generate. The Gateway must not\nalready carry another PreRouting transformation policy: the router is\nrefused (ConflictingPreRoutingPolicy) rather than silently shadowed.\nagentgateway keeps the OLDEST same-specificity policy's transformation,\nso LLMKube does not retract its policy on conflict; the condition clears\nwhen the foreign policy is removed, and the reconciler rechecks every\ntwo minutes (a foreign policy created after the router went Ready is\notherwise silently shadowed). agentgateway inspects at most 2 MiB of the\nrequest body by default (its DEFAULT_BUFFER_LIMIT); larger bodies (long\ncontexts, images) are not routed on this path - the CEL extraction\nfails and the model header is removed. A Gateway owner can raise the\nlimit with a frontend.http.maxBufferSize policy, a different field that\ndoes not conflict with the extraction policy.",
           "properties": {
             "endpointPicker": {
-              "description": "EndpointPicker names the EPP Service agentgateway consults for endpoint\nselection. Required so each generated InferencePool can reference the\npicker; agentgateway cannot select endpoints without it.",
+              "description": "EndpointPicker names the EPP Service agentgateway consults for endpoint\nselection. Required so each generated InferencePool can reference the\npicker; agentgateway cannot select endpoints without it. The Service\nlives in this ModelRouter's namespace: GIE v1's endpointPickerRef has no\nnamespace field, so the pool references it same-namespace.",
               "type": "string"
             },
             "endpointPickerPort": {
@@ -45,7 +45,7 @@
               "type": "string"
             },
             "namespace": {
-              "description": "Namespace is the Gateway's namespace. Empty means the ModelRouter's own\nnamespace.",
+              "description": "Namespace is the Gateway's namespace. Empty means the ModelRouter's own\nnamespace. A different namespace is supported: the generated\nmodel-extraction AgentgatewayPolicy then lives in the Gateway's\nnamespace (it cannot be owner-referenced across namespaces and is\ncleaned up via a finalizer on this ModelRouter), while the pools and\nroute stay here. The pools, the referenced InferenceServices, and the\nEndpointPicker Service all live in this ModelRouter's namespace\nregardless.",
               "type": [
                 "string",
                 "null"
@@ -836,7 +836,7 @@
               ]
             },
             "responseHeaderTimeout": {
-              "description": "ResponseHeaderTimeout caps how long the proxy waits for the\nupstream to begin sending response headers. For non-streaming\nchat completions this is effectively a max-generation-time\ncap; for streaming dispatches the first SSE chunk arrives well\ninside the window so the cap is invisible. Default 120s when\nunset. Per-rule and per-backend timeouts (see RouterRule.Timeout\nand RouterBackend.Timeout) tighten this on a per-request basis\nbut cannot extend it beyond this cap.",
+              "description": "ResponseHeaderTimeout caps how long the proxy waits for the\nupstream to begin sending response headers. For non-streaming\nchat completions this is effectively a max-generation-time\ncap, because their headers arrive when generation completes. It\ndoes not bound a streaming response once its headers arrive;\nStreamIdleTimeout guards those. Default 120s when unset.\nPer-rule and per-backend timeouts (see RouterRule.Timeout and\nRouterBackend.Timeout) tighten this on a per-request basis but\ncannot extend it beyond this cap.",
               "type": [
                 "string",
                 "null"
@@ -848,6 +848,13 @@
               "minimum": 0,
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "streamIdleTimeout": {
+              "description": "StreamIdleTimeout caps how long a response body may go without a\nsingle byte from the upstream once its headers have arrived. A\nhealthy stream emits bytes continuously; the longest gap is the\nprefill before the first content token, which can take minutes\nfor a very long prompt on slow hardware. When the window passes\nwith no bytes, the proxy aborts the request and quarantines that\nbackend endpoint, so a wedged replica stops receiving traffic.\nDefault 300s when unset; \"0s\" disables the guard.",
+              "type": [
+                "string",
                 "null"
               ]
             }
@@ -1028,7 +1035,7 @@
         },
         "agentGateway": {
           "additionalProperties": false,
-          "description": "AgentGateway reports the observed state of dataPlane: AgentGateway\nexposure: whether the InferencePool / InferenceModel / HTTPRoute reconciled\nagainst the referenced agentgateway Gateway, and the resolved endpoint.\nnil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady\ncondition.",
+          "description": "AgentGateway reports the observed state of dataPlane: AgentGateway\nexposure: whether the InferencePool / HTTPRoute / model-extraction\nAgentgatewayPolicy reconciled\nagainst the referenced agentgateway Gateway, and the resolved endpoint.\nnil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady\ncondition.",
           "properties": {
             "endpoint": {
               "description": "Endpoint is the agentgateway address clients send OpenAI requests to,\nresolved from the referenced Gateway. Empty until the pool is ready.",
