@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: litellmproxies.litellm.home-operations.com
 spec:
   group: litellm.home-operations.com
@@ -956,10 +956,9 @@ spec:
                 applyMode:
                   default: file
                   description: |-
-                    ApplyMode selects how models, guardrails and MCP servers reach the proxy:
-                    "file" renders them into config.yaml and rolls the Deployment on change;
-                    "api" pushes them to the proxy's DB-backed admin API live, with no restart
-                    (requires the proxy to run in DB mode, i.e. Postgres, and apiAccess set).
+                    ApplyMode selects how models and MCP servers reach the proxy:
+                    "file" renders them into config.yaml; "api" uses the DB-backed admin API
+                    (requires Postgres and apiAccess). Guardrails remain file-backed.
                   enum:
                     - file
                     - api
@@ -4418,6 +4417,9 @@ spec:
                   x-kubernetes-list-type: map
                 configHash:
                   description: ConfigHash is the sha256 of the rendered config.yaml currently applied.
+                  type: string
+                mcpConfigHash:
+                  description: MCPConfigHash is the sha256 of the last successfully synced MCP API configuration.
                   type: string
                 observedModels:
                   description: ObservedModels is the number of LiteLLMModel resources folded into the config.
