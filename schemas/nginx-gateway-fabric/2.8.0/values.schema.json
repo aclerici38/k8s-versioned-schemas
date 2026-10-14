@@ -22,11 +22,33 @@
           "title": "annotations",
           "type": "object"
         },
+        "automountServiceAccountToken": {
+          "default": true,
+          "description": "automountServiceAccountToken controls whether the Kubernetes service account token is automatically\nmounted into the cert-generator pod. Set to false to disable automatic token mounting.\nWhen disabled, use certGenerator.extraVolumes to mount a projected token if required.",
+          "title": "automountServiceAccountToken",
+          "type": "boolean"
+        },
         "enable": {
           "default": true,
           "description": "Enable the cert-generator Job. If this is disabled, then cert-manager or some other method must be used to create the required Secrets.",
           "title": "enable",
           "type": "boolean"
+        },
+        "extraVolumeMounts": {
+          "description": "extraVolumeMounts are the additional volume mounts for the cert-generator container.",
+          "items": {
+            "required": []
+          },
+          "title": "extraVolumeMounts",
+          "type": "array"
+        },
+        "extraVolumes": {
+          "description": "extraVolumes for the cert-generator pod. Use in conjunction with certGenerator.extraVolumeMounts\nto mount additional volumes into the container (e.g. a projected service account token).",
+          "items": {
+            "required": []
+          },
+          "title": "extraVolumes",
+          "type": "array"
         },
         "nodeSelector": {
           "description": "The nodeSelector of the cert-generator pod.",
@@ -87,6 +109,12 @@
       "title": "extraObjects",
       "type": "array"
     },
+    "fullnameOverride": {
+      "default": "",
+      "description": "String to fully override the generated resource names.",
+      "title": "fullnameOverride",
+      "type": "string"
+    },
     "gateways": {
       "description": "A list of Gateway objects. View https://gateway-api.sigs.k8s.io/reference/spec/#gateway for full Gateway reference.",
       "items": {
@@ -100,6 +128,12 @@
       "required": [],
       "title": "global",
       "type": "object"
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "String to partially override the chart name used for resource naming.",
+      "title": "nameOverride",
+      "type": "string"
     },
     "nginx": {
       "description": "The nginx section contains the configuration for all NGINX data plane deployments\ninstalled by the NGINX Gateway Fabric control plane.",
@@ -428,6 +462,10 @@
               "required": [],
               "type": "object"
             },
+            "useClusterIP": {
+              "description": "UseClusterIP configures NGINX to route to the Service ClusterIP and port instead of individual Pod IPs. Applies only when the target Service has a ClusterIP; headless (ClusterIP:None) and ExternalName Services use normal endpoint resolution. Not applied to L4/stream upstreams. A UseClusterIP value set in an UpstreamSettingsPolicy for a Service takes precedence over this setting. Defaults to false.",
+              "type": "boolean"
+            },
             "waf": {
               "description": "WAF configures NGINX App Protect WAF.",
               "properties": {
@@ -450,6 +488,18 @@
             "workerConnections": {
               "description": "The number of worker connections for NGINX. Default is 1024.",
               "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "workerProcesses": {
+              "description": "The number of NGINX worker processes (an integer between 1 and 1024). Omit to use \"auto\" (one worker per CPU core).",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "workerRlimitNofile": {
+              "description": "Sets the `worker_rlimit_nofile` directive, the maximum number of open files for worker processes. Omit to inherit the OS limit.",
+              "maximum": 1048576,
               "minimum": 1,
               "type": "integer"
             }
@@ -538,7 +588,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "2.6.7",
+              "default": "2.8.0",
               "title": "tag",
               "type": "string"
             }
@@ -570,6 +620,28 @@
           ],
           "required": [],
           "title": "kind"
+        },
+        "nginxInstanceManager": {
+          "description": "Configuration for NGINX Instance Manager.",
+          "properties": {
+            "endpointHost": {
+              "default": "",
+              "description": "The Endpoint host that the NGINX Instance Manager telemetry data will be sent to.",
+              "title": "endpointHost",
+              "type": "string"
+            },
+            "endpointPort": {
+              "default": 4317,
+              "description": "The endpoint port that the NGINX Instance Manager telemetry data will be sent to.",
+              "maximum": 65535,
+              "minimum": 1,
+              "title": "endpointPort",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "nginxInstanceManager",
+          "type": "object"
         },
         "nginxOneConsole": {
           "description": "Configuration for NGINX One Console.",
@@ -623,6 +695,59 @@
           "description": "The pod configuration for the NGINX data plane pod. This is applied globally to all Gateways managed by this\ninstance of NGINX Gateway Fabric.",
           "required": [],
           "title": "pod",
+          "type": "object"
+        },
+        "podDisruptionBudget": {
+          "description": "PodDisruptionBudget configuration for the NGINX data plane. Only applies when `nginx.kind` is `deployment`.\nA PodDisruptionBudget is created for every NGINX Deployment provisioned for a Gateway that uses this NginxProxy.",
+          "properties": {
+            "enable": {
+              "default": false,
+              "description": "Enable or disable PodDisruptionBudget for the NGINX data plane.",
+              "title": "enable",
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "",
+              "description": "Maximum number of pods that can be unavailable after an eviction. Value can be an absolute number (e.g. 1) or a percentage (e.g. 50%). Mutually exclusive with minAvailable.",
+              "required": [],
+              "title": "maxUnavailable"
+            },
+            "minAvailable": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "1",
+              "description": "Minimum number of pods that must be available after an eviction. Value can be an absolute number (e.g. 1) or a percentage (e.g. 50%). Mutually exclusive with maxUnavailable; set this to \"\" to use maxUnavailable instead.",
+              "required": [],
+              "title": "minAvailable"
+            },
+            "unhealthyPodEvictionPolicy": {
+              "default": "",
+              "description": "Defines when unhealthy pods should be considered for eviction. Valid values are IfHealthyBudget and AlwaysAllow.",
+              "enum": [
+                "",
+                "IfHealthyBudget",
+                "AlwaysAllow"
+              ],
+              "required": [],
+              "title": "unhealthyPodEvictionPolicy"
+            }
+          },
+          "required": [],
+          "title": "podDisruptionBudget",
           "type": "object"
         },
         "replicas": {
@@ -707,6 +832,32 @@
           },
           "required": [],
           "title": "service",
+          "type": "object"
+        },
+        "serviceMonitor": {
+          "description": "Defines the configuration of the serviceMonitor for the nginx data plane.",
+          "properties": {
+            "enable": {
+              "default": false,
+              "description": "Enable the serviceMonitor for the data plane.",
+              "title": "enable",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "",
+              "description": "The scraping interval used by the serviceMonitor when scraping metrics.",
+              "title": "interval",
+              "type": "string"
+            },
+            "port": {
+              "default": "metrics",
+              "description": "The name of the port used for scraping metrics.",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceMonitor",
           "type": "object"
         },
         "usage": {
@@ -869,6 +1020,19 @@
           "title": "configAnnotations",
           "type": "object"
         },
+        "externalLoadBalancer": {
+          "properties": {
+            "enable": {
+              "default": false,
+              "description": "Enable ExternalLoadBalancer support. Allows for fronting a Gateway with an external load balancer.\nSupported load balancers:\n- F5 BIG-IP, through F5 Container Ingress Services.",
+              "title": "enable",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "externalLoadBalancer",
+          "type": "object"
+        },
         "extraVolumeMounts": {
           "description": "extraVolumeMounts are the additional volume mounts for the nginx-gateway container.",
           "items": {
@@ -935,8 +1099,8 @@
                   "type": "boolean"
                 },
                 "skipVerify": {
-                  "default": true,
-                  "description": "Disables TLS certificate verification when connecting to the EndpointPicker.\nBy default, certificate verification is disabled.\nREQUIRED: Must be true until Gateway API Inference Extension EndpointPicker supports mounting certificates.\nSee: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/1556",
+                  "default": false,
+                  "description": "Disables TLS certificate verification when connecting to the EndpointPicker.\nIf a BackendTLSPolicy is not defined and TLS is enabled, certificate verification is disabled.",
                   "title": "skipVerify",
                   "type": "boolean"
                 }
@@ -970,7 +1134,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "2.6.7",
+              "default": "2.8.0",
               "title": "tag",
               "type": "string"
             }
@@ -1001,10 +1165,28 @@
               "title": "enable",
               "type": "boolean"
             },
+            "leaseDuration": {
+              "default": "",
+              "description": "The duration that non-leader candidates will wait to force acquire leadership. Must be greater than\nrenewDeadline. Must be parsable by https://pkg.go.dev/time#ParseDuration.",
+              "title": "leaseDuration",
+              "type": "string"
+            },
             "lockName": {
               "default": "",
               "description": "The name of the leader election lock. A Lease object with this name will be created in the same Namespace as\nthe controller.",
               "title": "lockName",
+              "type": "string"
+            },
+            "renewDeadline": {
+              "default": "",
+              "description": "The duration that the acting leader will retry refreshing leadership before giving up. Must be greater\nthan retryPeriod * 1.2 and less than leaseDuration. Increase this value if leader election is failing due to\nslow Kubernetes API server responses. Must be parsable by https://pkg.go.dev/time#ParseDuration.",
+              "title": "renewDeadline",
+              "type": "string"
+            },
+            "retryPeriod": {
+              "default": "",
+              "description": "The duration the leader election clients should wait between action tries. Must be less than renewDeadline.\nMust be parsable by https://pkg.go.dev/time#ParseDuration.",
+              "title": "retryPeriod",
               "type": "string"
             }
           },
@@ -1039,6 +1221,44 @@
               "description": "Enable serving metrics via https. By default metrics are served via http.\nPlease note that this endpoint will be secured with a self-signed certificate.",
               "title": "secure",
               "type": "boolean"
+            },
+            "serviceMonitor": {
+              "description": "Defines the configuration of the serviceMonitor for the nginxGateway control plane.",
+              "properties": {
+                "annotations": {
+                  "description": "Set the annotations to be added to the serviceMonitor.",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "enable": {
+                  "default": false,
+                  "description": "Enable the serviceMonitor for the control plane.",
+                  "title": "enable",
+                  "type": "boolean"
+                },
+                "interval": {
+                  "default": "",
+                  "description": "The scraping interval used by the serviceMonitor when scraping metrics.",
+                  "title": "interval",
+                  "type": "string"
+                },
+                "labels": {
+                  "description": "Set the labels to be added to the serviceMonitor.",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                },
+                "tlsConfig": {
+                  "description": "tlsConfig is an object that defines the full TLS configuration of the NGINX Gateway Fabric control plane for the Prometheus service monitor.\nAll fields are optional and can be configured by the user. For the full information on the fields that can be used in this object, refer to the official\nPrometheus documentation: https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.TLSConfig",
+                  "required": [],
+                  "title": "tlsConfig",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "serviceMonitor",
+              "type": "object"
             }
           },
           "required": [],
@@ -1057,10 +1277,121 @@
           "title": "nodeSelector",
           "type": "object"
         },
+        "payloadProcessor": {
+          "properties": {
+            "enable": {
+              "default": false,
+              "description": "Enable the PayloadProcessor API. PayloadProcessors enable declarative, ordered processing of HTTP request\nand response payloads by attaching to a Gateway or HTTPRoute, and are used to implement features such as\nGuardrails for AI workloads.",
+              "title": "enable",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "payloadProcessor",
+          "type": "object"
+        },
+        "plmStorage": {
+          "description": "Configuration for PLM (Policy Lifecycle Manager) S3-compatible storage.\nRequired when any WAFPolicy uses type: PLM.\nPLM (f5-waf-policy-controller) must be installed separately.",
+          "properties": {
+            "credentialsSecretName": {
+              "default": "",
+              "description": "The name of the Secret containing S3 credentials for PLM storage.\nUse \"namespace/name\" format for cross-namespace references, or plain \"name\" for the controller namespace.",
+              "title": "credentialsSecretName",
+              "type": "string"
+            },
+            "tls": {
+              "properties": {
+                "caSecretName": {
+                  "default": "",
+                  "description": "The name of the Secret containing the CA certificate for PLM storage TLS verification.\nUse \"namespace/name\" format for cross-namespace references.",
+                  "title": "caSecretName",
+                  "type": "string"
+                },
+                "clientSSLSecretName": {
+                  "default": "",
+                  "description": "The name of the Secret containing client TLS certificate and key for mutual TLS with PLM storage.\nUse \"namespace/name\" format for cross-namespace references.",
+                  "title": "clientSSLSecretName",
+                  "type": "string"
+                },
+                "insecureSkipVerify": {
+                  "default": false,
+                  "description": "Disable TLS certificate verification for PLM storage connections (dev/test only).",
+                  "title": "insecureSkipVerify",
+                  "type": "boolean"
+                }
+              },
+              "required": [],
+              "title": "tls",
+              "type": "object"
+            },
+            "url": {
+              "default": "",
+              "description": "The URL of the PLM S3-compatible storage endpoint (SeaweedFS filer S3 gateway).\nExample: https://my-release-f5-waf-seaweed-filer.plm-namespace.svc.cluster.local:9333",
+              "title": "url",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "plmStorage",
+          "type": "object"
+        },
         "podAnnotations": {
           "description": "Set of custom annotations for the NGINX Gateway Fabric pods.",
           "required": [],
           "title": "podAnnotations",
+          "type": "object"
+        },
+        "podDisruptionBudget": {
+          "description": "PodDisruptionBudget configuration for the NGINX Gateway Fabric control plane.",
+          "properties": {
+            "enable": {
+              "default": false,
+              "description": "Enable or disable PodDisruptionBudget for the control plane.",
+              "title": "enable",
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "",
+              "description": "Maximum number of pods that can be unavailable after an eviction. Value can be an absolute number (e.g. 1) or a percentage (e.g. 50%). Mutually exclusive with minAvailable.",
+              "required": [],
+              "title": "maxUnavailable"
+            },
+            "minAvailable": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "",
+              "description": "Minimum number of pods that must be available after an eviction. Value can be an absolute number (e.g. 1) or a percentage (e.g. 50%). Mutually exclusive with maxUnavailable.",
+              "required": [],
+              "title": "minAvailable"
+            },
+            "unhealthyPodEvictionPolicy": {
+              "default": "",
+              "description": "Defines when unhealthy pods should be considered for eviction. Valid values are IfHealthyBudget and AlwaysAllow.",
+              "enum": [
+                "",
+                "IfHealthyBudget",
+                "AlwaysAllow"
+              ],
+              "required": [],
+              "title": "unhealthyPodEvictionPolicy"
+            }
+          },
+          "required": [],
+          "title": "podDisruptionBudget",
           "type": "object"
         },
         "priorityClassName": {
@@ -1180,6 +1511,12 @@
               "title": "annotations",
               "type": "object"
             },
+            "automountServiceAccountToken": {
+              "default": true,
+              "description": "automountServiceAccountToken controls whether the Kubernetes service account token is automatically\nmounted into the control plane pod. Set to false to disable automatic token mounting (e.g. for\ncompliance environments). When disabled, use nginxGateway.extraVolumes to mount a projected token\nwith a custom audience or expiration if required.",
+              "title": "automountServiceAccountToken",
+              "type": "boolean"
+            },
             "imagePullSecret": {
               "default": "",
               "description": "The name of the secret containing docker registry credentials for the control plane.\nSecret must exist in the same namespace as the helm release.",
@@ -1254,7 +1591,7 @@
           "type": "array"
         },
         "watchNamespaces": {
-          "description": "List of namespaces to watch for resources. If not set, all namespaces are watched.\nThe controller's own namespace is always included.",
+          "description": "List of namespaces to watch for resources. If not set, all namespaces are watched.\nThe controller's own namespace is always included.\nNOTE: If PLM is installed and configured via nginxGateway.plmStorage, ensure PLM's\npolicyController.watchNamespace covers the namespaces where APPolicy and APLogConf\nresources will be created.",
           "items": {
             "required": []
           },
@@ -1268,6 +1605,12 @@
       ],
       "title": "nginxGateway",
       "type": "object"
+    },
+    "serverTLSDomain": {
+      "default": "svc",
+      "description": "The domain suffix used in the server TLS certificate SAN and agent config host. Defaults to \"svc\".",
+      "title": "serverTLSDomain",
+      "type": "string"
     }
   },
   "required": [],

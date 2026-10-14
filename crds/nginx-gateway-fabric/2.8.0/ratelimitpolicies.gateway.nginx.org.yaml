@@ -3,21 +3,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.22.0
   labels:
     gateway.networking.k8s.io/policy: inherited
-  name: clientsettingspolicies.gateway.nginx.org
+  name: ratelimitpolicies.gateway.nginx.org
 spec:
   group: gateway.nginx.org
   names:
     categories:
       - nginx-gateway-fabric
-    kind: ClientSettingsPolicy
-    listKind: ClientSettingsPolicyList
-    plural: clientsettingspolicies
+    kind: RateLimitPolicy
+    listKind: RateLimitPolicyList
+    plural: ratelimitpolicies
     shortNames:
-      - cspolicy
-    singular: clientsettingspolicy
+      - rlpolicy
+    singular: ratelimitpolicy
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -27,9 +27,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: |-
-            ClientSettingsPolicy is an Inherited Attached Policy. It provides a way to configure the behavior of the connection
-            between the client and NGINX Gateway Fabric.
+          description: RateLimitPolicy is an Inherited Attached Policy. It provides a way to set local rate limiting rules in NGINX.
           properties:
             apiVersion:
               description: |-
@@ -49,113 +47,158 @@ spec:
             metadata:
               type: object
             spec:
-              description: Spec defines the desired state of the ClientSettingsPolicy.
+              description: Spec defines the desired state of the RateLimitPolicy.
               properties:
-                body:
-                  description: Body defines the client request body settings.
+                rateLimit:
+                  description: RateLimit defines the Rate Limit settings.
                   properties:
-                    maxSize:
+                    dryRun:
                       description: |-
-                        MaxSize sets the maximum allowed size of the client request body.
-                        If the size in a request exceeds the configured value,
-                        the 413 (Request Entity Too Large) error is returned to the client.
-                        Setting size to 0 disables checking of client request body size.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size.
-                      pattern: ^\d{1,4}(k|m|g)?$
-                      type: string
-                    timeout:
-                      description: |-
-                        Timeout defines a timeout for reading client request body. The timeout is set only for a period between
-                        two successive read operations, not for the transmission of the whole request body.
-                        If a client does not transmit anything within this time, the request is terminated with the
-                        408 (Request Time-out) error.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_timeout.
-                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                      type: string
-                  type: object
-                keepAlive:
-                  description: KeepAlive defines the keep-alive settings.
-                  properties:
-                    minTimeout:
-                      description: |-
-                        MinTimeout defines the timeout for which the keep-alive client connection
-                        will not be closed on the server side for connection reuse or on
-                        graceful shutdown of worker processes.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_min_timeout.
-                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                      type: string
-                    requests:
-                      description: |-
-                        Requests sets the maximum number of requests that can be served through one keep-alive connection.
-                        After the maximum number of requests are made, the connection is closed. Closing connections periodically
-                        is necessary to free per-connection memory allocations. Therefore, using too high maximum number of requests
-                        is not recommended as it can lead to excessive memory usage.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_requests.
-                      format: int32
-                      minimum: 0
-                      type: integer
-                    time:
-                      description: |-
-                        Time defines the maximum time during which requests can be processed through one keep-alive connection.
-                        After this time is reached, the connection is closed following the subsequent request processing.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_time.
-                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                      type: string
-                    timeout:
-                      description: Timeout defines the keep-alive timeouts for clients.
+                        DryRun enables the dry run mode. In this mode, the rate limit is not actually applied, but the number of excessive
+                        requests is accounted as usual in the shared memory zone.
+
+                        Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_dry_run
+                      type: boolean
+                    local:
+                      description: Local defines the local rate limit rules for this policy.
                       properties:
-                        header:
-                          description: 'Header sets the timeout in the "Keep-Alive: timeout=time" response header field.'
-                          pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                          type: string
-                        server:
-                          description: |-
-                            Server sets the timeout during which a keep-alive client connection will stay open on the server side.
-                            Setting this value to 0 disables keep-alive client connections.
-                          pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                          type: string
+                        rules:
+                          description: Rules contains the list of rate limit rules.
+                          items:
+                            description: RateLimitRule contains settings for a RateLimit Rule.
+                            properties:
+                              burst:
+                                description: |-
+                                  Burst sets the maximum burst size of requests. If the requests rate exceeds the rate configured for a zone,
+                                  their processing is delayed such that requests are processed at a defined rate. Excessive requests are delayed
+                                  until their number exceeds the maximum burst size in which case the request is terminated with an error.
+
+                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req
+                                format: int32
+                                minimum: 0
+                                type: integer
+                              delay:
+                                description: |-
+                                  Delay specifies a limit at which excessive requests become delayed.
+                                  Default value is zero, which means all excessive requests are delayed.
+
+                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req
+                                format: int32
+                                minimum: 0
+                                type: integer
+                              key:
+                                description: |-
+                                  Key represents the key to which the rate limit is applied. The key can contain text, variables,
+                                  and their combination.
+
+                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone
+                                pattern: ^(?:[^ \t\r\n;{}#$]+|\$\w+)+$
+                                type: string
+                              noDelay:
+                                description: |-
+                                  NoDelay disables the delaying of excessive requests while requests are being limited.
+                                  NoDelay cannot be true when Delay is also set.
+
+                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req
+                                type: boolean
+                              rate:
+                                description: |-
+                                  Rate represents the rate of requests permitted. The rate is specified in requests per second (r/s)
+                                  or requests per minute (r/m).
+
+                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone
+                                pattern: ^\d+r/[sm]$
+                                type: string
+                              zoneSize:
+                                description: |-
+                                  ZoneSize is the size of the shared memory zone.
+
+                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone
+                                pattern: ^\d{1,4}(k|m|g)?$
+                                type: string
+                            required:
+                              - key
+                              - rate
+                            type: object
+                            x-kubernetes-validations:
+                              - message: NoDelay cannot be true when Delay is also set
+                                rule: '!(has(self.noDelay) && has(self.delay) && self.noDelay == true)'
+                          type: array
                       type: object
-                      x-kubernetes-validations:
-                        - message: header can only be specified if server is specified
-                          rule: '!(has(self.header) && !has(self.server))'
+                    logLevel:
+                      description: |-
+                        LogLevel sets the desired logging level for cases when the server refuses to process requests due to rate exceeding,
+                        or delays request processing. Allowed values are info, notice, warn or error.
+
+                        Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_log_level
+                      enum:
+                        - info
+                        - notice
+                        - warn
+                        - error
+                      type: string
+                    rejectCode:
+                      description: |-
+                        RejectCode sets the status code to return in response to rejected requests. Must fall into the range 400-599.
+
+                        Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_status
+                      format: int32
+                      maximum: 599
+                      minimum: 400
+                      type: integer
                   type: object
-                targetRef:
+                targetRefs:
                   description: |-
-                    TargetRef identifies an API object to apply the policy to.
-                    Object must be in the same namespace as the policy.
-                    Support: Gateway, HTTPRoute, GRPCRoute.
-                  properties:
-                    group:
-                      description: Group is the group of the target resource.
-                      maxLength: 253
-                      pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                      type: string
-                    kind:
-                      description: Kind is kind of the target resource.
-                      maxLength: 63
-                      minLength: 1
-                      pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
-                      type: string
-                    name:
-                      description: Name is the name of the target resource.
-                      maxLength: 253
-                      minLength: 1
-                      type: string
-                  required:
-                    - group
-                    - kind
-                    - name
-                  type: object
+                    TargetRefs identifies API object(s) to apply the policy to.
+                    Objects must be in the same namespace as the policy.
+
+                    Support: Gateway, HTTPRoute, GRPCRoute
+                  items:
+                    description: |-
+                      LocalPolicyTargetReference identifies an API object to apply a direct or
+                      inherited policy to. This should be used as part of Policy resources
+                      that can target Gateway API resources. For more information on how this
+                      policy attachment model works, and a sample Policy resource, refer to
+                      the policy attachment documentation for Gateway API.
+                    properties:
+                      group:
+                        description: Group is the group of the target resource.
+                        maxLength: 253
+                        pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                        type: string
+                      kind:
+                        description: Kind is kind of the target resource.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                        type: string
+                      name:
+                        description: Name is the name of the target resource.
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                      - group
+                      - kind
+                      - name
+                    type: object
+                  maxItems: 16
+                  minItems: 1
+                  type: array
                   x-kubernetes-validations:
                     - message: 'TargetRef Kind must be one of: Gateway, HTTPRoute, or GRPCRoute'
-                      rule: (self.kind=='Gateway' || self.kind=='HTTPRoute' || self.kind=='GRPCRoute')
-                    - message: TargetRef Group must be gateway.networking.k8s.io.
-                      rule: (self.group=='gateway.networking.k8s.io')
+                      rule: self.all(t, t.kind == 'Gateway' || t.kind == 'HTTPRoute' || t.kind == 'GRPCRoute')
+                    - message: TargetRef Group must be gateway.networking.k8s.io
+                      rule: self.all(t, t.group=='gateway.networking.k8s.io')
+                    - message: TargetRef Kind and Name combination must be unique
+                      rule: self.all(p1, self.exists_one(p2, (p1.name == p2.name) && (p1.kind == p2.kind)))
+                    - message: Cannot mix Gateway kind with HTTPRoute or GRPCRoute kinds in targetRefs
+                      rule: '!(self.exists(t, t.kind == ''Gateway'') && self.exists(t, t.kind == ''HTTPRoute'' || t.kind == ''GRPCRoute''))'
               required:
-                - targetRef
+                - targetRefs
               type: object
             status:
-              description: Status defines the state of the ClientSettingsPolicy.
+              description: Status defines the state of the RateLimitPolicy.
               properties:
                 ancestors:
                   description: |-
