@@ -8,447 +8,154 @@
       "type": "object"
     },
     "config": {
-      "description": "How kritika runs and what it reviews with, as the KRITIKA_* variables\n(docs/configuration.md) keyed by their names without the prefix, in\ncamelCase: `pollInterval` is KRITIKA_POLL_INTERVAL, `authOidcIssuer` is\nKRITIKA_AUTH_OIDC_ISSUER. The keys below are every variable that can be\nset; a key left empty sets nothing and kritika's own default applies,\nwhich each description names. A value is a plain value, rendered\nthrough `tpl`, or, for a secret, a map with the variable's `valueFrom`\n(a Secret key). The variables that stand in for the configuration\nfile's sections (auth*, apps*, providers*, embedding*, and the review,\nconfidence and trigger settings reviewModel, reviewFallback,\nreviewEffort, reviewApprove, reviewFixes, reviewIncremental,\nreviewDiagram, reviewCost, confidenceModel, confidenceFallback,\nconfidenceEffort, confidenceThreshold, confidenceGate, confidenceRisk,\ntriggerSettle and triggerLimit) win over the file. The variables the chart derives from its other values\n(the addresses, the database, the config file, the runner image,\nServiceAccount, TTL, resources and tools) cannot be set here; the chart\nrefuses them, as it refuses a KRITIKA_* variable under `env`.",
+      "additionalProperties": false,
+      "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap.",
       "properties": {
-        "appsAccounts": {
-          "default": "",
-          "description": "The users and organizations the app serves, comma-separated; set it to declare the app here.",
-          "title": "appsAccounts",
-          "type": "string"
-        },
-        "appsClientId": {
-          "default": "",
-          "description": "The GitHub App's client id, inline or from a Secret.",
+        "accounts": {
           "required": [],
-          "title": "appsClientId",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "appsName": {
-          "default": "",
-          "description": "The app's name, which is its webhook path, `/hooks/\u003cname\u003e`; `github` unless set.",
-          "title": "appsName",
+        "addr": {
           "type": "string"
         },
-        "appsPrivateKey": {
-          "default": "",
-          "description": "The GitHub App's private key (PEM), from a Secret.",
+        "agent": {
           "required": [],
-          "title": "appsPrivateKey",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "appsWebhookSecret": {
-          "default": "",
-          "description": "The GitHub App's webhook secret, from a Secret.",
+        "apps": {
           "required": [],
-          "title": "appsWebhookSecret",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "authAdminPassword": {
-          "default": "",
-          "description": "The local admin's password, from a Secret. The local admin exists only while one is set: the way into a fresh instance, and a way in when every provider is down.",
+        "auth": {
           "required": [],
-          "title": "authAdminPassword",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "authAdminUser": {
-          "default": "",
-          "description": "The local admin's username; `admin` unless set.",
-          "title": "authAdminUser",
-          "type": "string"
-        },
-        "authGithubClientId": {
-          "default": "",
-          "description": "Client id for signing in with GitHub, inline or from a Secret: an OAuth App's, or the GitHub App's own; set it to sign in through GitHub.",
+        "comments": {
           "required": [],
-          "title": "authGithubClientId",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "authGithubClientSecret": {
-          "default": "",
-          "description": "Client secret for signing in with GitHub, from a Secret.",
+        "confidence": {
           "required": [],
-          "title": "authGithubClientSecret",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "authGithubRoleMappingExpr": {
-          "default": "",
-          "description": "CEL expression mapping a GitHub sign-in to a kritika role, e.g. `login == \"user-1\" ? \"admin\" : \"\"`.",
-          "title": "authGithubRoleMappingExpr",
+        "context": {
+          "type": "array"
+        },
+        "databaseAppRole": {
           "type": "string"
         },
-        "authOidcClientId": {
-          "default": "",
-          "description": "OIDC client id, inline or from a Secret.",
-          "required": [],
-          "title": "authOidcClientId",
-          "type": [
-            "string",
-            "object"
-          ]
-        },
-        "authOidcClientSecret": {
-          "default": "",
-          "description": "OIDC client secret, from a Secret.",
-          "required": [],
-          "title": "authOidcClientSecret",
-          "type": [
-            "string",
-            "object"
-          ]
-        },
-        "authOidcDefaultRole": {
-          "default": "",
-          "description": "Role of an OIDC sign-in the mapping gives none; none unless set.",
-          "title": "authOidcDefaultRole",
+        "databaseRunnerRole": {
           "type": "string"
-        },
-        "authOidcIssuer": {
-          "default": "",
-          "description": "OpenID Connect issuer, an https URL; set it to sign in through OIDC.",
-          "title": "authOidcIssuer",
-          "type": "string"
-        },
-        "authOidcName": {
-          "default": "",
-          "description": "Label of the OIDC provider on the sign-in page; \"SSO\" unless set.",
-          "title": "authOidcName",
-          "type": "string"
-        },
-        "authOidcRoleMappingExpr": {
-          "default": "",
-          "description": "CEL expression mapping an OIDC sign-in to a kritika role, `admin`, `member` or \"\" for none, e.g. `\"kritika-admins\" in roles ? \"admin\" : \"member\"`.",
-          "title": "authOidcRoleMappingExpr",
-          "type": "string"
-        },
-        "authOidcRolesClaim": {
-          "default": "",
-          "description": "The ID token claim holding the person's roles or groups, read by `authOidcRoleMappingExpr`.",
-          "title": "authOidcRolesClaim",
-          "type": "string"
-        },
-        "authOidcScopes": {
-          "default": "",
-          "description": "OIDC scopes, comma-separated; `openid,email,profile` unless set.",
-          "title": "authOidcScopes",
-          "type": "string"
-        },
-        "authSessionTtl": {
-          "default": "",
-          "description": "How long a dashboard session lasts, between 5m and 720h; 12h unless set.",
-          "title": "authSessionTtl",
-          "type": "string"
-        },
-        "confidenceEffort": {
-          "default": "",
-          "description": "How hard the confidence model, and the fallback that takes its call, reasons: `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`; the provider's default unless set.",
-          "title": "confidenceEffort",
-          "type": "string"
-        },
-        "confidenceFallback": {
-          "default": "",
-          "description": "The model the scorer's call falls back to when the confidence model fails.",
-          "title": "confidenceFallback",
-          "type": "string"
-        },
-        "confidenceGate": {
-          "default": "",
-          "description": "`true` fails the commit status under the threshold, so it can be a required check; off unless set, when the status reports the score and passes.",
-          "required": [],
-          "title": "confidenceGate",
-          "type": [
-            "boolean",
-            "string"
-          ]
-        },
-        "confidenceModel": {
-          "default": "",
-          "description": "The model that scores each reviewed pull request from 0 to 5, `\u003cprovider\u003e/\u003cmodel\u003e`; nothing is scored unless set.",
-          "title": "confidenceModel",
-          "type": "string"
-        },
-        "confidenceRisk": {
-          "default": "",
-          "description": "The highest risk a change may be rated and still be approved: `low`, `medium`, `high` or `critical`; `low` unless set.",
-          "title": "confidenceRisk",
-          "type": "string"
-        },
-        "confidenceThreshold": {
-          "default": "",
-          "description": "The score a pull request must reach to be approved and, with the gate, for its commit status to pass, 0 to 5; 5 unless set.",
-          "required": [],
-          "title": "confidenceThreshold",
-          "type": [
-            "integer",
-            "string"
-          ]
         },
         "diffRetention": {
-          "default": "",
-          "description": "How long a review keeps the diff it was made from, the context it read and the repository files it named, at least 24h; 720h unless set.",
-          "title": "diffRetention",
+          "minLength": 1,
           "type": "string"
         },
-        "embeddingDims": {
-          "default": "",
-          "description": "The embedding's dimensions, which the model must produce.",
+        "egress": {
           "required": [],
-          "title": "embeddingDims",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "object"
         },
-        "embeddingModel": {
-          "default": "",
-          "description": "The embedding model, `\u003cprovider\u003e/\u003cmodel\u003e`; set it to index each repository for similar code.",
-          "title": "embeddingModel",
+        "embedding": {
+          "required": [],
+          "type": "object"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "executor": {
+          "type": "string"
+        },
+        "gatewayAddr": {
           "type": "string"
         },
         "gatewayTokenTtl": {
-          "default": "",
-          "description": "How long a run's gateway token outlives its Job's deadline, in case the replica that minted it dies before revoking it; 1h unless set.",
-          "title": "gatewayTokenTtl",
+          "minLength": 1,
           "type": "string"
         },
+        "gatewayUrl": {
+          "type": "string"
+        },
+        "ignore": {
+          "type": "array"
+        },
         "indexGrace": {
-          "default": "",
-          "description": "How long the index of a repository that stopped running is kept; 720h unless set.",
-          "title": "indexGrace",
+          "minLength": 1,
           "type": "string"
         },
         "indexWorkers": {
-          "default": "",
-          "description": "Index jobs one replica runs at once, rate-limited apart from reviews so onboarding a large account cannot starve them; 1 unless set.",
-          "required": [],
-          "title": "indexWorkers",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "integer"
         },
         "leaderRetryInterval": {
-          "default": "",
-          "description": "How often a replica retries the leader lock, and the holder checks it still has it; 15s unless set.",
-          "title": "leaderRetryInterval",
+          "minLength": 1,
           "type": "string"
         },
+        "limits": {
+          "required": [],
+          "type": "object"
+        },
         "logFormat": {
-          "default": "json",
-          "description": "Log format: json or text.",
-          "title": "logFormat",
           "type": "string"
         },
         "logLevel": {
-          "default": "info",
-          "description": "Log level: debug, info, warn or error.",
-          "title": "logLevel",
+          "type": "string"
+        },
+        "metricsAddr": {
           "type": "string"
         },
         "onboardWindow": {
-          "default": "",
-          "description": "Onboarding index jobs the leader keeps queued or running at once; 4 unless set.",
-          "required": [],
-          "title": "onboardWindow",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "integer"
         },
         "pollInterval": {
-          "default": "",
-          "description": "How often the leader lists each app's open pull requests, its backstop for missed webhooks; `0s` turns it off; 10m unless set.",
-          "title": "pollInterval",
+          "minLength": 1,
           "type": "string"
         },
         "pollLookback": {
-          "default": "",
-          "description": "How far back a first or long-idle poll looks; 24h unless set.",
-          "title": "pollLookback",
+          "minLength": 1,
           "type": "string"
         },
-        "providersApiKey": {
-          "default": "",
-          "description": "The provider's API key, from a Secret; required except for `chatgpt`, which uses `kritika chatgpt login`.",
+        "providers": {
           "required": [],
-          "title": "providersApiKey",
-          "type": [
-            "string",
-            "object"
-          ]
+          "type": "object"
         },
-        "providersBaseUrl": {
-          "default": "",
-          "description": "The provider's base URL, for an OpenAI-compatible endpoint; the type's own unless set.",
-          "title": "providersBaseUrl",
-          "type": "string"
-        },
-        "providersName": {
-          "default": "",
-          "description": "The provider's name, which models are addressed through as `\u003cname\u003e/\u003cmodel\u003e`; `openrouter` unless set.",
-          "title": "providersName",
-          "type": "string"
-        },
-        "providersRetries": {
-          "default": "",
-          "description": "How many more times a review's model step, the scorer's call or a split review's summary call is tried when the provider fails it in a way another attempt may not (a 5xx, a 429, a timeout), with backoff; 0 unless set, at most 5.",
+        "repositories": {
           "required": [],
-          "title": "providersRetries",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "object"
         },
-        "providersType": {
-          "default": "",
-          "description": "The provider's type, `openrouter`, `openai`, `anthropic`, `opencode` or `chatgpt`; the name unless set, when the name is one of those.",
-          "title": "providersType",
-          "type": "string"
-        },
-        "reviewApprove": {
-          "default": "",
-          "description": "`true` has a review that finds nothing at P0 or P1 approve the pull request, or, with a confidence model, one whose score and risk allow it, and dismisses that approval when a later review's do not; off unless set.",
+        "review": {
           "required": [],
-          "title": "reviewApprove",
-          "type": [
-            "boolean",
-            "string"
-          ]
-        },
-        "reviewCost": {
-          "default": "",
-          "description": "`true` ends the summary's footer with what the pull request's reviews have cost together; off unless set.",
-          "required": [],
-          "title": "reviewCost",
-          "type": [
-            "boolean",
-            "string"
-          ]
-        },
-        "reviewDiagram": {
-          "default": "",
-          "description": "`true` has the summary draw the flow the change adds or alters as a Mermaid diagram; off unless set.",
-          "required": [],
-          "title": "reviewDiagram",
-          "type": [
-            "boolean",
-            "string"
-          ]
-        },
-        "reviewEffort": {
-          "default": "",
-          "description": "How hard the review model, and the fallback that takes its step, reasons: `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`; the provider's default unless set.",
-          "title": "reviewEffort",
-          "type": "string"
-        },
-        "reviewFallback": {
-          "default": "",
-          "description": "The model a review falls back to when the review model fails.",
-          "title": "reviewFallback",
-          "type": "string"
-        },
-        "reviewFixes": {
-          "default": "",
-          "description": "`true` requires a suggested fix on every finding; off unless set.",
-          "required": [],
-          "title": "reviewFixes",
-          "type": [
-            "boolean",
-            "string"
-          ]
-        },
-        "reviewIncremental": {
-          "default": "",
-          "description": "How many files may change since the last review before a re-review covers the whole pull request again; 25 unless set.",
-          "required": [],
-          "title": "reviewIncremental",
-          "type": [
-            "integer",
-            "string"
-          ]
-        },
-        "reviewModel": {
-          "default": "",
-          "description": "The model every review runs on unless a repository names another, `\u003cprovider\u003e/\u003cmodel\u003e`.",
-          "title": "reviewModel",
-          "type": "string"
+          "type": "object"
         },
         "reviewWorkers": {
-          "default": "",
-          "description": "Review jobs one replica runs at once, each holding a runner pod open; 2 unless set.",
+          "type": "integer"
+        },
+        "rules": {
+          "type": "array"
+        },
+        "runner": {
           "required": [],
-          "title": "reviewWorkers",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "object"
         },
-        "runnerDeadline": {
-          "default": "",
-          "description": "A runner Job's deadline; 15m unless set.",
-          "title": "runnerDeadline",
-          "type": "string"
+        "skills": {
+          "required": [],
+          "type": "object"
         },
-        "runnerRuntimeClass": {
-          "default": "",
-          "description": "RuntimeClass runner Jobs run under, e.g. `gvisor` or a Kata class; the cluster default unless set. Advised: a runner parses untrusted repository content and runs what the model asks.",
-          "title": "runnerRuntimeClass",
-          "type": "string"
+        "threadWorkers": {
+          "type": "integer"
         },
         "transcriptRetention": {
-          "default": "",
-          "description": "How long a review's full model transcript is kept, at least 24h; 720h unless set.",
-          "title": "transcriptRetention",
+          "minLength": 1,
           "type": "string"
         },
-        "triggerLimit": {
-          "default": "",
-          "description": "How many automatic reviews a pull request gets before kritika pauses them, so a long-lived pull request stops spending on every push; unlimited unless set.",
+        "trigger": {
           "required": [],
-          "title": "triggerLimit",
-          "type": [
-            "integer",
-            "string"
-          ]
-        },
-        "triggerSettle": {
-          "default": "",
-          "description": "How long a review waits after a push, so a burst of pushes collapses onto the last one before anything is spent, e.g. `30s`; immediate unless set.",
-          "title": "triggerSettle",
-          "type": "string"
+          "type": "object"
         },
         "webUrl": {
-          "default": "",
-          "description": "(required) Public URL the dashboard is reached at, e.g. https://kritika.example.com; the webhooks share it under `/hooks/\u003capp name\u003e`. Must be an absolute http(s) URL with no query or fragment. GitHub delivers webhooks to it and sign-in redirects back to it, so the chart's Ingress or HTTPRoute must route this name.",
-          "title": "webUrl",
           "type": "string"
         }
       },
       "required": [],
       "title": "config",
-      "type": "object"
-    },
-    "configFile": {
-      "description": "(optional) The configuration file, as YAML: what is reviewed and how, from `auth` and `apps` to `repositories` and `accounts`. Passed through verbatim, not tpl'd. See docs/configuration.md.",
-      "required": [],
-      "title": "configFile",
       "type": "object"
     },
     "database": {
@@ -535,13 +242,13 @@
       "type": "object"
     },
     "env": {
-      "description": "Environment variables of the kritika serve container, keyed by name: a plain value, or a map with the variable's `valueFrom` (a Secret, a ConfigMap or a field). Rendered through `tpl`.",
+      "description": "Operational settings and referenced secrets, keyed by environment variable name. Use valueFrom.secretKeyRef for credentials. Do not duplicate file settings or chart-managed variables. Rendered through tpl.",
       "required": [],
       "title": "env",
       "type": "object"
     },
     "envFrom": {
-      "description": "Secrets and ConfigMaps loaded as environment variables in bulk, each key a variable: the Kubernetes `envFrom` list. A Secret whose keys are the variable names the configuration file references sets them all at once.",
+      "description": "Secrets and ConfigMaps loaded as environment variables in bulk. Keys must match the secret references in config. Application settings must not also be set in the file.",
       "items": {
         "required": []
       },
@@ -550,7 +257,7 @@
     },
     "existingConfigMap": {
       "default": "",
-      "description": "Existing ConfigMap holding the file under the `config.yaml` key; takes precedence over `configFile`. A change to it takes a restart.",
+      "description": "Existing ConfigMap containing config.yaml instead of inline config. Put webUrl in that file. Changes require a restart, for example through a Reloader annotation.",
       "title": "existingConfigMap",
       "type": "string"
     },
@@ -676,7 +383,7 @@
       "type": "object"
     },
     "image": {
-      "description": "Default values for kritika.\n\nMost string, list and map values below are rendered through Helm's `tpl`, so\nthey may carry template expressions that resolve at install time, e.g.\n  ingress.hosts[0].host: kritika.{{ .Values.global.domain }}\nPlain numbers and booleans, and `configFile`, are passed through as they are.",
+      "description": "Default values for kritika.\n\nMost string, list and map values below are rendered through Helm's `tpl`, so\nthey may carry template expressions that resolve at install time, e.g.\n  ingress.hosts[0].host: kritika.{{ .Values.global.domain }}\nPlain numbers and booleans are passed through as they are.",
       "properties": {
         "digest": {
           "default": "",
@@ -837,7 +544,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Render the Grafana dashboard ConfigMap (for the kube-prometheus-stack sidecar or grafana-operator): kritika's health, intake, reviews, model spend, runner Jobs and database pools, from the metrics the ServiceMonitor scrapes.",
+              "description": "Render the Grafana dashboard ConfigMap (for the kube-prometheus-stack sidecar or grafana-operator): kritika's health, intake, reviews, model spend, runner Jobs, database pools, queue delays and vector searches, from the metrics the ServiceMonitor scrapes.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -929,7 +636,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, and a replica whose configuration file drifted from the applied one.",
+              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics and vector-search errors.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -949,6 +656,30 @@
               "default": "5m",
               "description": "How long no replica may hold the leader lock before KritikaNoLeader fires. A standby takes the lock within one leader retry interval of the database answering, and a dead leader's session is dropped by Postgres within about a minute.",
               "title": "noLeaderFor",
+              "type": "string"
+            },
+            "queueAgeSeconds": {
+              "default": 600,
+              "description": "Oldest runnable review/followup/thread job age in seconds that triggers KritikaQueueDelayed. Index onboarding is excluded; its age remains on the dashboard.",
+              "title": "queueAgeSeconds",
+              "type": "integer"
+            },
+            "queueDelayFor": {
+              "default": "15m",
+              "description": "How long runnable work must exceed queueAgeSeconds before warning.",
+              "title": "queueDelayFor",
+              "type": "string"
+            },
+            "queueStatsUnavailableFor": {
+              "default": "5m",
+              "description": "How long every scraped replica may succeed on fewer than 75% of queue snapshot reads over 5 minutes before warning.",
+              "title": "queueStatsUnavailableFor",
+              "type": "string"
+            },
+            "vectorSearchErrorsFor": {
+              "default": "10m",
+              "description": "How long the vector-search error ratio must exceed 10% (at least 10 non-canceled requests in 15 minutes) before warning.",
+              "title": "vectorSearchErrorsFor",
               "type": "string"
             }
           },
@@ -1244,10 +975,16 @@
       "type": "object"
     },
     "runner": {
-      "description": "Runner Jobs: one pod per review, follow-up or index run, created by kritika\nserve in the release namespace from the release's -tools image, running as a\nservice account with no permissions and a database role that can only touch\nits own run. The server's Role reaches every Secret in the release namespace,\nso install kritika into a namespace of its own. Their deadline and\nRuntimeClass are `config.runnerDeadline` and `config.runnerRuntimeClass`; a\nsandboxed RuntimeClass (gVisor, Kata) is advised, since a runner parses\nuntrusted repository content and runs what the model asks.",
+      "description": "Runner Jobs: one pod per review, follow-up or index run, created by kritika\nserve in the release namespace from the release's -tools image, running as a\nservice account with no permissions and a database role that can only touch\nits own run. The server's Role reaches every Secret in the release namespace,\nso install kritika into a namespace of its own. Their deadline and\nRuntimeClass are `runner.deadline` and `runner.runtimeClass`; a\nsandboxed RuntimeClass (gVisor, Kata) is advised, since a runner parses\nuntrusted repository content and runs what the model asks.",
       "properties": {
+        "deadline": {
+          "default": "",
+          "description": "Maximum duration of a runner Job; omitted uses the application's default of 15m.",
+          "title": "deadline",
+          "type": "string"
+        },
         "image": {
-          "description": "Image for runner Jobs: the release's `-tools` image, which adds curl, fd,\ngh, jq, rg and yq for a review's or follow-up's `agent.commands`.",
+          "description": "Image for runner Jobs: the release's `-tools` image, which adds crane,\ncurl, fd, gh, jq, rg and yq for a review's or follow-up's `agent.commands`.",
           "properties": {
             "digest": {
               "default": "",
@@ -1283,6 +1020,12 @@
           "required": [],
           "title": "resources",
           "type": "object"
+        },
+        "runtimeClass": {
+          "default": "",
+          "description": "RuntimeClass for runner Jobs, such as gvisor or kata. Empty uses the cluster default.",
+          "title": "runtimeClass",
+          "type": "string"
         },
         "serviceAccount": {
           "properties": {
