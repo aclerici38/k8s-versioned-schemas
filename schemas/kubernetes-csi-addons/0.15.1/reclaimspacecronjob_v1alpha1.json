@@ -1,0 +1,258 @@
+{
+  "description": "ReclaimSpaceCronJob is the Schema for the reclaimspacecronjobs API",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "ReclaimSpaceCronJobSpec defines the desired state of ReclaimSpaceJob",
+      "properties": {
+        "concurrencyPolicy": {
+          "default": "Forbid",
+          "description": "Specifies how to treat concurrent executions of a Job.\nValid values are:\n- \"Forbid\" (default): forbids concurrent runs, skipping next run if\n  previous run hasn't finished yet;\n- \"Replace\": cancels currently running job and replaces it\n  with a new one",
+          "enum": [
+            "Forbid",
+            "Replace"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failedJobsHistoryLimit": {
+          "default": 1,
+          "description": "The number of failed finished jobs to retain. Value must be non-negative integer.\nDefaults to 1.",
+          "format": "int32",
+          "maximum": 60,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "jobTemplate": {
+          "additionalProperties": false,
+          "description": "Specifies the job that will be created when executing a CronJob.",
+          "properties": {
+            "metadata": {
+              "description": "Standard object's metadata of the jobs created from this template.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "spec": {
+              "additionalProperties": false,
+              "description": "Specification of the desired behavior of the job.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status",
+              "properties": {
+                "backOffLimit": {
+                  "default": 6,
+                  "description": "BackOffLimit specifies the number of retries allowed before marking reclaim\nspace operation as failed. If not specified, defaults to 6. Maximum allowed\nvalue is 60 and minimum allowed value is 0.",
+                  "format": "int32",
+                  "maximum": 60,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "retryDeadlineSeconds": {
+                  "default": 600,
+                  "description": "RetryDeadlineSeconds specifies the duration in seconds relative to the\nstart time that the operation may be retried; value MUST be positive integer.\nIf not specified, defaults to 600 seconds. Maximum allowed\nvalue is 1800.",
+                  "format": "int64",
+                  "maximum": 1800,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "target": {
+                  "additionalProperties": false,
+                  "description": "Target represents volume target on which the operation will be\nperformed.",
+                  "properties": {
+                    "persistentVolumeClaim": {
+                      "description": "PersistentVolumeClaim specifies the target PersistentVolumeClaim name.",
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "persistentVolumeClaim is immutable",
+                          "rule": "self == oldSelf"
+                        }
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "timeout": {
+                  "description": "Timeout specifies the timeout in seconds for the grpc request sent to the\nCSI driver. If not specified, defaults to global reclaimspace timeout.\nMinimum allowed value is 60.",
+                  "format": "int64",
+                  "minimum": 60,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "target"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "spec"
+          ],
+          "type": "object"
+        },
+        "schedule": {
+          "description": "The schedule in Cron format, see https://en.wikipedia.org/wiki/Cron.\nA deterministic, UID-based stagger offset is applied to spread\nexecution across the \"cronjob-stagger-window\" (default: 2 hours,\nset to 0 to disable) configured in the csi-addons-config ConfigMap.",
+          "pattern": ".+",
+          "type": "string"
+        },
+        "startingDeadlineSeconds": {
+          "description": "Optional deadline in seconds for starting the job if it misses scheduled\ntime for any reason.  Missed jobs executions will be counted as failed ones.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "successfulJobsHistoryLimit": {
+          "default": 3,
+          "description": "The number of successful finished jobs to retain. Value must be non-negative integer.\nDefaults to 3.",
+          "format": "int32",
+          "maximum": 60,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "suspend": {
+          "description": "This flag tells the controller to suspend subsequent executions, it does\nnot apply to already started executions.  Defaults to false.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "jobTemplate",
+        "schedule"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "ReclaimSpaceCronJobStatus defines the observed state of ReclaimSpaceJob",
+      "properties": {
+        "active": {
+          "additionalProperties": false,
+          "description": "A pointer to currently running job.",
+          "properties": {
+            "apiVersion": {
+              "description": "API version of the referent.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fieldPath": {
+              "description": "If referring to a piece of an object instead of an entire object, this string\nshould contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].\nFor example, if the object reference is to a container within a pod, this would take on a value like:\n\"spec.containers{name}\" (where \"name\" refers to the name of the container that triggered\nthe event) or if no container name is specified \"spec.containers[2]\" (container with\nindex 2 in this pod). This syntax is chosen only to have some well-defined way of\nreferencing a part of an object.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "description": "Kind of the referent.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Name of the referent.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "namespace": {
+              "description": "Namespace of the referent.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "resourceVersion": {
+              "description": "Specific resourceVersion to which this reference is made, if any.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uid": {
+              "description": "UID of the referent.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
+        },
+        "lastScheduleTime": {
+          "description": "Information when was the last time the job was successfully scheduled.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastSuccessfulTime": {
+          "description": "Information when was the last time the job successfully completed.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

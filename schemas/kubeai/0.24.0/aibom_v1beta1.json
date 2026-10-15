@@ -1,0 +1,427 @@
+{
+  "description": "AIBOM is the runtime AI Bill of Materials for a single top-level workload\n(Deployment, StatefulSet, KServe InferenceService, etc.). One AIBOM exists\nper workload, never per pod replica.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "AIBOMSpec defines the desired state of an AIBOM resource.\n\nIn v1 the AIBOM CR is fully controller-owned: the controller creates it\nwhen a tracked workload is discovered and garbage-collects it via owner\nreferences when the workload is deleted. Customer-authored AIBOM CRs\nare NOT supported in v1; admission webhook enforcement is post-v1.0.\nThe Spec exists so the workload identity is visible without descending\ninto ownerReferences.",
+      "properties": {
+        "bomFormat": {
+          "description": "BOMFormat is the wire-format identifier of the generated BOM. v1\nemits only \"CycloneDX\". The enum is intentionally expandable:\nadding \"SPDX\" in a future release will not break existing AIBOM\nCRs because they will continue to declare \"CycloneDX\".",
+          "enum": [
+            "CycloneDX"
+          ],
+          "maxLength": 64,
+          "type": "string"
+        },
+        "bomSpecVersion": {
+          "description": "BOMSpecVersion is the spec version of the generated BOM. v1 emits\n\"1.6\". Constrained to a major.minor shape; patch versions are not\nused by the CycloneDX wire format.",
+          "maxLength": 16,
+          "pattern": "^\\d+\\.\\d+$",
+          "type": "string"
+        },
+        "workloadRef": {
+          "additionalProperties": false,
+          "description": "WorkloadRef identifies the workload this AIBOM describes. Set by\nthe controller from the discovered workload's TypeMeta and Name.\n\nImmutable: once set on the AIBOM, the workload identity cannot\nchange. If a workload is renamed or its kind changes, the\nresulting state is a NEW AIBOM (created by the controller for the\nnew workload) and the OLD AIBOM is garbage-collected via owner\nreferences when the original workload is deleted.",
+          "properties": {
+            "apiVersion": {
+              "description": "APIVersion is the group/version of the workload, in the standard\nK8s \"group/version\" form (e.g., \"apps/v1\", \"serving.kserve.io/v1beta1\").\nCore kinds use a plain version (e.g., \"v1\").",
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "description": "Kind is the workload kind (e.g., \"Deployment\", \"StatefulSet\",\n\"InferenceService\").",
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "description": "Name is the workload's metadata.name. Must be DNS-1123-subdomain\nsafe; the MaxLength matches the Kubernetes name length limit.",
+              "maxLength": 253,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiVersion",
+            "kind",
+            "name"
+          ],
+          "type": "object",
+          "x-kubernetes-validations": [
+            {
+              "message": "workloadRef is immutable",
+              "rule": "self == oldSelf"
+            }
+          ]
+        }
+      },
+      "required": [
+        "bomFormat",
+        "bomSpecVersion",
+        "workloadRef"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "AIBOMStatus is the auditor-facing summary of the generated BOM and the\ncontroller's reconciliation state. Fields are designed for stability,\nproviding an external contract distinct from the internal scraper and builder\nstructures to ensure long-term compatibility for consumer tools.",
+      "properties": {
+        "bomDocument": {
+          "additionalProperties": false,
+          "description": "BOMDocument identifies where the full BOM lives — inline in this\nstatus, in an external sink, or truncated (no inline + no external).",
+          "properties": {
+            "external": {
+              "additionalProperties": false,
+              "description": "External points at the BOM in a configured external sink.\nSet when Size exceeds the inline threshold AND at least one\nexternal sink is configured.",
+              "properties": {
+                "sink": {
+                  "description": "Sink is the configured sink that holds the BOM (e.g., \"gcs\",\n\"webhook\", \"guac\"). Matches the Sink.Name() value.",
+                  "type": "string"
+                },
+                "url": {
+                  "description": "URL is the BOM's external location at the named sink. When\nWriteOnly is false (the default), URL is a canonical retrieval\nURL — e.g., a gs:// URL on a readable GCS bucket. When\nWriteOnly is true, URL identifies the delivery destination only\n(e.g., a webhook endpoint posting to a SIEM) and is NOT\nretrievable; auditors should seek the BOM via the inline form\nor via a separately-configured retrievable sink.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "writeOnly": {
+                  "description": "WriteOnly indicates that URL is informational rather than\nretrievable. False (default) for object-storage sinks like GCS;\ntrue for write-only sinks like webhook receivers. The controller\nprefers non-WriteOnly sinks when multiple succeed, so this field\nbeing true means either (a) only WriteOnly sinks were configured,\nor (b) the non-WriteOnly sinks failed and a WriteOnly fallback\nis reporting the delivery.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "sink"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "format": {
+              "description": "Format is the BOM encoding identifier; v1 always \"CycloneDX\".",
+              "type": "string"
+            },
+            "inline": {
+              "additionalProperties": false,
+              "description": "Inline carries the full BOM directly in this CR's status. Set\nwhen Size is below AIBOMControllerConfig.bomGeneration.inlineThresholdBytes.\nMutually exclusive with External and Truncated.",
+              "properties": {
+                "data": {
+                  "description": "Data is the canonical BOM JSON. Encoded as base64 in YAML/JSON\nvia Go's []byte JSON convention.",
+                  "format": "byte",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "data"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "sha256": {
+              "description": "SHA256 is the hex-encoded sha256 of the canonical BOM JSON.\nStable across the inline/external/truncated representations: it\nis the hash of the full BOM regardless of where it is stored.",
+              "type": "string"
+            },
+            "size": {
+              "description": "Size is the byte length of the canonical BOM JSON. Useful for\nmonitoring and for customers deciding whether to configure an\nexternal sink.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "specVersion": {
+              "description": "SpecVersion is the BOM spec version; v1 always \"1.6\".",
+              "type": "string"
+            },
+            "truncated": {
+              "description": "Truncated is true when Size exceeds the inline threshold AND no\nexternal sink is configured. In this state, neither Inline nor\nExternal is set; Summary remains populated. This is honest\ndegradation: the customer is told what to do to recover the\nfull BOM (configure an external sink).",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "truncationReason": {
+              "description": "TruncationReason is a human-readable explanation when Truncated\nis true (e.g., \"BOM size 384KB exceeds inline threshold 256KB and\nno external sink is configured\").",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "format",
+            "sha256",
+            "specVersion"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "bomHash": {
+          "description": "BOMHash is the SHA-256 of the most recently generated BOM\n(canonical JSON). Used by external consumers for cache\ninvalidation and to detect content changes between reconciles.\nDistinct from InputHash: BOMHash captures the OUTPUT bytes\n(which include the BOM's generation timestamp), whereas\nInputHash captures the INPUT scrape result (which is time-\nindependent). Two reconciles of an unchanged workload produce\ndifferent BOMHash values but the same InputHash.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conditions": {
+          "description": "Conditions follow the Kubernetes standard\n(k8s.io/apimachinery/pkg/apis/meta/v1.Condition). See\napi/v1alpha1/aibom_conditions.go for the type and reason constants.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "consecutiveErrors": {
+          "description": "ObservedGeneration is the .metadata.generation of the AIBOM at\nthe time the status was last updated. Follows the Kubernetes\ngeneration/observedGeneration convention.\nConsecutiveErrors counts how many consecutive reconciles have produced\nextraction errors. Used to trigger the Stale condition.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "inputHash": {
+          "description": "InputHash is the SHA-256 hex digest of the BOMInputs that\nproduced this AIBOM, computed with scrape timestamps zeroed.\nThe reconciler compares this against a freshly-computed\ninputs hash on every reconcile pass; when they match, the\nreconciler skips BOM regeneration and external-sink emission\n(the fast path) to reduce computational and storage overhead,\nupdating only LastReconciled and ObservedGeneration.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lastReconciled": {
+          "description": "LastReconciled is the time the controller last reconciled this\nAIBOM, whether or not the BOM was regenerated.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "additionalProperties": false,
+          "description": "Summary is the deliberately small, auditor-readable summary of the\nBOM. Always populated (best-effort) regardless of whether the full\nBOM is inline or in an external sink, so `kubectl get aibom -o yaml`\nis informative on its own.",
+          "properties": {
+            "confidence": {
+              "description": "Confidence is the workload-level aggregated confidence. One of\n\"declared\", \"inferred\", \"unresolved\" — see\ndocs/scraper-heuristics.md for the aggregation rule.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "models": {
+              "description": "Models is the set of declared/inferred model identities. Multiple\nentries are emitted when different evidence sources name the same\nmodel with different confidence (e.g., --model arg + HF_MODEL_ID\nenv var) so auditors see both signals.",
+              "items": {
+                "additionalProperties": false,
+                "description": "ModelSummary is a single claimed-or-inferred model identity.",
+                "properties": {
+                  "confidence": {
+                    "description": "Confidence is the per-attribute confidence (\"declared\" or\n\"inferred\"). Never \"unresolved\" — unresolved attributes are not\nsummarized.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "identity": {
+                    "description": "Identity is the model identifier as it appeared in the source\n(env var value, arg value, annotation value). NOT normalized.",
+                    "type": "string"
+                  },
+                  "signed": {
+                    "description": "Signed encodes signature presence and verification. One of\n\"unsigned\", \"claimed\", \"verified\". v1 never emits \"verified\"\n(see docs/schema-divergences.md D-001).",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "source": {
+                    "description": "Source is the evidence source the identity came from (e.g.,\n\"env_var\", \"container_arg\", \"workload_annotation\"). Matches the\nEvidenceSource enum in internal/scraper.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "identity"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "runtime": {
+              "additionalProperties": false,
+              "description": "Runtime is the detected inference runtime, if any.",
+              "properties": {
+                "confidence": {
+                  "description": "Confidence is the per-attribute confidence. v1 emits \"inferred\"\nfor image-pattern-derived runtimes; never \"declared\".",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "description": "Name is the runtime identifier (e.g., \"vllm\", \"triton\", \"tgi\").",
+                  "type": "string"
+                },
+                "version": {
+                  "description": "Version is the runtime version, populated only when the image tag\nis semver-shaped (see docs/scraper-heuristics.md). Empty otherwise.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "workload": {
+              "additionalProperties": false,
+              "description": "Workload identifies the workload the BOM describes.",
+              "properties": {
+                "apiVersion": {
+                  "type": "string"
+                },
+                "category": {
+                  "description": "Category is the high-level AI lifecycle role assigned by the\ndiscovery layer. v1 always emits \"inference\"; v2+ may emit\n\"training\", \"agent\", \"evaluation\", \"pipeline\", \"notebook\".",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "namespace": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "apiVersion",
+                "kind",
+                "name",
+                "namespace"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "workload"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}

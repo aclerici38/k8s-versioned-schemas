@@ -1,0 +1,337 @@
+{
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "properties": {
+        "backends": {
+          "description": "List of backends that can be referenced in the routes",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "address": {
+                "description": "Address is required for type `network`",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "algorithm": {
+                "description": "Algorithm is required for type `lb`.\n`roundRobin` - backend is chosen by the round robin algorithm, starting with a random selected backend to spread across all backends from the beginning.\n`random` - backend is chosen at random.\n`consistentHash` - backend is chosen by [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) algorithm based on the request key. The request key is derived from `X-Forwarded-For` header or request remote IP address as the fallback. Use [`consistentHashKey`](filters.md#consistenthashkey) filter to set the request key. Use [`consistentHashBalanceFactor`](filters.md#consistenthashbalancefactor) to prevent popular keys from overloading a single backend endpoint.\n`powerOfRandomNChoices` - backend is chosen by selecting N random endpoints and picking the one with least outstanding requests from them (see http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf).",
+                "enum": [
+                  "roundRobin",
+                  "random",
+                  "consistentHash",
+                  "powerOfRandomNChoices"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "endpoints": {
+                "description": "Endpoints is required for type `lb`",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name is the BackendName that can be referenced as RouteGroupBackendReference",
+                "type": "string"
+              },
+              "serviceName": {
+                "description": "ServiceName is required for type `service`",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "servicePort": {
+                "description": "ServicePort is required for type `service`",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "type": {
+                "description": "Type of the backend.\n`service`- resolve Kubernetes service to the available Endpoints belonging to the Service, and generate load balanced routes using them.\n`shunt` - reply directly from the proxy itself. This can be used to shortcut, for example have a default that replies with 404 or use skipper as a backend serving static content in demos.\n`loopback` - lookup again the routing table to a better matching route after processing the current route. Like this you can add some headers or change the request path for some specific matching requests.\n`dynamic` - use the backend provided by filters. This allows skipper as library users to do proxy calls to a certain target from their own implementation dynamically looked up by their filters.\n`lb` - balance the load across multiple network endpoints using specified algorithm. If algorithm is not specified it will use the default algorithm set by Skipper at start.\n`network` - use arbitrary HTTP or HTTPS URL.",
+                "enum": [
+                  "service",
+                  "shunt",
+                  "loopback",
+                  "dynamic",
+                  "lb",
+                  "network"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "defaultBackends": {
+          "description": "DefaultBackends is a list of default backends defined if no explicit\nbackend is defined for a route",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "backendName": {
+                "description": "BackendName references backend by name",
+                "type": "string"
+              },
+              "weight": {
+                "description": "Weight defines a portion of traffic for the referenced backend.\nIt equals to weight divided by the sum of all backend weights.\nWhen all references have zero (or unspecified) weight then traffic is split equally between them.",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "backendName"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "hosts": {
+          "description": "List of hostnames for the RouteGroup",
+          "items": {
+            "maxLength": 255,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-type": "set"
+        },
+        "routes": {
+          "description": "Routes describe how a matching HTTP request is handled and where it is forwarded to",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "backends": {
+                "description": "RouteGroupBackendReference specifies the list of backendReference that should\nbe applied to override the defaultBackends",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "backendName": {
+                      "description": "BackendName references backend by name",
+                      "type": "string"
+                    },
+                    "weight": {
+                      "description": "Weight defines a portion of traffic for the referenced backend.\nIt equals to weight divided by the sum of all backend weights.\nWhen all references have zero (or unspecified) weight then traffic is split equally between them.",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "backendName"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "filters": {
+                "description": "Filters specifies the list of filters applied to the routeSpec",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "methods": {
+                "description": "Methods defines valid HTTP methods for the specified routeSpec",
+                "items": {
+                  "description": "HTTPMethod is a valid HTTP method in uppercase.",
+                  "enum": [
+                    "GET",
+                    "HEAD",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "CONNECT",
+                    "OPTIONS",
+                    "TRACE"
+                  ],
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "path": {
+                "description": "Path specifies Path predicate, only one of Path or PathSubtree is allowed",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pathRegexp": {
+                "description": "PathRegexp can be added additionally",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pathSubtree": {
+                "description": "PathSubtree specifies PathSubtree predicate, only one of Path or PathSubtree is allowed",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "predicates": {
+                "description": "Predicates specifies the list of predicates applied to the routeSpec",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tls": {
+          "description": "TLS defines which Kubernetes secret will be used to terminate the connection\nbased on the matching hostnames",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hosts": {
+                "description": "TLS hosts specify the list of hosts included in the TLS secret.\nThe values in this list must match the host name(s) used for\nthe RouteGroup in order to terminate TLS for the host(s).",
+                "items": {
+                  "maxLength": 255,
+                  "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array",
+                "x-kubernetes-list-type": "set"
+              },
+              "secretName": {
+                "description": "SecretName is the name of the secret used to terminate TLS traffic.\nSecret should reside in the same namespace as the RouteGroup.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "hosts",
+              "secretName"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "backends"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "properties": {
+        "loadBalancer": {
+          "additionalProperties": false,
+          "description": "LoadBalancer is similar to ingress status, such that\nexternal-dns has the same style as in ingress",
+          "properties": {
+            "routegroup": {
+              "description": "RouteGroup is similar to Ingress in ingress status.LoadBalancer.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "hostname": {
+                    "description": "Hostname is the hostname of the load balancer and is empty if IP is set",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ip": {
+                    "description": "IP is the IP address of the load balancer and is empty if Hostname is set",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "routegroup"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "loadBalancer"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

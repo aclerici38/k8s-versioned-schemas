@@ -1,0 +1,86 @@
+---
+# Source: courier/templates/crds.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+    helm.sh/resource-policy: keep
+  name: laneprofiles.courier.misospace.dev
+spec:
+  group: courier.misospace.dev
+  names:
+    kind: LaneProfile
+    listKind: LaneProfileList
+    plural: laneprofiles
+    singular: laneprofile
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.concurrency
+          name: Concurrency
+          type: integer
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: LaneProfile is a reusable model ensemble + framing referenced by CoderRuns.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                LaneProfileSpec defines a reusable model ensemble and its runtime framing.
+                It is the seam that keeps Courier model-agnostic: roles may name cloud or
+                local models in any mix, and nothing about a lane is baked into the core.
+              properties:
+                concurrency:
+                  default: 1
+                  description: |-
+                    Concurrency is the maximum number of Running CoderRuns admitted on this
+                    lane. A local lane is typically 1; a cloud lane can be much higher.
+                  minimum: 1
+                  type: integer
+                framing:
+                  description: |-
+                    Framing is free-text lane context injected into the coordinator prompt:
+                    hardware reality, parallelism guidance, whether a load tool is available.
+                  type: string
+                roles:
+                  additionalProperties:
+                    type: string
+                  description: |-
+                    Roles maps a coordinator role (coordinator, coder, reviewer, ...) to a
+                    model identifier understood by the configured model gateway.
+                  type: object
+                runtimeImage:
+                  description: |-
+                    RuntimeImage selects the coordinator runtime and repository toolchain for
+                    runs on this lane. Empty uses the deployment's default coordinator image;
+                    a lane may select any compatible image without changing Courier core.
+                  type: string
+              required:
+                - concurrency
+                - roles
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources: {}
