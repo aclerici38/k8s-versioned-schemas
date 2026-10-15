@@ -265,6 +265,12 @@
       },
       "additionalProperties": false
     },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "tolerations": {
       "type": "array",
       "items": {
@@ -3625,6 +3631,123 @@
           },
           "additionalProperties": false
         },
+        "appserviceRegistration": {
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "value"
+              ],
+              "not": {
+                "required": [
+                  "secret",
+                  "secretKey"
+                ]
+              }
+            },
+            {
+              "required": [
+                "secret",
+                "secretKey"
+              ],
+              "not": {
+                "required": [
+                  "value"
+                ]
+              }
+            }
+          ],
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "secret": {
+              "type": "string"
+            },
+            "secretKey": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "user": {
+          "type": "object",
+          "properties": {
+            "localpart": {
+              "type": "string",
+              "description": "The localpart of the application service user of the MatrixRTC Authorisation Service"
+            }
+          },
+          "additionalProperties": false
+        },
+        "redisOrValkey": {
+          "type": "object",
+          "required": [
+            "host"
+          ],
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Redis/Valkey host address"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 6379
+            },
+            "db": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15,
+              "default": 0
+            },
+            "password": {
+              "type": "object",
+              "oneOf": [
+                {
+                  "required": [
+                    "value"
+                  ],
+                  "not": {
+                    "required": [
+                      "secret",
+                      "secretKey"
+                    ]
+                  }
+                },
+                {
+                  "required": [
+                    "secret",
+                    "secretKey"
+                  ],
+                  "not": {
+                    "required": [
+                      "value"
+                    ]
+                  }
+                }
+              ],
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "secret": {
+                  "type": "string"
+                },
+                "secretKey": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "tls": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "replicas": {
           "minimum": 0,
           "maximum": 1,
@@ -3954,6 +4077,42 @@
             }
           },
           "type": "object",
+          "additionalProperties": false
+        },
+        "dnsPolicy": {
+          "type": "string"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
           "additionalProperties": false
         },
         "serviceMonitors": {
@@ -5257,9 +5416,32 @@
         },
         "sfu": {
           "type": "object",
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "url"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "url"
+            ]
+          },
           "properties": {
             "enabled": {
               "type": "boolean"
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^wss://.*"
             },
             "replicas": {
               "minimum": 0,
@@ -5446,6 +5628,24 @@
               "type": "object",
               "additionalProperties": {
                 "type": "string"
+              }
+            },
+            "hostAliases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ip": {
+                    "type": "string"
+                  },
+                  "hostnames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "hostNetwork": {
@@ -6021,6 +6221,42 @@
                 }
               },
               "type": "object",
+              "additionalProperties": false
+            },
+            "dnsPolicy": {
+              "type": "string"
+            },
+            "dnsConfig": {
+              "type": "object",
+              "properties": {
+                "nameservers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "searches": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
               "additionalProperties": false
             },
             "nodeSelector": {
@@ -12445,6 +12681,42 @@
           "type": "object",
           "additionalProperties": false
         },
+        "dnsPolicy": {
+          "type": "string"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
         "extraEnv": {
           "type": "array",
           "items": {
@@ -15757,6 +16029,42 @@
             }
           },
           "type": "object",
+          "additionalProperties": false
+        },
+        "dnsPolicy": {
+          "type": "string"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
           "additionalProperties": false
         },
         "extraEnv": {
@@ -24098,6 +24406,42 @@
             }
           },
           "type": "object",
+          "additionalProperties": false
+        },
+        "dnsPolicy": {
+          "type": "string"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
           "additionalProperties": false
         },
         "extraEnv": {
