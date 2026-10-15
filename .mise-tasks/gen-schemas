@@ -78,7 +78,11 @@ process_app() {
         filter_crds "$CRDS_DIR"
     fi
     if ! ls "$CRDS_DIR"/*.yaml &>/dev/null; then
-      echo "helm show crds produced no CRDs for $APP_NAME, falling back to helm template"
+      if [ -z "$VALUES" ]; then
+        echo "helm show crds produced no CRDs for $APP_NAME, falling back to helm template"
+      else
+        echo "Rendering $APP_NAME with helm template and requiredValues"
+      fi
       echo "$VALUES" | helm template "$APP_NAME" "$CHART_DIR" -f - |
         filter_crds "$CRDS_DIR" || true
     fi
