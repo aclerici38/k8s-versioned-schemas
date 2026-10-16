@@ -265,6 +265,12 @@
       },
       "additionalProperties": false
     },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "tolerations": {
       "type": "array",
       "items": {
@@ -3625,6 +3631,55 @@
           },
           "additionalProperties": false
         },
+        "appserviceRegistration": {
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "value"
+              ],
+              "not": {
+                "required": [
+                  "secret",
+                  "secretKey"
+                ]
+              }
+            },
+            {
+              "required": [
+                "secret",
+                "secretKey"
+              ],
+              "not": {
+                "required": [
+                  "value"
+                ]
+              }
+            }
+          ],
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "secret": {
+              "type": "string"
+            },
+            "secretKey": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "user": {
+          "type": "object",
+          "properties": {
+            "localpart": {
+              "type": "string",
+              "description": "The localpart of the application service user of the MatrixRTC Authorisation Service"
+            }
+          },
+          "additionalProperties": false
+        },
         "redisOrValkey": {
           "type": "object",
           "required": [
@@ -4026,6 +4081,39 @@
         },
         "dnsPolicy": {
           "type": "string"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
         },
         "serviceMonitors": {
           "type": "object",
@@ -5328,9 +5416,32 @@
         },
         "sfu": {
           "type": "object",
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "url"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "url"
+            ]
+          },
           "properties": {
             "enabled": {
               "type": "boolean"
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^wss://.*"
             },
             "replicas": {
               "minimum": 0,
@@ -5813,6 +5924,24 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "ipFamilyPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "SingleStack",
+                        "PreferDualStack",
+                        "RequireDualStack"
+                      ]
+                    },
+                    "ipFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "IPv4",
+                          "IPv6"
+                        ]
+                      }
                     }
                   },
                   "additionalProperties": false
@@ -5867,6 +5996,24 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "ipFamilyPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "SingleStack",
+                        "PreferDualStack",
+                        "RequireDualStack"
+                      ]
+                    },
+                    "ipFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "IPv4",
+                          "IPv6"
+                        ]
                       }
                     }
                   },
@@ -5936,6 +6083,24 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "ipFamilyPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "SingleStack",
+                        "PreferDualStack",
+                        "RequireDualStack"
+                      ]
+                    },
+                    "ipFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "IPv4",
+                          "IPv6"
+                        ]
+                      }
                     }
                   },
                   "additionalProperties": false
@@ -6000,6 +6165,24 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "ipFamilyPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "SingleStack",
+                        "PreferDualStack",
+                        "RequireDualStack"
+                      ]
+                    },
+                    "ipFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "IPv4",
+                          "IPv6"
+                        ]
+                      }
                     }
                   },
                   "additionalProperties": false
@@ -6054,6 +6237,24 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "ipFamilyPolicy": {
+                      "type": "string",
+                      "enum": [
+                        "SingleStack",
+                        "PreferDualStack",
+                        "RequireDualStack"
+                      ]
+                    },
+                    "ipFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "IPv4",
+                          "IPv6"
+                        ]
                       }
                     }
                   },
@@ -6114,6 +6315,39 @@
             },
             "dnsPolicy": {
               "type": "string"
+            },
+            "dnsConfig": {
+              "type": "object",
+              "properties": {
+                "nameservers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "searches": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
             },
             "nodeSelector": {
               "type": "object",
@@ -8904,6 +9138,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "preStopSleepSeconds": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -10398,6 +10639,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "preStopSleepSeconds": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -10410,6 +10658,14 @@
         "replicas": {
           "minimum": 0,
           "type": "integer"
+        },
+        "grace": {
+          "pattern": "^[0-9]+(ms|s|m|h|d)?$",
+          "type": "string"
+        },
+        "hardStopAfter": {
+          "pattern": "^[0-9]+(ms|s|m|h|d)?$",
+          "type": "string"
         },
         "image": {
           "type": "object",
@@ -12539,6 +12795,39 @@
         },
         "dnsPolicy": {
           "type": "string"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
         },
         "extraEnv": {
           "type": "array",
@@ -15857,6 +16146,39 @@
         "dnsPolicy": {
           "type": "string"
         },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
         "extraEnv": {
           "type": "array",
           "items": {
@@ -17265,6 +17587,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "preStopSleepSeconds": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -24201,6 +24530,39 @@
         "dnsPolicy": {
           "type": "string"
         },
+        "dnsConfig": {
+          "type": "object",
+          "properties": {
+            "nameservers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "searches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
         "extraEnv": {
           "type": "array",
           "items": {
@@ -30958,6 +31320,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "preStopSleepSeconds": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
