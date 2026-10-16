@@ -63,18 +63,41 @@ spec:
                 agentGatewayRef:
                   description: |-
                     AgentGatewayRef identifies the pre-installed agentgateway data plane the
-                    generated InferencePool/InferenceModel/HTTPRoute attach to when DataPlane
-                    is "AgentGateway". Required in AgentGateway mode; ignored otherwise. The
-                    Gateway, the Gateway API Inference Extension CRDs, and an Endpoint Picker
-                    (EPP) service are documented prerequisites; LLMKube does not install or own
-                    them. The EndpointPicker is referenced by every generated InferencePool so
-                    agentgateway can select a model-server endpoint per request.
+                    generated InferencePool/HTTPRoute/model-extraction AgentgatewayPolicy
+                    attach to when DataPlane is "AgentGateway". Required in AgentGateway mode;
+                    ignored otherwise. The Gateway, the Gateway API Inference Extension CRDs
+                    (InferencePool at inference.networking.k8s.io/v1), the agentgateway.dev
+                    CRDs, and an Endpoint Picker (EPP) service are documented prerequisites;
+                    LLMKube does not install or own them. The agentgateway controller must run
+                    with Inference-Pool backendRef support (inferenceExtension.enabled=true in
+                    the agentgateway chart). The EndpointPicker is referenced by every
+                    generated InferencePool so agentgateway can select a model-server endpoint
+                    per request. The Gateway may be in another namespace: the generated
+                    AgentgatewayPolicy then lives in the Gateway's namespace (its targetRefs
+                    are same-namespace), is not owner-referenced, and is cleaned up via a
+                    finalizer on this ModelRouter. Because that policy targets the whole
+                    Gateway, its body-model extraction runs on EVERY request through that
+                    Gateway, including routes LLMKube did not generate. The Gateway must not
+                    already carry another PreRouting transformation policy: the router is
+                    refused (ConflictingPreRoutingPolicy) rather than silently shadowed.
+                    agentgateway keeps the OLDEST same-specificity policy's transformation,
+                    so LLMKube does not retract its policy on conflict; the condition clears
+                    when the foreign policy is removed, and the reconciler rechecks every
+                    two minutes (a foreign policy created after the router went Ready is
+                    otherwise silently shadowed). agentgateway inspects at most 2 MiB of the
+                    request body by default (its DEFAULT_BUFFER_LIMIT); larger bodies (long
+                    contexts, images) are not routed on this path - the CEL extraction
+                    fails and the model header is removed. A Gateway owner can raise the
+                    limit with a frontend.http.maxBufferSize policy, a different field that
+                    does not conflict with the extraction policy.
                   properties:
                     endpointPicker:
                       description: |-
                         EndpointPicker names the EPP Service agentgateway consults for endpoint
                         selection. Required so each generated InferencePool can reference the
-                        picker; agentgateway cannot select endpoints without it.
+                        picker; agentgateway cannot select endpoints without it. The Service
+                        lives in this ModelRouter's namespace: GIE v1's endpointPickerRef has no
+                        namespace field, so the pool references it same-namespace.
                       type: string
                     endpointPickerPort:
                       description: |-
@@ -90,7 +113,13 @@ spec:
                     namespace:
                       description: |-
                         Namespace is the Gateway's namespace. Empty means the ModelRouter's own
-                        namespace.
+                        namespace. A different namespace is supported: the generated
+                        model-extraction AgentgatewayPolicy then lives in the Gateway's
+                        namespace (it cannot be owner-referenced across namespaces and is
+                        cleaned up via a finalizer on this ModelRouter), while the pools and
+                        route stay here. The pools, the referenced InferenceServices, and the
+                        EndpointPicker Service all live in this ModelRouter's namespace
+                        regardless.
                       type: string
                   required:
                     - endpointPicker
@@ -333,6 +362,47 @@ spec:
                     Endpoint defines the Kubernetes Service the router-proxy is exposed
                     through. Mirrors the shape used by InferenceService.
                   properties:
+                    apiKeySecretRef:
+                      description: |-
+                        APIKeySecretRef names a Secret key holding the API key callers must
+                        present as "Authorization: Bearer <key>". vLLM reads it as VLLM_API_KEY;
+                        SGLang gets it as LLMKUBE_API_KEY plus "--api-key $(LLMKUBE_API_KEY)".
+                        Both runtimes leave /health and /metrics open, so probes keep working.
+                        Supported for runtime vllm and sglang. A key change takes effect when the
+                        pods restart. An --api-key already in extraArgs wins; LLMKube then adds
+                        nothing. Cannot be combined with gateway.enabled: the gateway does not
+                        forward the key. Not supported on ModelRouter.
+                      properties:
+                        key:
+                          description: The key of the secret to select from.  Must be a valid secret key.
+                          type: string
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                        optional:
+                          description: Specify whether the Secret or its key must be defined
+                          type: boolean
+                      required:
+                        - key
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    externalTrafficPolicy:
+                      description: |-
+                        ExternalTrafficPolicy sets the Service's externalTrafficPolicy. Local
+                        preserves the client source IP on a NodePort or LoadBalancer, which an IP
+                        allowlist (NetworkPolicy) needs. Unset keeps the Kubernetes default
+                        (Cluster). Requires endpoint.type NodePort or LoadBalancer. Not supported
+                        on ModelRouter.
+                      enum:
+                        - Cluster
+                        - Local
+                      type: string
                     gateway:
                       description: |-
                         Gateway opts this InferenceService into Envoy AI Gateway exposure. When
@@ -407,6 +477,13 @@ spec:
                         - LoadBalancer
                       type: string
                   type: object
+                  x-kubernetes-validations:
+                    - message: externalTrafficPolicy requires endpoint.type NodePort or LoadBalancer
+                      rule: '!has(self.externalTrafficPolicy) || (has(self.type) && self.type in [''NodePort'',''LoadBalancer''])'
+                    - message: 'endpoint.apiKeySecretRef cannot be combined with endpoint.gateway.enabled: the gateway does not forward the key, so requests would get 401'
+                      rule: '!has(self.apiKeySecretRef) || !has(self.gateway) || !has(self.gateway.enabled) || !self.gateway.enabled'
+                    - message: endpoint.apiKeySecretRef needs a non-empty Secret name and a valid Secret key (letters, digits, '-', '_' and '.')
+                      rule: '!has(self.apiKeySecretRef) || (has(self.apiKeySecretRef.name) && size(self.apiKeySecretRef.name) > 0 && self.apiKeySecretRef.key.matches(''^[-._a-zA-Z0-9]+$''))'
                 gatewayRef:
                   description: |-
                     GatewayRef identifies the pre-installed Gateway (gateway.networking.k8s.io)
@@ -787,11 +864,12 @@ spec:
                         ResponseHeaderTimeout caps how long the proxy waits for the
                         upstream to begin sending response headers. For non-streaming
                         chat completions this is effectively a max-generation-time
-                        cap; for streaming dispatches the first SSE chunk arrives well
-                        inside the window so the cap is invisible. Default 120s when
-                        unset. Per-rule and per-backend timeouts (see RouterRule.Timeout
-                        and RouterBackend.Timeout) tighten this on a per-request basis
-                        but cannot extend it beyond this cap.
+                        cap, because their headers arrive when generation completes. It
+                        does not bound a streaming response once its headers arrive;
+                        StreamIdleTimeout guards those. Default 120s when unset.
+                        Per-rule and per-backend timeouts (see RouterRule.Timeout and
+                        RouterBackend.Timeout) tighten this on a per-request basis but
+                        cannot extend it beyond this cap.
                       type: string
                     revisionHistoryLimit:
                       description: |-
@@ -802,6 +880,17 @@ spec:
                       format: int32
                       minimum: 0
                       type: integer
+                    streamIdleTimeout:
+                      description: |-
+                        StreamIdleTimeout caps how long a response body may go without a
+                        single byte from the upstream once its headers have arrived. A
+                        healthy stream emits bytes continuously; the longest gap is the
+                        prefill before the first content token, which can take minutes
+                        for a very long prompt on slow hardware. When the window passes
+                        with no bytes, the proxy aborts the request and quarantines that
+                        backend endpoint, so a wedged replica stops receiving traffic.
+                        Default 300s when unset; "0s" disables the guard.
+                      type: string
                   type: object
                 rules:
                   description: |-
@@ -943,6 +1032,9 @@ spec:
               required:
                 - backends
               type: object
+              x-kubernetes-validations:
+                - message: endpoint.apiKeySecretRef and endpoint.externalTrafficPolicy are InferenceService fields; ModelRouter does not support them
+                  rule: '!has(self.endpoint) || (!has(self.endpoint.apiKeySecretRef) && !has(self.endpoint.externalTrafficPolicy))'
             status:
               description: status defines the observed state of ModelRouter
               properties:
@@ -955,7 +1047,8 @@ spec:
                 agentGateway:
                   description: |-
                     AgentGateway reports the observed state of dataPlane: AgentGateway
-                    exposure: whether the InferencePool / InferenceModel / HTTPRoute reconciled
+                    exposure: whether the InferencePool / HTTPRoute / model-extraction
+                    AgentgatewayPolicy reconciled
                     against the referenced agentgateway Gateway, and the resolved endpoint.
                     nil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady
                     condition.

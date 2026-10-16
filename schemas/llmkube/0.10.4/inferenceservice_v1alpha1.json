@@ -1097,7 +1097,7 @@
           ]
         },
         "bindAddress": {
-          "description": "BindAddress sets the network address the runtime listens on.\nMaps to --host for llamacpp/llamacpp-router/vllm/sglang and --hostname\nfor tgi. Default is \"::\" (dual-stack wildcard; see #972/#973). Prefer\nthis over raw spec.extraArgs: it is validated and discoverable via\n`kubectl explain`. If --host (or --hostname for TGI) is also present in\nspec.extraArgs, extraArgs wins and this is skipped.",
+          "description": "BindAddress sets the network address the runtime listens on.\nMaps to --host for llamacpp/llamacpp-router/vllm/sglang and --hostname\nfor tgi. Default is \"::\" (dual-stack wildcard; see #972/#973), except\nfor sglang, whose default is \"\" (every interface, both address\nfamilies): sglang binds \"::\" IPv6-only, so it would have no IPv4\nlistener (#2027). Prefer\nthis over raw spec.extraArgs: it is validated and discoverable via\n`kubectl explain`. If --host (or --hostname for TGI) is also present in\nspec.extraArgs, extraArgs wins and this is skipped.",
           "type": [
             "string",
             "null"
@@ -1210,6 +1210,50 @@
           "additionalProperties": false,
           "description": "Endpoint defines the service endpoint configuration",
           "properties": {
+            "apiKeySecretRef": {
+              "additionalProperties": false,
+              "description": "APIKeySecretRef names a Secret key holding the API key callers must\npresent as \"Authorization: Bearer \u003ckey\u003e\". vLLM reads it as VLLM_API_KEY;\nSGLang gets it as LLMKUBE_API_KEY plus \"--api-key $(LLMKUBE_API_KEY)\".\nBoth runtimes leave /health and /metrics open, so probes keep working.\nSupported for runtime vllm and sglang. A key change takes effect when the\npods restart. An --api-key already in extraArgs wins; LLMKube then adds\nnothing. Cannot be combined with gateway.enabled: the gateway does not\nforward the key. Not supported on ModelRouter.",
+              "properties": {
+                "key": {
+                  "description": "The key of the secret to select from.  Must be a valid secret key.",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "optional": {
+                  "description": "Specify whether the Secret or its key must be defined",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
+            },
+            "externalTrafficPolicy": {
+              "description": "ExternalTrafficPolicy sets the Service's externalTrafficPolicy. Local\npreserves the client source IP on a NodePort or LoadBalancer, which an IP\nallowlist (NetworkPolicy) needs. Unset keeps the Kubernetes default\n(Cluster). Requires endpoint.type NodePort or LoadBalancer. Not supported\non ModelRouter.",
+              "enum": [
+                "Cluster",
+                "Local"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "gateway": {
               "additionalProperties": false,
               "description": "Gateway opts this InferenceService into Envoy AI Gateway exposure. When\nset and Enabled, the operator generates the Backend / AIServiceBackend /\nAIGatewayRoute resources that front this service through a pre-installed\nEnvoy AI Gateway. nil (the default) preserves today's behavior (no\ngateway resources). The Envoy AI Gateway stack and the referenced Gateway\nare a documented prerequisite; LLMKube does not install or own them.",
@@ -1304,6 +1348,20 @@
           "type": [
             "object",
             "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "externalTrafficPolicy requires endpoint.type NodePort or LoadBalancer",
+              "rule": "!has(self.externalTrafficPolicy) || (has(self.type) \u0026\u0026 self.type in ['NodePort','LoadBalancer'])"
+            },
+            {
+              "message": "endpoint.apiKeySecretRef cannot be combined with endpoint.gateway.enabled: the gateway does not forward the key, so requests would get 401",
+              "rule": "!has(self.apiKeySecretRef) || !has(self.gateway) || !has(self.gateway.enabled) || !self.gateway.enabled"
+            },
+            {
+              "message": "endpoint.apiKeySecretRef needs a non-empty Secret name and a valid Secret key (letters, digits, '-', '_' and '.')",
+              "rule": "!has(self.apiKeySecretRef) || (has(self.apiKeySecretRef.name) \u0026\u0026 size(self.apiKeySecretRef.name) \u003e 0 \u0026\u0026 self.apiKeySecretRef.key.matches('^[-._a-zA-Z0-9]+$'))"
+            }
           ]
         },
         "env": {
@@ -3941,6 +3999,15 @@
                 "string",
                 "null"
               ]
+            },
+            "storageClassName": {
+              "description": "StorageClassName overrides the operator's --model-cache-storage-class\nflag for the model-cache PVC this operator creates for the service\n(#1963). A mixed cluster can then cache on local disk where a\ncloud-default class cannot attach, without hand-managing a claimName\nPVC per service.\n\nIn perService mode the field is authoritative: the per-service claim is\ncreated with this class. In shared mode the namespace has one claim\nthat every service shares, so the field is honored only at first\ncreation (first writer wins); a service whose request differs from the\nexisting claim's class gets a ModelCacheStorageClassIgnored warning and\nuses the claim as created, because storageClassName is immutable once\nbound. An empty value falls back to the flag; with neither set, the\ncluster default applies. Existing PVCs are never mutated.\n\nMutually exclusive with claimName (the claim is user-owned) and with\npersistence Ephemeral (no PVC exists to class).",
+              "maxLength": 63,
+              "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "type": [
@@ -3951,6 +4018,14 @@
             {
               "message": "claimName cannot be set when persistence is Ephemeral: one names a cache volume to use, the other declines to use any",
               "rule": "!(has(self.persistence) \u0026\u0026 self.persistence == 'Ephemeral' \u0026\u0026 has(self.claimName))"
+            },
+            {
+              "message": "storageClassName cannot be set together with claimName: the named claim is user-owned and its storage class was chosen when the claim itself was created",
+              "rule": "!(has(self.storageClassName) \u0026\u0026 has(self.claimName))"
+            },
+            {
+              "message": "storageClassName cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to class",
+              "rule": "!(has(self.persistence) \u0026\u0026 self.persistence == 'Ephemeral' \u0026\u0026 has(self.storageClassName))"
             }
           ]
         },
@@ -5371,8 +5446,7 @@
           ]
         },
         "runtime": {
-          "default": "llamacpp",
-          "description": "Runtime selects the inference server backend.\n\"llamacpp\" (default): llama.cpp server with auto-generated args and /health probes.\n\"llamacpp-router\": llama.cpp server in router mode for multi-model dynamic loading.\n\"generic\": user-provided container with custom command, args, env, and probes.\n\"personaplex\": NVIDIA PersonaPlex (Moshi) speech-to-speech server.\n\"vllm\": vLLM OpenAI-compatible server with PagedAttention.\n\"tgi\": HuggingFace Text Generation Inference server.\n\"sglang\": SGLang OpenAI-compatible server with RadixAttention prefix caching.",
+          "description": "Runtime selects the inference server backend.\nUnset: in-cluster, the same as \"llamacpp\"; on the metal-agent, the\nagent's --runtime flag (llama-server unless configured otherwise).\n\"llamacpp\": llama.cpp server with auto-generated args and /health probes.\n\"llamacpp-router\": llama.cpp server in router mode for multi-model dynamic loading.\n\"generic\": user-provided container with custom command, args, env, and probes.\n\"personaplex\": NVIDIA PersonaPlex (Moshi) speech-to-speech server.\n\"vllm\": vLLM OpenAI-compatible server with PagedAttention.\n\"tgi\": HuggingFace Text Generation Inference server.\n\"sglang\": SGLang OpenAI-compatible server with RadixAttention prefix caching.\nMetal-agent only (the Model must set hardware.accelerator: metal):\n\"mlx-server\", \"omlx\", \"vllm-swift\", \"ollama\", \"tensorfold\" (TensorFold,\nexact speculative decoding on MLX; serves an MLX model directory). The\nagent must have the matching binary configured.\nNo schema default: an unset value must reach the metal-agent as empty so\nits --runtime flag applies (#525).",
           "enum": [
             "llamacpp",
             "llamacpp-router",
@@ -5380,7 +5454,12 @@
             "vllm",
             "tgi",
             "sglang",
-            "generic"
+            "generic",
+            "mlx-server",
+            "omlx",
+            "vllm-swift",
+            "ollama",
+            "tensorfold"
           ],
           "type": [
             "string",
@@ -5618,11 +5697,29 @@
           "description": "SGLangConfig holds configuration for the SGLang runtime.\nOnly used when Runtime is \"sglang\".",
           "properties": {
             "attentionBackend": {
-              "description": "Attention\nAttentionBackend selects the attention implementation. flashinfer is\nfastest on recent NVIDIA GPUs; flash_attn is portable; torch_native is\nthe fallback. Maps to SGLang --attention-backend flag.",
+              "description": "Attention\nAttentionBackend selects the attention implementation. Unset lets SGLang\nchoose per model and GPU: fa3 on Hopper, trtllm_mha (MHA) or flashinfer\n(MLA) on Blackwell, flashinfer or triton elsewhere. Some models override\nthat: Qwen3.5-family hybrid models on Blackwell get triton while the\nprefix cache runs without the mamba extra buffer, which is slow on long\nprompts; flashinfer is the typed fix (see the SGLang on Blackwell guide).\nThe values are SGLang v0.5.15's --attention-backend choices. flash_attn\nis not one (SGLang exits with an invalid-choice error); it stays\naccepted so existing objects remain valid, and the SGLangSpecValid\ncondition reports it. Maps to SGLang --attention-backend flag.",
               "enum": [
+                "triton",
+                "torch_native",
+                "flex_attention",
+                "dsa",
+                "dsv4",
+                "cutlass_mla",
+                "fa3",
+                "fa4",
                 "flashinfer",
-                "flash_attn",
-                "torch_native"
+                "flashmla",
+                "trtllm_mla",
+                "cutedsl_mla",
+                "tokenspeed_mla",
+                "trtllm_mha",
+                "dual_chunk_flash_attn",
+                "aiter",
+                "wave",
+                "intel_amx",
+                "ascend",
+                "intel_xpu",
+                "flash_attn"
               ],
               "type": [
                 "string",
@@ -5927,6 +6024,33 @@
                 "null"
               ]
             },
+            "stallDetection": {
+              "additionalProperties": false,
+              "description": "StallDetection opts the service into a liveness probe that detects a\nsilently wedged SGLang engine: work in flight while it stops making\nprogress, which /health does not see. The probe execs a small check\nagainst the local /metrics endpoint and fails once the engine is busy\n(sglang:num_running_reqs \u003e 0 or sglang:kv_used_tokens \u003e 0) with\nsglang:realtime_tokens_total, the prompt and generation counters, and\nsglang:kv_used_tokens all flat for windowSeconds.\n\nSGLang's signals differ from vLLM's (measured on SGLang v0.5.15): a\nrequest being prefilled is not counted in num_running_reqs, and the\nprompt and generation counters only advance when a request finishes.\nkv_used_tokens marks the engine busy through prefill and decode, and\nrealtime_tokens_total advances on every prefill chunk and decode step,\nso a wedge mid-prefill is caught and a long prefill is not mistaken\nfor one. Prefill chunks arrive further apart as context grows, so the\nwindow must exceed the slowest single chunk on the hardware.\n\nThe check replaces the /health liveness probe only; startup and\nreadiness stay on /health_generate. spec.probeOverrides.liveness still\nwins when set. The field is inert unless spec.runtime is \"sglang\". The\nprobe execs python3 and keeps its state under /tmp, so it needs an\nimage with python3 on PATH and a writable /tmp. Default off.",
+              "properties": {
+                "enabled": {
+                  "description": "Enabled turns on the stall-detecting exec liveness probe. When nil\nor false, the liveness probe is the standard /health HTTP check.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "windowSeconds": {
+                  "description": "WindowSeconds is how long every progress signal must stay flat while\nthe engine is busy before it is declared stalled. Defaults to 120\nwhen unset. Restart latency is roughly window + liveness period x\nfailure threshold (about 165s at the defaults).",
+                  "format": "int32",
+                  "maximum": 3600,
+                  "minimum": 10,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "tensorParallelSize": {
               "description": "Sharding\nTensorParallelSize sets the number of GPUs for tensor parallelism.\nMaps to SGLang --tp flag.",
               "format": "int32",
@@ -6116,6 +6240,13 @@
               "message": "set only one of draftModelRef (a separate Model CR) and draftModel (a file in Model.files), not both",
               "rule": "!((has(self.draftModelRef) \u0026\u0026 self.draftModelRef.size() \u003e 0) \u0026\u0026 (has(self.draftModel) \u0026\u0026 self.draftModel.size() \u003e 0))"
             }
+          ]
+        },
+        "stageModel": {
+          "description": "StageModel opts a runtime that does not stage models by default (generic) into\nModel-managed staging: the operator downloads the referenced Model into the model\ncache with the same init containers and read-only /models mount the built-in\nruntimes use, and sets LLMKUBE_MODEL_PATH (the primary file) and LLMKUBE_MODEL_DIR\n(the staged directory; for a single file, its directory) in the serving\ncontainer's env. Kubernetes expands $(VAR) in args, so args can name\n$(LLMKUBE_MODEL_PATH). Runtimes that stage by default ignore it. Cannot be\ncombined with skipModelInit.",
+          "type": [
+            "boolean",
+            "null"
           ]
         },
         "suspend": {
@@ -6616,6 +6747,33 @@
                 "null"
               ]
             },
+            "stallDetection": {
+              "additionalProperties": false,
+              "description": "StallDetection opts into a liveness probe that detects a silently\nstalled vLLM engine: requests stay \"running\" while generation stops,\nyet /health keeps returning 200, so every probe LLMKube configures\nlooks healthy and the router keeps sending traffic to a wedged pod\n(observed on vLLM v0.31.0; upstream vllm-project/vllm#58422).\n\nThe probe execs a small Python check against the local /metrics\nendpoint: while vllm:num_requests_running \u003e 0 and neither\nvllm:generation_tokens_total nor vllm:prompt_tokens_total has\nchanged and vllm:kv_cache_usage_perc has not moved for the window,\nthe probe fails and kubelet restarts the container. A restart\nclears the wedge (only deleting the pod recovered it in the\nfield). Idle engines (running == 0) never fail the probe.\n\nMeasured on vLLM v0.31.0 (B200, chunked prefill, 16384 batched\ntokens): a ~200K-token prefill kept both token counters flat for\nits whole 13.7s while vllm:kv_cache_usage_perc climbed steadily,\nso the kv gauge is the mid-prefill heartbeat and a long prefill is\nnot a stall. A counter that decreases resets the window (the\nmetrics registry restarted). The kv gauge is optional; without it\nthe judgment falls back to the token counters alone.\n\nThe check replaces the /health liveness probe only; startup and\nreadiness stay on /health. spec.probeOverrides.liveness still wins\nwhen set. In-cluster only: metal-agent services run no Kubernetes\nprobes, and the field is inert unless spec.runtime is \"vllm\".\nThe probe execs python3 and keeps its state under /tmp, so it needs\nan image with python3 on PATH and a writable /tmp (not a read-only\nroot filesystem). Default off; the /health liveness is unchanged\nwhen not enabled.",
+              "properties": {
+                "enabled": {
+                  "description": "Enabled turns on the stall-detecting exec liveness probe. When nil\nor false, the liveness probe is the standard /health HTTP check.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "windowSeconds": {
+                  "description": "WindowSeconds is how long the token counters and\nvllm:kv_cache_usage_perc must stay flat while\nvllm:num_requests_running \u003e 0 before the engine is declared\nstalled. Defaults to 120 when unset. The kv-cache heartbeat keeps\nlong prefills safe, so the margin guards against restarting pods\nover ordinary scheduler hiccups between probes. Restart latency is\nroughly window + liveness period x failure threshold (about 165s at\nthe defaults).",
+                  "format": "int32",
+                  "maximum": 3600,
+                  "minimum": 10,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "tensorParallelSize": {
               "description": "TensorParallelSize sets the number of GPUs for tensor parallelism.",
               "format": "int32",
@@ -6643,6 +6801,18 @@
         {
           "message": "multiNode is supported for runtime vllm in this release",
           "rule": "!has(self.multiNode) || (has(self.runtime) \u0026\u0026 self.runtime == 'vllm')"
+        },
+        {
+          "message": "stageModel and skipModelInit cannot both be true: one asks the operator to stage the Model, the other declines staging",
+          "rule": "!(has(self.stageModel) \u0026\u0026 self.stageModel \u0026\u0026 has(self.skipModelInit) \u0026\u0026 self.skipModelInit)"
+        },
+        {
+          "message": "endpoint.apiKeySecretRef is supported for runtime vllm and sglang in this release",
+          "rule": "!has(self.endpoint) || !has(self.endpoint.apiKeySecretRef) || (has(self.runtime) \u0026\u0026 self.runtime in ['vllm','sglang'])"
+        },
+        {
+          "message": "with spec.command set, LLMKube cannot add --api-key to the SGLang command line; drop spec.command, or remove endpoint.apiKeySecretRef and pass --api-key $(VAR) in spec.args with VAR from spec.env",
+          "rule": "!has(self.endpoint) || !has(self.endpoint.apiKeySecretRef) || !has(self.runtime) || self.runtime != 'sglang' || !has(self.command) || self.command.size() == 0"
         }
       ]
     },
@@ -6890,6 +7060,68 @@
               "description": "ReadyMembers counts members whose pod is Ready. The group condition\nadditionally requires every member Running before the group serves.",
               "format": "int32",
               "type": "integer"
+            },
+            "recreates": {
+              "additionalProperties": false,
+              "description": "Recreates records the failure-driven recreates of the group since it\nlast served. A recreate replaces every member pod, so the per-member\nrestart counts start from zero each time; this is the count that\naccumulates. Absent while the group has not failed, and cleared once\nthe group has stayed Ready, the spec changes, or the service is scaled\nto zero.",
+              "properties": {
+                "count": {
+                  "description": "Count is the number of consecutive member failures that tore the group\ndown without it serving in between.",
+                  "format": "int32",
+                  "type": "integer"
+                },
+                "groupHash": {
+                  "description": "GroupHash is the group hash the count belongs to: a spec change that\nmoves the hash starts a fresh count.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lastFailureTime": {
+                  "description": "LastFailureTime is when the most recent failure was observed.",
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "message": {
+                  "description": "Message names the member and carries the evidence of the most recent\nfailure (container, exit code, reason, and an excerpt of the\ntermination message). It survives the deletion of the pod it describes.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nextRecreateTime": {
+                  "description": "NextRecreateTime is the earliest time the group is recreated after the\nmost recent failure. Unset once the bound is reached.",
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "podUID": {
+                  "description": "PodUID is the member pod whose failure was counted last, so a teardown\nthat spans several reconciles is counted once.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reason": {
+                  "description": "Reason is the recreate reason of the most recent failure, for example\nMemberRestarted or MemberFailed.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "count"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "size": {
               "description": "Size is the number of members in the spec.",

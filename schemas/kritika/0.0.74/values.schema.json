@@ -415,7 +415,7 @@
       "type": "object"
     },
     "imagePullSecrets": {
-      "description": "Image pull secrets for private registries, for the kritika serve pods and, through the runner ServiceAccount, runner Jobs and the tool images they mount.",
+      "description": "Image pull secrets for private registries, for the kritika serve pods and, through the runner ServiceAccount, runner Jobs.",
       "items": {
         "required": []
       },
@@ -984,7 +984,7 @@
           "type": "string"
         },
         "image": {
-          "description": "Image for runner Jobs: the release's `-tools` image, which adds crane,\ncurl, fd, gh, jq, rg and yq for a review's or follow-up's `agent.commands`.",
+          "description": "Image for runner Jobs: the release's `-tools` image, which adds mise\nwith curl, fd, gh, jq, rg and yq for a review's or follow-up's run tool.",
           "properties": {
             "digest": {
               "default": "",
@@ -1013,6 +1013,37 @@
           },
           "required": [],
           "title": "image",
+          "type": "object"
+        },
+        "mise": {
+          "description": "The runner image declares curl, fd, gh, jq, rg and yq; a repository adds\ntools for its own reviews in `.kritika/mise.toml`, pinned by its lock.",
+          "properties": {
+            "urlReplacements": {
+              "description": "Rewrites of the URLs runner tools download from (KRITIKA_RUNNER_MISE_URL_REPLACEMENTS), such as to a caching mirror: mise's `url_replacements`, tried in order until one matches. `from` is a URL prefix, or `regex:` and a pattern whose groups `to` may name as `$1`. The mirror's host must pass the egress gateway; a download is still checked against the repository's lock.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "to": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "type": "object"
+              },
+              "title": "urlReplacements",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "mise",
           "type": "object"
         },
         "resources": {
@@ -1051,14 +1082,6 @@
           "required": [],
           "title": "serviceAccount",
           "type": "object"
-        },
-        "tools": {
-          "description": "Command-line tools a runner pod mounts from an image for the agent's run tool (KRITIKA_RUNNER_TOOLS), each a `name`, a digest-pinned `image`, the `path` of its binaries and the `commands` it provides. Needs Kubernetes 1.33 or newer, which mounts an image volume with a subPath; the chart refuses to render them on an older cluster.",
-          "items": {
-            "required": []
-          },
-          "title": "tools",
-          "type": "array"
         },
         "ttl": {
           "default": "10m",
