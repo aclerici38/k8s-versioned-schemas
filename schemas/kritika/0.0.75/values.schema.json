@@ -68,6 +68,20 @@
         "gatewayAddr": {
           "type": "string"
         },
+        "gatewayCacheDir": {
+          "type": "string"
+        },
+        "gatewayCacheMaxAge": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "gatewayCacheMaxSize": {
+          "required": [],
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
         "gatewayTokenTtl": {
           "minLength": 1,
           "type": "string"
@@ -266,6 +280,32 @@
       "description": "Override the full release name.",
       "title": "fullnameOverride",
       "type": "string"
+    },
+    "gatewayCache": {
+      "description": "The gateway's download cache: each kritika serve replica keeps what runner\ntools download from the hosts `config.egress.cache` names, in an emptyDir,\nand serves it again to the next run that asks for the same URL, so a tool\nis fetched once per replica rather than once per run. mise still checks\nevery download against the repository's lock.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Give each replica an emptyDir for the cache (KRITIKA_GATEWAY_CACHE_DIR); `config.egress.cache` names the hosts whose downloads it keeps.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "maxAge": {
+          "default": "24h",
+          "description": "How long a kept download is served before it is fetched again (KRITIKA_GATEWAY_CACHE_MAX_AGE), a Go duration.",
+          "title": "maxAge",
+          "type": "string"
+        },
+        "maxSize": {
+          "default": "2Gi",
+          "description": "The most the cache keeps (KRITIKA_GATEWAY_CACHE_MAX_SIZE), in bytes or with Ki, Mi, Gi or Ti, the least recently used downloads going first, and apart from that the most its fetches under way may write. Allow ephemeral storage for twice this size plus evicted files still being served and the pod's other storage use. Evicted files retain disk space until their readers finish, for up to two minutes; their total size is not bounded by this setting.",
+          "title": "maxSize",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "gatewayCache",
+      "type": "object"
     },
     "global": {
       "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
@@ -1016,12 +1056,30 @@
           "type": "object"
         },
         "mise": {
+          "description": "The runner image declares curl, fd, gh, jq, rg and yq; a repository adds\ntools for its own reviews in `.kritika/mise.toml`, pinned by its lock.",
           "properties": {
-            "config": {
-              "default": "",
-              "description": "The instance's mise config (KRITIKA_RUNNER_MISE_CONFIG), layered over the runner image's `/etc/mise/config.toml`, which declares curl, fd, gh, jq, rg and yq. Empty, the image's tools are what the run tool offers. Set it to add or replace tools and to set instance-wide `[settings]` or `[env]`; the image tools it does not mention remain.",
-              "title": "config",
-              "type": "string"
+            "urlReplacements": {
+              "description": "Rewrites of the URLs runner tools download from (KRITIKA_RUNNER_MISE_URL_REPLACEMENTS), such as to a caching mirror: mise's `url_replacements`, tried in order until one matches. `from` is a URL prefix, or `regex:` and a pattern whose groups `to` may name as `$1`. The mirror's host must pass the egress gateway; a download is still checked against the repository's lock.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "to": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "type": "object"
+              },
+              "title": "urlReplacements",
+              "type": "array"
             }
           },
           "required": [],
