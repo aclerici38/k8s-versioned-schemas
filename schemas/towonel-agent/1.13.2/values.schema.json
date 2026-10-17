@@ -129,7 +129,7 @@
                           "type": "string"
                         },
                         "repository": {
-                          "default": "codeberg.org/towonel/towonel-agent",
+                          "default": "git.ow-ops.eu/towonel/towonel-agent",
                           "description": "Image repository.",
                           "title": "repository",
                           "type": "string"
@@ -569,6 +569,60 @@
       "description": "  ingress:\n    main:\n      className: nginx\n      hosts:\n        - host: app.example.com\n          paths:\n            - path: /\n              pathType: Prefix\n              service:\n                identifier: main\n                port: http",
       "required": [],
       "title": "ingress",
+      "type": "object"
+    },
+    "mesh": {
+      "description": "Private network: each replica joins the tunnel's mesh as a device, and mesh\npeers reach `mesh.services`, which are never published on an edge. Switches\nthe controller to a StatefulSet so every replica keeps its device key.",
+      "properties": {
+        "authKeySecret": {
+          "description": "- port: 5432\n  origin: postgres.db.svc.cluster.local:5432",
+          "properties": {
+            "key": {
+              "default": "TOWONEL_MESH_AUTH_KEY",
+              "description": "Key inside the Secret.",
+              "title": "key",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "Secret holding a mesh auth key (TOWONEL_MESH_AUTH_KEY). Create it with\n`towonel mesh auth-key --tenant-id \u003cid\u003e --tag tag:agent --reusable\nk8s-secret \u003cname\u003e | kubectl apply -f -`. Tagged keys' devices never\nexpire; `--reusable` lets every replica join.",
+              "title": "name",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "authKeySecret",
+          "type": "object"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Join the mesh (needs `services` and `authKeySecret`).",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "services": {
+          "description": "Services peers reach through this agent (TOWONEL_AGENT_MESH_SERVICES).",
+          "items": {
+            "required": []
+          },
+          "title": "services",
+          "type": "array"
+        },
+        "storageClass": {
+          "default": "",
+          "description": "StorageClass for the state volumes; empty uses the cluster default.",
+          "title": "storageClass",
+          "type": "string"
+        },
+        "storageSize": {
+          "default": "64Mi",
+          "description": "Size of each replica's state volume (device key and enrollment).",
+          "title": "storageSize",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "mesh",
       "type": "object"
     },
     "monitoring": {
