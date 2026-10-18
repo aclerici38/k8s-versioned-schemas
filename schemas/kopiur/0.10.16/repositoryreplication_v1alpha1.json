@@ -1,134 +1,111 @@
 {
-  "description": "Auto-generated derived type for SnapshotReplicationSpec via `CustomResource`",
+  "description": "Auto-generated derived type for RepositoryReplicationSpec via `CustomResource`",
   "properties": {
     "spec": {
       "additionalProperties": false,
-      "description": "Copy selected snapshots from a source repository into a destination repository on a schedule (`kopia snapshot migrate`).\n\nNot `Eq`: `mover` transitively embeds k8s-openapi types.",
+      "description": "Mirror a source repository's blobs to a destination backend on a schedule (`kopia repository sync-to`).\n\nNot `Eq`: `mover` transitively embeds k8s-openapi types.",
       "properties": {
-        "credentialProjection": {
+        "destination": {
           "additionalProperties": false,
-          "description": "Opt-in projection of BOTH repositories' credential Secrets into the mover\nJob's namespace (required when the destination is a `ClusterRepository`\nwhose Secrets live elsewhere).",
-          "nullable": true,
-          "properties": {
-            "enabled": {
-              "default": false,
-              "description": "Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.",
-              "type": [
-                "boolean",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "destinationRef": {
-          "additionalProperties": false,
-          "description": "The `Repository` or `ClusterRepository` snapshots are copied INTO. A real\nrepository CR with its own password and format (unlike a\n`RepositoryReplication` destination, which is a bare backend reusing the\nsource's password). Must not resolve to the same repository as `sourceRef`\n(webhook-enforced structurally; the shared validator catches the literal\nsame-ref case at admission).",
-          "properties": {
-            "kind": {
-              "default": "Repository",
-              "description": "Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].",
-              "enum": [
-                "Repository",
-                "ClusterRepository"
-              ],
-              "type": [
-                "string",
-                "null"
+          "description": "The backend to mirror to; must differ from the source's backend (webhook-enforced).\n\n`kopia repository sync-to` is a blob-level copy: the destination inherits the\nsource repository's format and encryption password verbatim, so there is no\nseparate destination password to configure. The destination backend's own\naccess credentials (e.g. S3 keys) ride its `auth.secretRef`, which — like the\nsource's — must live in this CR's namespace.",
+          "oneOf": [
+            {
+              "required": [
+                "s3"
               ]
             },
-            "name": {
-              "description": "Name of the referenced `Repository`/`ClusterRepository`.",
-              "type": "string"
+            {
+              "required": [
+                "azure"
+              ]
             },
-            "namespace": {
-              "description": "Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
+            {
+              "required": [
+                "gcs"
+              ]
+            },
+            {
+              "required": [
+                "b2"
+              ]
+            },
+            {
+              "required": [
+                "filesystem"
+              ]
+            },
+            {
+              "required": [
+                "sftp"
+              ]
+            },
+            {
+              "required": [
+                "webDav"
+              ]
+            },
+            {
+              "required": [
+                "rclone"
+              ]
+            },
+            {
+              "required": [
+                "gdrive"
               ]
             }
-          },
-          "required": [
-            "name"
           ],
-          "type": "object"
-        },
-        "migrate": {
-          "additionalProperties": false,
-          "description": "Tuning for the underlying `kopia snapshot migrate` invocation. Absent:\nsequential copy, and NO policy copying (see [`PolicyCopyMode`]).",
-          "nullable": true,
           "properties": {
-            "parallel": {
-              "description": "`--parallel`: number of snapshots migrated concurrently (kopia default\n`1` — sequential). Must be \u003e= 1 when set.",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "policies": {
-              "default": "none",
-              "description": "Whether kopia **policies** attached to the copied sources are also copied\nto the destination. Defaults to [`PolicyCopyMode::None`].",
-              "enum": [
-                "none",
-                "copy",
-                "copyOverwrite"
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "throttle": {
+            "azure": {
               "additionalProperties": false,
-              "description": "Bandwidth/ops caps for THIS replication's runs, per side. `snapshot\nmigrate` has no speed flags, so each side is applied as `kopia repository\nthrottle set` on that side's connection; `source` overrides the source\nrepository's `moverDefaults.throttle` and `destination` the destination\nrepository's, field by field (a field left unset keeps that repository's\ndefault). Absent: both sides use their repository's defaults.",
-              "nullable": true,
+              "description": "Azure Blob Storage.",
               "properties": {
-                "destination": {
+                "auth": {
                   "additionalProperties": false,
-                  "description": "Caps for the DESTINATION (write) side, overriding the destination\nrepository's `moverDefaults.throttle` field by field. Applied with\n`repository throttle set` on the destination connection the migrate\nwrites through.",
+                  "description": "Access credentials (Secret ref / workload identity).",
                   "nullable": true,
                   "properties": {
-                    "downloadBytesPerSecond": {
-                      "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
-                      "format": "int64",
+                    "secretRef": {
+                      "additionalProperties": false,
+                      "description": "Secret holding the backend's static access credentials (mutually exclusive with `workloadIdentity`).",
                       "nullable": true,
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `Secret`.",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
                       "type": [
-                        "integer",
+                        "object",
                         "null"
                       ]
                     },
-                    "readOpsPerSecond": {
-                      "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
-                      "format": "int64",
+                    "workloadIdentity": {
+                      "additionalProperties": false,
+                      "description": "Use a cloud-federated ServiceAccount instead of static keys (mutually exclusive with `secretRef`).",
                       "nullable": true,
+                      "properties": {
+                        "serviceAccountName": {
+                          "description": "Name of the `ServiceAccount` the mover pod runs as, resolved in the Job's own namespace.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "serviceAccountName"
+                      ],
                       "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "uploadBytesPerSecond": {
-                      "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "writeOpsPerSecond": {
-                      "description": "Cap write ops/sec (`--write-requests-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
+                        "object",
                         "null"
                       ]
                     }
@@ -138,44 +115,477 @@
                     "null"
                   ]
                 },
-                "source": {
+                "container": {
+                  "description": "Blob container holding the kopia repository.",
+                  "type": "string"
+                },
+                "prefix": {
+                  "description": "Blob-name prefix within the container; empty/absent means the container root.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "storageAccount": {
+                  "description": "Storage-account name (when not inferred from credentials).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "container"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "b2": {
+              "additionalProperties": false,
+              "description": "Backblaze B2.",
+              "properties": {
+                "auth": {
                   "additionalProperties": false,
-                  "description": "Caps for the SOURCE (read) side, overriding the source repository's\n`moverDefaults.throttle` field by field. Applied with `repository\nthrottle set` on the migrate's read-only source connection — accepted\nthere, so a read-only source is throttled like any other.",
+                  "description": "Access credentials (application key ID/key Secret); Secret-only.",
                   "nullable": true,
                   "properties": {
-                    "downloadBytesPerSecond": {
-                      "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
-                      "format": "int64",
+                    "secretRef": {
+                      "additionalProperties": false,
+                      "description": "Secret holding the backend's access credentials, read by well-known keys.",
                       "nullable": true,
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `Secret`.",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
                       "type": [
-                        "integer",
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "bucket": {
+                  "description": "B2 bucket holding the kopia repository.",
+                  "type": "string"
+                },
+                "prefix": {
+                  "description": "Object-name prefix within the bucket; empty/absent means the bucket root.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "bucket"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "filesystem": {
+              "additionalProperties": false,
+              "description": "A local filesystem path, backed by a PVC the operator mounts into the mover.",
+              "properties": {
+                "path": {
+                  "description": "Mount path inside the mover pod where kopia writes the repository (e.g. `/repo`).",
+                  "type": "string"
+                },
+                "volume": {
+                  "additionalProperties": false,
+                  "description": "What backs `path`: a PVC or an inline NFS export; absent for a path already on the node/image.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "pvc"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "nfs"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "nfs": {
+                      "additionalProperties": false,
+                      "description": "An inline NFS export mounted directly (no PVC).",
+                      "properties": {
+                        "path": {
+                          "description": "Exported path on the NFS server (e.g. `/export/kopia` or `/mnt/eros/Media`).",
+                          "type": "string"
+                        },
+                        "server": {
+                          "description": "NFS server hostname or IP (e.g. `nas.lan` or `expanse.internal`).",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "server"
+                      ],
+                      "type": [
+                        "object",
                         "null"
                       ]
                     },
-                    "readOpsPerSecond": {
-                      "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
+                    "pvc": {
+                      "additionalProperties": false,
+                      "description": "A `PersistentVolumeClaim` mounted read-write at the repo path.",
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `PersistentVolumeClaim` to mount (in the mover's namespace).",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
                       "type": [
-                        "integer",
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "gcs": {
+              "additionalProperties": false,
+              "description": "Google Cloud Storage.",
+              "properties": {
+                "auth": {
+                  "additionalProperties": false,
+                  "description": "Access credentials (service-account key Secret / workload identity).",
+                  "nullable": true,
+                  "properties": {
+                    "secretRef": {
+                      "additionalProperties": false,
+                      "description": "Secret holding the backend's static access credentials (mutually exclusive with `workloadIdentity`).",
+                      "nullable": true,
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `Secret`.",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": [
+                        "object",
                         "null"
                       ]
                     },
-                    "uploadBytesPerSecond": {
-                      "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
-                      "format": "int64",
+                    "workloadIdentity": {
+                      "additionalProperties": false,
+                      "description": "Use a cloud-federated ServiceAccount instead of static keys (mutually exclusive with `secretRef`).",
+                      "nullable": true,
+                      "properties": {
+                        "serviceAccountName": {
+                          "description": "Name of the `ServiceAccount` the mover pod runs as, resolved in the Job's own namespace.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "serviceAccountName"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "bucket": {
+                  "description": "GCS bucket holding the kopia repository.",
+                  "type": "string"
+                },
+                "prefix": {
+                  "description": "Object-name prefix within the bucket; empty/absent means the bucket root.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "bucket"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "gdrive": {
+              "additionalProperties": false,
+              "description": "Google Drive via kopia's native `gdrive` provider (service-account JSON).\nkopia marks this provider experimental / not maintained, and a native\ngdrive repository is not interchangeable with an rclone-backed Drive remote.",
+              "properties": {
+                "credentialsSecretRef": {
+                  "additionalProperties": false,
+                  "description": "Secret holding the Google service-account JSON used to reach the folder,\nread by the well-known key `KOPIA_GDRIVE_CREDENTIALS`. Absent means kopia\nfalls back to ambient credentials (`GOOGLE_APPLICATION_CREDENTIALS` or\ninstance metadata).",
+                  "nullable": true,
+                  "properties": {
+                    "name": {
+                      "description": "Name of the `Secret`.",
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
                       "nullable": true,
                       "type": [
-                        "integer",
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "folderId": {
+                  "description": "Google Drive folder ID that holds the kopia repository.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "folderId"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "rclone": {
+              "additionalProperties": false,
+              "description": "Any rclone remote (kopia shells out to `rclone`), broadening reach to\nproviders without a native kopia backend.",
+              "properties": {
+                "configSecretRef": {
+                  "additionalProperties": false,
+                  "description": "Secret holding the `rclone.conf` that defines the remote referenced by\n`remote_path`.",
+                  "nullable": true,
+                  "properties": {
+                    "name": {
+                      "description": "Name of the `Secret`.",
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                      "nullable": true,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "remotePath": {
+                  "description": "rclone path in `remote:path` form (the remote name must exist in the\nsupplied rclone config).",
+                  "type": "string"
+                },
+                "startupTimeout": {
+                  "description": "How long kopia waits for its embedded `rclone serve` to come up before\nfailing the connect, as a Go duration (e.g. `2m`). kopia's default is\n`15s`; raise it for slow remotes whose repository metadata/indexes load\nthrough the rclone/WebDAV bridge and take longer than the default budget.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "remotePath"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "s3": {
+              "additionalProperties": false,
+              "description": "Amazon S3 or any S3-compatible object store (MinIO, RustFS, Ceph RGW, …).",
+              "properties": {
+                "auth": {
+                  "additionalProperties": false,
+                  "description": "Access credentials (Secret ref / workload identity).",
+                  "nullable": true,
+                  "properties": {
+                    "secretRef": {
+                      "additionalProperties": false,
+                      "description": "Secret holding the backend's static access credentials (mutually exclusive with `workloadIdentity`).",
+                      "nullable": true,
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `Secret`.",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": [
+                        "object",
                         "null"
                       ]
                     },
-                    "writeOpsPerSecond": {
-                      "description": "Cap write ops/sec (`--write-requests-per-second`).",
-                      "format": "int64",
+                    "workloadIdentity": {
+                      "additionalProperties": false,
+                      "description": "Use a cloud-federated ServiceAccount instead of static keys (mutually exclusive with `secretRef`).",
                       "nullable": true,
+                      "properties": {
+                        "serviceAccountName": {
+                          "description": "Name of the `ServiceAccount` the mover pod runs as, resolved in the Job's own namespace.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "serviceAccountName"
+                      ],
                       "type": [
-                        "integer",
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "bucket": {
+                  "description": "Bucket holding the kopia repository.",
+                  "type": "string"
+                },
+                "endpoint": {
+                  "description": "S3 endpoint host. Omit for AWS; set it for MinIO/RustFS/other\nS3-compatible stores.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "prefix": {
+                  "description": "Key prefix under the bucket, letting several repositories share one bucket\n(e.g. `clusters/prod/`). Empty/absent means the bucket root.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "region": {
+                  "description": "S3 region. Required by AWS and some compatible providers.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tls": {
+                  "additionalProperties": false,
+                  "description": "TLS overrides for self-signed CAs or HTTP-only endpoints.",
+                  "nullable": true,
+                  "properties": {
+                    "caBundleRef": {
+                      "additionalProperties": false,
+                      "description": "CA bundle (PEM) used to verify the endpoint's certificate, sourced from a `ConfigMap`.",
+                      "nullable": true,
+                      "properties": {
+                        "configMapName": {
+                          "description": "Name of the `ConfigMap` holding the value (e.g. a CA bundle). Resolved in the\nreferrer's namespace for a namespaced `Repository`, and in the operator's\nnamespace (`KOPIUR_NAMESPACE`) for a `ClusterRepository` (cluster-scoped, no\nnamespace of its own).",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "key": {
+                          "description": "Which key inside the `ConfigMap` to read; defaults to `ca.crt` when unset.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "disableTls": {
+                      "description": "Disable TLS entirely and talk plain HTTP; maps to kopia's `--disable-tls`.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "insecureSkipVerify": {
+                      "description": "Skip TLS certificate verification (still uses TLS); maps to kopia's `--disable-tls-verification`.",
+                      "type": [
+                        "boolean",
                         "null"
                       ]
                     }
@@ -186,16 +596,148 @@
                   ]
                 }
               },
+              "required": [
+                "bucket"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "sftp": {
+              "additionalProperties": false,
+              "description": "SFTP server.",
+              "properties": {
+                "auth": {
+                  "additionalProperties": false,
+                  "description": "Credentials (SSH private key / known-hosts) sourced from a Secret; Secret-only.",
+                  "nullable": true,
+                  "properties": {
+                    "secretRef": {
+                      "additionalProperties": false,
+                      "description": "Secret holding the backend's access credentials, read by well-known keys.",
+                      "nullable": true,
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `Secret`.",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "host": {
+                  "description": "SFTP server hostname or IP.",
+                  "type": "string"
+                },
+                "path": {
+                  "description": "Remote path on the server that holds the kopia repository.",
+                  "type": "string"
+                },
+                "port": {
+                  "description": "TCP port; defaults to 22 when absent.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "username": {
+                  "description": "SSH username to connect as.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "host",
+                "path"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "webDav": {
+              "additionalProperties": false,
+              "description": "WebDAV endpoint.",
+              "properties": {
+                "auth": {
+                  "additionalProperties": false,
+                  "description": "HTTP basic-auth credentials sourced from a Secret; Secret-only.",
+                  "nullable": true,
+                  "properties": {
+                    "secretRef": {
+                      "additionalProperties": false,
+                      "description": "Secret holding the backend's access credentials, read by well-known keys.",
+                      "nullable": true,
+                      "properties": {
+                        "name": {
+                          "description": "Name of the `Secret`.",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "description": "Namespace of the `Secret`; absent = same namespace as the referrer. A\n`ClusterRepository` is cluster-scoped and has no namespace of its own, so when IT\nreads the `Secret` (to connect, to bootstrap, or to run its repository server) an\nabsent namespace means the operator's namespace (`KOPIUR_NAMESPACE`). A workload\nmover (Snapshot/Restore/Maintenance) still needs the `Secret` in its OWN namespace —\n`envFrom` is namespace-local — so put it there, or use `credentialProjection`, which\nneeds this namespace set EXPLICITLY to know what to copy. Set it whenever anything\nother than the operator itself reads the `Secret`.",
+                          "nullable": true,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "url": {
+                  "description": "WebDAV collection URL holding the kopia repository.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
               "type": [
                 "object",
                 "null"
               ]
             }
           },
-          "type": [
-            "object",
-            "null"
-          ]
+          "type": "object"
         },
         "mover": {
           "additionalProperties": false,
@@ -608,7 +1150,7 @@
               ]
             },
             "privilegedMode": {
-              "description": "Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.",
+              "description": "Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs\nas root (`runAsUser: 0`), adds the capabilities the operation needs on top of\n`drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);\n`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original\nownership). Grants nothing for maintenance, or when the mover does not run as\nroot (capabilities are inert for non-root); set `runAsUser: 0` yourself.",
               "nullable": true,
               "type": [
                 "boolean",
@@ -923,115 +1465,6 @@
             "null"
           ]
         },
-        "pruning": {
-          "additionalProperties": false,
-          "description": "What happens to already-replicated copies at the destination on later runs.\nAbsent = `none`: copies accumulate forever and — like every mode here —\n**survive deletion of this CR** (copy `Snapshot` CRs carry no\nownerReference to it). Pruning only ever considers snapshots this CR\nreplicated (labeled at birth); it never touches the destination's own\ndirectly-written snapshots.",
-          "nullable": true,
-          "oneOf": [
-            {
-              "required": [
-                "none"
-              ]
-            },
-            {
-              "required": [
-                "mirrorSource"
-              ]
-            },
-            {
-              "required": [
-                "retention"
-              ]
-            }
-          ],
-          "properties": {
-            "mirrorSource": {
-              "description": "Mirror the source: delete a copy when its `(identity, startTime)` has\nvanished from the source repository.",
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "none": {
-              "description": "Never prune: copies accumulate until deleted by hand (the default when\n`spec.pruning` is absent).",
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "retention": {
-              "additionalProperties": false,
-              "description": "Keep copies under an independent GFS retention at the destination,\nregardless of what the source still holds.",
-              "properties": {
-                "keepAnnual": {
-                  "description": "Keep one snapshot per year for the most-recent N years.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepDaily": {
-                  "description": "Keep one snapshot per day for the most-recent N days.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepHourly": {
-                  "description": "Keep one snapshot per hour for the most-recent N hours.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepLatest": {
-                  "description": "Keep the N most-recent snapshots regardless of age.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepMonthly": {
-                  "description": "Keep one snapshot per month for the most-recent N months.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepWeekly": {
-                  "description": "Keep one snapshot per week for the most-recent N weeks.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                }
-              },
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "type": "object"
-        },
         "schedule": {
           "additionalProperties": false,
           "description": "Cron and deterministic jitter for the replication runs.",
@@ -1062,114 +1495,9 @@
           ],
           "type": "object"
         },
-        "selection": {
-          "additionalProperties": false,
-          "description": "Which snapshots to copy. Absent: every identity in the source repository,\nfull history (`kopia snapshot migrate --all`).",
-          "nullable": true,
-          "properties": {
-            "identities": {
-              "additionalProperties": false,
-              "description": "Select source identities (`username@hostname:path`) to copy. Absent: all\nidentities in the source repository.",
-              "nullable": true,
-              "properties": {
-                "exclude": {
-                  "description": "Identities to skip, applied after `include`. Exclude wins on overlap.",
-                  "items": {
-                    "additionalProperties": false,
-                    "description": "One glob match against a kopia identity's structured\n`(username, hostname, sourcePath)` triple. Every set component must match\n(AND); an unset component matches anything — but at least one component must\nbe set (webhook-refused otherwise: a fully-empty matcher constrains nothing).\n\nGlob semantics, **per component** (non-crossing — a `*` in `username` can\nnever reach into `hostname`): `*` matches any run of characters (including\nnone), `?` matches exactly one character, everything else matches literally,\nand the pattern is anchored (it must cover the WHOLE component — `pg` does\nnot match `pg-main`; `pg*` does). Matching is always on the structured\ntriple, never on a joined `username@hostname:path` string, so literal `@`/`:`\ninside a component cannot confuse it. No character classes (`[...]`) or brace\nexpansion — those are rejected at admission rather than silently matched\nliterally. See [`component_glob_matches`].",
-                    "properties": {
-                      "hostname": {
-                        "description": "Glob for the `hostname` component; absent matches any hostname.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "sourcePath": {
-                        "description": "Glob for the `sourcePath` component; absent matches any path.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "username": {
-                        "description": "Glob for the `username` component; absent matches any username.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                },
-                "include": {
-                  "description": "Identities to copy. Empty/absent: every identity in the source.",
-                  "items": {
-                    "additionalProperties": false,
-                    "description": "One glob match against a kopia identity's structured\n`(username, hostname, sourcePath)` triple. Every set component must match\n(AND); an unset component matches anything — but at least one component must\nbe set (webhook-refused otherwise: a fully-empty matcher constrains nothing).\n\nGlob semantics, **per component** (non-crossing — a `*` in `username` can\nnever reach into `hostname`): `*` matches any run of characters (including\nnone), `?` matches exactly one character, everything else matches literally,\nand the pattern is anchored (it must cover the WHOLE component — `pg` does\nnot match `pg-main`; `pg*` does). Matching is always on the structured\ntriple, never on a joined `username@hostname:path` string, so literal `@`/`:`\ninside a component cannot confuse it. No character classes (`[...]`) or brace\nexpansion — those are rejected at admission rather than silently matched\nliterally. See [`component_glob_matches`].",
-                    "properties": {
-                      "hostname": {
-                        "description": "Glob for the `hostname` component; absent matches any hostname.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "sourcePath": {
-                        "description": "Glob for the `sourcePath` component; absent matches any path.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "username": {
-                        "description": "Glob for the `username` component; absent matches any username.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                }
-              },
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "latestOnly": {
-              "description": "Copy only each selected identity's most recent snapshot instead of its\nfull history (`kopia snapshot migrate --latest`). Default `false`.",
-              "type": [
-                "boolean",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "sourceRef": {
           "additionalProperties": false,
-          "description": "The `Repository` or `ClusterRepository` snapshots are copied FROM. Opened\nread-only by the replication mover — a replication never writes to its source.",
+          "description": "Reference to the `Repository` or `ClusterRepository` to mirror from.",
           "properties": {
             "kind": {
               "default": "Repository",
@@ -1202,15 +1530,85 @@
           "type": "object"
         },
         "suspend": {
-          "description": "Pause this replication; a suspended replication runs no copies (default `false`).",
+          "description": "Pause this replication; a suspended replication runs no syncs (default `false`).",
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "sync": {
+          "additionalProperties": false,
+          "description": "Tuning knobs for the underlying `kopia repository sync-to` invocation\n(issue #216). `None` reproduces today's behavior: sequential copy\n(`--parallel` unset), additive sync (no `--delete`), kopia's own\n`--must-exist`/`--times`/`--update` defaults, and no throughput cap.",
+          "nullable": true,
+          "properties": {
+            "deleteExtra": {
+              "description": "`--delete`: prune destination-only blobs so the mirror is an exact copy\n(kopia default `false` — additive sync, never removes destination\ncontent). Named `deleteExtra`, not kopia's bare `delete`: a `delete: true`\nkey on backup-adjacent YAML is dangerously ambiguous at a glance.\n\nCAUTION: with this `true`, blobs present at the destination but absent\nfrom the source are deleted on every run.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "maxDownloadSpeedBytesPerSecond": {
+              "description": "`--max-download-speed`: cap read throughput from the source, in\nbytes/sec (kopia default: unlimited).",
+              "format": "int64",
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "maxUploadSpeedBytesPerSecond": {
+              "description": "`--max-upload-speed`: cap write throughput to the destination, in\nbytes/sec (kopia default: unlimited).",
+              "format": "int64",
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "mustExist": {
+              "description": "`--[no-]must-exist`: fail the sync instead of initializing the\ndestination's repository-format blob (kopia default `false` — sync-to may\ncreate the destination layout on first run).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "parallel": {
+              "description": "`--parallel`: number of concurrent blob-copy workers (kopia default `1` —\nsequential, the root cause of #216's multi-week seed times to R2).",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "times": {
+              "description": "`--[no-]times`: synchronize blob modification times to the destination,\nwhen the destination backend supports it (kopia default `true`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "update": {
+              "description": "`--[no-]update`: update blobs already present at the destination when the\nsource copy is newer (kopia default `true`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
             "null"
           ]
         }
       },
       "required": [
-        "destinationRef",
+        "destination",
         "schedule",
         "sourceRef"
       ],
@@ -1218,7 +1616,7 @@
     },
     "status": {
       "additionalProperties": false,
-      "description": "Observed state of a `SnapshotReplication`.",
+      "description": "Observed state of a `RepositoryReplication`.",
       "nullable": true,
       "properties": {
         "conditions": {
@@ -1271,82 +1669,37 @@
             "null"
           ]
         },
-        "lastReplicated": {
-          "description": "RFC3339 timestamp of the most recent successful replication run (also the\nscheduling anchor for the next slot).",
+        "destinationBackend": {
+          "description": "The destination backend kind, for the `DESTINATION` print column.",
           "nullable": true,
           "type": [
             "string",
             "null"
           ]
         },
-        "lastRun": {
-          "additionalProperties": false,
-          "description": "Counters from the most recent run.",
+        "lastReplicated": {
+          "description": "RFC3339 timestamp of the most recent successful replication run.",
           "nullable": true,
-          "properties": {
-            "alreadyPresent": {
-              "description": "Selected snapshots that were already present at the destination (skipped).",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "failed": {
-              "description": "Selected snapshots that failed to copy (kopia migrate exits 0 on\nper-source failures; the mover's post-verify counts them here).",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "identitiesSelected": {
-              "description": "Source identities the selector matched this run.",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "incompleteSkipped": {
-              "description": "Incomplete source manifests of selected identities — checkpoints an\ninterrupted `kopia snapshot create` left behind — that this run did not\nreplicate. kopia can never migrate a checkpoint as a complete snapshot,\nso they are skipped rather than failing the post-verify. Non-zero\nusually means an abandoned manual backup worth cleaning up with\n`kopia snapshot delete \u003cid\u003e --delete` (the mover log names the ids).",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "pruned": {
-              "description": "Copies pruned this run per `spec.pruning`.",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "snapshotsCopied": {
-              "description": "Snapshots newly copied to the destination this run.",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
           "type": [
-            "object",
+            "string",
+            "null"
+          ]
+        },
+        "lastReplicatedBlobs": {
+          "description": "Blobs replicated by the last successful run (best-effort).",
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "lastReplicatedBytes": {
+          "description": "Bytes replicated by the last successful run (best-effort from kopia output).",
+          "format": "int64",
+          "nullable": true,
+          "type": [
+            "integer",
             "null"
           ]
         },
@@ -1391,6 +1744,14 @@
             "null"
           ]
         },
+        "nextScheduledAt": {
+          "description": "RFC3339 timestamp of the next scheduled replication run (cron + jitter, pinned).",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "observedGeneration": {
           "description": "`metadata.generation` last reconciled, for staleness detection / kstatus.",
           "format": "int64",
@@ -1401,7 +1762,7 @@
           ]
         },
         "phase": {
-          "description": "Lifecycle phase of a snapshot replication.",
+          "description": "Lifecycle phase of a replication.",
           "enum": [
             "Pending",
             "Replicating",
@@ -1425,6 +1786,6 @@
   "required": [
     "spec"
   ],
-  "title": "SnapshotReplication",
+  "title": "RepositoryReplication",
   "type": "object"
 }
