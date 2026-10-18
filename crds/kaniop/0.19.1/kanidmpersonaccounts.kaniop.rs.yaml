@@ -152,6 +152,18 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                sshPublicKeys:
+                  additionalProperties:
+                    type: string
+                  description: |-
+                    SSH public keys managed by Kaniop, indexed by their Kanidm tag.
+                    Keys added directly in Kanidm under other tags are preserved.
+                    If omitted, SSH keys are not managed. An empty map removes previously managed keys.
+                    Kanidm performs the validation of SSH key material.
+                    The map is a single atomic unit for server-side apply ownership.
+                  nullable: true
+                  type: object
+                  x-kubernetes-map-type: atomic
               required:
                 - kanidmRef
                 - personAttributes
@@ -199,12 +211,52 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
+                credentialBootstrap:
+                  default:
+                    state: pending
+                  description: |-
+                    Persistent bootstrap state. Keeping the token expiry in status prevents operator restarts from
+                    generating duplicate reset tokens while preserving the existing retry-after-expiry behaviour.
+                  properties:
+                    state:
+                      default: pending
+                      description: Lifecycle of the initial credential bootstrap for a person account.
+                      enum:
+                        - pending
+                        - tokenIssued
+                        - complete
+                      type: string
+                    tokenExpiresAt:
+                      description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                      format: date-time
+                      nullable: true
+                      type: string
+                  type: object
+                credentialState:
+                  default: unknown
+                  description: |-
+                    Observed credential presence. `Unknown` is fail-closed: it must never trigger credential
+                    bootstrap or reset-token creation.
+                  enum:
+                    - unknown
+                    - present
+                    - absent
+                  type: string
                 gid:
                   type: integer
                   minimum: 0.0
                   nullable: true
                 kanidmRef:
                   type: string
+                managedSshPublicKeyTags:
+                  default: []
+                  description: |-
+                    Tags claimed by this resource after successful synchronization with Kanidm.
+                    Used to revoke only keys previously managed by Kaniop.
+                  items:
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: set
                 ready:
                   type: boolean
               required:

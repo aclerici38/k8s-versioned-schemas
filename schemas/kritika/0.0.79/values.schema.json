@@ -68,6 +68,20 @@
         "gatewayAddr": {
           "type": "string"
         },
+        "gatewayCacheDir": {
+          "type": "string"
+        },
+        "gatewayCacheMaxAge": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "gatewayCacheMaxSize": {
+          "required": [],
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
         "gatewayTokenTtl": {
           "minLength": 1,
           "type": "string"
@@ -266,6 +280,32 @@
       "description": "Override the full release name.",
       "title": "fullnameOverride",
       "type": "string"
+    },
+    "gatewayCache": {
+      "description": "The gateway's download cache: each kritika serve replica keeps what a\nrepository's locked tools download, and what runner tools download from the\nhosts `config.egress.cache` names, in an emptyDir, and serves it again to\nthe next run that asks for the same URL, so a tool is fetched once per\nreplica rather than once per run. mise still checks every download against\nthe repository's lock.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Give each replica an emptyDir for the cache (KRITIKA_GATEWAY_CACHE_DIR), which keeps what a repository's `.kritika/mise.lock` pins; `config.egress.cache` names more hosts whose downloads it keeps.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "maxAge": {
+          "default": "24h",
+          "description": "How long a kept download is served before it is fetched again (KRITIKA_GATEWAY_CACHE_MAX_AGE), a Go duration.",
+          "title": "maxAge",
+          "type": "string"
+        },
+        "maxSize": {
+          "default": "2Gi",
+          "description": "The most the cache keeps (KRITIKA_GATEWAY_CACHE_MAX_SIZE), in bytes or with Ki, Mi, Gi or Ti, the least recently used downloads going first, and apart from that the most its fetches under way may write. Allow ephemeral storage for twice this size plus evicted files still being served and the pod's other storage use. Evicted files retain disk space until their readers finish, for up to two minutes; their total size is not bounded by this setting.",
+          "title": "maxSize",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "gatewayCache",
+      "type": "object"
     },
     "global": {
       "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
@@ -752,13 +792,54 @@
       "type": "string"
     },
     "networkPolicy": {
-      "description": "NetworkPolicies (off by default): one for the service pods (ingress to the\nwebhook and metrics ports, and to the gateway port from runner pods;\negress to DNS, the forges and models over the egress ports, Postgres and\nthe API server) and one for runner pods (egress only: DNS, Postgres and\nthe gateway port on the service pods, through which everything else is\nreached). The Postgres port is allowed to any peer because the database\nmay live in another namespace.",
+      "description": "NetworkPolicies (off by default): one for the service pods (ingress to the\nwebhook and metrics ports, and to the gateway port from runner pods;\negress to the cluster's DNS, the forges and models over the egress ports,\nPostgres and the API server) and one for runner pods (egress only: the\ncluster's DNS, Postgres and the gateway port on the service pods, through\nwhich everything else is reached). Runner pods reach the Postgres port\nonly where `postgres` says the database is; the service pods reach it at\nany address, as they do the egress ports.",
       "properties": {
         "allowDNS": {
           "default": true,
-          "description": "Allow DNS egress (UDP/TCP 53); the Cilium flavor allows it to kube-dns alone.",
+          "description": "Allow DNS egress (UDP/TCP 53) to the cluster's DNS, as `dns` describes it, and nowhere else.",
           "title": "allowDNS",
           "type": "boolean"
+        },
+        "dns": {
+          "description": "The cluster's DNS, the one peer the pods may send port 53 to.",
+          "properties": {
+            "namespace": {
+              "default": "kube-system",
+              "description": "Namespace of the cluster's DNS pods.",
+              "title": "namespace",
+              "type": "string"
+            },
+            "nodeLocalAddresses": {
+              "description": "Addresses of a NodeLocal DNSCache on each node's own network, such as `169.254.20.10`, which the pods query in place of those pods. The Cilium flavor allows DNS to the node itself instead, since Cilium gives the node's addresses the host's identity.",
+              "items": {
+                "pattern": "^[0-9A-Fa-f.:]+$",
+                "type": "string"
+              },
+              "title": "nodeLocalAddresses",
+              "type": "array"
+            },
+            "podSelector": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Empty rather than kube-dns's label: Helm merges maps, so a default here\nwould stay beside the labels set in its place.\nLabels of the cluster's DNS pods; empty stands for `k8s-app: kube-dns`.",
+              "required": [],
+              "title": "podSelector",
+              "type": "object"
+            },
+            "runnerNames": {
+              "description": "With the Cilium flavor, the names runner pods may look up besides those of the cluster's Services, `\u003cservice\u003e.\u003cnamespace\u003e.svc.cluster.local`, which the cluster's DNS answers itself (an ExternalName Service's goes on to the name its author set): the database's host when it is outside the cluster. Each is a name, or a Cilium `matchPattern` in which `*` stands for part of one label. Cilium refuses any other name; the other flavors do not filter names.",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "title": "runnerNames",
+              "type": "array"
+            }
+          },
+          "required": [],
+          "title": "dns",
+          "type": "object"
         },
         "egressPorts": {
           "description": "TCP ports the service pods may egress to for forges and model endpoints. Runner pods reach the gateway alone.",
@@ -778,6 +859,38 @@
           "description": "Create the NetworkPolicies.",
           "title": "enabled",
           "type": "boolean"
+        },
+        "postgres": {
+          "description": "Where the database the runner role's URI names is, the one peer runner\npods may reach postgresPort at: every pod in the release namespace unless\nset.",
+          "properties": {
+            "cidrs": {
+              "description": "CIDRs of a database outside the cluster, such as `192.0.2.10/32`.",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "title": "cidrs",
+              "type": "array"
+            },
+            "namespace": {
+              "default": "",
+              "description": "Namespace of the database's pods; the release namespace when empty.",
+              "title": "namespace",
+              "type": "string"
+            },
+            "podSelector": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Labels of the database's pods, such as `cnpg.io/cluster: kritika-postgres` for a CloudNativePG cluster, or of the pods of a session-mode pooler the runner's URI goes through. Empty selects every pod in `namespace`, or none when only `cidrs` is set.",
+              "required": [],
+              "title": "podSelector",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "postgres",
+          "type": "object"
         },
         "postgresPort": {
           "default": 5432,
@@ -975,88 +1088,283 @@
       "type": "object"
     },
     "runner": {
-      "description": "Runner Jobs: one pod per review, follow-up or index run, created by kritika\nserve in the release namespace from the release's -tools image, running as a\nservice account with no permissions and a database role that can only touch\nits own run. The server's Role reaches every Secret in the release namespace,\nso install kritika into a namespace of its own. Their deadline and\nRuntimeClass are `runner.deadline` and `runner.runtimeClass`; a\nsandboxed RuntimeClass (gVisor, Kata) is advised, since a runner parses\nuntrusted repository content and runs what the model asks.",
+      "description": "Runner Jobs: one pod per review, follow-up or index run, created by kritika\nserve in the release namespace from the release's -tools image, running as a\nservice account with no permissions and a database role that can only touch\nits own run. The server's Role reaches every Secret in the release namespace,\nso install kritika into a namespace of its own. A sandboxed RuntimeClass\n(gVisor, Kata), `runner.podTemplate.spec.runtimeClassName`, is advised,\nsince a runner parses untrusted repository content and runs what the model\nasks.",
       "properties": {
-        "deadline": {
-          "default": "",
-          "description": "Maximum duration of a runner Job; omitted uses the application's default of 15m.",
-          "title": "deadline",
-          "type": "string"
-        },
-        "image": {
-          "description": "Image for runner Jobs: the release's `-tools` image, which adds mise\nwith curl, fd, gh, jq, rg and yq for a review's or follow-up's run tool.",
+        "admissionPolicy": {
           "properties": {
-            "digest": {
-              "default": "",
-              "description": "Pin the runner image by digest (sha256:…); when set, overrides the tag. The release pipeline fills it with the published `-tools` image's digest.",
-              "title": "digest",
-              "type": "string"
-            },
-            "pullPolicy": {
-              "default": "IfNotPresent",
-              "description": "Runner image pull policy (KRITIKA_RUNNER_IMAGE_PULL_POLICY).",
-              "title": "pullPolicy",
-              "type": "string"
-            },
-            "repository": {
-              "default": "ghcr.io/home-operations/kritika",
-              "description": "Runner image repository.",
-              "title": "repository",
-              "type": "string"
-            },
-            "tag": {
-              "default": "",
-              "description": "Overrides the runner image tag; defaults to the chart appVersion with `-tools` appended.",
-              "title": "tag",
-              "type": "string"
+            "enabled": {
+              "default": true,
+              "description": "Have the cluster refuse, from kritika serve's ServiceAccount, any Job that is not a runner Job as kritika builds it, any Secret that is not a run's, and any deletion of a Job but in the foreground, which takes its run's Secret with it, with three ValidatingAdmissionPolicies and their bindings: cluster-scoped objects the chart's installer must be allowed to create. Without them the Role lets kritika serve create any Job in its namespace, whose pod may run as another ServiceAccount and mount another Secret. Any tag or digest of the runner image's repository passes, so the runs an older replica starts mid-rollout do too; changing the repository, the runner ServiceAccount, RuntimeClass, database Secret or a Secret the runner container's `env` names refuses them until the rollout ends, and they are retried.",
+              "title": "enabled",
+              "type": "boolean"
             }
           },
           "required": [],
-          "title": "image",
+          "title": "admissionPolicy",
           "type": "object"
         },
-        "mise": {
-          "description": "The runner image declares curl, fd, gh, jq, rg and yq; a repository adds\ntools for its own reviews in `.kritika/mise.toml`, pinned by its lock.",
+        "jobTemplate": {
+          "additionalProperties": false,
+          "description": "What kritika sets on every runner Job (KRITIKA_RUNNER_JOB_TEMPLATE), as\na Job template spells it. The Job's retries, its pod failure policy and\nits pod stay kritika's.",
           "properties": {
-            "urlReplacements": {
-              "description": "Rewrites of the URLs runner tools download from (KRITIKA_RUNNER_MISE_URL_REPLACEMENTS), such as to a caching mirror: mise's `url_replacements`, tried in order until one matches. `from` is a URL prefix, or `regex:` and a pattern whose groups `to` may name as `$1`. The mirror's host must pass the egress gateway; a download is still checked against the repository's lock.",
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "from": {
-                    "minLength": 1,
+            "metadata": {
+              "additionalProperties": false,
+              "properties": {
+                "annotations": {
+                  "additionalProperties": {
                     "type": "string"
                   },
-                  "to": {
-                    "minLength": 1,
-                    "type": "string"
-                  }
+                  "description": "Annotations for runner Jobs. kritika refuses its own, under `kritika.home-operations.com/`.",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
                 },
-                "required": [
-                  "from",
-                  "to"
-                ],
-                "type": "object"
+                "labels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Labels for runner Jobs. kritika refuses its own, the instance label and the Job controller's.",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                }
               },
-              "title": "urlReplacements",
-              "type": "array"
+              "required": [],
+              "title": "metadata",
+              "type": "object"
+            },
+            "spec": {
+              "additionalProperties": false,
+              "properties": {
+                "activeDeadlineSeconds": {
+                  "default": 900,
+                  "description": "How long a runner Job may run, in seconds: at most 7200, or River's job timeout cap would cut the run off early. A review's or follow-up's Job runs as long as its agent's `timeout`, for each part a review is split into, needs, if that is longer. The deadline bounds the work around the run and the run's gateway token too.",
+                  "maximum": 7200,
+                  "minimum": 1,
+                  "title": "activeDeadlineSeconds",
+                  "type": "integer"
+                },
+                "ttlSecondsAfterFinished": {
+                  "default": 600,
+                  "description": "How long a finished Job stays for kubectl before Kubernetes removes it, in seconds; the run row keeps everything the Job knew.",
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "title": "ttlSecondsAfterFinished",
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "title": "spec",
+              "type": "object"
             }
           },
           "required": [],
-          "title": "mise",
+          "title": "jobTemplate",
           "type": "object"
         },
-        "resources": {
-          "description": "Resources for runner pods (KRITIKA_RUNNER_RESOURCES), copied into the pod spec.",
+        "podTemplate": {
+          "additionalProperties": false,
+          "description": "What kritika sets on every runner pod (KRITIKA_RUNNER_POD_TEMPLATE), as\na pod template spells it. What keeps a runner isolated, its\nServiceAccount, the token it does not mount, its security contexts, its\nvolumes and its command, stays kritika's.",
+          "properties": {
+            "metadata": {
+              "additionalProperties": false,
+              "properties": {
+                "annotations": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Annotations for runner pods, such as `karpenter.sh/do-not-disrupt: \"true\"`. kritika refuses AppArmor's, which would set the runner's profile.",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "labels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Labels for runner pods. kritika refuses its own, the instance label and the Job controller's.",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "metadata",
+              "type": "object"
+            },
+            "spec": {
+              "additionalProperties": false,
+              "properties": {
+                "affinity": {
+                  "description": "Affinity for runner pods.",
+                  "required": [],
+                  "title": "affinity",
+                  "type": "object"
+                },
+                "containers": {
+                  "description": "The runner container, the pod's one, named runner: its `image`, empty for this release's `-tools` image pinned by digest, which adds mise with curl, fd, gh, jq, rg and yq for a review's or follow-up's run tool; its `imagePullPolicy`; and its `env`, variables the run tool's commands get over a repository's `[env]`, each a `value` or a Secret's key (`valueFrom.secretKeyRef`), which is masked out of what the commands print. kritika sets them on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself, and refuses the names it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "env": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "name": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "valueFrom": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "secretKeyRef": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "key": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "optional": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "key"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "secretKeyRef"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "image": {
+                        "type": "string"
+                      },
+                      "imagePullPolicy": {
+                        "enum": [
+                          "",
+                          "Always",
+                          "IfNotPresent",
+                          "Never"
+                        ],
+                        "required": []
+                      },
+                      "name": {
+                        "const": "runner",
+                        "required": []
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 1,
+                  "minItems": 1,
+                  "title": "containers",
+                  "type": "array"
+                },
+                "hostUsers": {
+                  "default": true,
+                  "description": "Set false to run runner pods in a user namespace of their own, which the nodes' kernel and container runtime must support; true shares the node's, as Kubernetes does by default.",
+                  "title": "hostUsers",
+                  "type": "boolean"
+                },
+                "nodeSelector": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Node labels runner pods are scheduled by.",
+                  "required": [],
+                  "title": "nodeSelector",
+                  "type": "object"
+                },
+                "priorityClassName": {
+                  "default": "",
+                  "description": "PriorityClass for runner pods. Empty uses the cluster default.",
+                  "title": "priorityClassName",
+                  "type": "string"
+                },
+                "resources": {
+                  "additionalProperties": false,
+                  "description": "Requests and limits of cpu, memory and hugepages for the whole runner pod, the run tool's commands included: pod-level resources, on by default from Kubernetes 1.34. A LimitRange's container defaults in the release namespace still apply to the runner container: its default limit bounds the runner within the pod's, and the API refuses a runner pod whose requests are below its default requests.",
+                  "properties": {
+                    "limits": {
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "required": [],
+                      "type": "object"
+                    },
+                    "requests": {
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "required": [],
+                      "type": "object"
+                    }
+                  },
+                  "required": [],
+                  "title": "resources",
+                  "type": "object"
+                },
+                "runtimeClassName": {
+                  "default": "",
+                  "description": "RuntimeClass for runner pods, such as gvisor or kata. Empty uses the cluster default.",
+                  "title": "runtimeClassName",
+                  "type": "string"
+                },
+                "tolerations": {
+                  "description": "Tolerations for runner pods.",
+                  "items": {
+                    "required": [],
+                    "type": "object"
+                  },
+                  "title": "tolerations",
+                  "type": "array"
+                },
+                "topologySpreadConstraints": {
+                  "description": "Topology spread constraints for runner pods.",
+                  "items": {
+                    "required": [],
+                    "type": "object"
+                  },
+                  "title": "topologySpreadConstraints",
+                  "type": "array"
+                }
+              },
+              "required": [],
+              "title": "spec",
+              "type": "object"
+            }
+          },
           "required": [],
-          "title": "resources",
+          "title": "podTemplate",
           "type": "object"
-        },
-        "runtimeClass": {
-          "default": "",
-          "description": "RuntimeClass for runner Jobs, such as gvisor or kata. Empty uses the cluster default.",
-          "title": "runtimeClass",
-          "type": "string"
         },
         "serviceAccount": {
           "properties": {
@@ -1082,12 +1390,6 @@
           "required": [],
           "title": "serviceAccount",
           "type": "object"
-        },
-        "ttl": {
-          "default": "10m",
-          "description": "How long a finished Job stays for kubectl before Kubernetes removes it (Go duration); the run row keeps everything the Job knew.",
-          "title": "ttl",
-          "type": "string"
         }
       },
       "required": [],
