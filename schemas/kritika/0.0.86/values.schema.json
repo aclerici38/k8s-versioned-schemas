@@ -71,9 +71,12 @@
         "gatewayCacheDir": {
           "type": "string"
         },
-        "gatewayCacheMaxAge": {
-          "minLength": 1,
-          "type": "string"
+        "gatewayCacheMaxEntrySize": {
+          "required": [],
+          "type": [
+            "string",
+            "integer"
+          ]
         },
         "gatewayCacheMaxSize": {
           "required": [],
@@ -81,6 +84,28 @@
             "string",
             "integer"
           ]
+        },
+        "gatewayCacheS3Bucket": {
+          "type": "string"
+        },
+        "gatewayCacheS3Endpoint": {
+          "type": "string"
+        },
+        "gatewayCacheS3ForcePathStyle": {
+          "type": "boolean"
+        },
+        "gatewayCacheS3Prefix": {
+          "type": "string"
+        },
+        "gatewayCacheS3Region": {
+          "type": "string"
+        },
+        "gatewayCacheStorage": {
+          "enum": [
+            "filesystem",
+            "s3"
+          ],
+          "type": "string"
         },
         "gatewayTokenTtl": {
           "minLength": 1,
@@ -282,30 +307,108 @@
       "type": "string"
     },
     "gatewayCache": {
-      "description": "The gateway's download cache: each kritika serve replica keeps what a\nrepository's locked tools download, and what runner tools download from the\nhosts `config.egress.cache` names, in an emptyDir, and serves it again to\nthe next run that asks for the same URL, so a tool is fetched once per\nreplica rather than once per run. mise still checks every download against\nthe repository's lock.",
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
-          "description": "Give each replica an emptyDir for the cache (KRITIKA_GATEWAY_CACHE_DIR), which keeps what a repository's `.kritika/mise.lock` pins; `config.egress.cache` names more hosts whose downloads it keeps.",
+          "description": "Cache eligible gateway downloads. Filesystem storage uses a private emptyDir per replica; S3 shares completed objects across replicas and rollouts.",
           "title": "enabled",
           "type": "boolean"
         },
-        "maxAge": {
-          "default": "24h",
-          "description": "How long a kept download is served before it is fetched again (KRITIKA_GATEWAY_CACHE_MAX_AGE), a Go duration.",
-          "title": "maxAge",
+        "maxEntrySize": {
+          "default": "256Mi",
+          "description": "Maximum size of one cached download (KRITIKA_GATEWAY_CACHE_MAX_ENTRY_SIZE). S3 uses single-request uploads, limited to 5Gi.",
+          "title": "maxEntrySize",
           "type": "string"
         },
-        "maxSize": {
-          "default": "2Gi",
-          "description": "The most the cache keeps (KRITIKA_GATEWAY_CACHE_MAX_SIZE), in bytes or with Ki, Mi, Gi or Ti, the least recently used downloads going first, and apart from that the most its fetches under way may write. Allow ephemeral storage for twice this size plus evicted files still being served and the pod's other storage use. Evicted files retain disk space until their readers finish, for up to two minutes; their total size is not bounded by this setting.",
-          "title": "maxSize",
-          "type": "string"
+        "storage": {
+          "additionalProperties": false,
+          "if": {
+            "properties": {
+              "type": {
+                "const": "s3",
+                "required": []
+              }
+            },
+            "required": []
+          },
+          "properties": {
+            "bucket": {
+              "default": "",
+              "description": "Existing S3 bucket. Provision its credentials and retention outside this chart.",
+              "title": "bucket",
+              "type": "string"
+            },
+            "endpoint": {
+              "default": "",
+              "description": "S3 API origin, including http:// or https:// and an optional port; no bucket path.",
+              "title": "endpoint",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Secret with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY keys, as a Rook ObjectBucketClaim or the AWS tooling writes them. Empty uses the SDK's IAM credentials. Only serve receives these credentials.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "forcePathStyle": {
+              "default": true,
+              "description": "Address buckets in the URL path instead of requiring wildcard bucket DNS.",
+              "title": "forcePathStyle",
+              "type": "boolean"
+            },
+            "maxSize": {
+              "default": "2Gi",
+              "description": "Filesystem storage only: retained-entry budget, and separately the aggregate fill budget. Allow twice this plus evicted files still being served. S3's private local cache instead uses eight times maxEntrySize for each budget; this does not bound bucket usage.",
+              "title": "maxSize",
+              "type": "string"
+            },
+            "prefix": {
+              "default": "gateway/",
+              "description": "Object prefix dedicated to this instance. Kritika appends the storage format version.",
+              "title": "prefix",
+              "type": "string"
+            },
+            "region": {
+              "default": "",
+              "description": "Signing region configured on the S3 server.",
+              "title": "region",
+              "type": "string"
+            },
+            "type": {
+              "default": "filesystem",
+              "description": "Cache storage backend.",
+              "enum": [
+                "filesystem",
+                "s3"
+              ],
+              "required": [],
+              "title": "type"
+            }
+          },
+          "required": [],
+          "then": {
+            "properties": {
+              "bucket": {
+                "minLength": 1,
+                "required": []
+              },
+              "endpoint": {
+                "minLength": 1,
+                "required": []
+              },
+              "region": {
+                "minLength": 1,
+                "required": []
+              }
+            },
+            "required": []
+          },
+          "title": "storage"
         }
       },
       "required": [],
-      "title": "gatewayCache",
-      "type": "object"
+      "title": "gatewayCache"
     },
     "global": {
       "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
@@ -661,6 +764,12 @@
               "required": [],
               "title": "annotations",
               "type": "object"
+            },
+            "cacheStorageErrorsFor": {
+              "default": "10m",
+              "description": "How long sustained S3 cache errors must persist before alerting. Cold misses and client cancellations are excluded.",
+              "title": "cacheStorageErrorsFor",
+              "type": "string"
             },
             "configDriftFor": {
               "default": "15m",
