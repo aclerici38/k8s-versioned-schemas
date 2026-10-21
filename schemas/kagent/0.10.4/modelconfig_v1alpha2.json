@@ -228,11 +228,64 @@
                 "null"
               ]
             },
+            "connectTimeout": {
+              "description": "ConnectTimeout is the Bedrock HTTP client connection-establishment timeout\nin seconds, applied by both the Python and Go ADK runtimes. It bounds\nconnection setup only, not the response read. When unset, each runtime's\ndefault is used (Python ADK: botocore; Go ADK: net dialer).",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "guardrail": {
+              "additionalProperties": false,
+              "properties": {
+                "identifier": {
+                  "description": "Identifier is the guardrail ID or full ARN. AWS accepts either a bare\nguardrail ID or an arn:aws:bedrock:...:guardrail/... ARN, so the value is\nonly length-bounded here (AWS caps guardrailIdentifier at 2048 chars).",
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "trace": {
+                  "default": "disabled",
+                  "enum": [
+                    "disabled",
+                    "enabled",
+                    "enabled_full"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "version": {
+                  "description": "Version is the guardrail version: a numeric version (e.g. \"1\") or \"DRAFT\".",
+                  "maxLength": 8,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "identifier",
+                "version"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "promptCaching": {
               "default": false,
               "description": "PromptCaching enables Bedrock prompt caching by appending a CachePoint\nblock at the end of the Converse request's `system` content array and\nthe end of the `toolConfig.tools` array. Bedrock will cache the prefix up to and\nincluding those cache points across requests in the same region for\nroughly 5 minutes after first use, billing the cached portion at a\nreduced rate on cache hits.\n\nRecommended for tool-using agents that make many Converse calls per\ntask with a stable system prompt and tool set — the per-call input\ntoken count can drop by 70-90% on hit. Has no effect on models that\ndon't support caching; the marker is ignored by Bedrock for those.\n\nSee https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html\nfor the current list of supported models and minimum prefix sizes.",
               "type": [
                 "boolean",
+                "null"
+              ]
+            },
+            "readTimeout": {
+              "description": "ReadTimeout is the Bedrock HTTP client read timeout in seconds, applied by\nboth the Python and Go ADK runtimes. Raise this for agents that make long\nConverse calls (large tool-augmented turns, extended reasoning). On the\nPython ADK it overrides botocore's ~60s read timeout, which otherwise\naborts long completions with a ReadTimeoutError; on the Go ADK it bounds\nthe whole Converse request (default 30m). When unset, each runtime's\ndefault is used.",
+              "minimum": 1,
+              "type": [
+                "integer",
                 "null"
               ]
             },
@@ -258,8 +311,94 @@
             "null"
           ]
         },
+        "foundry": {
+          "additionalProperties": false,
+          "description": "Azure AI Foundry-specific configuration",
+          "properties": {
+            "apiVersion": {
+              "default": "2024-10-21",
+              "description": "APIVersion is the Foundry OpenAI-compatible data-plane API version.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "deployment": {
+              "description": "Deployment is the Foundry model deployment name.",
+              "type": "string"
+            },
+            "endpoint": {
+              "description": "Endpoint is the Foundry or Azure AI Services account endpoint\n(e.g., https://my-account.cognitiveservices.azure.com/).\nMutually exclusive with EndpointFrom.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "endpointFrom": {
+              "additionalProperties": false,
+              "description": "EndpointFrom resolves the Foundry endpoint from a ConfigMap key, such as\none written by Azure Service Operator. Mutually exclusive with Endpoint.\n\nThe selector's optional flag only controls how a missing key is handled: when\nset to true, the missing key is ignored while reading the ConfigMap, but a\nFoundry endpoint must always be supplied, so an unresolved endpointFrom still\nleaves the model unusable and the agent fails to start.",
+              "properties": {
+                "key": {
+                  "description": "The key to select.",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "optional": {
+                  "description": "Specify whether the ConfigMap or its key must be defined",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
+            }
+          },
+          "required": [
+            "deployment"
+          ],
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "foundry.endpoint and foundry.endpointFrom are mutually exclusive",
+              "rule": "!(has(self.endpoint) \u0026\u0026 size(self.endpoint) \u003e 0 \u0026\u0026 has(self.endpointFrom))"
+            },
+            {
+              "message": "foundry.endpoint or foundry.endpointFrom is required",
+              "rule": "(has(self.endpoint) \u0026\u0026 size(self.endpoint) \u003e 0) || has(self.endpointFrom)"
+            }
+          ]
+        },
         "gemini": {
+          "additionalProperties": false,
           "description": "Gemini-specific configuration",
+          "properties": {
+            "maxOutputTokens": {
+              "description": "Maximum output tokens to generate for a single response",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
           "type": [
             "object",
             "null"
@@ -282,6 +421,7 @@
             },
             "maxOutputTokens": {
               "description": "Maximum output tokens",
+              "minimum": 1,
               "type": [
                 "integer",
                 "null"
@@ -373,6 +513,18 @@
           "additionalProperties": false,
           "description": "OpenAI-specific configuration",
           "properties": {
+            "apiFormat": {
+              "default": "chatCompletions",
+              "description": "APIFormat selects which OpenAI HTTP API the runtime uses for this model.\nchatCompletions (default) posts to /v1/chat/completions.\nresponses posts to /v1/responses. Use responses for OpenAI-compatible\ngateways or models that require the Responses API.",
+              "enum": [
+                "chatCompletions",
+                "responses"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "baseUrl": {
               "description": "Base URL for the OpenAI API (overrides default)",
               "type": [
@@ -387,8 +539,17 @@
                 "null"
               ]
             },
+            "maxCompletionTokens": {
+              "description": "Maximum completion tokens to generate. Sent as the OpenAI\n`max_completion_tokens` request parameter (an upper bound on visible\noutput plus reasoning tokens). This is the parameter reasoning models\n(GPT-5 / o-series) require in place of the deprecated maxTokens.\nMutually exclusive with maxTokens.",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "maxTokens": {
-              "description": "Maximum tokens to generate",
+              "description": "Maximum tokens to generate. Sent as the OpenAI `max_tokens` request\nparameter, which is deprecated and rejected by reasoning models\n(GPT-5 / o-series). For those models set maxCompletionTokens instead.\nMutually exclusive with maxCompletionTokens.",
+              "minimum": 1,
               "type": [
                 "integer",
                 "null"
@@ -418,10 +579,12 @@
             "reasoningEffort": {
               "description": "Reasoning effort",
               "enum": [
+                "none",
                 "minimal",
                 "low",
                 "medium",
-                "high"
+                "high",
+                "xhigh"
               ],
               "type": [
                 "string",
@@ -497,6 +660,12 @@
           "type": [
             "object",
             "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "maxTokens and maxCompletionTokens are mutually exclusive",
+              "rule": "!(has(self.maxTokens) \u0026\u0026 has(self.maxCompletionTokens))"
+            }
           ]
         },
         "provider": {
@@ -511,7 +680,8 @@
             "GeminiVertexAI",
             "AnthropicVertexAI",
             "Bedrock",
-            "SAPAICore"
+            "SAPAICore",
+            "Foundry"
           ],
           "type": [
             "string",
@@ -648,6 +818,10 @@
         {
           "message": "provider.sapAICore must be nil if the provider is not SAPAICore",
           "rule": "!(has(self.sapAICore) \u0026\u0026 self.provider != 'SAPAICore')"
+        },
+        {
+          "message": "provider.foundry must be nil if the provider is not Foundry",
+          "rule": "!(has(self.foundry) \u0026\u0026 self.provider != 'Foundry')"
         },
         {
           "message": "apiKeySecret must be set if apiKeySecretKey is set",

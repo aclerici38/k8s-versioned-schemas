@@ -1,46 +1,37 @@
 ---
-# Source: kagent-crds/templates/kagent.dev_modelproviderconfigs.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
-  name: modelproviderconfigs.kagent.dev
+    controller-gen.kubebuilder.io/version: v0.23.0
+  name: miroirsnapshots.miroir.home-operations.com
 spec:
-  group: kagent.dev
+  group: miroir.home-operations.com
   names:
-    categories:
-      - kagent
-    kind: ModelProviderConfig
-    listKind: ModelProviderConfigList
-    plural: modelproviderconfigs
+    kind: MiroirSnapshot
+    listKind: MiroirSnapshotList
+    plural: miroirsnapshots
     shortNames:
-      - mprov
-    singular: modelproviderconfig
-  scope: Namespaced
+      - mis
+    singular: miroirsnapshot
+  scope: Cluster
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.type
-          name: Type
+        - jsonPath: .spec.volumeName
+          name: Volume
           type: string
-        - jsonPath: .spec.endpoint
-          name: Endpoint
-          type: string
-        - jsonPath: .status.modelCount
-          name: Models
-          type: integer
-        - jsonPath: .status.conditions[?(@.type=='Ready')].status
+        - jsonPath: .status.readyToUse
           name: Ready
-          type: string
+          type: boolean
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
-      name: v1alpha2
+      name: v1alpha1
       schema:
         openAPIV3Schema:
           description: |-
-            ModelProviderConfig is the Schema for the modelproviderconfigs API.
-            It represents a model provider configuration with automatic model discovery.
+            MiroirSnapshot is one crash-consistent point-in-time snapshot of a
+            MiroirVolume (1:1 with a VolumeSnapshotContent).
           properties:
             apiVersion:
               description: |-
@@ -60,51 +51,42 @@ spec:
             metadata:
               type: object
             spec:
-              description: ModelProviderConfigSpec defines the desired state of ModelProviderConfig.
+              description: |-
+                MiroirSnapshotSpec is the desired state, created by the controller on
+                CSI CreateSnapshot.
               properties:
-                endpoint:
+                group:
                   description: |-
-                    Endpoint is the API endpoint URL for the provider.
-                    If not specified, the default endpoint for the provider type will be used.
-                  pattern: ^https?://.*
+                    Group names the MiroirSnapshotGroup whose shared barrier round cuts
+                    this snapshot; empty for a standalone snapshot. Grouped members are
+                    cut by the group reconciler, never by the per-snapshot round.
+                    Immutable: moving a snapshot between groups would misrepresent
+                    which barrier its data was cut under.
                   type: string
-                secretRef:
+                  x-kubernetes-validations:
+                    - message: 'group is immutable: the snapshot was cut under this group''s barrier'
+                      rule: self == oldSelf
+                volumeName:
                   description: |-
-                    SecretRef references the Kubernetes Secret containing the API key.
-                    Optional for providers that don't require authentication (e.g., local Ollama).
-                  properties:
-                    name:
-                      description: Name is the name of the secret in the same namespace as the ModelProviderConfig.
-                      type: string
-                  required:
-                    - name
-                  type: object
-                type:
-                  description: Type is the model provider type (OpenAI, Anthropic, etc.)
-                  enum:
-                    - Anthropic
-                    - OpenAI
-                    - AzureOpenAI
-                    - Ollama
-                    - Gemini
-                    - GeminiVertexAI
-                    - AnthropicVertexAI
-                    - Bedrock
-                    - SAPAICore
+                    VolumeName references the MiroirVolume this snapshot captures.
+                    Immutable: the backend CoW snapshots were cut on the source volume's
+                    replicas, so retargeting the reference would point restores and
+                    per-node teardown at a volume that never held them.
                   type: string
+                  x-kubernetes-validations:
+                    - message: 'volumeName is immutable: the snapshot''s backend data lives on the volume it was cut from'
+                      rule: self == oldSelf
               required:
-                - type
+                - volumeName
               type: object
-              x-kubernetes-validations:
-                - message: endpoint must be a valid URL starting with http:// or https://
-                  rule: '!has(self.endpoint) || size(self.endpoint) == 0 || self.endpoint.startsWith(''http://'') || self.endpoint.startsWith(''https://'')'
-                - message: secretRef is required for providers that need authentication (not Ollama)
-                  rule: self.type == 'Ollama' || (has(self.secretRef) && has(self.secretRef.name) && size(self.secretRef.name) > 0)
             status:
-              description: ModelProviderConfigStatus defines the observed state of ModelProviderConfig.
+              description: |-
+                MiroirSnapshotStatus is the observed state aggregated from node agents.
+                The snapshot exists as a backend CoW snapshot on every replica of the
+                source volume.
               properties:
                 conditions:
-                  description: Conditions represent the latest available observations of the ModelProviderConfig's state
+                  description: Conditions follow the standard Kubernetes condition conventions.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -159,29 +141,42 @@ spec:
                       - type
                     type: object
                   type: array
-                  x-kubernetes-list-map-keys:
-                    - type
-                  x-kubernetes-list-type: map
-                discoveredModels:
-                  description: DiscoveredModels is the cached list of model IDs available from this model provider
-                  items:
+                ioSuspended:
+                  description: |-
+                    IOSuspended is the replicated-snapshot write barrier: set by the
+                    coordinator after suspend-io, cleared on resume. Peers snapshot
+                    only while it holds.
+                  type: boolean
+                perNode:
+                  additionalProperties:
+                    description: SnapshotNodeState tracks one node's progress through the snapshot barrier.
                     type: string
-                  type: array
-                lastDiscoveryTime:
-                  description: LastDiscoveryTime is the timestamp of the last successful model discovery
-                  format: date-time
-                  type: string
-                modelCount:
-                  description: ModelCount is the number of discovered models (for kubectl display)
-                  type: integer
-                observedGeneration:
-                  description: ObservedGeneration reflects the generation of the most recently observed ModelProviderConfig spec
+                  description: PerNode maps node name to that agent's snapshot progress.
+                  type: object
+                readyToUse:
+                  description: ReadyToUse is true once every replica holds the snapshot.
+                  type: boolean
+                sizeBytes:
+                  description: |-
+                    SizeBytes is the virtual size of the snapshotted volume, used by
+                    the CSI layer to size restored volumes.
                   format: int64
                   type: integer
-                secretHash:
-                  description: SecretHash is a hash of the referenced secret data, used to detect secret changes
+                sourceFormatted:
+                  description: |-
+                    SourceFormatted records the source volume's Formatted flag when
+                    the snapshot is cut. Restored volumes inherit it so their first
+                    stage never reformats a clone that should carry a filesystem.
+                  type: boolean
+                suspendedAt:
+                  description: |-
+                    SuspendedAt bounds the barrier: the coordinator resumes IO at the
+                    deadline even if a peer never snapshots.
+                  format: date-time
                   type: string
               type: object
+          required:
+            - spec
           type: object
       served: true
       storage: true
