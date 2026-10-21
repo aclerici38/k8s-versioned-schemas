@@ -25,11 +25,69 @@
       "additionalProperties": false,
       "description": "spec defines the desired state of Model",
       "properties": {
+        "attestation": {
+          "additionalProperties": false,
+          "description": "Attestation references a Socair attestation for this Model's artifact:\na DSSE-signed in-toto statement whose subject digest must equal\nspec.sha256. When the operator runs with --model-attestation=enforce, a\nModel without an attestation that a trusted key signed and the policy\nadmits never becomes Ready, so no InferenceService serves it. With\n--model-attestation=warn the result is reported on the\nAttestationVerified condition without blocking.",
+          "properties": {
+            "configMapKeyRef": {
+              "additionalProperties": false,
+              "description": "ConfigMapKeyRef selects the key, in a ConfigMap in the Model's\nnamespace, that holds the attestation's DSSE envelope (the\nattestation.dsse.json that `socair sign` writes).",
+              "properties": {
+                "key": {
+                  "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "optional": {
+                  "description": "Specify whether the ConfigMap or its key must be defined",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "type": "object",
+              "x-kubernetes-map-type": "atomic"
+            }
+          },
+          "required": [
+            "configMapKeyRef"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "fileSha256": {
+          "additionalProperties": {
+            "description": "SHA256Digest is a hex-encoded SHA256 digest (64 characters, either case).",
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "type": "string"
+          },
+          "description": "FileSHA256 is a per-file SHA256 map for multi-file staging, keyed by\nrepo-relative path (each key is a spec.files entry or spec.mmproj). Only\nlisted files are verified; a file with no entry is staged as before. It\nis mutually exclusive with spec.sha256, and requires concrete file paths:\na glob cannot be keyed to an unknown expanded name, and a pre-staged\noci:// artifact carries its own digest, so both are rejected at admission\n(#1978).",
+          "maxProperties": 256,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "files": {
           "description": "Files lists model weight artifacts to stage from Source. Entries are\nrepo-relative for repository sources. The first entry is the primary model\nfile passed to the runtime. When Files is empty, Source must name a single\nobject directly.",
           "items": {
+            "maxLength": 512,
             "type": "string"
           },
+          "maxItems": 256,
           "type": [
             "array",
             "null"
@@ -75,7 +133,7 @@
               "description": "GPU specifies GPU device requirements",
               "properties": {
                 "count": {
-                  "description": "Count specifies the number of GPUs required\nSupports multi-GPU for model sharding (future feature)",
+                  "description": "Count is the number of GPUs the model uses. It sizes the runtime (for\nexample vLLM's --tensor-parallel-size when above 1) and, without\nresourceClaims, requests that many devices through the device plugin as a\ncontainer limit (nvidia.com/gpu by default). With resourceClaims set the\nclaims allocate the devices and no device-plugin limit is added; set Count\nto the number of devices the claims provide so the runtime is sized to match.",
                   "format": "int32",
                   "maximum": 8,
                   "minimum": 0,
@@ -108,7 +166,7 @@
                   ]
                 },
                 "resourceClaims": {
-                  "description": "ResourceClaims defines DRA (Dynamic Resource Allocation) claims for GPU devices.\nUses resource.k8s.io/v1 PodResourceClaim format. Each claim must have exactly\none of resourceClaimName or resourceClaimTemplateName set.\nMutually exclusive with resourceName.",
+                  "description": "ResourceClaims defines DRA (Dynamic Resource Allocation) claims for GPU devices.\nUses resource.k8s.io/v1 PodResourceClaim format. Each claim must have exactly\none of resourceClaimName or resourceClaimTemplateName set.\nMutually exclusive with resourceName. When set, the operator does not add a\ndevice-plugin GPU limit; Count still sizes the runtime.",
                   "items": {
                     "additionalProperties": false,
                     "description": "PodResourceClaim references exactly one ResourceClaim, either directly\nor by naming a ResourceClaimTemplate which is then turned into a ResourceClaim\nfor the pod.\n\nIt adds a name to it that uniquely identifies the ResourceClaim inside the Pod.\nContainers that need access to the ResourceClaim reference it with this name.\n\nWhen the DRAWorkloadResourceClaims feature gate is enabled and this Pod\nbelongs to a PodGroup, a PodResourceClaim is matched to a\nPodGroupResourceClaim if all of their fields are equal (Name,\nResourceClaimName, and ResourceClaimTemplateName). A matched claim references\na single ResourceClaim shared across all Pods in the PodGroup, reserved for\nthe PodGroup in ResourceClaimStatus.ReservedFor rather than for individual\nPods.",
@@ -270,6 +328,16 @@
             "null"
           ]
         },
+        "prefetchNodeSelector": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "PrefetchNodeSelector is applied to the prefetch Job's pod and governs\nnothing else: like PrefetchTolerations it says where the download may\nrun, not where the model will be served. It exists because prefetch\nhonors a claimName override (#1676), and a node-pinned claim (a\nWaitForFirstConsumer local-path PVC) binds to whichever node the\nprefetch pod schedules to; without a selector the PV can bind to a\nnode the InferenceService never runs on (#1964).",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "prefetchTolerations": {
           "description": "PrefetchTolerations are applied to the prefetch Job's pod, and govern\nnothing else: they say where the download may run, not where the model\nwill be served. A fleet whose GPU nodes are tainted needs the prefetch\ndownload to schedule onto those nodes when the shared cache lives on\nnode-local storage (#1621). Inheriting from an InferenceService would\nbe ill-defined here: prefetch runs before the first InferenceService\nexists by design.",
           "items": {
@@ -364,7 +432,7 @@
           ]
         },
         "sha256": {
-          "description": "SHA256 is the expected SHA256 hash of the model file for integrity verification.\nWhen set, the controller verifies the downloaded/copied file matches this hash.",
+          "description": "SHA256 is the expected SHA256 hash of the model file for integrity\nverification. When set, a single-file artifact verifies its bytes against\nthis hash: a downloaded artifact before it becomes the cache, and a\npre-staged pvc:// artifact at pod start. Setting it together with Files or\nMmproj, or on a pre-staged oci:// source, is rejected at admission; use\nspec.fileSha256 to pin the files of a multi-file staging set (#1965,\n#1978, #1979).",
           "pattern": "^[a-fA-F0-9]{64}$",
           "type": [
             "string",
@@ -399,7 +467,33 @@
       "required": [
         "source"
       ],
-      "type": "object"
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "sha256 verifies a single artifact: it cannot be combined with files or mmproj, or with a pre-staged oci:// source (use fileSha256 for multi-file staging)",
+          "rule": "!((has(self.sha256) \u0026\u0026 self.sha256.size() \u003e 0) \u0026\u0026 ((has(self.files) \u0026\u0026 self.files.size() \u003e 0) || (has(self.mmproj) \u0026\u0026 self.mmproj.size() \u003e 0) || self.source.startsWith('oci://')))"
+        },
+        {
+          "message": "fileSha256 requires spec.files: it names the expected digest of each staged artifact",
+          "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || (has(self.files) \u0026\u0026 self.files.size() \u003e 0)"
+        },
+        {
+          "message": "fileSha256 cannot verify a pre-staged oci:// artifact, which is already pinned by its image digest",
+          "rule": "!(has(self.fileSha256) \u0026\u0026 self.fileSha256.size() \u003e 0 \u0026\u0026 self.source.startsWith('oci://'))"
+        },
+        {
+          "message": "fileSha256 needs concrete file paths: a glob cannot be keyed to an unknown expanded name",
+          "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || !has(self.files) || self.files.all(f, !f.contains('*') \u0026\u0026 !f.contains('?') \u0026\u0026 !f.contains('['))"
+        },
+        {
+          "message": "every fileSha256 key must name a spec.files entry or spec.mmproj",
+          "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, (has(self.files) \u0026\u0026 self.files.exists(f, f == k)) || (has(self.mmproj) \u0026\u0026 self.mmproj == k))"
+        },
+        {
+          "message": "fileSha256 keys must not contain whitespace",
+          "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, !k.matches('[[:space:]]'))"
+        }
+      ]
     },
     "status": {
       "additionalProperties": false,
@@ -528,6 +622,22 @@
                 "null"
               ]
             },
+            "headCountKV": {
+              "description": "HeadCountKV is the number of key/value attention heads (grouped-query\nattention). 0 means the GGUF did not provide a usable scalar value\n(absent, array-valued, or written by an older controller); consumers\nmust treat 0 as unknown and fall back to the embedding-width estimate.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "keyLength": {
+              "description": "KeyLength is the per-head key dimension from the GGUF attention metadata.\n0 means the GGUF did not provide a usable scalar value; consumers treat\nit as unknown and derive it when needed.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "layerCount": {
               "description": "LayerCount is the number of transformer layers/blocks",
               "format": "int64",
@@ -559,6 +669,14 @@
             },
             "tensorCount": {
               "description": "TensorCount is the number of tensors in the model",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "valueLength": {
+              "description": "ValueLength is the per-head value dimension from the GGUF attention metadata.\n0 means the GGUF did not provide a usable scalar value; consumers treat\nit as unknown and derive it when needed.",
               "format": "int64",
               "type": [
                 "integer",
