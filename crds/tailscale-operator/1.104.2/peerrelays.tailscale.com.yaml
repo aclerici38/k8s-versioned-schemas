@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: peerrelays.tailscale.com
 spec:
   group: tailscale.com
@@ -60,6 +60,15 @@ spec:
                     AWS contains configuration for pinning each replica to a specific AWS Elastic IP and subnet. Only meaningful
                     when running on EKS with the AWS Load Balancer Controller. When set, the per-replica values override any
                     aws-load-balancer-eip-allocations or aws-load-balancer-subnets values supplied via spec.service.annotations.
+
+                    Leave this unset unless the peer relays must be reachable on addresses you control. Pinning a subnet
+                    confines a replica's load balancer to that subnet's availability zone, and an AWS Network Load Balancer
+                    only forwards to targets in a zone that is enabled on it, so a replica whose pod is scheduled into any
+                    other zone stops receiving traffic. Setting this field therefore also requires pinning the pods to the
+                    matching zone with a ProxyClass, as described on ElasticIPs. Without this field the AWS Load Balancer
+                    Controller instead provisions each load balancer across every zone it discovers, and the operator turns on
+                    cross-zone load balancing so the replica is reachable wherever it happens to be scheduled, with no
+                    scheduling constraints needed.
                   properties:
                     elasticIPs:
                       description: |-
@@ -68,12 +77,25 @@ spec:
                         per replica: replica N uses ElasticIPs[N]. The list must be at least as long as spec.replicas so every replica
                         has a distinct EIP; extra entries are permitted so that scale-up doesn't immediately trip validation.
 
+                        Pinning a subnet enables only that subnet's availability zone on the replica's load balancer, and a Network
+                        Load Balancer only forwards to targets in an enabled zone. Nothing constrains the scheduler to place the
+                        replica's pod in that zone, so a pod scheduled elsewhere, including after a reschedule, becomes unreachable
+                        on its Elastic IP while still appearing healthy.
+
+                        Every replica of a PeerRelay shares one pod template, so a ProxyClass referenced by spec.proxyClass can
+                        confine the pods to a zone but cannot place different replicas in different zones. To use this field
+                        safely, name subnets in a single availability zone and pin the pods to that same zone with a ProxyClass
+                        setting spec.statefulSet.pod.nodeSelector to topology.kubernetes.io/zone. Note that this trades the zone
+                        redundancy that running several replicas would otherwise buy. Spreading replicas across zones with their
+                        own Elastic IPs needs a per-replica scheduling constraint that neither PeerRelay nor ProxyClass can
+                        currently express.
+
                         When set, the reconciler stamps
                         service.beta.kubernetes.io/aws-load-balancer-eip-allocations and
                         service.beta.kubernetes.io/aws-load-balancer-subnets on each per-replica Service, overriding any values in
                         spec.service.annotations.
                       items:
-                        description: PeerRelayAWSElasticIP pairs an EIP allocation with the subnet in the same AZ.
+                        description: PeerRelayAWSElasticIP pairs an EIP allocation with the subnet it is attached to.
                         properties:
                           allocationID:
                             description: |-
@@ -83,9 +105,11 @@ spec:
                             type: string
                           subnetID:
                             description: |-
-                              SubnetID is the AWS subnet in the same availability zone as AllocationID (e.g. subnet-0123abcd). Stamped as
-                              service.beta.kubernetes.io/aws-load-balancer-subnets on the replica's Service so the NLB is provisioned in
-                              the same AZ as the EIP.
+                              SubnetID is the AWS subnet the replica's load balancer is provisioned in (e.g. subnet-0123abcd). It must be
+                              a public subnet, and no two replicas may name subnets in the same availability zone, since a load balancer
+                              accepts only one Elastic IP per zone. A standard VPC Elastic IP is regional rather than zonal, so it takes
+                              the zone of whichever subnet it is paired with here. Stamped as
+                              service.beta.kubernetes.io/aws-load-balancer-subnets on the replica's Service.
                             pattern: ^subnet-[0-9a-f]+$
                             type: string
                         required:
@@ -133,7 +157,32 @@ spec:
                         Annotations to apply to the LoadBalancer service. Any annotations that conflict with those used by known
                         cloud providers to ensure IP addresses rather than DNS names are ignored.
                       type: object
+                    port:
+                      default: 41641
+                      description: |-
+                        Port is the UDP port each peer relay replica listens on and that its LoadBalancer Service exposes
+                        externally. The two are always equal: the relay advertises address:port to peers, so the load balancer
+                        must forward without rewriting the port. Changing the port on an existing PeerRelay briefly interrupts
+                        relay traffic while the load balancer updates. Defaults to 41641.
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
                   type: object
+                staticEndpoints:
+                  description: |-
+                    StaticEndpoints is an optional list of address:port pairs on which every replica of this PeerRelay is
+                    reachable from outside the cluster, for example the public side of a NAT or firewall in front of the
+                    cluster. These supplement the endpoints discovered from each replica's LoadBalancer Service: they are
+                    added to every replica's entries in status.endpoints and advertised to peers alongside them. If an entry
+                    names an address a replica's load balancer already provides, the entry's port takes precedence for that
+                    address. Each address may appear at most once across all entries.
+                    Entries take the form accepted by Go's net/netip.ParseAddrPort, e.g. 203.0.113.1:41641. IPv6
+                    addresses must be enclosed in brackets, e.g. [2001:db8::1]:41641.
+                  items:
+                    pattern: ^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-fA-F:.]+\]):\d{1,5}$
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: set
                 tags:
                   description: |-
                     Tags that the Tailscale node will be tagged with.
@@ -227,15 +276,17 @@ spec:
                   x-kubernetes-list-type: map
                 endpoints:
                   description: |-
-                    Endpoints lists the public address:port pairs each peer relay replica is reachable on. There is one entry
-                    per replica whose LoadBalancer Service has been assigned a public address; entries appear as the underlying
-                    cloud provisions each Service.
+                    Endpoints lists the public address:port pairs each peer relay replica is reachable on. Entries appear as the
+                    underlying cloud provisions each Service. A replica has one entry per address its LoadBalancer Service was
+                    given, which is usually one, but a load balancer spanning several availability zones has an address in each
+                    and every one of them is listed. Entries from spec.staticEndpoints are listed for every replica in addition
+                    to the load balancer addresses.
                   items:
                     properties:
                       address:
                         description: |-
-                          Address is the public IP or hostname the cloud has allocated for this replica's LoadBalancer Service.
-                          Peers reach this relay by connecting to Address:Port over UDP.
+                          Address is the public IP or hostname the cloud has allocated for this replica's LoadBalancer Service, or
+                          an address supplied via spec.staticEndpoints. Peers reach this relay by connecting to Address:Port over UDP.
                         type: string
                       port:
                         description: Port is the UDP port the peer relay listens on.
@@ -253,10 +304,10 @@ spec:
                   type: array
                   x-kubernetes-list-map-keys:
                     - replica
+                    - address
                   x-kubernetes-list-type: map
               type: object
           required:
-            - metadata
             - spec
           type: object
       served: true

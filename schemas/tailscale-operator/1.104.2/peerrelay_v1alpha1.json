@@ -15,7 +15,10 @@
       ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
       "additionalProperties": false,
@@ -23,13 +26,13 @@
       "properties": {
         "aws": {
           "additionalProperties": false,
-          "description": "AWS contains configuration for pinning each replica to a specific AWS Elastic IP and subnet. Only meaningful\nwhen running on EKS with the AWS Load Balancer Controller. When set, the per-replica values override any\naws-load-balancer-eip-allocations or aws-load-balancer-subnets values supplied via spec.service.annotations.",
+          "description": "AWS contains configuration for pinning each replica to a specific AWS Elastic IP and subnet. Only meaningful\nwhen running on EKS with the AWS Load Balancer Controller. When set, the per-replica values override any\naws-load-balancer-eip-allocations or aws-load-balancer-subnets values supplied via spec.service.annotations.\n\nLeave this unset unless the peer relays must be reachable on addresses you control. Pinning a subnet\nconfines a replica's load balancer to that subnet's availability zone, and an AWS Network Load Balancer\nonly forwards to targets in a zone that is enabled on it, so a replica whose pod is scheduled into any\nother zone stops receiving traffic. Setting this field therefore also requires pinning the pods to the\nmatching zone with a ProxyClass, as described on ElasticIPs. Without this field the AWS Load Balancer\nController instead provisions each load balancer across every zone it discovers, and the operator turns on\ncross-zone load balancing so the replica is reachable wherever it happens to be scheduled, with no\nscheduling constraints needed.",
           "properties": {
             "elasticIPs": {
-              "description": "ElasticIPs pins each replica to a specific AWS EIP allocation and subnet. Only meaningful when Network Load\nBalancers are provisioned by the AWS Load Balancer Controller. ElasticIPs supplies one allocation-subnet pair\nper replica: replica N uses ElasticIPs[N]. The list must be at least as long as spec.replicas so every replica\nhas a distinct EIP; extra entries are permitted so that scale-up doesn't immediately trip validation.\n\nWhen set, the reconciler stamps\nservice.beta.kubernetes.io/aws-load-balancer-eip-allocations and\nservice.beta.kubernetes.io/aws-load-balancer-subnets on each per-replica Service, overriding any values in\nspec.service.annotations.",
+              "description": "ElasticIPs pins each replica to a specific AWS EIP allocation and subnet. Only meaningful when Network Load\nBalancers are provisioned by the AWS Load Balancer Controller. ElasticIPs supplies one allocation-subnet pair\nper replica: replica N uses ElasticIPs[N]. The list must be at least as long as spec.replicas so every replica\nhas a distinct EIP; extra entries are permitted so that scale-up doesn't immediately trip validation.\n\nPinning a subnet enables only that subnet's availability zone on the replica's load balancer, and a Network\nLoad Balancer only forwards to targets in an enabled zone. Nothing constrains the scheduler to place the\nreplica's pod in that zone, so a pod scheduled elsewhere, including after a reschedule, becomes unreachable\non its Elastic IP while still appearing healthy.\n\nEvery replica of a PeerRelay shares one pod template, so a ProxyClass referenced by spec.proxyClass can\nconfine the pods to a zone but cannot place different replicas in different zones. To use this field\nsafely, name subnets in a single availability zone and pin the pods to that same zone with a ProxyClass\nsetting spec.statefulSet.pod.nodeSelector to topology.kubernetes.io/zone. Note that this trades the zone\nredundancy that running several replicas would otherwise buy. Spreading replicas across zones with their\nown Elastic IPs needs a per-replica scheduling constraint that neither PeerRelay nor ProxyClass can\ncurrently express.\n\nWhen set, the reconciler stamps\nservice.beta.kubernetes.io/aws-load-balancer-eip-allocations and\nservice.beta.kubernetes.io/aws-load-balancer-subnets on each per-replica Service, overriding any values in\nspec.service.annotations.",
               "items": {
                 "additionalProperties": false,
-                "description": "PeerRelayAWSElasticIP pairs an EIP allocation with the subnet in the same AZ.",
+                "description": "PeerRelayAWSElasticIP pairs an EIP allocation with the subnet it is attached to.",
                 "properties": {
                   "allocationID": {
                     "description": "AllocationID is the AWS EIP allocation ID (e.g. eipalloc-0123abcd) whose public IP this replica is reachable\non. Stamped as service.beta.kubernetes.io/aws-load-balancer-eip-allocations on the replica's Service.",
@@ -37,7 +40,7 @@
                     "type": "string"
                   },
                   "subnetID": {
-                    "description": "SubnetID is the AWS subnet in the same availability zone as AllocationID (e.g. subnet-0123abcd). Stamped as\nservice.beta.kubernetes.io/aws-load-balancer-subnets on the replica's Service so the NLB is provisioned in\nthe same AZ as the EIP.",
+                    "description": "SubnetID is the AWS subnet the replica's load balancer is provisioned in (e.g. subnet-0123abcd). It must be\na public subnet, and no two replicas may name subnets in the same availability zone, since a load balancer\naccepts only one Elastic IP per zone. A standard VPC Elastic IP is regional rather than zonal, so it takes\nthe zone of whichever subnet it is paired with here. Stamped as\nservice.beta.kubernetes.io/aws-load-balancer-subnets on the replica's Service.",
                     "pattern": "^subnet-[0-9a-f]+$",
                     "type": "string"
                   }
@@ -99,12 +102,34 @@
                 "object",
                 "null"
               ]
+            },
+            "port": {
+              "default": 41641,
+              "description": "Port is the UDP port each peer relay replica listens on and that its LoadBalancer Service exposes\nexternally. The two are always equal: the relay advertises address:port to peers, so the load balancer\nmust forward without rewriting the port. Changing the port on an existing PeerRelay briefly interrupts\nrelay traffic while the load balancer updates. Defaults to 41641.",
+              "maximum": 65535,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
             }
           },
           "type": [
             "object",
             "null"
           ]
+        },
+        "staticEndpoints": {
+          "description": "StaticEndpoints is an optional list of address:port pairs on which every replica of this PeerRelay is\nreachable from outside the cluster, for example the public side of a NAT or firewall in front of the\ncluster. These supplement the endpoints discovered from each replica's LoadBalancer Service: they are\nadded to every replica's entries in status.endpoints and advertised to peers alongside them. If an entry\nnames an address a replica's load balancer already provides, the entry's port takes precedence for that\naddress. Each address may appear at most once across all entries.\nEntries take the form accepted by Go's net/netip.ParseAddrPort, e.g. 203.0.113.1:41641. IPv6\naddresses must be enclosed in brackets, e.g. [2001:db8::1]:41641.",
+          "items": {
+            "pattern": "^(\\d{1,3}(\\.\\d{1,3}){3}|\\[[0-9a-fA-F:.]+\\]):\\d{1,5}$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-type": "set"
         },
         "tags": {
           "description": "Tags that the Tailscale node will be tagged with.\nDefaults to [tag:k8s].\nTo autoapprove the device defined by a PeerRelay,\nyou can configure Tailscale ACLs to give these tags the necessary\npermissions.\nSee https://tailscale.com/kb/1337/acl-syntax#autoapprovers.\nIf you specify custom tags here, you must also make the operator an owner of these tags.\nSee  https://tailscale.com/kb/1236/kubernetes-operator/#setting-up-the-kubernetes-operator.\nTags cannot be changed once a PeerRelay node has been created.\nTag values must be in form ^tag:[a-zA-Z][a-zA-Z0-9-]*$.",
@@ -209,12 +234,12 @@
           "x-kubernetes-list-type": "map"
         },
         "endpoints": {
-          "description": "Endpoints lists the public address:port pairs each peer relay replica is reachable on. There is one entry\nper replica whose LoadBalancer Service has been assigned a public address; entries appear as the underlying\ncloud provisions each Service.",
+          "description": "Endpoints lists the public address:port pairs each peer relay replica is reachable on. Entries appear as the\nunderlying cloud provisions each Service. A replica has one entry per address its LoadBalancer Service was\ngiven, which is usually one, but a load balancer spanning several availability zones has an address in each\nand every one of them is listed. Entries from spec.staticEndpoints are listed for every replica in addition\nto the load balancer addresses.",
           "items": {
             "additionalProperties": false,
             "properties": {
               "address": {
-                "description": "Address is the public IP or hostname the cloud has allocated for this replica's LoadBalancer Service.\nPeers reach this relay by connecting to Address:Port over UDP.",
+                "description": "Address is the public IP or hostname the cloud has allocated for this replica's LoadBalancer Service, or\nan address supplied via spec.staticEndpoints. Peers reach this relay by connecting to Address:Port over UDP.",
                 "type": "string"
               },
               "port": {
@@ -240,7 +265,8 @@
             "null"
           ],
           "x-kubernetes-list-map-keys": [
-            "replica"
+            "replica",
+            "address"
           ],
           "x-kubernetes-list-type": "map"
         }
@@ -252,7 +278,6 @@
     }
   },
   "required": [
-    "metadata",
     "spec"
   ],
   "type": "object"
