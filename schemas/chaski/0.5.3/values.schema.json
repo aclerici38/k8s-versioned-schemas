@@ -7,146 +7,166 @@
       "title": "affinity",
       "type": "object"
     },
-    "autoscaling": {
-      "description": "Horizontal Pod Autoscaler. When enabled, the Deployment omits its own replicas\nfield so the HPA owns scaling.",
+    "auth": {
+      "description": "Inbound authentication and provider credentials, delivered as environment\nvariables from a Secret.",
       "properties": {
-        "behavior": {
-          "description": "Scaling behavior (scaleUp/scaleDown policies, templated); empty uses the cluster defaults.",
-          "required": [],
-          "title": "behavior",
-          "type": "object"
+        "existingSecret": {
+          "default": "",
+          "description": "Use this existing Secret for the webhook token (and as a source for provider creds via `envFrom`) instead of rendering one.",
+          "title": "existingSecret",
+          "type": "string"
         },
-        "enabled": {
-          "default": false,
-          "description": "Create a HorizontalPodAutoscaler (autoscaling/v2) targeting the Deployment.",
-          "title": "enabled",
-          "type": "boolean"
+        "existingSecretKey": {
+          "default": "token",
+          "description": "Key in `existingSecret` holding the webhook token.",
+          "title": "existingSecretKey",
+          "type": "string"
         },
-        "maxReplicas": {
-          "default": 5,
-          "description": "Maximum replicas.",
-          "title": "maxReplicas",
-          "type": "integer"
+        "smtpAuth": {
+          "default": "",
+          "description": "Optional SMTP AUTH credentials as a `user:password,user2:password2` list (CHASKI_SMTP_AUTH), used only when `config.smtpEnabled`. When set, SMTP AUTH (PLAIN/LOGIN) is required and the value is rendered into the chart-managed Secret. With `existingSecret`, supply `CHASKI_SMTP_AUTH` via `envFrom`/`extraEnv` instead. NOTE: v1 has no TLS, so credentials travel in clear text — keep the listener internal.",
+          "title": "smtpAuth",
+          "type": "string"
         },
-        "minReplicas": {
-          "default": 1,
-          "description": "Minimum replicas.",
-          "title": "minReplicas",
-          "type": "integer"
-        },
-        "targetCPUUtilizationPercentage": {
-          "default": 80,
-          "description": "Target average CPU utilization (%); 0 disables the CPU metric.",
-          "title": "targetCPUUtilizationPercentage",
-          "type": "integer"
-        },
-        "targetMemoryUtilizationPercentage": {
-          "default": 0,
-          "description": "Target average memory utilization (%); 0 disables the memory metric.",
-          "title": "targetMemoryUtilizationPercentage",
-          "type": "integer"
+        "webhookToken": {
+          "default": "",
+          "description": "The global inbound webhook token (CHASKI_WEBHOOK_TOKEN). If set, it is rendered into a chart-managed Secret. Leave empty and use `existingSecret` to supply it from your own (e.g. SOPS/sealed) Secret. With neither, inbound token auth is disabled (per-route `verify` still applies).",
+          "title": "webhookToken",
+          "type": "string"
         }
       },
       "required": [],
-      "title": "autoscaling",
+      "title": "auth",
       "type": "object"
     },
     "config": {
-      "description": "echo's runtime configuration. Each key maps to an ECHO_* environment variable\nthe binary reads; see the README for the full reference.",
+      "description": "The relay's configuration. Ops/secret settings become CHASKI_* env vars; the\nroutes + targets become a config file mounted at `config.mountPath`.",
       "properties": {
-        "commandsEnabled": {
-          "default": true,
-          "description": "Let callers shape the response — status code, delay, extra headers — via echo-* query params / X-Echo-* headers (ECHO_COMMANDS_ENABLED). Off makes echo a pure reflector; pretty-printing stays available either way.",
-          "title": "commandsEnabled",
-          "type": "boolean"
+        "configPath": {
+          "default": "/config/chaski.yaml",
+          "description": "Path chaski reads its config from (CHASKI_CONFIG): a single file, or a directory of `*.yaml` fragments (config.d). The default matches the rendered ConfigMap.",
+          "title": "configPath",
+          "type": "string"
         },
-        "disableRequestLogs": {
-          "default": false,
-          "description": "Silence the per-request access log (ECHO_DISABLE_REQUEST_LOGS); the echo response is unaffected.",
-          "title": "disableRequestLogs",
-          "type": "boolean"
-        },
-        "echoBackToClient": {
-          "default": true,
-          "description": "Return the JSON document to the client (ECHO_BACK_TO_CLIENT); false replies 204 No Content.",
-          "title": "echoBackToClient",
-          "type": "boolean"
-        },
-        "httpPort": {
-          "default": 8080,
-          "description": "HTTP listen port (ECHO_HTTP_PORT).",
-          "title": "httpPort",
-          "type": "integer"
-        },
-        "kubernetes": {
-          "default": false,
-          "description": "Add a `kubernetes` object (pod/namespace/IP/node) to responses, injected via the Downward API (ECHO_KUBERNETES). Off by default; it reveals cluster topology to callers.",
-          "title": "kubernetes",
-          "type": "boolean"
+        "existingConfigMap": {
+          "default": "",
+          "description": "Mount this existing ConfigMap instead of rendering one from `routes`/`targets` (e.g. for a config.d directory of fragments). Set `configPath` to `/config` for directory mode.",
+          "title": "existingConfigMap",
+          "type": "string"
         },
         "logFormat": {
           "default": "json",
-          "description": "Log format (ECHO_LOG_FORMAT): json or text.",
+          "description": "Log format (CHASKI_LOG_FORMAT): json or text.",
           "title": "logFormat",
           "type": "string"
         },
         "logLevel": {
           "default": "info",
-          "description": "Log level (ECHO_LOG_LEVEL): debug, info, warn, or error.",
+          "description": "Log level (CHASKI_LOG_LEVEL): debug, info, warn, or error.",
           "title": "logLevel",
           "type": "string"
         },
+        "logUnknownRoutes": {
+          "default": false,
+          "description": "Log bodies POSTed to nonexistent routes, still answering 404 (CHASKI_LOG_UNKNOWN_ROUTES) — payload discovery before a route exists. Pre-verify bodies; enable deliberately, turn off when done.",
+          "title": "logUnknownRoutes",
+          "type": "boolean"
+        },
         "maxBodyBytes": {
           "default": 1048576,
-          "description": "Maximum request body bytes read and echoed (ECHO_MAX_BODY_BYTES); larger bodies are flagged truncated.",
+          "description": "Inbound body cap in bytes (CHASKI_MAX_BODY_BYTES).",
           "title": "maxBodyBytes",
           "type": "integer"
         },
-        "maxDelay": {
-          "default": "10s",
-          "description": "Cap on the artificial response delay a caller may request via echo-delay (ECHO_MAX_DELAY); larger values are clamped. Keep it below the server's write timeout (~30s).",
-          "title": "maxDelay",
-          "type": "string"
-        },
         "metricsEnabled": {
           "default": true,
-          "description": "Expose Prometheus metrics at /metrics on metricsPort (ECHO_METRICS_ENABLED). Disabling removes the metrics listener, container port, Service port, and ServiceMonitor entirely; health probes are unaffected (they target the http port).",
+          "description": "Expose Prometheus metrics at /metrics on metricsPort (CHASKI_METRICS_ENABLED). Disabling removes the metrics listener, container port, Service port, and ServiceMonitor entirely; health probes are unaffected (they target the http port).",
           "title": "metricsEnabled",
           "type": "boolean"
         },
         "metricsPort": {
           "default": 8081,
-          "description": "Metrics listen port (ECHO_METRICS_PORT), kept off the public echo port.",
+          "description": "Metrics listen port (CHASKI_METRICS_PORT), kept off the public webhook port.",
           "title": "metricsPort",
           "type": "integer"
         },
-        "prettyPrint": {
+        "mountPath": {
+          "default": "/config",
+          "description": "Where the config ConfigMap is mounted.",
+          "title": "mountPath",
+          "type": "string"
+        },
+        "port": {
+          "default": 8080,
+          "description": "Webhook receiver port (CHASKI_PORT); also the container/Service http port.",
+          "title": "port",
+          "type": "integer"
+        },
+        "requestTimeout": {
+          "default": "15s",
+          "description": "Whole-request deadline (CHASKI_REQUEST_TIMEOUT): decode + gate + render + send + retry.",
+          "title": "requestTimeout",
+          "type": "string"
+        },
+        "retryAttempts": {
+          "default": 3,
+          "description": "Global default retry attempts per target (CHASKI_RETRY_ATTEMPTS); a target's `retry.attempts` overrides it.",
+          "title": "retryAttempts",
+          "type": "integer"
+        },
+        "retryBackoff": {
+          "default": "200ms",
+          "description": "Global default retry base backoff (CHASKI_RETRY_BACKOFF); a target's `retry.backoff` overrides it.",
+          "title": "retryBackoff",
+          "type": "string"
+        },
+        "routes": {
+          "description": "Route definitions, keyed by name (the URL path: POST /hooks/{name}). Emitted verbatim into the ConfigMap — `{{ ... }}` here is chaski's CEL/Go-template syntax, not Helm's. See config.schema.json for the field reference.",
+          "required": [],
+          "title": "routes",
+          "type": "object"
+        },
+        "smtpEnabled": {
           "default": false,
-          "description": "Indent the JSON response by default (ECHO_PRETTY_PRINT); callers can still override per request with echo-pretty-print.",
-          "title": "prettyPrint",
+          "description": "Accept notifications over SMTP, relaying by the recipient localpart (sonarr@… → the route named `sonarr`). Off by default — it is an inbound relay path, so opt in explicitly (CHASKI_SMTP_ENABLED). When on, set `auth.smtpAuth` and keep the listener on a trusted network (v1 has no TLS).",
+          "title": "smtpEnabled",
           "type": "boolean"
         },
-        "trustedProxies": {
-          "description": "CIDRs whose X-Forwarded-For header is trusted for client-IP resolution (ECHO_TRUSTED_PROXIES); comma-joined into the env var.",
-          "items": {
-            "required": []
-          },
-          "title": "trustedProxies",
-          "type": "array"
+        "smtpHostname": {
+          "default": "chaski",
+          "description": "Hostname announced in the SMTP greeting (CHASKI_SMTP_HOSTNAME).",
+          "title": "smtpHostname",
+          "type": "string"
         },
-        "wsAllowedOrigins": {
-          "description": "Origin host patterns allowed to open a WebSocket (ECHO_WS_ALLOWED_ORIGINS); empty allows any origin (the endpoint only echoes the caller's own frames).",
-          "items": {
-            "required": []
-          },
-          "title": "wsAllowedOrigins",
-          "type": "array"
+        "smtpMaxMessageBytes": {
+          "default": 1048576,
+          "description": "Max inbound message size in bytes (CHASKI_SMTP_MAX_MESSAGE_BYTES).",
+          "title": "smtpMaxMessageBytes",
+          "type": "integer"
         },
-        "wsEnabled": {
-          "default": true,
-          "description": "Serve a WebSocket echo at /ws (ECHO_WS_ENABLED); non-upgrade requests to /ws fall through to the HTTP echo.",
-          "title": "wsEnabled",
-          "type": "boolean"
+        "smtpMaxRecipients": {
+          "default": 50,
+          "description": "Max recipients per message (CHASKI_SMTP_MAX_RECIPIENTS).",
+          "title": "smtpMaxRecipients",
+          "type": "integer"
+        },
+        "smtpPort": {
+          "default": 8025,
+          "description": "SMTP listener port (CHASKI_SMTP_PORT); also the container/Service smtp port when enabled.",
+          "title": "smtpPort",
+          "type": "integer"
+        },
+        "targets": {
+          "description": "Target (sink) definitions, keyed by name. Each is exactly one of `apprise:` or `http:`. Credentials belong in `{{ env \"VAR\" }}` references resolved from the environment (see `auth`/`envFrom`), never inline.",
+          "required": [],
+          "title": "targets",
+          "type": "object"
+        },
+        "templates": {
+          "description": "Shared named Go-template snippets, keyed by name. Callable from any route field with `{{ template \"name\" . }}` or `{{ include \"name\" . }}`. Emitted verbatim into the ConfigMap alongside routes/targets.",
+          "required": [],
+          "title": "templates",
+          "type": "object"
         }
       },
       "required": [],
@@ -154,19 +174,19 @@
       "type": "object"
     },
     "deploymentAnnotations": {
-      "description": "Annotations added to the Deployment (workload) metadata, e.g. `reloader.stakater.com/auto: \"true\"`.",
+      "description": "Annotations added to the Deployment metadata, e.g. `reloader.stakater.com/auto: \"true\"` to roll the pod when a referenced ConfigMap/Secret changes (recommended when using `existingConfigMap`).",
       "required": [],
       "title": "deploymentAnnotations",
       "type": "object"
     },
     "env": {
-      "description": "Extra environment variables for the echo container, as a map (templated).",
+      "description": "Extra environment variables as a map (templated). Use for non-secret values referenced by `{{ env \"…\" }}` in targets, e.g. GOTIFY_HOST.",
       "required": [],
       "title": "env",
       "type": "object"
     },
     "envFrom": {
-      "description": "Sources of environment variables for the echo container (templated), e.g. a Secret with TLS material.",
+      "description": "Sources of environment variables (templated). The idiomatic place to inject provider credentials from your own Secret(s), e.g. `- secretRef: { name: chaski-providers }`.",
       "items": {
         "required": []
       },
@@ -174,7 +194,7 @@
       "type": "array"
     },
     "extraEnv": {
-      "description": "  TZ: UTC\nExtra environment variables for the echo container, as a raw list (templated).",
+      "description": "Extra environment variables as a raw list (templated), e.g. valueFrom a Secret key for a single provider token.",
       "items": {
         "required": []
       },
@@ -193,93 +213,6 @@
       "title": "global",
       "type": "object"
     },
-    "httpRoute": {
-      "description": "Gateway API HTTPRoute — an alternative to `ingress` for clusters using the\nGateway API. Named `httpRoute` (not `route`) to avoid confusion with the\nOpenShift Route kind.",
-      "properties": {
-        "annotations": {
-          "description": "HTTPRoute annotations.",
-          "required": [],
-          "title": "annotations",
-          "type": "object"
-        },
-        "apiVersion": {
-          "default": "",
-          "description": "HTTPRoute apiVersion; empty defaults to gateway.networking.k8s.io/v1.",
-          "title": "apiVersion",
-          "type": "string"
-        },
-        "enabled": {
-          "default": false,
-          "description": "Expose echo via a Gateway API HTTPRoute (alternative to ingress).",
-          "title": "enabled",
-          "type": "boolean"
-        },
-        "hostnames": {
-          "description": " - name: gateway\n   namespace: gateway\n   sectionName: https\nHostnames matched against the Host header (templated).",
-          "items": {
-            "required": []
-          },
-          "title": "hostnames",
-          "type": "array"
-        },
-        "kind": {
-          "default": "",
-          "description": "HTTPRoute kind; empty defaults to HTTPRoute.",
-          "title": "kind",
-          "type": "string"
-        },
-        "labels": {
-          "description": "HTTPRoute labels.",
-          "required": [],
-          "title": "labels",
-          "type": "object"
-        },
-        "matches": {
-          "description": " - echo.example.com\nMatch conditions for the default rule.",
-          "items": {
-            "anyOf": [
-              {
-                "properties": {
-                  "path": {
-                    "properties": {
-                      "type": {
-                        "default": "PathPrefix",
-                        "title": "type",
-                        "type": "string"
-                      },
-                      "value": {
-                        "default": "/",
-                        "title": "value",
-                        "type": "string"
-                      }
-                    },
-                    "required": [],
-                    "title": "path",
-                    "type": "object"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
-            ],
-            "required": []
-          },
-          "title": "matches",
-          "type": "array"
-        },
-        "parentRefs": {
-          "description": "Gateways (and listeners) this route attaches to.",
-          "items": {
-            "required": []
-          },
-          "title": "parentRefs",
-          "type": "array"
-        }
-      },
-      "required": [],
-      "title": "httpRoute",
-      "type": "object"
-    },
     "image": {
       "properties": {
         "digest": {
@@ -295,8 +228,8 @@
           "type": "string"
         },
         "repository": {
-          "default": "ghcr.io/home-operations/echo",
-          "description": "echo image repository.",
+          "default": "ghcr.io/home-operations/chaski",
+          "description": "Image repository.",
           "title": "repository",
           "type": "string"
         },
@@ -319,87 +252,16 @@
       "title": "imagePullSecrets",
       "type": "array"
     },
-    "ingress": {
-      "properties": {
-        "annotations": {
-          "description": "Ingress annotations.",
-          "required": [],
-          "title": "annotations",
-          "type": "object"
-        },
-        "className": {
-          "default": "",
-          "description": "IngressClass name.",
-          "title": "className",
-          "type": "string"
-        },
-        "enabled": {
-          "default": false,
-          "description": "Expose echo via an Ingress.",
-          "title": "enabled",
-          "type": "boolean"
-        },
-        "hosts": {
-          "description": "Ingress hosts and their paths.",
-          "items": {
-            "anyOf": [
-              {
-                "properties": {
-                  "host": {
-                    "default": "echo.example.com",
-                    "title": "host",
-                    "type": "string"
-                  },
-                  "paths": {
-                    "items": {
-                      "anyOf": [
-                        {
-                          "properties": {
-                            "path": {
-                              "default": "/",
-                              "title": "path",
-                              "type": "string"
-                            },
-                            "pathType": {
-                              "default": "Prefix",
-                              "title": "pathType",
-                              "type": "string"
-                            }
-                          },
-                          "required": [],
-                          "type": "object"
-                        }
-                      ],
-                      "required": []
-                    },
-                    "title": "paths",
-                    "type": "array"
-                  }
-                },
-                "required": [],
-                "type": "object"
-              }
-            ],
-            "required": []
-          },
-          "title": "hosts",
-          "type": "array"
-        },
-        "tls": {
-          "description": "Ingress TLS configuration.",
-          "items": {
-            "required": []
-          },
-          "title": "tls",
-          "type": "array"
-        }
+    "initContainers": {
+      "description": "Additional init containers (templated). A `chaski validate` init container against the mounted config is a good CI/rollout gate.",
+      "items": {
+        "required": []
       },
-      "required": [],
-      "title": "ingress",
-      "type": "object"
+      "title": "initContainers",
+      "type": "array"
     },
     "livenessProbe": {
-      "description": "Liveness probe. Targets /healthz on the main http port, so it works regardless of the metrics toggle.",
+      "description": "Liveness probe. Targets /healthz on the main http port.",
       "properties": {
         "httpGet": {
           "properties": {
@@ -417,11 +279,6 @@
           "required": [],
           "title": "httpGet",
           "type": "object"
-        },
-        "initialDelaySeconds": {
-          "default": 5,
-          "title": "initialDelaySeconds",
-          "type": "integer"
         },
         "periodSeconds": {
           "default": 20,
@@ -445,7 +302,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Create a Prometheus Operator ServiceMonitor (requires its CRDs and config.metricsEnabled).",
+              "description": "Create a Prometheus Operator ServiceMonitor (requires its CRDs and `config.metricsEnabled`).",
               "title": "enabled",
               "type": "boolean"
             },
@@ -501,7 +358,7 @@
     },
     "nameOverride": {
       "default": "",
-      "description": "Override the app name used in the `app.kubernetes.io/name` label.",
+      "description": "Override the chart name used in the `app.kubernetes.io/name` label.",
       "title": "nameOverride",
       "type": "string"
     },
@@ -512,7 +369,7 @@
       "type": "object"
     },
     "podAnnotations": {
-      "description": "Annotations added to the pod.",
+      "description": "Annotations added to the pod. A `checksum/config` annotation is always added for the chart-managed ConfigMap so config edits roll the pod.",
       "required": [],
       "title": "podAnnotations",
       "type": "object"
@@ -521,29 +378,21 @@
       "properties": {
         "enabled": {
           "default": false,
-          "description": "Create a PodDisruptionBudget. Off by default; useful when running multiple replicas.",
+          "description": "Create a PodDisruptionBudget (meaningful only with replicaCount \u003e 1).",
           "title": "enabled",
           "type": "boolean"
         },
         "maxUnavailable": {
           "default": "",
-          "description": "Maximum pods that may be unavailable, as a count or percentage; takes precedence over `minAvailable` when set.",
-          "required": [],
+          "description": "maxUnavailable.",
           "title": "maxUnavailable",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "string"
         },
         "minAvailable": {
           "default": 1,
-          "description": "Minimum pods that must stay available, as a count or percentage. Used unless `maxUnavailable` is set.",
-          "required": [],
+          "description": "minAvailable (mutually exclusive with maxUnavailable).",
           "title": "minAvailable",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "integer"
         }
       },
       "required": [],
@@ -557,7 +406,7 @@
       "type": "object"
     },
     "podSecurityContext": {
-      "description": "Pod-level securityContext (runs as non-root uid/gid 65532 with the default seccomp profile).",
+      "description": "Pod-level securityContext. chaski runs as the image's nonroot user (uid 65532); no host or elevated access is needed.",
       "properties": {
         "fsGroup": {
           "default": 65532,
@@ -603,7 +452,7 @@
       "type": "string"
     },
     "readinessProbe": {
-      "description": "Readiness probe. Targets /readyz on the main http port, so it works regardless of the metrics toggle.",
+      "description": "Readiness probe. Targets /readyz on the main http port.",
       "properties": {
         "httpGet": {
           "properties": {
@@ -622,11 +471,6 @@
           "title": "httpGet",
           "type": "object"
         },
-        "initialDelaySeconds": {
-          "default": 2,
-          "title": "initialDelaySeconds",
-          "type": "integer"
-        },
         "periodSeconds": {
           "default": 10,
           "title": "periodSeconds",
@@ -639,18 +483,18 @@
     },
     "replicaCount": {
       "default": 1,
-      "description": "Number of echo replicas (echo is stateless, so it scales horizontally). Ignored when autoscaling.enabled.",
+      "description": "Number of replicas. chaski is stateless, so \u003e1 is just more capacity/HA.",
       "title": "replicaCount",
       "type": "integer"
     },
     "resources": {
-      "description": "echo container resource requests/limits.",
+      "description": "Container resource requests/limits.",
       "required": [],
       "title": "resources",
       "type": "object"
     },
     "securityContext": {
-      "description": "echo container securityContext (no privilege escalation, read-only root filesystem, drops ALL capabilities).",
+      "description": "Container securityContext. Drops all capabilities, read-only root filesystem, no privilege escalation.",
       "properties": {
         "allowPrivilegeEscalation": {
           "default": false,
@@ -676,6 +520,11 @@
           "title": "capabilities",
           "type": "object"
         },
+        "privileged": {
+          "default": false,
+          "title": "privileged",
+          "type": "boolean"
+        },
         "readOnlyRootFilesystem": {
           "default": true,
           "title": "readOnlyRootFilesystem",
@@ -696,13 +545,13 @@
         },
         "externalTrafficPolicy": {
           "default": "",
-          "description": "Service externalTrafficPolicy (`Local` preserves the client source IP; only applies to NodePort/LoadBalancer). Empty uses the cluster default.",
+          "description": "externalTrafficPolicy (only applied when type is not ClusterIP).",
           "title": "externalTrafficPolicy",
           "type": "string"
         },
         "port": {
-          "default": 80,
-          "description": "HTTP service port.",
+          "default": 8080,
+          "description": "Webhook (http) service port.",
           "title": "port",
           "type": "integer"
         },
@@ -727,7 +576,7 @@
         },
         "automount": {
           "default": false,
-          "description": "Mount the API token. echo never calls the Kubernetes API, so this is off by default.",
+          "description": "Mount the API token. chaski never calls the Kubernetes API, so this is off by default.",
           "title": "automount",
           "type": "boolean"
         },
@@ -749,7 +598,7 @@
       "type": "object"
     },
     "startupProbe": {
-      "description": "Startup probe; gates liveness/readiness until echo is up, so a slow start can't trigger a premature restart. Targets the http port. Set to {} to disable.",
+      "description": "Startup probe (GET /healthz on the main http port, so it works regardless of the metrics toggle).",
       "properties": {
         "failureThreshold": {
           "default": 30,
@@ -774,7 +623,7 @@
           "type": "object"
         },
         "periodSeconds": {
-          "default": 5,
+          "default": 2,
           "title": "periodSeconds",
           "type": "integer"
         }
@@ -783,9 +632,39 @@
       "title": "startupProbe",
       "type": "object"
     },
+    "strategy": {
+      "description": "Deployment update strategy. RollingUpdate by default; chaski is stateless so a surge-then-drain rollout is safe.",
+      "properties": {
+        "rollingUpdate": {
+          "properties": {
+            "maxSurge": {
+              "default": 1,
+              "title": "maxSurge",
+              "type": "integer"
+            },
+            "maxUnavailable": {
+              "default": 0,
+              "title": "maxUnavailable",
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "rollingUpdate",
+          "type": "object"
+        },
+        "type": {
+          "default": "RollingUpdate",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "strategy",
+      "type": "object"
+    },
     "terminationGracePeriodSeconds": {
       "default": 30,
-      "description": "Grace period for a clean shutdown.",
+      "description": "Grace period for a clean shutdown (drain).",
       "title": "terminationGracePeriodSeconds",
       "type": "integer"
     },
@@ -806,7 +685,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13",
+              "default": "8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac",
               "description": "`helm test` image, pinned as `tag",
               "title": "tag",
               "type": "string"
@@ -830,7 +709,7 @@
       "type": "array"
     },
     "topologySpreadConstraints": {
-      "description": "Topology spread constraints for the pods (templated); relevant at replicaCount \u003e 1, e.g. to spread across zones.",
+      "description": "Topology spread constraints (templated).",
       "items": {
         "required": []
       },
@@ -838,7 +717,7 @@
       "type": "array"
     },
     "volumeMounts": {
-      "description": "Additional volume mounts on the echo container (templated).",
+      "description": "Additional volume mounts on the container (templated).",
       "items": {
         "required": []
       },
@@ -846,7 +725,7 @@
       "type": "array"
     },
     "volumes": {
-      "description": "Additional volumes on the Deployment pod (templated).",
+      "description": "Additional volumes on the pod (templated).",
       "items": {
         "required": []
       },
