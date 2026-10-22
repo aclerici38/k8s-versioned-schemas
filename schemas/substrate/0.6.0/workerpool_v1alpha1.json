@@ -26,32 +26,73 @@
       "description": "spec defines the desired state of WorkerPool",
       "properties": {
         "replicas": {
-          "description": "Replicas is the number of worker pods to run.",
+          "description": "replicas is the number of worker pods to run.",
           "format": "int32",
           "minimum": 0,
           "type": "integer"
         },
-        "sandboxClass": {
-          "default": "gvisor",
-          "description": "SandboxClass selects the sandbox runtime family for this pool, which drives\nthe worker pod shape (KVM/vhost device mounts and node placement). The\nconcrete binary is still selected by WorkerImage. Defaults to gvisor.\nThe sandbox binaries themselves come from the SandboxConfig each\nActorTemplate names (required).\n\nSee Also: TODOs in ActorTemplate SandboxClass",
-          "enum": [
-            "gvisor",
-            "microvm"
+        "sandboxClasses": {
+          "description": "sandboxClasses lists the sandbox runtime families this pool runs. Exactly\none entry is allowed today. The names cannot change after creation.",
+          "items": {
+            "additionalProperties": false,
+            "description": "WorkerPoolSandboxClass is one sandbox runtime family a WorkerPool runs.",
+            "properties": {
+              "configRef": {
+                "additionalProperties": false,
+                "description": "configRef names a cluster-scoped SandboxConfig for this sandbox class.\nThe referenced config's SandboxClass must match Name. When omitted, the\npool uses the newest SandboxConfig of this class annotated\nsandboxconfig.ate.dev/is-class-default: \"true\". The controller reports\nthe resolved config in status.sandboxClasses.",
+                "properties": {
+                  "name": {
+                    "description": "name is the SandboxConfig's metadata.name.",
+                    "maxLength": 253,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "name selects the sandbox runtime family, which drives the worker pod\nshape (KVM/vhost device mounts and node placement). The concrete binary\nis still selected by WorkerImage. The sandbox binaries themselves come\nfrom the SandboxConfig referenced by ConfigRef (or the class default).",
+                "enum": [
+                  "gvisor",
+                  "microvm"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "name"
           ],
-          "type": [
-            "string",
-            "null"
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-validations": [
+            {
+              "message": "sandboxClasses names are immutable",
+              "rule": "self.map(c, c.name) == oldSelf.map(c, c.name)"
+            }
           ]
         },
         "template": {
           "additionalProperties": false,
-          "description": "Template holds optional metadata, scheduling, and resource settings for worker workloads.",
+          "description": "template holds optional metadata, scheduling, and resource settings for worker workloads.",
           "properties": {
             "annotations": {
               "additionalProperties": {
                 "type": "string"
               },
-              "description": "Annotations are added to the generated Deployment and worker pods. Keys\nin the ate.dev domain and its subdomains are reserved for controllers.",
+              "description": "annotations are added to the generated Deployment and worker pods. Keys\nin the ate.dev domain and its subdomains are reserved for controllers.",
               "maxProperties": 64,
               "type": [
                 "object",
@@ -75,7 +116,7 @@
                 "pattern": "^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$",
                 "type": "string"
               },
-              "description": "Labels are added to the generated Deployment and worker pods. Keys in\nthe ate.dev domain and its subdomains are reserved for controllers.",
+              "description": "labels are added to the generated Deployment and worker pods. Keys in\nthe ate.dev domain and its subdomains are reserved for controllers.",
               "maxProperties": 64,
               "type": [
                 "object",
@@ -94,7 +135,7 @@
             },
             "nodeAffinity": {
               "additionalProperties": false,
-              "description": "NodeAffinity scheduling rules for the worker pods. Mapped to\nspec.affinity.nodeAffinity on the pod.",
+              "description": "nodeAffinity scheduling rules for the worker pods. Mapped to\nspec.affinity.nodeAffinity on the pod.",
               "properties": {
                 "preferredDuringSchedulingIgnoredDuringExecution": {
                   "description": "The scheduler will prefer to schedule pods to nodes that satisfy\nthe affinity expressions specified by this field, but it may choose\na node that violates one or more of the expressions. The node that is\nmost preferred is the one with the greatest sum of weights, i.e.\nfor each node that meets all of the scheduling requirements (resource\nrequest, requiredDuringScheduling affinity expressions, etc.),\ncompute a sum by iterating through the elements of this field and adding\n\"weight\" to the sum if the node matches the corresponding matchExpressions; the\nnode(s) with the highest sum are the most preferred.",
@@ -317,14 +358,14 @@
               "additionalProperties": {
                 "type": "string"
               },
-              "description": "NodeSelector is a selector which must be true for the pod to fit on a node.",
+              "description": "nodeSelector is a selector which must be true for the pod to fit on a node.",
               "type": [
                 "object",
                 "null"
               ]
             },
             "priorityClassName": {
-              "description": "PriorityClassName for the worker pods.",
+              "description": "priorityClassName for the worker pods.",
               "type": [
                 "string",
                 "null"
@@ -332,7 +373,7 @@
             },
             "resources": {
               "additionalProperties": false,
-              "description": "Resources are the compute resources allocated for each worker pod.",
+              "description": "resources are the compute resources allocated for each worker pod.",
               "properties": {
                 "claims": {
                   "description": "Claims lists the names of resources, defined in spec.resourceClaims,\nthat are used by this container.\n\nThis field depends on the\nDynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
@@ -410,8 +451,16 @@
                 "null"
               ]
             },
+            "serviceAccountName": {
+              "description": "serviceAccountName for the worker pods. The ServiceAccount must exist\nin the WorkerPool's namespace. When omitted, the pods run as the\n\"ateworker\" ServiceAccount, which the controller creates.",
+              "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "tolerations": {
-              "description": "Tolerations for the worker pods.",
+              "description": "tolerations for the worker pods.",
               "items": {
                 "additionalProperties": false,
                 "description": "The pod this Toleration is attached to tolerates any taint that matches\nthe triple \u003ckey,value,effect\u003e using the matching operator \u003coperator\u003e.",
@@ -469,13 +518,14 @@
           ]
         },
         "workerImage": {
-          "description": "WorkerImage is the ateom container image to deploy as workers.",
+          "description": "workerImage is the worker container image to deploy as workers.",
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
         "replicas",
+        "sandboxClasses",
         "workerImage"
       ],
       "type": "object"
@@ -485,7 +535,7 @@
       "description": "status is the observed state of WorkerPool",
       "properties": {
         "readyReplicas": {
-          "description": "ReadyReplicas is the number of ready worker pods.",
+          "description": "readyReplicas is the number of ready worker pods.",
           "format": "int32",
           "minimum": 0,
           "type": [
@@ -494,7 +544,7 @@
           ]
         },
         "replicas": {
-          "description": "Replicas is the total number of worker pods.",
+          "description": "replicas is the total number of worker pods.",
           "format": "int32",
           "minimum": 0,
           "type": [
@@ -502,8 +552,145 @@
             "null"
           ]
         },
+        "sandboxClasses": {
+          "description": "sandboxClasses reports the SandboxConfig each sandbox class of the pool\nuses and whether the class's spec resolves.",
+          "items": {
+            "additionalProperties": false,
+            "description": "WorkerPoolSandboxClassStatus reports the SandboxConfig and resolution state\nof one sandbox class of a WorkerPool.",
+            "properties": {
+              "conditions": {
+                "description": "conditions describe the current state of this sandbox class.",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "Condition contains details for one aspect of the current state of this API Resource.",
+                  "properties": {
+                    "lastTransitionTime": {
+                      "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "message": {
+                      "default": "",
+                      "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                      "maxLength": 32768,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "observedGeneration": {
+                      "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "status of the condition, one of True, False, Unknown.",
+                      "enum": [
+                        "True",
+                        "False",
+                        "Unknown"
+                      ],
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                      "maxLength": 316,
+                      "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lastTransitionTime",
+                    "reason",
+                    "status",
+                    "type"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "x-kubernetes-list-map-keys": [
+                  "type"
+                ],
+                "x-kubernetes-list-type": "map"
+              },
+              "configRef": {
+                "additionalProperties": false,
+                "description": "configRef names the cluster-scoped SandboxConfig in use. That is the\nconfig spec.sandboxClasses[].configRef names, or the class default, or\nthe last resolved config while the spec does not resolve. Omitted when\nthe class has never resolved.",
+                "properties": {
+                  "name": {
+                    "description": "name is the SandboxConfig's metadata.name.",
+                    "maxLength": 253,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "name is the sandbox runtime family.",
+                "enum": [
+                  "gvisor",
+                  "microvm"
+                ],
+                "type": "string"
+              },
+              "pendingConfigRef": {
+                "additionalProperties": false,
+                "description": "pendingConfigRef names the SandboxConfig the class is switching to\nwhile the controller confirms it against the API server. It protects\nthe config from deletion like configRef does. The same reconcile\nclears it, and configRef either moves to it or stays where it was.",
+                "properties": {
+                  "name": {
+                    "description": "name is the SandboxConfig's metadata.name.",
+                    "maxLength": 253,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
         "selector": {
-          "description": "Selector is the label selector for the worker pods.",
+          "description": "selector is the label selector for the worker pods.",
           "type": [
             "string",
             "null"

@@ -23,22 +23,22 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "CSIDriverConfigSpec defines the desired state of CSIDriverConfig",
+      "description": "spec defines the desired state of CSIDriverConfig",
       "properties": {
         "controllerEndpoint": {
-          "description": "ControllerEndpoint is the gRPC endpoint for the CSI Controller service.\nMust be a valid network URI (e.g. dns:///csi-service:9000 or tcp://127.0.0.1:9000).",
+          "description": "controllerEndpoint is the gRPC endpoint for the CSI Controller service.\nMust be a valid network URI (e.g. dns:///csi-service:9000 or tcp://127.0.0.1:9000).",
           "pattern": "^(tcp|dns)://.+$",
           "type": "string"
         },
         "driverName": {
-          "description": "DriverName is the standard CSI driver name (e.g. \"hostpath.csi.k8s.io\").\nMatches the StorageClass referenced in ActorTemplate volume definitions.",
+          "description": "driverName is the standard CSI driver name (e.g. \"hostpath.csi.k8s.io\").\nMatches the StorageClass referenced in ActorTemplate volume definitions.",
           "maxLength": 63,
           "minLength": 1,
           "pattern": "^(substrate\\.io/)?([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)$",
           "type": "string"
         },
         "nodeSocketOverride": {
-          "description": "NodeSocketOverride is an optional override for the CSI Node service socket\non the worker nodes. If empty, ATE defaults to unix:///var/lib/kubelet/plugins/[DriverName]/csi.sock.",
+          "description": "nodeSocketOverride is an optional override for the CSI Node service socket\non the worker nodes. If empty, ATE defaults to unix:///var/lib/kubelet/plugins/[DriverName]/csi.sock.",
           "pattern": "^unix://.+$",
           "type": [
             "string",
@@ -47,21 +47,21 @@
         },
         "tls": {
           "additionalProperties": false,
-          "description": "TLS configures TLS/mTLS for the connection to the ControllerEndpoint.",
+          "description": "tls configures TLS/mTLS for the connection to the ControllerEndpoint.",
           "properties": {
             "enabled": {
-              "description": "Enabled controls whether TLS is used.",
+              "description": "enabled controls whether TLS is used.",
               "type": "boolean"
             },
             "serverName": {
-              "description": "ServerName override for TLS verification.",
+              "description": "serverName specifies the expected server name (SAN) for TLS certificate verification.\nRequired when TLS is enabled.",
               "type": [
                 "string",
                 "null"
               ]
             },
             "usePodIdentity": {
-              "description": "UsePodIdentity indicates whether to reuse Substrate's Pod Identity (SPIFFE) certificates.",
+              "description": "usePodIdentity indicates whether to reuse Substrate's Pod Identity (SPIFFE) certificates.",
               "type": [
                 "boolean",
                 "null"
@@ -79,6 +79,10 @@
             {
               "message": "tls.usePodIdentity must be true when tls.enabled is true; manual certificates are not yet supported",
               "rule": "!self.enabled || (has(self.usePodIdentity) \u0026\u0026 self.usePodIdentity)"
+            },
+            {
+              "message": "tls.serverName is required when tls.enabled is true",
+              "rule": "!self.enabled || (has(self.serverName) \u0026\u0026 size(self.serverName) \u003e 0)"
             }
           ]
         }

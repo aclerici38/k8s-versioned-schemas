@@ -1,0 +1,139 @@
+{
+  "description": "SandboxConfig is cluster-scoped configuration describing the versions of the\nsandbox binaries for a sandbox runtime family. It is referenced by a\nWorkerPool's spec.sandboxClasses[].configRef (or resolved via the\nsandboxconfig.ate.dev/is-class-default annotation) and decouples sandbox\nbinary selection from the workload definition.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of SandboxConfig",
+      "properties": {
+        "defaultVersion": {
+          "description": "defaultVersion names the entry in versions that new sandboxes boot with.\nIt must name an existing, non-Disabled version.",
+          "maxLength": 63,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sandboxClass": {
+          "default": "gvisor",
+          "description": "sandboxClass is the sandbox runtime family this config applies to. A\nWorkerPool only uses SandboxConfigs whose sandboxClass matches the entry\nin its spec.sandboxClasses.",
+          "enum": [
+            "gvisor",
+            "microvm"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "versions": {
+          "description": "versions are the sandbox versions this config offers, keyed by name.",
+          "items": {
+            "additionalProperties": false,
+            "description": "SandboxVersionConfig is one version of a SandboxConfig: the asset set a\nsandbox boots with.",
+            "properties": {
+              "assets": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "description": "AssetFile is one content-addressed file that atelet fetches for a sandbox\nruntime (e.g. the gVisor runsc binary, or a micro-VM kernel/firmware/config).",
+                    "properties": {
+                      "sha256": {
+                        "description": "sha256 is the lower-case hex SHA256 of the asset. It both names the cached\nfile (preventing collisions) and verifies the download's integrity.",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "url": {
+                        "description": "url is where to download the asset from (e.g. a gs:// URL). atelet\nfetches every URL through the node's object-store plugin, with the\nplugin's credentials. The plugin refuses URLs under a snapshot location.\nThe in-tree plugin serves only its storage backend's scheme: gs:// on\nGCS, s3:// on S3. A gs:// URL the plugin has no object for or cannot\nserve is then read anonymously, which serves public buckets such as\ngs://gvisor.",
+                        "maxLength": 2048,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "sha256",
+                      "url"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "object"
+                },
+                "description": "assets is the set of files atelet fetches for this runtime, keyed first by\narchitecture (GOARCH, e.g. \"amd64\", \"arm64\") and then by asset name. The\nasset names are interpreted by the sandbox backend: gVisor expects a\n\"gvisor\" asset (the release's gvisor.tar.zstd, which atelet extracts so\nthe gvisor-bin/ helpers sit next to runsc); a micro-VM backend expects\nseveral (e.g. \"cloud-hypervisor\", \"kata-kernel\", \"kata-image\"). The\nschema is intentionally generic; per-class requirements are enforced by\na ValidatingAdmissionPolicy.",
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "name identifies this version within its SandboxConfig. It is a DNS label\n(lower-case alphanumerics and '-').",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              },
+              "state": {
+                "default": "Enabled",
+                "description": "state is whether this version may be used: Enabled (default) or\nDisabled.",
+                "enum": [
+                  "Enabled",
+                  "Disabled"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        }
+      },
+      "required": [
+        "defaultVersion",
+        "versions"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "defaultVersion must name an entry in versions",
+          "rule": "self.versions.exists(v, v.name == self.defaultVersion)"
+        },
+        {
+          "message": "the version named by defaultVersion must not be Disabled",
+          "rule": "!self.versions.exists(v, v.name == self.defaultVersion \u0026\u0026 has(v.state) \u0026\u0026 v.state == 'Disabled')"
+        }
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
