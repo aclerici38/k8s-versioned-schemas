@@ -1,0 +1,190 @@
+{
+  "description": "DNSEndpoint is a contract that a user-specified CRD must implement to be used as a source for external-dns.\nThe user-specified CRD should also have the status sub-resource.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "DNSEndpointSpec defines the desired state of DNSEndpoint",
+      "properties": {
+        "endpoints": {
+          "description": "Endpoints is the list of DNS records this resource declares.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Endpoint is a high-level way of a connection between a service and an IP",
+            "properties": {
+              "dnsName": {
+                "description": "DNSName is the hostname of the DNS record. It is at most 253 characters, or 254\nwritten as an absolute name with a trailing dot.",
+                "maxLength": 254,
+                "minLength": 1,
+                "pattern": "^(\\*\\.)?([a-zA-Z0-9_]([-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_])?\\.)*[a-zA-Z0-9_]([-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_])?\\.?$",
+                "type": "string",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "dnsName must be at most 253 characters, or 254 including the trailing dot",
+                    "rule": "self.size() \u003c= (self.endsWith('.') ? 254 : 253)"
+                  }
+                ]
+              },
+              "labels": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Labels stores labels defined for the Endpoint",
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "providerSpecific": {
+                "description": "ProviderSpecific stores provider specific config",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "ProviderSpecificProperty holds the name and value of a configuration which is specific to individual DNS providers",
+                  "properties": {
+                    "name": {
+                      "description": "Name of the provider-specific property. Accepted names are provider\ndependent; see the tutorial for the provider in use.",
+                      "maxLength": 253,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Value of the provider-specific property.",
+                      "maxLength": 4096,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 100,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "recordTTL": {
+                "description": "RecordTTL is the TTL of the record in seconds. 0 means \"not set\" and lets\nthe provider apply its own default. The upper bound is the RFC 2181 §8 maximum.",
+                "format": "int64",
+                "maximum": 2147483647,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "recordType": {
+                "description": "RecordType is the DNS record type.",
+                "enum": [
+                  "A",
+                  "AAAA",
+                  "CNAME",
+                  "DNAME",
+                  "MX",
+                  "NAPTR",
+                  "NS",
+                  "PTR",
+                  "SRV",
+                  "TLSA",
+                  "TXT"
+                ],
+                "type": "string"
+              },
+              "setIdentifier": {
+                "description": "SetIdentifier distinguishes multiple records with the same name and type\n(e.g. Route53 records with routing policies other than 'simple').",
+                "maxLength": 255,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "targets": {
+                "description": "Targets are the values the DNS record points to. Leaving it empty is only\nmeaningful when --default-targets is configured.",
+                "items": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "dnsName",
+              "recordType"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "SRV targets must be '\u003cpriority\u003e \u003cweight\u003e \u003cport\u003e \u003chost\u003e' with an absolute host, e.g. '10 5 5060 sip.example.com.'",
+                "rule": "self.recordType != 'SRV' || !has(self.targets) || self.targets.all(t, t.endsWith('.'))"
+              },
+              {
+                "message": "NAPTR targets must be absolute and end with a dot",
+                "rule": "self.recordType != 'NAPTR' || !has(self.targets) || self.targets.all(t, t.endsWith('.'))"
+              },
+              {
+                "message": "PTR dnsName must be a reverse DNS name under .in-addr.arpa or .ip6.arpa, written without a trailing dot, e.g. '1.0.0.10.in-addr.arpa'",
+                "rule": "self.recordType != 'PTR' || self.dnsName.lowerAscii().endsWith('.in-addr.arpa') || self.dnsName.lowerAscii().endsWith('.ip6.arpa')"
+              }
+            ]
+          },
+          "maxItems": 1000,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "DNSEndpointStatus defines the observed state of DNSEndpoint",
+      "properties": {
+        "observedGeneration": {
+          "description": "The generation observed by the external-dns controller.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
