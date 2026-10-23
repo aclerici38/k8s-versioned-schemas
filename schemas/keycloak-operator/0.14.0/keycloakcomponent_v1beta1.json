@@ -1,5 +1,5 @@
 {
-  "description": "KeycloakUser defines a user within a KeycloakRealm",
+  "description": "KeycloakComponent defines a component within a KeycloakRealm",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,41 +23,11 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "KeycloakUserSpec defines the desired state of KeycloakUser",
+      "description": "KeycloakComponentSpec defines the desired state of KeycloakComponent",
       "properties": {
-        "clientRef": {
-          "additionalProperties": false,
-          "description": "ClientRef is a reference to a KeycloakClient for service account users\nOne of realmRef, clusterRealmRef, or clientRef must be specified\nUse this to manage the service account user associated with a client",
-          "properties": {
-            "name": {
-              "description": "Name of the resource",
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "clientRoles": {
-          "additionalProperties": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "description": "ClientRoles maps a client's clientId to the authoritative set of\nclient-level role names for this user. When omitted, client roles are not\nmanaged; when set, roles on clients absent from the map are removed.\nDo not combine with KeycloakRoleMapping resources targeting the same user.",
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "clusterRealmRef": {
           "additionalProperties": false,
-          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm\nOne of realmRef, clusterRealmRef, or clientRef must be specified\nUse this for regular realm users with cluster-scoped realms",
+          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm for top-level components\nOne of realmRef, clusterRealmRef, or parentComponentRef must be specified",
           "properties": {
             "name": {
               "description": "Name of the cluster-scoped resource",
@@ -72,51 +42,74 @@
             "null"
           ]
         },
-        "definition": {
-          "description": "Definition contains the Keycloak UserRepresentation. Set the username via\nspec.username; role and group assignments go in spec.realmRoles,\nspec.clientRoles, and spec.groups.",
-          "type": [
-            "object",
-            "null"
-          ],
-          "x-kubernetes-preserve-unknown-fields": true
-        },
-        "groups": {
-          "description": "Groups is the authoritative set of group names this user belongs to,\nreconciled via the Keycloak group-membership endpoints. When omitted,\ngroup memberships are not managed; an empty list removes all memberships.",
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "initialPassword": {
+        "configSecretRef": {
           "additionalProperties": false,
-          "description": "InitialPassword sets the initial password for the user (only on creation).\nFor managed credentials stored in a Kubernetes secret, use KeycloakUserCredential.",
+          "description": "ConfigSecretRef is a reference to a Kubernetes Secret whose data entries\nare merged into definition.config before syncing to Keycloak. Each secret\nvalue is wrapped as a single-element list to match ComponentRepresentation\nconfig (map[string][]string). Secret values take precedence over values\nspecified inline in definition.config.",
           "properties": {
-            "temporary": {
-              "description": "Temporary indicates if the user must change password on first login",
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "value": {
-              "description": "Value is the password value",
+            "name": {
+              "description": "Name of the Kubernetes Secret in the same namespace as the CR",
               "type": "string"
             }
           },
           "required": [
-            "value"
+            "name"
           ],
           "type": [
             "object",
             "null"
           ]
         },
-        "realmRef": {
+        "configSecretRefs": {
+          "description": "ConfigSecretRefs maps individual Secret keys to config keys in\ndefinition.config, for Secrets whose key names differ from Keycloak's\n(e.g. cert-manager's tls.key -\u003e privateKey). Each value is injected as a\nsingle-element list. A config key that is already set, inline or via\nconfigSecretRef, cannot also be set here.",
+          "items": {
+            "additionalProperties": false,
+            "description": "ConfigSecretRefMapping injects one Secret key into definition.config under\na different key name.",
+            "properties": {
+              "configKey": {
+                "description": "ConfigKey is the target key in definition.config",
+                "minLength": 1,
+                "type": "string"
+              },
+              "key": {
+                "description": "Key is the key within the Secret that holds the value",
+                "minLength": 1,
+                "type": "string"
+              },
+              "secretName": {
+                "description": "SecretName is the name of the Kubernetes Secret in the same namespace",
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "configKey",
+              "key",
+              "secretName"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "configKey"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "definition": {
+          "description": "Definition contains the Keycloak ComponentRepresentation. Set the component\nname via spec.name.",
+          "type": "object",
+          "x-kubernetes-preserve-unknown-fields": true
+        },
+        "name": {
+          "description": "Name is the component name in Keycloak. Immutable once set. The\nproviderType is set in spec.definition.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "parentComponentRef": {
           "additionalProperties": false,
-          "description": "RealmRef is a reference to a KeycloakRealm\nOne of realmRef, clusterRealmRef, or clientRef must be specified\nUse this for regular realm users",
+          "description": "ParentComponentRef is a reference to a parent KeycloakComponent in the same\nnamespace for sub-components, e.g. an LDAP mapper under its user federation\nprovider. The parent's Keycloak ID is injected as definition.parentId and\nthe realm is derived from the parent chain, so realmRef and clusterRealmRef\nmust not be set alongside it. Mutually exclusive with definition.parentId\nand immutable.\nOne of realmRef, clusterRealmRef, or parentComponentRef must be specified",
           "properties": {
             "name": {
               "description": "Name of the resource",
@@ -131,50 +124,60 @@
             "null"
           ]
         },
-        "realmRoles": {
-          "description": "RealmRoles is the authoritative set of realm-level role names for this\nuser, reconciled via the Keycloak role-mapping endpoints. When omitted,\nrealm roles are not managed; an empty list removes all realm roles.\nPointer types so an explicit empty value survives JSON round-trips.\nDo not combine with KeycloakRoleMapping resources targeting the same user.",
-          "items": {
-            "type": "string"
+        "realmRef": {
+          "additionalProperties": false,
+          "description": "RealmRef is a reference to a KeycloakRealm for top-level components\nOne of realmRef, clusterRealmRef, or parentComponentRef must be specified",
+          "properties": {
+            "name": {
+              "description": "Name of the resource",
+              "type": "string"
+            }
           },
+          "required": [
+            "name"
+          ],
           "type": [
-            "array",
-            "null"
-          ]
-        },
-        "username": {
-          "description": "Username is the username in Keycloak. Required for regular realm users;\nomit it for service account users, which are identified by clientRef and\nwhose username is derived by Keycloak. Immutable once set.",
-          "minLength": 1,
-          "type": [
-            "string",
+            "object",
             "null"
           ]
         }
       },
+      "required": [
+        "definition",
+        "name"
+      ],
       "type": [
         "object",
         "null"
       ],
       "x-kubernetes-validations": [
         {
-          "message": "exactly one of realmRef, clusterRealmRef, or clientRef must be set",
-          "rule": "(has(self.realmRef) ? 1 : 0) + (has(self.clusterRealmRef) ? 1 : 0) + (has(self.clientRef) ? 1 : 0) == 1"
+          "message": "exactly one of realmRef, clusterRealmRef, or parentComponentRef must be set",
+          "rule": "(has(self.realmRef) ? 1 : 0) + (has(self.clusterRealmRef) ? 1 : 0) + (has(self.parentComponentRef) ? 1 : 0) == 1"
         },
         {
-          "message": "spec.username is required unless spec.clientRef is set (service account user)",
-          "rule": "has(self.clientRef) || (has(self.username) \u0026\u0026 size(self.username) \u003e 0)"
+          "message": "spec.name is immutable once set",
+          "rule": "!has(oldSelf.name) || self.name == oldSelf.name"
         },
         {
-          "message": "spec.username is immutable once set",
-          "rule": "!has(oldSelf.username) || (has(self.username) \u0026\u0026 self.username == oldSelf.username)"
+          "message": "spec.parentComponentRef is immutable",
+          "rule": "has(self.parentComponentRef) == has(oldSelf.parentComponentRef) \u0026\u0026 (!has(self.parentComponentRef) || self.parentComponentRef.name == oldSelf.parentComponentRef.name)"
         }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "KeycloakUserStatus defines the observed state of KeycloakUser",
+      "description": "KeycloakComponentStatus defines the observed state of KeycloakComponent",
       "properties": {
-        "clientID": {
-          "description": "ClientID is the client UUID if this is a service account user",
+        "componentID": {
+          "description": "ComponentID is the Keycloak internal component ID",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "componentName": {
+          "description": "ComponentName is the component name in Keycloak",
           "type": [
             "string",
             "null"
@@ -266,10 +269,10 @@
             "null"
           ]
         },
-        "isServiceAccount": {
-          "description": "IsServiceAccount indicates if this user is a service account for a client",
+        "lastAppliedDefinitionHash": {
+          "description": "LastAppliedDefinitionHash is a hash of the last successfully applied\ndefinition (after secret merging). Keycloak masks secret config values\non read, so this is the only way to detect that the desired secret\nchanged and must be pushed.",
           "type": [
-            "boolean",
+            "string",
             "null"
           ]
         },
@@ -288,8 +291,15 @@
             "null"
           ]
         },
+        "providerType": {
+          "description": "ProviderType is the component provider type",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "ready": {
-          "description": "Ready indicates if the user is ready",
+          "description": "Ready indicates if the component is ready",
           "type": "boolean"
         },
         "realm": {
@@ -317,7 +327,7 @@
           ]
         },
         "resourcePath": {
-          "description": "ResourcePath is the Keycloak API path for this user",
+          "description": "ResourcePath is the Keycloak API path for this component",
           "type": [
             "string",
             "null"
@@ -325,20 +335,6 @@
         },
         "status": {
           "description": "Status is a human-readable status message",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "userID": {
-          "description": "UserID is the Keycloak internal user ID",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "username": {
-          "description": "Username is the resolved username in Keycloak",
           "type": [
             "string",
             "null"

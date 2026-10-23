@@ -1,5 +1,5 @@
 {
-  "description": "KeycloakAuthenticationFlow manages a Keycloak authentication flow.",
+  "description": "KeycloakRequiredAction manages a required action provider within a Keycloak realm",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,16 +23,16 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "KeycloakAuthenticationFlowSpec defines the desired state of KeycloakAuthenticationFlow",
+      "description": "KeycloakRequiredActionSpec defines the desired state of KeycloakRequiredAction",
       "properties": {
         "alias": {
-          "description": "Alias is the unique identifier for this flow within the realm.",
+          "description": "Alias is the required action alias in Keycloak. Immutable once set.",
           "minLength": 1,
           "type": "string"
         },
         "clusterRealmRef": {
           "additionalProperties": false,
-          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm.\nOne of realmRef or clusterRealmRef must be specified.",
+          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm\nOne of realmRef or clusterRealmRef must be specified",
           "properties": {
             "name": {
               "description": "Name of the cluster-scoped resource",
@@ -47,25 +47,31 @@
             "null"
           ]
         },
-        "description": {
-          "description": "Description is a human-readable description of the flow.",
+        "configSecretRef": {
+          "additionalProperties": false,
+          "description": "ConfigSecretRef is a reference to a Kubernetes Secret whose data entries\nare merged into definition.config before syncing to Keycloak. Secret\nvalues take precedence over values specified inline in definition.config.",
+          "properties": {
+            "name": {
+              "description": "Name of the Kubernetes Secret in the same namespace as the CR",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
           "type": [
-            "string",
+            "object",
             "null"
           ]
         },
-        "executions": {
-          "description": "Executions is the ordered list of executions for this flow as a JSON\narray. Each entry is either a leaf authenticator or a nested sub-flow.\n\nLeaf authenticator (object fields):\n\n  authenticator:        Keycloak provider ID, e.g. \"auth-cookie\".\n  requirement:          REQUIRED | ALTERNATIVE | DISABLED | CONDITIONAL.\n  authenticatorConfig:  optional map[string]string applied to the\n                        execution after creation.\n\nSub-flow (object fields):\n\n  subFlow:              { alias, providerId, description? } — the\n                        child flow definition. providerId is typically\n                        \"basic-flow\" or \"form-flow\"; \"form-flow\" is\n                        required when the children are FormAction\n                        providers (e.g. registration-user-creation).\n  requirement:          REQUIRED | ALTERNATIVE | DISABLED | CONDITIONAL.\n  executions:           ordered list of child executions, recursively\n                        using the same shape. As a convenience, child\n                        executions may also be placed inside\n                        subFlow.executions; if both are present, the\n                        inline list precedes the sibling list.\n\nNesting depth is unconstrained.",
+        "definition": {
+          "description": "Definition contains the Keycloak RequiredActionProviderRepresentation. Set\nthe alias via spec.alias.",
+          "type": "object",
           "x-kubernetes-preserve-unknown-fields": true
-        },
-        "providerId": {
-          "description": "ProviderId is the top-level flow type. Keycloak ships with \"basic-flow\"\nand \"client-flow\"; sub-flows may additionally use \"form-flow\".",
-          "minLength": 1,
-          "type": "string"
         },
         "realmRef": {
           "additionalProperties": false,
-          "description": "RealmRef is a reference to a KeycloakRealm.\nOne of realmRef or clusterRealmRef must be specified.",
+          "description": "RealmRef is a reference to a KeycloakRealm\nOne of realmRef or clusterRealmRef must be specified",
           "properties": {
             "name": {
               "description": "Name of the resource",
@@ -83,7 +89,7 @@
       },
       "required": [
         "alias",
-        "providerId"
+        "definition"
       ],
       "type": [
         "object",
@@ -93,15 +99,26 @@
         {
           "message": "exactly one of realmRef or clusterRealmRef must be set",
           "rule": "has(self.realmRef) != has(self.clusterRealmRef)"
+        },
+        {
+          "message": "spec.alias is immutable once set",
+          "rule": "!has(oldSelf.alias) || self.alias == oldSelf.alias"
         }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "KeycloakAuthenticationFlowStatus defines the observed state of KeycloakAuthenticationFlow",
+      "description": "KeycloakRequiredActionStatus defines the observed state of KeycloakRequiredAction",
       "properties": {
+        "alias": {
+          "description": "Alias is the required action alias in Keycloak",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "conditions": {
-          "description": "Conditions represent the latest available observations.",
+          "description": "Conditions represent the latest available observations",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
@@ -162,16 +179,9 @@
             "null"
           ]
         },
-        "flowID": {
-          "description": "FlowID is the Keycloak internal ID of the top-level flow.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "instance": {
           "additionalProperties": false,
-          "description": "Instance contains the resolved instance reference.",
+          "description": "Instance contains the resolved instance reference",
           "properties": {
             "clusterInstanceRef": {
               "description": "ClusterInstanceRef is the name of the cluster instance",
@@ -194,14 +204,14 @@
           ]
         },
         "message": {
-          "description": "Message contains additional information.",
+          "description": "Message contains additional information",
           "type": [
             "string",
             "null"
           ]
         },
         "observedGeneration": {
-          "description": "ObservedGeneration is the generation of the spec that was last processed.",
+          "description": "ObservedGeneration is the generation of the spec that was last processed",
           "format": "int64",
           "type": [
             "integer",
@@ -209,12 +219,12 @@
           ]
         },
         "ready": {
-          "description": "Ready indicates if the flow is synchronized with Keycloak.",
+          "description": "Ready indicates if the required action is synchronized",
           "type": "boolean"
         },
         "realm": {
           "additionalProperties": false,
-          "description": "Realm contains the resolved realm reference.",
+          "description": "Realm contains the resolved realm reference",
           "properties": {
             "clusterRealmRef": {
               "description": "ClusterRealmRef is the name of the cluster realm",
@@ -237,14 +247,14 @@
           ]
         },
         "resourcePath": {
-          "description": "ResourcePath is the Keycloak API path for this flow.",
+          "description": "ResourcePath is the Keycloak API path for this required action",
           "type": [
             "string",
             "null"
           ]
         },
         "status": {
-          "description": "Status is a human-readable status message.",
+          "description": "Status is a human-readable status message",
           "type": [
             "string",
             "null"

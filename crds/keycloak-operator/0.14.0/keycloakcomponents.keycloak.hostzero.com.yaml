@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: keycloakrequiredactions.keycloak.hostzero.com
+  name: keycloakcomponents.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,26 +20,26 @@ spec:
     categories:
       - keycloak
       - all
-    kind: KeycloakRequiredAction
-    listKind: KeycloakRequiredActionList
-    plural: keycloakrequiredactions
+    kind: KeycloakComponent
+    listKind: KeycloakComponentList
+    plural: keycloakcomponents
     shortNames:
-      - kcra
-    singular: keycloakrequiredaction
+      - kcco
+    singular: keycloakcomponent
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - description: Whether the required action is ready
+        - description: Whether the component is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
-        - description: Required action alias
-          jsonPath: .status.alias
-          name: Alias
+        - description: Component name
+          jsonPath: .status.componentName
+          name: Name
           type: string
-        - description: Status message
-          jsonPath: .status.status
-          name: Status
+        - description: Provider type
+          jsonPath: .status.providerType
+          name: Type
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -47,8 +47,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: KeycloakRequiredAction manages a required action provider within
-            a Keycloak realm
+          description: KeycloakComponent defines a component within a KeycloakRealm
           properties:
             apiVersion:
               description: |-
@@ -68,18 +67,12 @@ spec:
             metadata:
               type: object
             spec:
-              description: KeycloakRequiredActionSpec defines the desired state of
-                KeycloakRequiredAction
+              description: KeycloakComponentSpec defines the desired state of KeycloakComponent
               properties:
-                alias:
-                  description: Alias is the required action alias in Keycloak. Immutable
-                    once set.
-                  minLength: 1
-                  type: string
                 clusterRealmRef:
                   description: |-
-                    ClusterRealmRef is a reference to a ClusterKeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    ClusterRealmRef is a reference to a ClusterKeycloakRealm for top-level components
+                    One of realmRef, clusterRealmRef, or parentComponentRef must be specified
                   properties:
                     name:
                       description: Name of the cluster-scoped resource
@@ -87,16 +80,85 @@ spec:
                   required:
                     - name
                   type: object
+                configSecretRef:
+                  description: |-
+                    ConfigSecretRef is a reference to a Kubernetes Secret whose data entries
+                    are merged into definition.config before syncing to Keycloak. Each secret
+                    value is wrapped as a single-element list to match ComponentRepresentation
+                    config (map[string][]string). Secret values take precedence over values
+                    specified inline in definition.config.
+                  properties:
+                    name:
+                      description: Name of the Kubernetes Secret in the same namespace as the CR
+                      type: string
+                  required:
+                    - name
+                  type: object
+                configSecretRefs:
+                  description: |-
+                    ConfigSecretRefs maps individual Secret keys to config keys in
+                    definition.config, for Secrets whose key names differ from Keycloak's
+                    (e.g. cert-manager's tls.key -> privateKey). Each value is injected as a
+                    single-element list. A config key that is already set, inline or via
+                    configSecretRef, cannot also be set here.
+                  items:
+                    description: |-
+                      ConfigSecretRefMapping injects one Secret key into definition.config under
+                      a different key name.
+                    properties:
+                      configKey:
+                        description: ConfigKey is the target key in definition.config
+                        minLength: 1
+                        type: string
+                      key:
+                        description: Key is the key within the Secret that holds the value
+                        minLength: 1
+                        type: string
+                      secretName:
+                        description: SecretName is the name of the Kubernetes Secret in the same namespace
+                        minLength: 1
+                        type: string
+                    required:
+                      - configKey
+                      - key
+                      - secretName
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - configKey
+                  x-kubernetes-list-type: map
                 definition:
                   description: |-
-                    Definition contains the Keycloak RequiredActionProviderRepresentation. Set
-                    the alias via spec.alias.
+                    Definition contains the Keycloak ComponentRepresentation. Set the component
+                    name via spec.name.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
+                name:
+                  description: |-
+                    Name is the component name in Keycloak. Immutable once set. The
+                    providerType is set in spec.definition.
+                  minLength: 1
+                  type: string
+                parentComponentRef:
+                  description: |-
+                    ParentComponentRef is a reference to a parent KeycloakComponent in the same
+                    namespace for sub-components, e.g. an LDAP mapper under its user federation
+                    provider. The parent's Keycloak ID is injected as definition.parentId and
+                    the realm is derived from the parent chain, so realmRef and clusterRealmRef
+                    must not be set alongside it. Mutually exclusive with definition.parentId
+                    and immutable.
+                    One of realmRef, clusterRealmRef, or parentComponentRef must be specified
+                  properties:
+                    name:
+                      description: Name of the resource
+                      type: string
+                  required:
+                    - name
+                  type: object
                 realmRef:
                   description: |-
-                    RealmRef is a reference to a KeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    RealmRef is a reference to a KeycloakRealm for top-level components
+                    One of realmRef, clusterRealmRef, or parentComponentRef must be specified
                   properties:
                     name:
                       description: Name of the resource
@@ -105,26 +167,29 @@ spec:
                     - name
                   type: object
               required:
-                - alias
                 - definition
+                - name
               type: object
               x-kubernetes-validations:
-                - message: exactly one of realmRef or clusterRealmRef must be set
-                  rule: has(self.realmRef) != has(self.clusterRealmRef)
-                - message: spec.alias is immutable once set
-                  rule: '!has(oldSelf.alias) || self.alias == oldSelf.alias'
+                - message: exactly one of realmRef, clusterRealmRef, or parentComponentRef must be set
+                  rule: '(has(self.realmRef) ? 1 : 0) + (has(self.clusterRealmRef) ? 1 : 0) + (has(self.parentComponentRef) ? 1 : 0) == 1'
+                - message: spec.name is immutable once set
+                  rule: '!has(oldSelf.name) || self.name == oldSelf.name'
+                - message: spec.parentComponentRef is immutable
+                  rule: has(self.parentComponentRef) == has(oldSelf.parentComponentRef) && (!has(self.parentComponentRef) || self.parentComponentRef.name == oldSelf.parentComponentRef.name)
             status:
-              description: KeycloakRequiredActionStatus defines the observed state
-                of KeycloakRequiredAction
+              description: KeycloakComponentStatus defines the observed state of KeycloakComponent
               properties:
-                alias:
-                  description: Alias is the required action alias in Keycloak
+                componentID:
+                  description: ComponentID is the Keycloak internal component ID
+                  type: string
+                componentName:
+                  description: ComponentName is the component name in Keycloak
                   type: string
                 conditions:
                   description: Conditions represent the latest available observations
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -158,8 +223,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -188,16 +252,25 @@ spec:
                       description: InstanceRef is the name of the namespaced instance
                       type: string
                   type: object
+                lastAppliedDefinitionHash:
+                  description: |-
+                    LastAppliedDefinitionHash is a hash of the last successfully applied
+                    definition (after secret merging). Keycloak masks secret config values
+                    on read, so this is the only way to detect that the desired secret
+                    changed and must be pushed.
+                  type: string
                 message:
                   description: Message contains additional information
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration is the generation of the spec that
-                    was last processed
+                  description: ObservedGeneration is the generation of the spec that was last processed
                   format: int64
                   type: integer
+                providerType:
+                  description: ProviderType is the component provider type
+                  type: string
                 ready:
-                  description: Ready indicates if the required action is synchronized
+                  description: Ready indicates if the component is ready
                   type: boolean
                 realm:
                   description: Realm contains the resolved realm reference
@@ -210,8 +283,7 @@ spec:
                       type: string
                   type: object
                 resourcePath:
-                  description: ResourcePath is the Keycloak API path for this required
-                    action
+                  description: ResourcePath is the Keycloak API path for this component
                   type: string
                 status:
                   description: Status is a human-readable status message

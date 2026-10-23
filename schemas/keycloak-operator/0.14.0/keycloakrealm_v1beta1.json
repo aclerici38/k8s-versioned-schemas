@@ -1,5 +1,5 @@
 {
-  "description": "KeycloakComponent defines a component within a KeycloakRealm",
+  "description": "KeycloakRealm defines a realm within a KeycloakInstance",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,11 +23,11 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "KeycloakComponentSpec defines the desired state of KeycloakComponent",
+      "description": "KeycloakRealmSpec defines the desired state of KeycloakRealm",
       "properties": {
-        "clusterRealmRef": {
+        "clusterInstanceRef": {
           "additionalProperties": false,
-          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm\nOne of realmRef or clusterRealmRef must be specified",
+          "description": "ClusterInstanceRef is a reference to a ClusterKeycloakInstance\nOne of instanceRef or clusterInstanceRef must be specified",
           "properties": {
             "name": {
               "description": "Name of the cluster-scoped resource",
@@ -43,18 +43,13 @@
           ]
         },
         "definition": {
-          "description": "Definition contains the Keycloak ComponentRepresentation. Set the component\nname via spec.name.",
+          "description": "Definition contains the Keycloak RealmRepresentation. Set the realm name\nvia spec.realmName.",
           "type": "object",
           "x-kubernetes-preserve-unknown-fields": true
         },
-        "name": {
-          "description": "Name is the component name in Keycloak. Immutable once set. The\nproviderType is set in spec.definition.",
-          "minLength": 1,
-          "type": "string"
-        },
-        "realmRef": {
+        "instanceRef": {
           "additionalProperties": false,
-          "description": "RealmRef is a reference to a KeycloakRealm\nOne of realmRef or clusterRealmRef must be specified",
+          "description": "InstanceRef is a reference to a KeycloakInstance\nOne of instanceRef or clusterInstanceRef must be specified",
           "properties": {
             "name": {
               "description": "Name of the resource",
@@ -68,11 +63,49 @@
             "object",
             "null"
           ]
+        },
+        "realmName": {
+          "description": "RealmName is the name of the realm in Keycloak. It is immutable once set:\nrenaming a realm in Keycloak is destructive and would orphan it.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "smtpSecretRef": {
+          "additionalProperties": false,
+          "description": "SmtpSecretRef is a reference to a Kubernetes Secret containing SMTP credentials.\nWhen set, the secret values are injected into definition.smtpServer.user and\ndefinition.smtpServer.password before syncing to Keycloak, so credentials\ndo not need to appear in plaintext in the CR.",
+          "properties": {
+            "name": {
+              "description": "Name of the Kubernetes Secret",
+              "type": "string"
+            },
+            "passwordKey": {
+              "default": "password",
+              "description": "PasswordKey is the key in the secret for the SMTP password (defaults to \"password\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "userKey": {
+              "default": "user",
+              "description": "UserKey is the key in the secret for the SMTP username (defaults to \"user\")",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
       "required": [
         "definition",
-        "name"
+        "realmName"
       ],
       "type": [
         "object",
@@ -80,33 +113,19 @@
       ],
       "x-kubernetes-validations": [
         {
-          "message": "exactly one of realmRef or clusterRealmRef must be set",
-          "rule": "has(self.realmRef) != has(self.clusterRealmRef)"
+          "message": "exactly one of instanceRef or clusterInstanceRef must be set",
+          "rule": "has(self.instanceRef) != has(self.clusterInstanceRef)"
         },
         {
-          "message": "spec.name is immutable once set",
-          "rule": "!has(oldSelf.name) || self.name == oldSelf.name"
+          "message": "spec.realmName is immutable once set",
+          "rule": "!has(oldSelf.realmName) || self.realmName == oldSelf.realmName"
         }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "KeycloakComponentStatus defines the observed state of KeycloakComponent",
+      "description": "KeycloakRealmStatus defines the observed state of KeycloakRealm",
       "properties": {
-        "componentID": {
-          "description": "ComponentID is the Keycloak internal component ID",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "componentName": {
-          "description": "ComponentName is the component name in Keycloak",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "conditions": {
           "description": "Conditions represent the latest available observations",
           "items": {
@@ -193,6 +212,13 @@
             "null"
           ]
         },
+        "lastAppliedDefinitionHash": {
+          "description": "LastAppliedDefinitionHash is a hash of the last successfully applied\ndefinition (after SMTP credential merging). Keycloak masks\nsmtpServer.password on read, so this is the only way to detect that\nthe desired password changed and must be pushed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "message": {
           "description": "Message contains additional information",
           "type": [
@@ -200,51 +226,19 @@
             "null"
           ]
         },
-        "observedGeneration": {
-          "description": "ObservedGeneration is the generation of the spec that was last processed",
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
+        "ready": {
+          "description": "Ready indicates if the realm is ready",
+          "type": "boolean"
         },
-        "providerType": {
-          "description": "ProviderType is the component provider type",
+        "realmName": {
+          "description": "RealmName is the resolved realm name in Keycloak",
           "type": [
             "string",
             "null"
           ]
         },
-        "ready": {
-          "description": "Ready indicates if the component is ready",
-          "type": "boolean"
-        },
-        "realm": {
-          "additionalProperties": false,
-          "description": "Realm contains the resolved realm reference",
-          "properties": {
-            "clusterRealmRef": {
-              "description": "ClusterRealmRef is the name of the cluster realm",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "realmRef": {
-              "description": "RealmRef is the name of the namespaced realm",
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "resourcePath": {
-          "description": "ResourcePath is the Keycloak API path for this component",
+          "description": "ResourcePath is the Keycloak API path for this realm",
           "type": [
             "string",
             "null"

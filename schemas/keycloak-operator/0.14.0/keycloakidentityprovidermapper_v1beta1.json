@@ -1,5 +1,5 @@
 {
-  "description": "KeycloakRealm defines a realm within a KeycloakInstance",
+  "description": "KeycloakIdentityProviderMapper defines a mapper attached to a KeycloakIdentityProvider",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,14 +23,14 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "KeycloakRealmSpec defines the desired state of KeycloakRealm",
+      "description": "KeycloakIdentityProviderMapperSpec defines the desired state of KeycloakIdentityProviderMapper",
       "properties": {
-        "clusterInstanceRef": {
+        "configSecretRef": {
           "additionalProperties": false,
-          "description": "ClusterInstanceRef is a reference to a ClusterKeycloakInstance\nOne of instanceRef or clusterInstanceRef must be specified",
+          "description": "ConfigSecretRef is a reference to a Kubernetes Secret whose data entries\nare merged into definition.config before syncing to Keycloak. Secret\nvalues take precedence over values specified inline in definition.config.",
           "properties": {
             "name": {
-              "description": "Name of the cluster-scoped resource",
+              "description": "Name of the Kubernetes Secret in the same namespace as the CR",
               "type": "string"
             }
           },
@@ -43,13 +43,13 @@
           ]
         },
         "definition": {
-          "description": "Definition contains the Keycloak RealmRepresentation. Set the realm name\nvia spec.realmName.",
+          "description": "Definition contains the Keycloak IdentityProviderMapperRepresentation. The\nidentityProviderAlias field is injected from the parent KeycloakIdentityProvider\nat reconcile time. Set the mapper name via spec.name.",
           "type": "object",
           "x-kubernetes-preserve-unknown-fields": true
         },
-        "instanceRef": {
+        "identityProviderRef": {
           "additionalProperties": false,
-          "description": "InstanceRef is a reference to a KeycloakInstance\nOne of instanceRef or clusterInstanceRef must be specified",
+          "description": "IdentityProviderRef is a reference to a KeycloakIdentityProvider that owns\nthis mapper. The realm and Keycloak instance are derived from the parent\nidentity provider.",
           "properties": {
             "name": {
               "description": "Name of the resource",
@@ -59,53 +59,18 @@
           "required": [
             "name"
           ],
-          "type": [
-            "object",
-            "null"
-          ]
+          "type": "object"
         },
-        "realmName": {
-          "description": "RealmName is the name of the realm in Keycloak. It is immutable once set:\nrenaming a realm in Keycloak is destructive and would orphan it.",
+        "name": {
+          "description": "Name is the mapper name in Keycloak. Immutable once set.",
           "minLength": 1,
           "type": "string"
-        },
-        "smtpSecretRef": {
-          "additionalProperties": false,
-          "description": "SmtpSecretRef is a reference to a Kubernetes Secret containing SMTP credentials.\nWhen set, the secret values are injected into definition.smtpServer.user and\ndefinition.smtpServer.password before syncing to Keycloak, so credentials\ndo not need to appear in plaintext in the CR.",
-          "properties": {
-            "name": {
-              "description": "Name of the Kubernetes Secret",
-              "type": "string"
-            },
-            "passwordKey": {
-              "default": "password",
-              "description": "PasswordKey is the key in the secret for the SMTP password (defaults to \"password\")",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "userKey": {
-              "default": "user",
-              "description": "UserKey is the key in the secret for the SMTP username (defaults to \"user\")",
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "type": [
-            "object",
-            "null"
-          ]
         }
       },
       "required": [
         "definition",
-        "realmName"
+        "identityProviderRef",
+        "name"
       ],
       "type": [
         "object",
@@ -113,18 +78,14 @@
       ],
       "x-kubernetes-validations": [
         {
-          "message": "exactly one of instanceRef or clusterInstanceRef must be set",
-          "rule": "has(self.instanceRef) != has(self.clusterInstanceRef)"
-        },
-        {
-          "message": "spec.realmName is immutable once set",
-          "rule": "!has(oldSelf.realmName) || self.realmName == oldSelf.realmName"
+          "message": "spec.name is immutable once set",
+          "rule": "!has(oldSelf.name) || self.name == oldSelf.name"
         }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "KeycloakRealmStatus defines the observed state of KeycloakRealm",
+      "description": "KeycloakIdentityProviderMapperStatus defines the observed state of KeycloakIdentityProviderMapper",
       "properties": {
         "conditions": {
           "description": "Conditions represent the latest available observations",
@@ -188,6 +149,13 @@
             "null"
           ]
         },
+        "identityProviderAlias": {
+          "description": "IdentityProviderAlias is the alias of the parent identity provider",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "instance": {
           "additionalProperties": false,
           "description": "Instance contains the resolved instance reference",
@@ -212,6 +180,20 @@
             "null"
           ]
         },
+        "mapperID": {
+          "description": "MapperID is the Keycloak internal mapper ID",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mapperName": {
+          "description": "MapperName is the mapper name in Keycloak",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "message": {
           "description": "Message contains additional information",
           "type": [
@@ -219,19 +201,44 @@
             "null"
           ]
         },
+        "observedGeneration": {
+          "description": "ObservedGeneration is the generation of the spec that was last processed",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "ready": {
-          "description": "Ready indicates if the realm is ready",
+          "description": "Ready indicates if the identity provider mapper is ready",
           "type": "boolean"
         },
-        "realmName": {
-          "description": "RealmName is the resolved realm name in Keycloak",
+        "realm": {
+          "additionalProperties": false,
+          "description": "Realm contains the resolved realm reference",
+          "properties": {
+            "clusterRealmRef": {
+              "description": "ClusterRealmRef is the name of the cluster realm",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "realmRef": {
+              "description": "RealmRef is the name of the namespaced realm",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           "type": [
-            "string",
+            "object",
             "null"
           ]
         },
         "resourcePath": {
-          "description": "ResourcePath is the Keycloak API path for this realm",
+          "description": "ResourcePath is the Keycloak API path for this identity provider mapper",
           "type": [
             "string",
             "null"

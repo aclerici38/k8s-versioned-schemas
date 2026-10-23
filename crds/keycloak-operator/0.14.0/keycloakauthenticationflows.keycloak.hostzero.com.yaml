@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: keycloakorganizations.keycloak.hostzero.com
+  name: keycloakauthenticationflows.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,26 +20,22 @@ spec:
     categories:
       - keycloak
       - all
-    kind: KeycloakOrganization
-    listKind: KeycloakOrganizationList
-    plural: keycloakorganizations
+    kind: KeycloakAuthenticationFlow
+    listKind: KeycloakAuthenticationFlowList
+    plural: keycloakauthenticationflows
     shortNames:
-      - kcorg
-    singular: keycloakorganization
+      - kcaf
+    singular: keycloakauthenticationflow
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - description: Whether the organization is ready
+        - description: Whether the flow is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
-        - description: Organization name in Keycloak
-          jsonPath: .status.organizationName
-          name: Name
-          type: string
-        - description: Status message
-          jsonPath: .status.status
-          name: Status
+        - description: Flow alias
+          jsonPath: .spec.alias
+          name: Alias
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -47,9 +43,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: |-
-            KeycloakOrganization defines an organization within a KeycloakRealm
-            NOTE: Organizations require Keycloak 26.0.0 or later
+          description: KeycloakAuthenticationFlow manages a Keycloak authentication flow.
           properties:
             apiVersion:
               description: |-
@@ -69,12 +63,16 @@ spec:
             metadata:
               type: object
             spec:
-              description: KeycloakOrganizationSpec defines the desired state of KeycloakOrganization
+              description: KeycloakAuthenticationFlowSpec defines the desired state of KeycloakAuthenticationFlow
               properties:
+                alias:
+                  description: Alias is the unique identifier for this flow within the realm.
+                  minLength: 1
+                  type: string
                 clusterRealmRef:
                   description: |-
-                    ClusterRealmRef is a reference to a ClusterKeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    ClusterRealmRef is a reference to a ClusterKeycloakRealm.
+                    One of realmRef or clusterRealmRef must be specified.
                   properties:
                     name:
                       description: Name of the cluster-scoped resource
@@ -82,21 +80,51 @@ spec:
                   required:
                     - name
                   type: object
-                definition:
+                description:
+                  description: Description is a human-readable description of the flow.
+                  type: string
+                executions:
                   description: |-
-                    Definition contains the Keycloak OrganizationRepresentation. Set the
-                    organization name via spec.name.
-                  type: object
+                    Executions is the ordered list of executions for this flow as a JSON
+                    array. Each entry is either a leaf authenticator or a nested sub-flow.
+
+                    Leaf authenticator (object fields):
+
+                      authenticator:        Keycloak provider ID, e.g. "auth-cookie".
+                      requirement:          REQUIRED | ALTERNATIVE | DISABLED | CONDITIONAL.
+                      authenticatorConfig:  optional map[string]string applied to the
+                                            execution after creation.
+
+                    Sub-flow (object fields):
+
+                      subFlow:              { alias, providerId, description?, authenticator? }
+                                            — the child flow definition. providerId is
+                                            typically "basic-flow" or "form-flow"; "form-flow"
+                                            is required when the children are FormAction
+                                            providers (e.g. registration-user-creation).
+                                            authenticator is the FormAuthenticator rendering
+                                            a "form-flow" sub-flow; defaults to
+                                            "registration-page-form" and is rejected for
+                                            other providerIds.
+                      requirement:          REQUIRED | ALTERNATIVE | DISABLED | CONDITIONAL.
+                      executions:           ordered list of child executions, recursively
+                                            using the same shape. As a convenience, child
+                                            executions may also be placed inside
+                                            subFlow.executions; if both are present, the
+                                            inline list precedes the sibling list.
+
+                    Nesting depth is unconstrained.
                   x-kubernetes-preserve-unknown-fields: true
-                name:
-                  description: Name is the organization name in Keycloak. Immutable
-                    once set.
+                providerId:
+                  description: |-
+                    ProviderId is the top-level flow type. Keycloak ships with "basic-flow"
+                    and "client-flow"; sub-flows may additionally use "form-flow".
                   minLength: 1
                   type: string
                 realmRef:
                   description: |-
-                    RealmRef is a reference to a KeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    RealmRef is a reference to a KeycloakRealm.
+                    One of realmRef or clusterRealmRef must be specified.
                   properties:
                     name:
                       description: Name of the resource
@@ -105,23 +133,19 @@ spec:
                     - name
                   type: object
               required:
-                - definition
-                - name
+                - alias
+                - providerId
               type: object
               x-kubernetes-validations:
                 - message: exactly one of realmRef or clusterRealmRef must be set
                   rule: has(self.realmRef) != has(self.clusterRealmRef)
-                - message: spec.name is immutable once set
-                  rule: '!has(oldSelf.name) || self.name == oldSelf.name'
             status:
-              description: KeycloakOrganizationStatus defines the observed state of
-                KeycloakOrganization
+              description: KeycloakAuthenticationFlowStatus defines the observed state of KeycloakAuthenticationFlow
               properties:
                 conditions:
-                  description: Conditions represent the latest available observations
+                  description: Conditions represent the latest available observations.
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -155,8 +179,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -175,8 +198,11 @@ spec:
                       - type
                     type: object
                   type: array
+                flowID:
+                  description: FlowID is the Keycloak internal ID of the top-level flow.
+                  type: string
                 instance:
-                  description: Instance contains the resolved instance reference
+                  description: Instance contains the resolved instance reference.
                   properties:
                     clusterInstanceRef:
                       description: ClusterInstanceRef is the name of the cluster instance
@@ -186,26 +212,17 @@ spec:
                       type: string
                   type: object
                 message:
-                  description: Message contains additional information
+                  description: Message contains additional information.
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration is the generation of the spec that
-                    was last processed
+                  description: ObservedGeneration is the generation of the spec that was last processed.
                   format: int64
                   type: integer
-                organizationID:
-                  description: OrganizationID is the Keycloak internal organization
-                    ID
-                  type: string
-                organizationName:
-                  description: OrganizationName is the resolved organization name
-                    in Keycloak
-                  type: string
                 ready:
-                  description: Ready indicates if the organization is ready
+                  description: Ready indicates if the flow is synchronized with Keycloak.
                   type: boolean
                 realm:
-                  description: Realm contains the resolved realm reference
+                  description: Realm contains the resolved realm reference.
                   properties:
                     clusterRealmRef:
                       description: ClusterRealmRef is the name of the cluster realm
@@ -215,10 +232,10 @@ spec:
                       type: string
                   type: object
                 resourcePath:
-                  description: ResourcePath is the Keycloak API path for this organization
+                  description: ResourcePath is the Keycloak API path for this flow.
                   type: string
                 status:
-                  description: Status is a human-readable status message
+                  description: Status is a human-readable status message.
                   type: string
               required:
                 - ready

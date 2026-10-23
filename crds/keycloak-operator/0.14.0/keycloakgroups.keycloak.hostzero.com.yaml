@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: clusterkeycloakrealms.keycloak.hostzero.com
+  name: keycloakgroups.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,26 +20,26 @@ spec:
     categories:
       - keycloak
       - all
-    kind: ClusterKeycloakRealm
-    listKind: ClusterKeycloakRealmList
-    plural: clusterkeycloakrealms
+    kind: KeycloakGroup
+    listKind: KeycloakGroupList
+    plural: keycloakgroups
     shortNames:
-      - ckcrm
-    singular: clusterkeycloakrealm
-  scope: Cluster
+      - kcg
+    singular: keycloakgroup
+  scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - description: Whether the realm is ready
+        - description: Whether the group is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
+        - description: Group name in Keycloak
+          jsonPath: .status.groupName
+          name: Name
+          type: string
         - description: Status message
           jsonPath: .status.status
           name: Status
-          type: string
-        - description: Realm name in Keycloak
-          jsonPath: .status.realmName
-          name: Realm
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -47,8 +47,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: ClusterKeycloakRealm defines a realm within a KeycloakInstance
-            at the cluster level
+          description: KeycloakGroup defines a group within a KeycloakRealm
           properties:
             apiVersion:
               description: |-
@@ -68,12 +67,12 @@ spec:
             metadata:
               type: object
             spec:
-              description: ClusterKeycloakRealmSpec defines the desired state of ClusterKeycloakRealm
+              description: KeycloakGroupSpec defines the desired state of KeycloakGroup
               properties:
-                clusterInstanceRef:
+                clusterRealmRef:
                   description: |-
-                    ClusterInstanceRef is a reference to a ClusterKeycloakInstance
-                    One of instanceRef or clusterInstanceRef must be specified
+                    ClusterRealmRef is a reference to a ClusterKeycloakRealm for top-level groups
+                    One of realmRef, clusterRealmRef, or parentGroupRef must be specified
                   properties:
                     name:
                       description: Name of the cluster-scoped resource
@@ -83,77 +82,54 @@ spec:
                   type: object
                 definition:
                   description: |-
-                    Definition contains the Keycloak RealmRepresentation. Set the realm name
-                    via spec.realmName.
+                    Definition contains the Keycloak GroupRepresentation. Set the group name
+                    via spec.name.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
-                instanceRef:
+                name:
+                  description: Name is the group name in Keycloak. Immutable once set.
+                  minLength: 1
+                  type: string
+                parentGroupRef:
                   description: |-
-                    InstanceRef is a reference to a namespaced KeycloakInstance
-                    One of instanceRef or clusterInstanceRef must be specified
+                    ParentGroupRef is a reference to a parent KeycloakGroup for nested groups.
+                    The realm is derived from the parent chain, so realmRef and clusterRealmRef
+                    must not be set alongside it.
+                    One of realmRef, clusterRealmRef, or parentGroupRef must be specified
                   properties:
                     name:
                       description: Name of the resource
                       type: string
-                    namespace:
-                      description: Namespace of the resource
-                      type: string
                   required:
                     - name
-                    - namespace
                   type: object
-                realmName:
+                realmRef:
                   description: |-
-                    RealmName is the name of the realm in Keycloak. It is immutable once set:
-                    renaming a realm in Keycloak is destructive and would orphan it.
-                  minLength: 1
-                  type: string
-                smtpSecretRef:
-                  description: |-
-                    SmtpSecretRef is a reference to a Kubernetes Secret containing SMTP credentials.
-                    When set, the secret values are injected into definition.smtpServer.user and
-                    definition.smtpServer.password before syncing to Keycloak.
+                    RealmRef is a reference to a KeycloakRealm for top-level groups
+                    One of realmRef, clusterRealmRef, or parentGroupRef must be specified
                   properties:
                     name:
-                      description: Name of the Kubernetes Secret
-                      type: string
-                    namespace:
-                      description: Namespace of the Kubernetes Secret (required for
-                        cluster-scoped resources)
-                      type: string
-                    passwordKey:
-                      default: password
-                      description: PasswordKey is the key in the secret for the SMTP
-                        password (defaults to "password")
-                      type: string
-                    userKey:
-                      default: user
-                      description: UserKey is the key in the secret for the SMTP username
-                        (defaults to "user")
+                      description: Name of the resource
                       type: string
                   required:
                     - name
-                    - namespace
                   type: object
               required:
                 - definition
-                - realmName
+                - name
               type: object
               x-kubernetes-validations:
-                - message: exactly one of instanceRef or clusterInstanceRef must be
-                    set
-                  rule: has(self.instanceRef) != has(self.clusterInstanceRef)
-                - message: spec.realmName is immutable once set
-                  rule: '!has(oldSelf.realmName) || self.realmName == oldSelf.realmName'
+                - message: exactly one of realmRef, clusterRealmRef, or parentGroupRef must be set
+                  rule: '(has(self.realmRef) ? 1 : 0) + (has(self.clusterRealmRef) ? 1 : 0) + (has(self.parentGroupRef) ? 1 : 0) == 1'
+                - message: spec.name is immutable once set
+                  rule: '!has(oldSelf.name) || self.name == oldSelf.name'
             status:
-              description: ClusterKeycloakRealmStatus defines the observed state of
-                ClusterKeycloakRealm
+              description: KeycloakGroupStatus defines the observed state of KeycloakGroup
               properties:
                 conditions:
                   description: Conditions represent the latest available observations
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -187,8 +163,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -207,6 +182,12 @@ spec:
                       - type
                     type: object
                   type: array
+                groupID:
+                  description: GroupID is the Keycloak internal group ID
+                  type: string
+                groupName:
+                  description: GroupName is the resolved group name in Keycloak
+                  type: string
                 instance:
                   description: Instance contains the resolved instance reference
                   properties:
@@ -221,13 +202,20 @@ spec:
                   description: Message contains additional information
                   type: string
                 ready:
-                  description: Ready indicates if the realm is ready
+                  description: Ready indicates if the group is ready
                   type: boolean
-                realmName:
-                  description: RealmName is the actual realm name in Keycloak
-                  type: string
+                realm:
+                  description: Realm contains the resolved realm reference
+                  properties:
+                    clusterRealmRef:
+                      description: ClusterRealmRef is the name of the cluster realm
+                      type: string
+                    realmRef:
+                      description: RealmRef is the name of the namespaced realm
+                      type: string
+                  type: object
                 resourcePath:
-                  description: ResourcePath is the Keycloak API path for this realm
+                  description: ResourcePath is the Keycloak API path for this group
                   type: string
                 status:
                   description: Status is a human-readable status message

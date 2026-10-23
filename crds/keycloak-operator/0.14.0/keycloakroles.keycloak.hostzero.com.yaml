@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: keycloakrolemappings.keycloak.hostzero.com
+  name: keycloakroles.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,30 +20,26 @@ spec:
     categories:
       - keycloak
       - all
-    kind: KeycloakRoleMapping
-    listKind: KeycloakRoleMappingList
-    plural: keycloakrolemappings
+    kind: KeycloakRole
+    listKind: KeycloakRoleList
+    plural: keycloakroles
     shortNames:
-      - kcrmap
-    singular: keycloakrolemapping
+      - kcr
+    singular: keycloakrole
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - description: Whether the role mapping is applied
+        - description: Whether the role is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
-        - description: Subject type (user/group)
-          jsonPath: .status.subjectType
-          name: Subject
-          type: string
         - description: Role name
           jsonPath: .status.roleName
           name: Role
           type: string
-        - description: Role type (realm/client)
-          jsonPath: .status.roleType
-          name: Type
+        - description: Client ID (for client roles)
+          jsonPath: .status.clientID
+          name: Client
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -51,7 +47,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: KeycloakRoleMapping maps a role to a user or group
+          description: KeycloakRole defines a role within a KeycloakRealm or KeycloakClient
           properties:
             apiVersion:
               description: |-
@@ -71,41 +67,14 @@ spec:
             metadata:
               type: object
             spec:
-              description: KeycloakRoleMappingSpec defines the desired state of KeycloakRoleMapping
+              description: KeycloakRoleSpec defines the desired state of KeycloakRole
               properties:
-                role:
+                clientRef:
                   description: |-
-                    Role defines the role to assign (inline definition)
-                    Either Role or RoleRef must be specified
-                  properties:
-                    clientId:
-                      description: ClientID is the client ID for client-level roles
-                        (alternative to ClientRef)
-                      type: string
-                    clientRef:
-                      description: |-
-                        ClientRef references a KeycloakClient for client-level roles
-                        If not specified, the role is a realm-level role
-                      properties:
-                        name:
-                          description: Name of the resource
-                          type: string
-                      required:
-                        - name
-                      type: object
-                    name:
-                      description: Name is the role name
-                      type: string
-                  required:
-                    - name
-                  type: object
-                  x-kubernetes-validations:
-                    - message: at most one of clientRef or clientId may be set
-                      rule: '!(has(self.clientRef) && has(self.clientId))'
-                roleRef:
-                  description: |-
-                    RoleRef references an existing KeycloakRole resource
-                    Either Role or RoleRef must be specified
+                    ClientRef is a reference to a KeycloakClient for client-level roles.
+                    The realm is derived from the referenced client, so realmRef and
+                    clusterRealmRef must not be set alongside it.
+                    One of realmRef, clusterRealmRef, or clientRef must be specified
                   properties:
                     name:
                       description: Name of the resource
@@ -113,61 +82,57 @@ spec:
                   required:
                     - name
                   type: object
-                subject:
-                  description: Subject defines who the role is assigned to (user or
-                    group)
+                clusterRealmRef:
+                  description: |-
+                    ClusterRealmRef is a reference to a ClusterKeycloakRealm for realm-level roles
+                    One of realmRef, clusterRealmRef, or clientRef must be specified
                   properties:
-                    groupRef:
-                      description: GroupRef references a KeycloakGroup
-                      properties:
-                        name:
-                          description: Name of the resource
-                          type: string
-                      required:
-                        - name
-                      type: object
-                    serviceAccountRef:
-                      description: |-
-                        ServiceAccountRef references a KeycloakClient to assign roles to its
-                        auto-created service account user. This avoids needing an intermediate
-                        KeycloakUser CR for clients with serviceAccountsEnabled: true.
-                      properties:
-                        name:
-                          description: Name of the resource
-                          type: string
-                      required:
-                        - name
-                      type: object
-                    userRef:
-                      description: UserRef references a KeycloakUser
-                      properties:
-                        name:
-                          description: Name of the resource
-                          type: string
-                      required:
-                        - name
-                      type: object
+                    name:
+                      description: Name of the cluster-scoped resource
+                      type: string
+                  required:
+                    - name
                   type: object
-                  x-kubernetes-validations:
-                    - message: exactly one of userRef, groupRef, or serviceAccountRef
-                        must be set
-                      rule: '(has(self.userRef) ? 1 : 0) + (has(self.groupRef) ? 1
-                        : 0) + (has(self.serviceAccountRef) ? 1 : 0) == 1'
+                definition:
+                  description: |-
+                    Definition contains the Keycloak RoleRepresentation. Set the role name via
+                    spec.name.
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                name:
+                  description: Name is the role name in Keycloak. Immutable once set.
+                  minLength: 1
+                  type: string
+                realmRef:
+                  description: |-
+                    RealmRef is a reference to a KeycloakRealm for realm-level roles
+                    One of realmRef, clusterRealmRef, or clientRef must be specified
+                  properties:
+                    name:
+                      description: Name of the resource
+                      type: string
+                  required:
+                    - name
+                  type: object
               required:
-                - subject
+                - definition
+                - name
               type: object
               x-kubernetes-validations:
-                - message: exactly one of role or roleRef must be set
-                  rule: has(self.role) != has(self.roleRef)
+                - message: exactly one of realmRef, clusterRealmRef, or clientRef must be set
+                  rule: '(has(self.realmRef) ? 1 : 0) + (has(self.clusterRealmRef) ? 1 : 0) + (has(self.clientRef) ? 1 : 0) == 1'
+                - message: spec.name is immutable once set
+                  rule: '!has(oldSelf.name) || self.name == oldSelf.name'
             status:
-              description: KeycloakRoleMappingStatus defines the observed state of
-                KeycloakRoleMapping
+              description: KeycloakRoleStatus defines the observed state of KeycloakRole
               properties:
+                clientID:
+                  description: ClientID is the client ID if this is a client role
+                  type: string
                 conditions:
                   description: Conditions represent the latest available observations
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -201,8 +166,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -231,16 +195,18 @@ spec:
                       description: InstanceRef is the name of the namespaced instance
                       type: string
                   type: object
+                isClientRole:
+                  description: IsClientRole indicates if this is a client role
+                  type: boolean
                 message:
                   description: Message contains additional information
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration is the generation of the spec that
-                    was last processed
+                  description: ObservedGeneration is the generation of the spec that was last processed
                   format: int64
                   type: integer
                 ready:
-                  description: Ready indicates if the role mapping is applied
+                  description: Ready indicates if the role is ready
                   type: boolean
                 realm:
                   description: Realm contains the resolved realm reference
@@ -254,22 +220,15 @@ spec:
                   type: object
                 resourcePath:
                   description: ResourcePath is the Keycloak API path for this role
-                    mapping
+                  type: string
+                roleID:
+                  description: RoleID is the Keycloak internal role ID
                   type: string
                 roleName:
-                  description: RoleName is the resolved role name
-                  type: string
-                roleType:
-                  description: RoleType is either "realm" or "client"
+                  description: RoleName is the role name in Keycloak
                   type: string
                 status:
                   description: Status is a human-readable status message
-                  type: string
-                subjectID:
-                  description: SubjectID is the Keycloak ID of the subject
-                  type: string
-                subjectType:
-                  description: SubjectType is either "user" or "group"
                   type: string
               required:
                 - ready

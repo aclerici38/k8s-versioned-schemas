@@ -1,5 +1,5 @@
 {
-  "description": "KeycloakProtocolMapper defines a protocol mapper within a KeycloakClient or KeycloakClientScope",
+  "description": "KeycloakIdentityProvider defines an identity provider within a KeycloakRealm",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,14 +23,19 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "KeycloakProtocolMapperSpec defines the desired state of KeycloakProtocolMapper",
+      "description": "KeycloakIdentityProviderSpec defines the desired state of KeycloakIdentityProvider",
       "properties": {
-        "clientRef": {
+        "alias": {
+          "description": "Alias is the identity provider alias in Keycloak. Immutable once set.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "clusterRealmRef": {
           "additionalProperties": false,
-          "description": "ClientRef is a reference to a KeycloakClient\nOne of clientRef or clientScopeRef must be specified",
+          "description": "ClusterRealmRef is a reference to a ClusterKeycloakRealm\nOne of realmRef or clusterRealmRef must be specified",
           "properties": {
             "name": {
-              "description": "Name of the resource",
+              "description": "Name of the cluster-scoped resource",
               "type": "string"
             }
           },
@@ -42,12 +47,12 @@
             "null"
           ]
         },
-        "clientScopeRef": {
+        "configSecretRef": {
           "additionalProperties": false,
-          "description": "ClientScopeRef is a reference to a KeycloakClientScope\nOne of clientRef or clientScopeRef must be specified",
+          "description": "ConfigSecretRef is a reference to a Kubernetes Secret whose data entries\nare merged into definition.config before syncing to Keycloak. This allows\nsensitive configuration values (e.g. clientId, clientSecret) to be stored\nin a Secret rather than in plaintext in the CR. Secret values take\nprecedence over values specified inline in definition.config.",
           "properties": {
             "name": {
-              "description": "Name of the resource",
+              "description": "Name of the Kubernetes Secret in the same namespace as the CR",
               "type": "string"
             }
           },
@@ -60,19 +65,68 @@
           ]
         },
         "definition": {
-          "description": "Definition contains the Keycloak ProtocolMapperRepresentation. Set the\nmapper name via spec.name.",
+          "description": "Definition contains the Keycloak IdentityProviderRepresentation. Set the\nalias via spec.alias.",
           "type": "object",
           "x-kubernetes-preserve-unknown-fields": true
         },
-        "name": {
-          "description": "Name is the protocol mapper name in Keycloak. Immutable once set.",
-          "minLength": 1,
-          "type": "string"
+        "organizationRef": {
+          "additionalProperties": false,
+          "description": "OrganizationRef references a KeycloakOrganization in the same namespace.\nThe organization's status.organizationID is injected as organizationId\non the identity provider. Requires Keycloak 26 or later. Do not set\norganizationId in definition; use this field instead.",
+          "properties": {
+            "name": {
+              "description": "Name of the resource",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "realmRef": {
+          "additionalProperties": false,
+          "description": "RealmRef is a reference to a KeycloakRealm\nOne of realmRef or clusterRealmRef must be specified",
+          "properties": {
+            "name": {
+              "description": "Name of the resource",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "tokenExchange": {
+          "additionalProperties": false,
+          "description": "TokenExchange configures fine-grained-authz so that exactly the listed\nclients (and no others) may exchange tokens with this IdP as\n`subject_issuer`. Omit the field to leave token-exchange permissions\nunmanaged (whatever was clicked manually stays). Set to a list (possibly\nempty) to have the operator enable IdP permissions and bind a Client-type\npolicy listing the allowed clients on the `token-exchange` scope\npermission in the realm-management authz resource server.",
+          "properties": {
+            "allowedClients": {
+              "description": "AllowedClients is the list of clientIds (text, not UUIDs) in the same\nrealm as the IdP that are permitted to perform token-exchange against\nthis IdP. An empty list creates a policy that matches no clients,\neffectively denying all (useful as an explicit lockdown). Omitting the\nparent `tokenExchange` field entirely leaves Keycloak permissions\nuntouched.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "allowedClients"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
       "required": [
-        "definition",
-        "name"
+        "alias",
+        "definition"
       ],
       "type": [
         "object",
@@ -80,19 +134,26 @@
       ],
       "x-kubernetes-validations": [
         {
-          "message": "exactly one of clientRef or clientScopeRef must be set",
-          "rule": "has(self.clientRef) != has(self.clientScopeRef)"
+          "message": "exactly one of realmRef or clusterRealmRef must be set",
+          "rule": "has(self.realmRef) != has(self.clusterRealmRef)"
         },
         {
-          "message": "spec.name is immutable once set",
-          "rule": "!has(oldSelf.name) || self.name == oldSelf.name"
+          "message": "spec.alias is immutable once set",
+          "rule": "!has(oldSelf.alias) || self.alias == oldSelf.alias"
         }
       ]
     },
     "status": {
       "additionalProperties": false,
-      "description": "KeycloakProtocolMapperStatus defines the observed state of KeycloakProtocolMapper",
+      "description": "KeycloakIdentityProviderStatus defines the observed state of KeycloakIdentityProvider",
       "properties": {
+        "alias": {
+          "description": "Alias is the resolved identity provider alias in Keycloak",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "conditions": {
           "description": "Conditions represent the latest available observations",
           "items": {
@@ -179,15 +240,8 @@
             "null"
           ]
         },
-        "mapperID": {
-          "description": "MapperID is the Keycloak internal mapper ID",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "mapperName": {
-          "description": "MapperName is the mapper name in Keycloak",
+        "lastAppliedDefinitionHash": {
+          "description": "LastAppliedDefinitionHash is a hash of the last successfully applied\ndefinition (after secret merging). Keycloak masks config.clientSecret\non read, so this is the only way to detect that the desired secret\nchanged and must be pushed.",
           "type": [
             "string",
             "null"
@@ -200,30 +254,15 @@
             "null"
           ]
         },
-        "observedGeneration": {
-          "description": "ObservedGeneration is the generation of the spec that was last processed",
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "parentID": {
-          "description": "ParentID is the parent client or clientScope ID",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "parentType": {
-          "description": "ParentType indicates if parent is \"client\" or \"clientScope\"",
+        "organizationID": {
+          "description": "OrganizationID is the resolved Keycloak organization ID when\nspec.organizationRef is set.",
           "type": [
             "string",
             "null"
           ]
         },
         "ready": {
-          "description": "Ready indicates if the protocol mapper is ready",
+          "description": "Ready indicates if the identity provider is ready",
           "type": "boolean"
         },
         "realm": {
@@ -251,7 +290,7 @@
           ]
         },
         "resourcePath": {
-          "description": "ResourcePath is the Keycloak API path for this protocol mapper",
+          "description": "ResourcePath is the Keycloak API path for this identity provider",
           "type": [
             "string",
             "null"
@@ -261,6 +300,51 @@
           "description": "Status is a human-readable status message",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "tokenExchange": {
+          "additionalProperties": false,
+          "description": "TokenExchange contains the observed state of the token-exchange\npermission wiring, populated only when spec.tokenExchange is set.",
+          "properties": {
+            "enabled": {
+              "description": "Enabled reflects whether fine-grained authz permissions are enabled on\nthis IdP in Keycloak.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "message": {
+              "description": "Message carries the last token-exchange reconcile error, if any. Set\nonly when token-exchange reconcile fails — the parent `status.ready`\nstill reflects the IdP itself, not the TE side.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "permissionID": {
+              "description": "PermissionID is the ID of the `token-exchange` scope permission auto-\ncreated in the realm-management authz resource server when permissions\nare enabled on this IdP.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policyID": {
+              "description": "PolicyID is the ID of the Client-type authz policy managed by the\noperator (carries the AllowedClients list).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policyName": {
+              "description": "PolicyName is the name of the managed policy, useful for admins\nlooking the resource up in the Keycloak UI.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
             "null"
           ]
         }

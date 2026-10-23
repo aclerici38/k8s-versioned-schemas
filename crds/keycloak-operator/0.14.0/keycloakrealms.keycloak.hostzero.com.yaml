@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: keycloakidentityprovidermappers.keycloak.hostzero.com
+  name: keycloakrealms.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,26 +20,26 @@ spec:
     categories:
       - keycloak
       - all
-    kind: KeycloakIdentityProviderMapper
-    listKind: KeycloakIdentityProviderMapperList
-    plural: keycloakidentityprovidermappers
+    kind: KeycloakRealm
+    listKind: KeycloakRealmList
+    plural: keycloakrealms
     shortNames:
-      - kcidpm
-    singular: keycloakidentityprovidermapper
+      - kcrm
+    singular: keycloakrealm
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - description: Whether the identity provider mapper is ready
+        - description: Whether the realm is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
-        - description: Mapper name
-          jsonPath: .status.mapperName
-          name: Mapper
+        - description: Realm name in Keycloak
+          jsonPath: .status.realmName
+          name: Realm
           type: string
-        - description: Parent identity provider alias
-          jsonPath: .status.identityProviderAlias
-          name: IdP
+        - description: Status message
+          jsonPath: .status.status
+          name: Status
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -47,8 +47,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: KeycloakIdentityProviderMapper defines a mapper attached to
-            a KeycloakIdentityProvider
+          description: KeycloakRealm defines a realm within a KeycloakInstance
           properties:
             apiVersion:
               description: |-
@@ -68,21 +67,29 @@ spec:
             metadata:
               type: object
             spec:
-              description: KeycloakIdentityProviderMapperSpec defines the desired
-                state of KeycloakIdentityProviderMapper
+              description: KeycloakRealmSpec defines the desired state of KeycloakRealm
               properties:
+                clusterInstanceRef:
+                  description: |-
+                    ClusterInstanceRef is a reference to a ClusterKeycloakInstance
+                    One of instanceRef or clusterInstanceRef must be specified
+                  properties:
+                    name:
+                      description: Name of the cluster-scoped resource
+                      type: string
+                  required:
+                    - name
+                  type: object
                 definition:
                   description: |-
-                    Definition contains the Keycloak IdentityProviderMapperRepresentation. The
-                    identityProviderAlias field is injected from the parent KeycloakIdentityProvider
-                    at reconcile time. Set the mapper name via spec.name.
+                    Definition contains the Keycloak RealmRepresentation. Set the realm name
+                    via spec.realmName.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
-                identityProviderRef:
+                instanceRef:
                   description: |-
-                    IdentityProviderRef is a reference to a KeycloakIdentityProvider that owns
-                    this mapper. The realm and Keycloak instance are derived from the parent
-                    identity provider.
+                    InstanceRef is a reference to a KeycloakInstance
+                    One of instanceRef or clusterInstanceRef must be specified
                   properties:
                     name:
                       description: Name of the resource
@@ -90,28 +97,49 @@ spec:
                   required:
                     - name
                   type: object
-                name:
-                  description: Name is the mapper name in Keycloak. Immutable once
-                    set.
+                realmName:
+                  description: |-
+                    RealmName is the name of the realm in Keycloak. It is immutable once set:
+                    renaming a realm in Keycloak is destructive and would orphan it.
                   minLength: 1
                   type: string
+                smtpSecretRef:
+                  description: |-
+                    SmtpSecretRef is a reference to a Kubernetes Secret containing SMTP credentials.
+                    When set, the secret values are injected into definition.smtpServer.user and
+                    definition.smtpServer.password before syncing to Keycloak, so credentials
+                    do not need to appear in plaintext in the CR.
+                  properties:
+                    name:
+                      description: Name of the Kubernetes Secret
+                      type: string
+                    passwordKey:
+                      default: password
+                      description: PasswordKey is the key in the secret for the SMTP password (defaults to "password")
+                      type: string
+                    userKey:
+                      default: user
+                      description: UserKey is the key in the secret for the SMTP username (defaults to "user")
+                      type: string
+                  required:
+                    - name
+                  type: object
               required:
                 - definition
-                - identityProviderRef
-                - name
+                - realmName
               type: object
               x-kubernetes-validations:
-                - message: spec.name is immutable once set
-                  rule: '!has(oldSelf.name) || self.name == oldSelf.name'
+                - message: exactly one of instanceRef or clusterInstanceRef must be set
+                  rule: has(self.instanceRef) != has(self.clusterInstanceRef)
+                - message: spec.realmName is immutable once set
+                  rule: '!has(oldSelf.realmName) || self.realmName == oldSelf.realmName'
             status:
-              description: KeycloakIdentityProviderMapperStatus defines the observed
-                state of KeycloakIdentityProviderMapper
+              description: KeycloakRealmStatus defines the observed state of KeycloakRealm
               properties:
                 conditions:
                   description: Conditions represent the latest available observations
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -145,8 +173,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -165,10 +192,6 @@ spec:
                       - type
                     type: object
                   type: array
-                identityProviderAlias:
-                  description: IdentityProviderAlias is the alias of the parent identity
-                    provider
-                  type: string
                 instance:
                   description: Instance contains the resolved instance reference
                   properties:
@@ -179,37 +202,24 @@ spec:
                       description: InstanceRef is the name of the namespaced instance
                       type: string
                   type: object
-                mapperID:
-                  description: MapperID is the Keycloak internal mapper ID
-                  type: string
-                mapperName:
-                  description: MapperName is the mapper name in Keycloak
+                lastAppliedDefinitionHash:
+                  description: |-
+                    LastAppliedDefinitionHash is a hash of the last successfully applied
+                    definition (after SMTP credential merging). Keycloak masks
+                    smtpServer.password on read, so this is the only way to detect that
+                    the desired password changed and must be pushed.
                   type: string
                 message:
                   description: Message contains additional information
                   type: string
-                observedGeneration:
-                  description: ObservedGeneration is the generation of the spec that
-                    was last processed
-                  format: int64
-                  type: integer
                 ready:
-                  description: Ready indicates if the identity provider mapper is
-                    ready
+                  description: Ready indicates if the realm is ready
                   type: boolean
-                realm:
-                  description: Realm contains the resolved realm reference
-                  properties:
-                    clusterRealmRef:
-                      description: ClusterRealmRef is the name of the cluster realm
-                      type: string
-                    realmRef:
-                      description: RealmRef is the name of the namespaced realm
-                      type: string
-                  type: object
+                realmName:
+                  description: RealmName is the resolved realm name in Keycloak
+                  type: string
                 resourcePath:
-                  description: ResourcePath is the Keycloak API path for this identity
-                    provider mapper
+                  description: ResourcePath is the Keycloak API path for this realm
                   type: string
                 status:
                   description: Status is a human-readable status message

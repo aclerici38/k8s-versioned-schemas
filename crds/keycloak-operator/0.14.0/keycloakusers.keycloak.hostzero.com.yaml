@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: keycloakcomponents.keycloak.hostzero.com
+  name: keycloakusers.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,26 +20,26 @@ spec:
     categories:
       - keycloak
       - all
-    kind: KeycloakComponent
-    listKind: KeycloakComponentList
-    plural: keycloakcomponents
+    kind: KeycloakUser
+    listKind: KeycloakUserList
+    plural: keycloakusers
     shortNames:
-      - kcco
-    singular: keycloakcomponent
+      - kcu
+    singular: keycloakuser
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - description: Whether the component is ready
+        - description: Whether the user is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
-        - description: Component name
-          jsonPath: .status.componentName
-          name: Name
+        - description: Username in Keycloak
+          jsonPath: .status.username
+          name: Username
           type: string
-        - description: Provider type
-          jsonPath: .status.providerType
-          name: Type
+        - description: Status message
+          jsonPath: .status.status
+          name: Status
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -47,7 +47,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: KeycloakComponent defines a component within a KeycloakRealm
+          description: KeycloakUser defines a user within a KeycloakRealm
           properties:
             apiVersion:
               description: |-
@@ -67,12 +67,36 @@ spec:
             metadata:
               type: object
             spec:
-              description: KeycloakComponentSpec defines the desired state of KeycloakComponent
+              description: KeycloakUserSpec defines the desired state of KeycloakUser
               properties:
+                clientRef:
+                  description: |-
+                    ClientRef is a reference to a KeycloakClient for service account users
+                    One of realmRef, clusterRealmRef, or clientRef must be specified
+                    Use this to manage the service account user associated with a client
+                  properties:
+                    name:
+                      description: Name of the resource
+                      type: string
+                  required:
+                    - name
+                  type: object
+                clientRoles:
+                  additionalProperties:
+                    items:
+                      type: string
+                    type: array
+                  description: |-
+                    ClientRoles maps a client's clientId to the authoritative set of
+                    client-level role names for this user. When omitted, client roles are not
+                    managed; when set, roles on clients absent from the map are removed.
+                    Do not combine with KeycloakRoleMapping resources targeting the same user.
+                  type: object
                 clusterRealmRef:
                   description: |-
                     ClusterRealmRef is a reference to a ClusterKeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    One of realmRef, clusterRealmRef, or clientRef must be specified
+                    Use this for regular realm users with cluster-scoped realms
                   properties:
                     name:
                       description: Name of the cluster-scoped resource
@@ -82,20 +106,40 @@ spec:
                   type: object
                 definition:
                   description: |-
-                    Definition contains the Keycloak ComponentRepresentation. Set the component
-                    name via spec.name.
+                    Definition contains the Keycloak UserRepresentation. Set the username via
+                    spec.username; role and group assignments go in spec.realmRoles,
+                    spec.clientRoles, and spec.groups.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
-                name:
+                groups:
                   description: |-
-                    Name is the component name in Keycloak. Immutable once set. The
-                    providerType is set in spec.definition.
-                  minLength: 1
-                  type: string
+                    Groups is the authoritative set of groups this user belongs to, given as
+                    full group paths (e.g. "/parent/child"). An entry without a leading "/"
+                    is treated as a top-level group, so "dev" is the same as "/dev".
+                    Reconciled via the Keycloak group-membership endpoints. When omitted,
+                    group memberships are not managed; an empty list removes all memberships.
+                  items:
+                    type: string
+                  type: array
+                initialPassword:
+                  description: |-
+                    InitialPassword sets the initial password for the user (only on creation).
+                    For managed credentials stored in a Kubernetes secret, use KeycloakUserCredential.
+                  properties:
+                    temporary:
+                      description: Temporary indicates if the user must change password on first login
+                      type: boolean
+                    value:
+                      description: Value is the password value
+                      type: string
+                  required:
+                    - value
+                  type: object
                 realmRef:
                   description: |-
                     RealmRef is a reference to a KeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    One of realmRef, clusterRealmRef, or clientRef must be specified
+                    Use this for regular realm users
                   properties:
                     name:
                       description: Name of the resource
@@ -103,29 +147,41 @@ spec:
                   required:
                     - name
                   type: object
-              required:
-                - definition
-                - name
+                realmRoles:
+                  description: |-
+                    RealmRoles is the authoritative set of realm-level role names for this
+                    user, reconciled via the Keycloak role-mapping endpoints. When omitted,
+                    realm roles are not managed; an empty list removes all realm roles.
+                    Pointer types so an explicit empty value survives JSON round-trips.
+                    Do not combine with KeycloakRoleMapping resources targeting the same user.
+                  items:
+                    type: string
+                  type: array
+                username:
+                  description: |-
+                    Username is the username in Keycloak. Required for regular realm users;
+                    omit it for service account users, which are identified by clientRef and
+                    whose username is derived by Keycloak. Immutable once set.
+                  minLength: 1
+                  type: string
               type: object
               x-kubernetes-validations:
-                - message: exactly one of realmRef or clusterRealmRef must be set
-                  rule: has(self.realmRef) != has(self.clusterRealmRef)
-                - message: spec.name is immutable once set
-                  rule: '!has(oldSelf.name) || self.name == oldSelf.name'
+                - message: exactly one of realmRef, clusterRealmRef, or clientRef must be set
+                  rule: '(has(self.realmRef) ? 1 : 0) + (has(self.clusterRealmRef) ? 1 : 0) + (has(self.clientRef) ? 1 : 0) == 1'
+                - message: spec.username is required unless spec.clientRef is set (service account user)
+                  rule: has(self.clientRef) || (has(self.username) && size(self.username) > 0)
+                - message: spec.username is immutable once set
+                  rule: '!has(oldSelf.username) || (has(self.username) && self.username == oldSelf.username)'
             status:
-              description: KeycloakComponentStatus defines the observed state of KeycloakComponent
+              description: KeycloakUserStatus defines the observed state of KeycloakUser
               properties:
-                componentID:
-                  description: ComponentID is the Keycloak internal component ID
-                  type: string
-                componentName:
-                  description: ComponentName is the component name in Keycloak
+                clientID:
+                  description: ClientID is the client UUID if this is a service account user
                   type: string
                 conditions:
                   description: Conditions represent the latest available observations
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -159,8 +215,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -189,19 +244,18 @@ spec:
                       description: InstanceRef is the name of the namespaced instance
                       type: string
                   type: object
+                isServiceAccount:
+                  description: IsServiceAccount indicates if this user is a service account for a client
+                  type: boolean
                 message:
                   description: Message contains additional information
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration is the generation of the spec that
-                    was last processed
+                  description: ObservedGeneration is the generation of the spec that was last processed
                   format: int64
                   type: integer
-                providerType:
-                  description: ProviderType is the component provider type
-                  type: string
                 ready:
-                  description: Ready indicates if the component is ready
+                  description: Ready indicates if the user is ready
                   type: boolean
                 realm:
                   description: Realm contains the resolved realm reference
@@ -214,10 +268,16 @@ spec:
                       type: string
                   type: object
                 resourcePath:
-                  description: ResourcePath is the Keycloak API path for this component
+                  description: ResourcePath is the Keycloak API path for this user
                   type: string
                 status:
                   description: Status is a human-readable status message
+                  type: string
+                userID:
+                  description: UserID is the Keycloak internal user ID
+                  type: string
+                username:
+                  description: Username is the resolved username in Keycloak
                   type: string
               required:
                 - ready

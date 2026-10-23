@@ -3,16 +3,16 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: keycloakidentityproviders.keycloak.hostzero.com
+  name: clusterkeycloakrealms.keycloak.hostzero.com
   annotations:
     controller-gen.kubebuilder.io/version: "v0.17.2"
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: keycloak-operator-0.11.1
+    helm.sh/chart: keycloak-operator-0.14.0
     app.kubernetes.io/name: keycloak-operator
     app.kubernetes.io/instance: keycloak-operator
     app.kubernetes.io/component: controller-manager
-    app.kubernetes.io/version: "0.11.1"
+    app.kubernetes.io/version: "0.14.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: keycloak.hostzero.com
@@ -20,26 +20,26 @@ spec:
     categories:
       - keycloak
       - all
-    kind: KeycloakIdentityProvider
-    listKind: KeycloakIdentityProviderList
-    plural: keycloakidentityproviders
+    kind: ClusterKeycloakRealm
+    listKind: ClusterKeycloakRealmList
+    plural: clusterkeycloakrealms
     shortNames:
-      - kcidp
-    singular: keycloakidentityprovider
-  scope: Namespaced
+      - ckcrm
+    singular: clusterkeycloakrealm
+  scope: Cluster
   versions:
     - additionalPrinterColumns:
-        - description: Whether the identity provider is ready
+        - description: Whether the realm is ready
           jsonPath: .status.ready
           name: Ready
           type: boolean
-        - description: Identity provider alias in Keycloak
-          jsonPath: .status.alias
-          name: Alias
-          type: string
         - description: Status message
           jsonPath: .status.status
           name: Status
+          type: string
+        - description: Realm name in Keycloak
+          jsonPath: .status.realmName
+          name: Realm
           type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
@@ -47,8 +47,7 @@ spec:
       name: v1beta1
       schema:
         openAPIV3Schema:
-          description: KeycloakIdentityProvider defines an identity provider within
-            a KeycloakRealm
+          description: ClusterKeycloakRealm defines a realm within a KeycloakInstance at the cluster level
           properties:
             apiVersion:
               description: |-
@@ -68,18 +67,12 @@ spec:
             metadata:
               type: object
             spec:
-              description: KeycloakIdentityProviderSpec defines the desired state
-                of KeycloakIdentityProvider
+              description: ClusterKeycloakRealmSpec defines the desired state of ClusterKeycloakRealm
               properties:
-                alias:
-                  description: Alias is the identity provider alias in Keycloak. Immutable
-                    once set.
-                  minLength: 1
-                  type: string
-                clusterRealmRef:
+                clusterInstanceRef:
                   description: |-
-                    ClusterRealmRef is a reference to a ClusterKeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    ClusterInstanceRef is a reference to a ClusterKeycloakInstance
+                    One of instanceRef or clusterInstanceRef must be specified
                   properties:
                     name:
                       description: Name of the cluster-scoped resource
@@ -87,82 +80,73 @@ spec:
                   required:
                     - name
                   type: object
-                configSecretRef:
-                  description: |-
-                    ConfigSecretRef is a reference to a Kubernetes Secret whose data entries
-                    are merged into definition.config before syncing to Keycloak. This allows
-                    sensitive configuration values (e.g. clientId, clientSecret) to be stored
-                    in a Secret rather than in plaintext in the CR. Secret values take
-                    precedence over values specified inline in definition.config.
-                  properties:
-                    name:
-                      description: Name of the Kubernetes Secret
-                      type: string
-                  required:
-                    - name
-                  type: object
                 definition:
                   description: |-
-                    Definition contains the Keycloak IdentityProviderRepresentation. Set the
-                    alias via spec.alias.
+                    Definition contains the Keycloak RealmRepresentation. Set the realm name
+                    via spec.realmName.
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
-                realmRef:
+                instanceRef:
                   description: |-
-                    RealmRef is a reference to a KeycloakRealm
-                    One of realmRef or clusterRealmRef must be specified
+                    InstanceRef is a reference to a namespaced KeycloakInstance
+                    One of instanceRef or clusterInstanceRef must be specified
                   properties:
                     name:
                       description: Name of the resource
                       type: string
+                    namespace:
+                      description: Namespace of the resource
+                      type: string
                   required:
                     - name
+                    - namespace
                   type: object
-                tokenExchange:
+                realmName:
                   description: |-
-                    TokenExchange configures fine-grained-authz so that exactly the listed
-                    clients (and no others) may exchange tokens with this IdP as
-                    `subject_issuer`. Omit the field to leave token-exchange permissions
-                    unmanaged (whatever was clicked manually stays). Set to a list (possibly
-                    empty) to have the operator enable IdP permissions and bind a Client-type
-                    policy listing the allowed clients on the `token-exchange` scope
-                    permission in the realm-management authz resource server.
+                    RealmName is the name of the realm in Keycloak. It is immutable once set:
+                    renaming a realm in Keycloak is destructive and would orphan it.
+                  minLength: 1
+                  type: string
+                smtpSecretRef:
+                  description: |-
+                    SmtpSecretRef is a reference to a Kubernetes Secret containing SMTP credentials.
+                    When set, the secret values are injected into definition.smtpServer.user and
+                    definition.smtpServer.password before syncing to Keycloak.
                   properties:
-                    allowedClients:
-                      description: |-
-                        AllowedClients is the list of clientIds (text, not UUIDs) in the same
-                        realm as the IdP that are permitted to perform token-exchange against
-                        this IdP. An empty list creates a policy that matches no clients,
-                        effectively denying all (useful as an explicit lockdown). Omitting the
-                        parent `tokenExchange` field entirely leaves Keycloak permissions
-                        untouched.
-                      items:
-                        type: string
-                      type: array
+                    name:
+                      description: Name of the Kubernetes Secret
+                      type: string
+                    namespace:
+                      description: Namespace of the Kubernetes Secret (required for cluster-scoped resources)
+                      type: string
+                    passwordKey:
+                      default: password
+                      description: PasswordKey is the key in the secret for the SMTP password (defaults to "password")
+                      type: string
+                    userKey:
+                      default: user
+                      description: UserKey is the key in the secret for the SMTP username (defaults to "user")
+                      type: string
                   required:
-                    - allowedClients
+                    - name
+                    - namespace
                   type: object
               required:
-                - alias
                 - definition
+                - realmName
               type: object
               x-kubernetes-validations:
-                - message: exactly one of realmRef or clusterRealmRef must be set
-                  rule: has(self.realmRef) != has(self.clusterRealmRef)
-                - message: spec.alias is immutable once set
-                  rule: '!has(oldSelf.alias) || self.alias == oldSelf.alias'
+                - message: exactly one of instanceRef or clusterInstanceRef must be set
+                  rule: has(self.instanceRef) != has(self.clusterInstanceRef)
+                - message: spec.realmName is immutable once set
+                  rule: '!has(oldSelf.realmName) || self.realmName == oldSelf.realmName'
             status:
-              description: KeycloakIdentityProviderStatus defines the observed state
-                of KeycloakIdentityProvider
+              description: ClusterKeycloakRealmStatus defines the observed state of ClusterKeycloakRealm
               properties:
-                alias:
-                  description: Alias is the resolved identity provider alias in Keycloak
-                  type: string
                 conditions:
                   description: Conditions represent the latest available observations
                   items:
-                    description: Condition contains details for one aspect of the
-                      current state of this API Resource.
+                    description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
                       lastTransitionTime:
                         description: |-
@@ -196,8 +180,7 @@ spec:
                         pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                         type: string
                       status:
-                        description: status of the condition, one of True, False,
-                          Unknown.
+                        description: status of the condition, one of True, False, Unknown.
                         enum:
                           - "True"
                           - "False"
@@ -226,62 +209,28 @@ spec:
                       description: InstanceRef is the name of the namespaced instance
                       type: string
                   type: object
+                lastAppliedDefinitionHash:
+                  description: |-
+                    LastAppliedDefinitionHash is a hash of the last successfully applied
+                    definition (after SMTP credential merging). Keycloak masks
+                    smtpServer.password on read, so this is the only way to detect that
+                    the desired password changed and must be pushed.
+                  type: string
                 message:
                   description: Message contains additional information
                   type: string
                 ready:
-                  description: Ready indicates if the identity provider is ready
+                  description: Ready indicates if the realm is ready
                   type: boolean
-                realm:
-                  description: Realm contains the resolved realm reference
-                  properties:
-                    clusterRealmRef:
-                      description: ClusterRealmRef is the name of the cluster realm
-                      type: string
-                    realmRef:
-                      description: RealmRef is the name of the namespaced realm
-                      type: string
-                  type: object
+                realmName:
+                  description: RealmName is the actual realm name in Keycloak
+                  type: string
                 resourcePath:
-                  description: ResourcePath is the Keycloak API path for this identity
-                    provider
+                  description: ResourcePath is the Keycloak API path for this realm
                   type: string
                 status:
                   description: Status is a human-readable status message
                   type: string
-                tokenExchange:
-                  description: |-
-                    TokenExchange contains the observed state of the token-exchange
-                    permission wiring, populated only when spec.tokenExchange is set.
-                  properties:
-                    enabled:
-                      description: |-
-                        Enabled reflects whether fine-grained authz permissions are enabled on
-                        this IdP in Keycloak.
-                      type: boolean
-                    message:
-                      description: |-
-                        Message carries the last token-exchange reconcile error, if any. Set
-                        only when token-exchange reconcile fails — the parent `status.ready`
-                        still reflects the IdP itself, not the TE side.
-                      type: string
-                    permissionID:
-                      description: |-
-                        PermissionID is the ID of the `token-exchange` scope permission auto-
-                        created in the realm-management authz resource server when permissions
-                        are enabled on this IdP.
-                      type: string
-                    policyID:
-                      description: |-
-                        PolicyID is the ID of the Client-type authz policy managed by the
-                        operator (carries the AllowedClients list).
-                      type: string
-                    policyName:
-                      description: |-
-                        PolicyName is the name of the managed policy, useful for admins
-                        looking the resource up in the Keycloak UI.
-                      type: string
-                  type: object
               required:
                 - ready
               type: object
