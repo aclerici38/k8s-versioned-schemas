@@ -27,25 +27,31 @@
       "properties": {
         "agentGatewayRef": {
           "additionalProperties": false,
-          "description": "AgentGatewayRef identifies the pre-installed agentgateway data plane the\ngenerated InferencePool/InferenceModel/HTTPRoute attach to when DataPlane\nis \"AgentGateway\". Required in AgentGateway mode; ignored otherwise. The\nGateway, the Gateway API Inference Extension CRDs, and an Endpoint Picker\n(EPP) service are documented prerequisites; LLMKube does not install or own\nthem. The EndpointPicker is referenced by every generated InferencePool so\nagentgateway can select a model-server endpoint per request.",
+          "description": "AgentGatewayRef identifies the pre-installed agentgateway data plane the\ngenerated InferencePool/HTTPRoute/model-extraction AgentgatewayPolicy\nattach to when DataPlane is \"AgentGateway\". Required in AgentGateway mode;\nignored otherwise. The Gateway, the Gateway API Inference Extension CRDs\n(InferencePool at inference.networking.k8s.io/v1), the agentgateway.dev\nCRDs, and an Endpoint Picker (EPP) service are documented prerequisites;\nLLMKube does not install or own them. The agentgateway controller must run\nwith Inference-Pool backendRef support (inferenceExtension.enabled=true in\nthe agentgateway chart). The EndpointPicker is referenced by every\ngenerated InferencePool so agentgateway can select a model-server endpoint\nper request. The Gateway may be in another namespace: the generated\nAgentgatewayPolicy then lives in the Gateway's namespace (its targetRefs\nare same-namespace), is not owner-referenced, and is cleaned up via a\nfinalizer on this ModelRouter. Because that policy targets the whole\nGateway, its body-model extraction runs on EVERY request through that\nGateway, including routes LLMKube did not generate. The Gateway must not\nalready carry another PreRouting transformation policy: the router is\nrefused (ConflictingPreRoutingPolicy) rather than silently shadowed.\nagentgateway keeps the OLDEST same-specificity policy's transformation,\nso LLMKube does not retract its policy on conflict; the condition clears\nwhen the foreign policy is removed, and the reconciler rechecks every\ntwo minutes (a foreign policy created after the router went Ready is\notherwise silently shadowed). agentgateway inspects at most 2 MiB of the\nrequest body by default (its DEFAULT_BUFFER_LIMIT); larger bodies (long\ncontexts, images) are not routed on this path - the CEL extraction\nfails and the model header is removed. A Gateway owner can raise the\nlimit with a frontend.http.maxBufferSize policy, a different field that\ndoes not conflict with the extraction policy.",
           "properties": {
             "endpointPicker": {
-              "description": "EndpointPicker names the EPP Service agentgateway consults for endpoint\nselection. Required so each generated InferencePool can reference the\npicker; agentgateway cannot select endpoints without it.",
-              "type": "string"
+              "description": "EndpointPicker names the router-wide default EPP Service. A backend's\nown endpointPicker overrides it. A Gateway API Inference Extension EPP\nbinds to exactly one InferencePool, so the default serves a router whose\nbackends all reference one InferenceService; with several, set\nspec.backends[].endpointPicker. The Service lives in this ModelRouter's\nnamespace: GIE v1's endpointPickerRef has no namespace field.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "endpointPickerPort": {
-              "description": "EndpointPickerPort is the port the EPP Service listens on. agentgateway\ndials the picker on this port.",
+              "description": "EndpointPickerPort is the port the default EPP Service listens on. Set\ntogether with endpointPicker.",
               "format": "int32",
               "maximum": 65535,
               "minimum": 1,
-              "type": "integer"
+              "type": [
+                "integer",
+                "null"
+              ]
             },
             "name": {
               "description": "Name is the agentgateway Gateway's name.",
               "type": "string"
             },
             "namespace": {
-              "description": "Namespace is the Gateway's namespace. Empty means the ModelRouter's own\nnamespace.",
+              "description": "Namespace is the Gateway's namespace. Empty means the ModelRouter's own\nnamespace. A different namespace is supported: the generated\nmodel-extraction AgentgatewayPolicy then lives in the Gateway's\nnamespace (it cannot be owner-referenced across namespaces and is\ncleaned up via a finalizer on this ModelRouter), while the pools and\nroute stay here. The pools, the referenced InferenceServices, and the\nEndpointPicker Service all live in this ModelRouter's namespace\nregardless.",
               "type": [
                 "string",
                 "null"
@@ -53,13 +59,17 @@
             }
           },
           "required": [
-            "endpointPicker",
-            "endpointPickerPort",
             "name"
           ],
           "type": [
             "object",
             "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "endpointPicker and endpointPickerPort must be set together",
+              "rule": "has(self.endpointPicker) == has(self.endpointPickerPort)"
+            }
           ]
         },
         "backends": {
@@ -68,6 +78,64 @@
             "additionalProperties": false,
             "description": "RouterBackend is one candidate destination for routed requests.\nExactly one of InferenceServiceRef or External must be set.",
             "properties": {
+              "balancing": {
+                "additionalProperties": false,
+                "description": "Balancing places requests across this backend's pods by load and keeps\na session on its pod until it runs hot. Requires resolution: endpoint.\nUnset keeps round-robin.\nApplies to the Proxy data plane only; ignored by the Gateway and\nAgentGateway data planes.",
+                "properties": {
+                  "mode": {
+                    "default": "RoundRobin",
+                    "description": "Mode is RoundRobin (today's behavior) or LoadAware: the pod with the\nleast work, read from the engine's own metrics where LLMKube has a\nprofile for the runtime (vLLM) and from in-flight requests otherwise.",
+                    "enum": [
+                      "RoundRobin",
+                      "LoadAware"
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sessionAffinity": {
+                    "additionalProperties": false,
+                    "description": "SessionAffinity keeps a session on one pod while that pod's load stays\nwithin maxLoadPercent of the average.",
+                    "properties": {
+                      "headers": {
+                        "description": "Headers identify a session, in priority order; the first present with a\nnon-empty value is the key. Compared case-insensitively. Only a hash of\nthe value is used. Each name is an RFC 7230 header token.",
+                        "items": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9!#$%\u0026'*+.^_|~`-]+$",
+                          "type": "string"
+                        },
+                        "maxItems": 8,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "maxLoadPercent": {
+                        "default": 125,
+                        "description": "MaxLoadPercent bounds a pod's load, as a percentage of the average\nacross eligible pods, before a session spills to the next pod.",
+                        "format": "int32",
+                        "maximum": 1000,
+                        "minimum": 101,
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "headers"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "capabilities": {
                 "description": "Capabilities advertised by this backend. Rules can require\ncapabilities (e.g. [\"tools\", \"vision\", \"long-context\"]) to filter\ncandidates.",
                 "items": {
@@ -109,6 +177,48 @@
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "endpointPicker": {
+                "additionalProperties": false,
+                "description": "EndpointPicker selects the Endpoint Picker (EPP) that chooses a pod for\nthis backend's InferencePool on dataPlane: AgentGateway. When unset, the\nbackend uses the picker another backend on the same InferenceService\nnames, else the router-wide spec.agentGatewayRef.endpointPicker. A Gateway API\nInference Extension EPP binds to exactly one InferencePool, so a router\nwith backends on several InferenceServices sets a picker per backend.\nIgnored by the Proxy and Gateway data planes.",
+                "properties": {
+                  "service": {
+                    "additionalProperties": false,
+                    "description": "Service names an EPP Service in the ModelRouter's namespace. GIE v1's\nendpointPickerRef has no namespace field, so the pool references it\nsame-namespace.",
+                    "properties": {
+                      "name": {
+                        "description": "Name is the EPP Service's name.",
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "port": {
+                        "description": "Port is the port the EPP Service listens on.",
+                        "format": "int32",
+                        "maximum": 65535,
+                        "minimum": 1,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "port"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-validations": [
+                  {
+                    "message": "endpointPicker.service is required",
+                    "rule": "has(self.service)"
+                  }
                 ]
               },
               "external": {
@@ -229,7 +339,7 @@
               },
               "resolution": {
                 "default": "service",
-                "description": "Resolution selects how a local (inferenceServiceRef) backend's upstream\naddress is resolved. \"service\" (the default) dispatches to the\nInferenceService's ClusterIP Service DNS name, so a keep-alive client\ncan pin to one pod through conntrack. \"endpoint\" compiles one address\nper ready pod and the router-proxy balances requests across them.\nExternal backends ignore this field.",
+                "description": "Resolution selects how a local (inferenceServiceRef) backend's upstream\naddress is resolved. \"service\" (the default) dispatches to the\nInferenceService's ClusterIP Service DNS name, so a keep-alive client\ncan pin to one pod through conntrack. \"endpoint\" has the router-proxy\ntrack the ready pods behind the Service itself and balance requests\nacross them.\nExternal backends ignore this field.",
                 "enum": [
                   "service",
                   "endpoint"
@@ -271,7 +381,13 @@
             "required": [
               "name"
             ],
-            "type": "object"
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "balancing requires an inferenceServiceRef backend with resolution: endpoint",
+                "rule": "!has(self.balancing) || (has(self.inferenceServiceRef) \u0026\u0026 has(self.resolution) \u0026\u0026 self.resolution == 'endpoint')"
+              }
+            ]
           },
           "minItems": 1,
           "type": "array"
@@ -312,6 +428,50 @@
           "additionalProperties": false,
           "description": "Endpoint defines the Kubernetes Service the router-proxy is exposed\nthrough. Mirrors the shape used by InferenceService.",
           "properties": {
+            "apiKeySecretRef": {
+              "additionalProperties": false,
+              "description": "APIKeySecretRef names a Secret key holding the API key callers must\npresent as \"Authorization: Bearer \u003ckey\u003e\". vLLM reads it as VLLM_API_KEY;\nSGLang's launcher writes LLMKUBE_API_KEY to a private, memory-backed\nconfig file and unsets the variable before starting SGLang. kubectl exec\nsessions still receive LLMKUBE_API_KEY from the container's Secret reference.\nThe key stays out of the pod spec and OS process arguments, but SGLang may still print\napi_key in its startup log (verified on v0.5.19). Treat pod logs and any\ndownstream log storage as credentials until upstream redacts api_key\nand admin_api_key. vLLM does not have this command-line/log exposure.\nBoth runtimes leave /health and /metrics open, so probes keep working.\nSupported for runtime vllm and sglang. A key change takes effect when the\npods restart. An --api-key already in extraArgs wins; LLMKube then adds\nnothing. Cannot be combined with gateway.enabled: the gateway does not\nforward the key. Not supported on ModelRouter.",
+              "properties": {
+                "key": {
+                  "description": "The key of the secret to select from.  Must be a valid secret key.",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "optional": {
+                  "description": "Specify whether the Secret or its key must be defined",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
+            },
+            "externalTrafficPolicy": {
+              "description": "ExternalTrafficPolicy sets the Service's externalTrafficPolicy. Local\npreserves the client source IP on a NodePort or LoadBalancer, which an IP\nallowlist (NetworkPolicy) needs. Unset keeps the Kubernetes default\n(Cluster). Requires endpoint.type NodePort or LoadBalancer. Not supported\non ModelRouter.",
+              "enum": [
+                "Cluster",
+                "Local"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "gateway": {
               "additionalProperties": false,
               "description": "Gateway opts this InferenceService into Envoy AI Gateway exposure. When\nset and Enabled, the operator generates the Backend / AIServiceBackend /\nAIGatewayRoute resources that front this service through a pre-installed\nEnvoy AI Gateway. nil (the default) preserves today's behavior (no\ngateway resources). The Envoy AI Gateway stack and the referenced Gateway\nare a documented prerequisite; LLMKube does not install or own them.",
@@ -406,6 +566,20 @@
           "type": [
             "object",
             "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "externalTrafficPolicy requires endpoint.type NodePort or LoadBalancer",
+              "rule": "!has(self.externalTrafficPolicy) || (has(self.type) \u0026\u0026 self.type in ['NodePort','LoadBalancer'])"
+            },
+            {
+              "message": "endpoint.apiKeySecretRef cannot be combined with endpoint.gateway.enabled: the gateway does not forward the key, so requests would get 401",
+              "rule": "!has(self.apiKeySecretRef) || !has(self.gateway) || !has(self.gateway.enabled) || !self.gateway.enabled"
+            },
+            {
+              "message": "endpoint.apiKeySecretRef needs a non-empty Secret name and a valid Secret key (letters, digits, '-', '_' and '.')",
+              "rule": "!has(self.apiKeySecretRef) || (has(self.apiKeySecretRef.name) \u0026\u0026 size(self.apiKeySecretRef.name) \u003e 0 \u0026\u0026 self.apiKeySecretRef.key.matches('^[-._a-zA-Z0-9]+$'))"
+            }
           ]
         },
         "gatewayRef": {
@@ -836,7 +1010,7 @@
               ]
             },
             "responseHeaderTimeout": {
-              "description": "ResponseHeaderTimeout caps how long the proxy waits for the\nupstream to begin sending response headers. For non-streaming\nchat completions this is effectively a max-generation-time\ncap; for streaming dispatches the first SSE chunk arrives well\ninside the window so the cap is invisible. Default 120s when\nunset. Per-rule and per-backend timeouts (see RouterRule.Timeout\nand RouterBackend.Timeout) tighten this on a per-request basis\nbut cannot extend it beyond this cap.",
+              "description": "ResponseHeaderTimeout caps how long the proxy waits for the\nupstream to begin sending response headers. For non-streaming\nchat completions this is effectively a max-generation-time\ncap, because their headers arrive when generation completes. It\ndoes not bound a streaming response once its headers arrive;\nStreamIdleTimeout guards those. Default 120s when unset.\nPer-rule and per-backend timeouts (see RouterRule.Timeout and\nRouterBackend.Timeout) tighten this on a per-request basis but\ncannot extend it beyond this cap.",
               "type": [
                 "string",
                 "null"
@@ -848,6 +1022,63 @@
               "minimum": 0,
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "streamIdleTimeout": {
+              "description": "StreamIdleTimeout caps how long a response body may go without a\nsingle byte from the upstream once its headers have arrived. A\nhealthy stream emits bytes continuously; the longest gap is the\nprefill before the first content token, which can take minutes\nfor a very long prompt on slow hardware. When the window passes\nwith no bytes, the proxy aborts the request and quarantines that\nbackend endpoint, so a wedged replica stops receiving traffic.\nDefault 300s when unset; \"0s\" disables the guard.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tolerations": {
+              "description": "Tolerations are applied to the router-proxy pod, so it can be pinned\nnext to tainted GPU nodes together with nodeSelector.",
+              "items": {
+                "additionalProperties": false,
+                "description": "The pod this Toleration is attached to tolerates any taint that matches\nthe triple \u003ckey,value,effect\u003e using the matching operator \u003coperator\u003e.",
+                "properties": {
+                  "effect": {
+                    "description": "Effect indicates the taint effect to match. Empty means match all taint effects.\nWhen specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "description": "Key is the taint key that the toleration applies to. Empty means match all taint keys.\nIf the key is empty, operator must be Exists; this combination means to match all values and all keys.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "operator": {
+                    "description": "Operator represents a key's relationship to the value.\nValid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.\nExists is equivalent to wildcard for value, so that a pod can\ntolerate all taints of a particular category.\nLt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "tolerationSeconds": {
+                    "description": "TolerationSeconds represents the period of time the toleration (which must be\nof effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,\nit is not set, which means tolerate the taint forever (do not evict). Zero and\nnegative values will be treated as 0 (evict immediately) by the system.",
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "value": {
+                    "description": "Value is the taint value the toleration matches to.\nIf the operator is Exists, the value should be empty, otherwise just a regular string.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "type": [
+                "array",
                 "null"
               ]
             }
@@ -972,7 +1203,7 @@
                   },
                   "strategy": {
                     "default": "primary-fallback",
-                    "description": "Strategy selects how multiple backends are used.",
+                    "description": "Strategy selects how multiple backends are used. On dataPlane:\nAgentGateway only primary-fallback compiles, and a rule routes to its\nfirst healthy backend: when that backend's InferenceService has no\nready replica, the next reconcile moves the rule to the next backend.\nFailover there follows replica readiness, not individual request errors.",
                     "enum": [
                       "primary-fallback",
                       "weighted",
@@ -1012,7 +1243,13 @@
       "required": [
         "backends"
       ],
-      "type": "object"
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "endpoint.apiKeySecretRef and endpoint.externalTrafficPolicy are InferenceService fields; ModelRouter does not support them",
+          "rule": "!has(self.endpoint) || (!has(self.endpoint.apiKeySecretRef) \u0026\u0026 !has(self.endpoint.externalTrafficPolicy))"
+        }
+      ]
     },
     "status": {
       "additionalProperties": false,
@@ -1028,7 +1265,7 @@
         },
         "agentGateway": {
           "additionalProperties": false,
-          "description": "AgentGateway reports the observed state of dataPlane: AgentGateway\nexposure: whether the InferencePool / InferenceModel / HTTPRoute reconciled\nagainst the referenced agentgateway Gateway, and the resolved endpoint.\nnil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady\ncondition.",
+          "description": "AgentGateway reports the observed state of dataPlane: AgentGateway\nexposure: whether the InferencePool / HTTPRoute / model-extraction\nAgentgatewayPolicy reconciled\nagainst the referenced agentgateway Gateway, and the resolved endpoint.\nnil in Proxy and Gateway modes. Also surfaced via the AgentGatewayReady\ncondition.",
           "properties": {
             "endpoint": {
               "description": "Endpoint is the agentgateway address clients send OpenAI requests to,\nresolved from the referenced Gateway. Empty until the pool is ready.",
