@@ -1186,8 +1186,7 @@ spec:
                         ExternalTrafficPolicy sets the Service's externalTrafficPolicy. Local
                         preserves the client source IP on a NodePort or LoadBalancer, which an IP
                         allowlist (NetworkPolicy) needs. Unset keeps the Kubernetes default
-                        (Cluster). Requires endpoint.type NodePort or LoadBalancer. Not supported
-                        on ModelRouter.
+                        (Cluster). Requires endpoint.type NodePort or LoadBalancer.
                       enum:
                         - Cluster
                         - Local
@@ -3469,6 +3468,31 @@ spec:
                     or "50GB". Only meaningful for the omlx runtime; ignored by llamacpp
                     and other runtimes.
                   type: string
+                hubOffline:
+                  description: |-
+                    HubOffline keeps the Hugging Face libraries in the serving container
+                    (huggingface_hub, transformers, which vLLM, SGLang and TGI use) offline:
+                    the container is given HF_HUB_OFFLINE=1 and TRANSFORMERS_OFFLINE=1, so
+                    any lookup the operator did not stage (a tokenizer in another
+                    repository, remote code, an adapter or draft named by repository id)
+                    fails at once instead of downloading on the serving node. llama.cpp's
+                    own downloader does not read these variables. Unset means false.
+
+                    An explicit spec.env entry with the same name lands after the operator's
+                    and wins. The runtime mirror env (HF_ENDPOINT and the HF_TOKEN that goes
+                    with it) is not added when this is set: an offline runtime makes no
+                    request to send them to.
+
+                    The operator stages the Model through its own init containers, which
+                    keep their Hub access under this field. A runtime that downloads the
+                    Model itself instead (skipModelInit: true, TGI, generic without
+                    stageModel) fails at start under it, so the controller emits a
+                    HubOfflineRuntimeDownload Warning event for that combination.
+
+                    In-cluster only. A Metal service runs no serving container and the
+                    metal-agent does not forward spec.env, so neither this field nor a
+                    spec.env entry reaches it.
+                  type: boolean
                 image:
                   description: |-
                     Image is the container image for the inference runtime.
@@ -3615,6 +3639,38 @@ spec:
                         - Cached
                         - Ephemeral
                       type: string
+                    prefetch:
+                      description: |-
+                        Prefetch asks for the Model's weights to be staged into this cache claim
+                        by a prefetch Job before any serving pod consumes them.
+
+                        On an InferenceService, the operator runs the referenced Model's
+                        prefetch Job against this service's resolved cache claim (claimName,
+                        else the Model's spec.modelCache.claimName, else the operator cache),
+                        placed by the Model's prefetchNodeSelector, prefetchTolerations and
+                        prefetchAffinity, whether or not the Model sets spec.prefetch. The
+                        service creates no pods, and rolls no new pod template, until that
+                        prefetch has succeeded for the Model's current spec; meanwhile it
+                        reports ModelPrefetched=False with reason WaitingForPrefetch (or
+                        PrefetchFailed, with the live workload left as it was). Once staged, the
+                        serving pods mount the claim read-only with no downloader init
+                        container, and fail with PrefetchedFilesMissing rather than download on
+                        the serving node if a staged file is absent. Progress is reported per
+                        claim in the Model's status.prefetch.
+
+                        On a Model, it is equivalent to spec.prefetch: either field makes the
+                        Model stage itself into its own modelCache.claimName.
+
+                        Cannot be set with persistence Ephemeral: an emptyDir cannot be
+                        prefetched. Reported as PrefetchNotApplicable, and not waited for, only
+                        where nothing downloads at serve time: Metal (no cache claim is
+                        mounted) and pre-staged sources (pvc://, oci://, local paths). A
+                        request the pods could not consume is refused and held as
+                        PrefetchUnsupported: model caching disabled on the operator, a runtime
+                        the operator does not stage, a speculativeDecoding draft model, a
+                        multiNode member with its own modelCache.claimName, or a source the
+                        downloader does not stage ahead of time (s3://).
+                      type: boolean
                     storageClassName:
                       description: |-
                         StorageClassName overrides the operator's --model-cache-storage-class
@@ -3645,6 +3701,8 @@ spec:
                       rule: '!(has(self.storageClassName) && has(self.claimName))'
                     - message: 'storageClassName cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to class'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.storageClassName))'
+                    - message: 'prefetch cannot be set when persistence is Ephemeral: there is no cache volume to stage into'
+                      rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.prefetch) && self.prefetch)'
                 modelRef:
                   description: ModelRef references the Model CR that contains the model to serve
                   type: string
@@ -4743,8 +4801,8 @@ spec:
                 revisionHistoryLimit:
                   description: |-
                     RevisionHistoryLimit caps how many old ReplicaSets the inference
-                    Deployment keeps for rollback. Unset uses the Kubernetes default (10);
-                    0 keeps none.
+                    Deployment keeps for rollback. Unset keeps 3 old ReplicaSets; 0 keeps
+                    none.
                   format: int32
                   minimum: 0
                   type: integer
@@ -4773,6 +4831,29 @@ spec:
                         when omitted or set to 0.
                       minimum: 0
                       type: integer
+                    strategy:
+                      description: |-
+                        Strategy selects how a template change replaces the serving pods. Recreate
+                        is the default: every replica stops before any replacement starts, because
+                        a replacement pod cannot schedule while an old pod holds its GPU. OneAtATime
+                        rolls one replica at a time (maxSurge 0, maxUnavailable 1), so it never
+                        needs a spare GPU and the other replicas keep serving at reduced capacity;
+                        at replicas 1 both strategies replace the only pod. Only a GPU service on
+                        the device-plugin path honours this field: a non-GPU service already rolls
+                        with the Kubernetes default, a DRA service keeps Recreate, a metal service
+                        runs no Deployment, and a multiNode group runs none either. A replica whose
+                        replacement cannot attach a ReadWriteOnce model cache waits Pending until
+                        the old pod releases it, so a shared RWO cache stalls the rollout at
+                        reduced capacity; use a ReadWriteMany cache. A replacement pod reports
+                        Insufficient nvidia.com/gpu while the outgoing pod drains; that is
+                        expected, not the #192 deadlock. Changing only this field needs no drain
+                        once the live Deployment carries the operator's template-hash annotation;
+                        before that first stamped pass, and while a deferred template change is
+                        held, the strategy travels with that held update.
+                      enum:
+                        - Recreate
+                        - OneAtATime
+                      type: string
                     waitForIdle:
                       description: |-
                         WaitForIdle indicates whether to wait for all backend slots to report idle
@@ -5277,9 +5358,17 @@ spec:
                       description: |-
                         ReasoningParser selects the reasoning-content extraction format. For
                         thinking models (qwen3, deepseek-r1). Maps to SGLang --reasoning-parser.
+
+                        GLM stops at glm45: SGLang has no glm47 reasoning detector, and
+                        --reasoning-parser rejects a value outside its choices at startup. The
+                        enum lists the values LLMKube supports, not every key in SGLang's
+                        detector map; an unsupported value goes in spec.extraArgs, and the field
+                        must then be cleared because SGLang does not suppress a typed parser the
+                        way the vLLM fields do.
                       enum:
                         - qwen3
                         - deepseek-r1
+                        - glm45
                       type: string
                     skipTokenizerInit:
                       description: |-
@@ -5406,6 +5495,12 @@ spec:
                         Agentic glue
                         ToolCallParser selects the tool-call extraction format. For foreman
                         tool-loop workloads. Maps to SGLang --tool-call-parser flag.
+
+                        glm and glm45 both select the GLM-4.5/4.7 MoE detector; SGLang
+                        v0.5.15.post1 also logs a deprecation warning for a passed glm45 and
+                        rewrites it to glm (server_args.py), so either spelling works. qwen3 and
+                        functionary are kept for objects written against earlier releases even
+                        though the pinned image no longer registers them.
                       enum:
                         - llama3
                         - qwen3
@@ -5413,6 +5508,9 @@ spec:
                         - hermes
                         - functionary
                         - mistral
+                        - glm
+                        - glm45
+                        - glm47
                       type: string
                     trustRemoteCode:
                       description: |-
@@ -6081,6 +6179,16 @@ spec:
                         - mxfp4
                         - compressed-tensors
                       type: string
+                    reasoningParser:
+                      description: |-
+                        ReasoningParser selects the reasoning-content parser, e.g. glm45, glm47,
+                        deepseek_v4. Maps to vLLM --reasoning-parser, which vLLM validates
+                        against its registry (vllm/reasoning/__init__.py in the image you run):
+                        the value must be there or the server refuses to start with "invalid
+                        reasoning parser". Not an enum for the same reason as ToolCallParser.
+                        Emitted alone; vLLM has no paired flag. A parser already set in
+                        spec.extraArgs wins.
+                      type: string
                     speculative:
                       description: |-
                         Speculative enables draft-model speculative decoding. On single-stream
@@ -6170,6 +6278,19 @@ spec:
                       description: TensorParallelSize sets the number of GPUs for tensor parallelism.
                       format: int32
                       type: integer
+                    toolCallParser:
+                      description: |-
+                        ToolCallParser selects the tool-call parser, e.g. glm47, hermes. Maps to
+                        vLLM --tool-call-parser, always together with --enable-auto-tool-choice:
+                        vLLM ignores a parser unless auto tool choice is on, so a request with
+                        tool_choice: auto fails with "requires --enable-auto-tool-choice and
+                        --tool-call-parser". Not an enum because vLLM registers a parser per
+                        model family, every release (see vllm/tool_parsers/__init__.py in the
+                        image you run), so the value must exist in that registry or vLLM refuses
+                        to start with "invalid tool call parser". A parser already set in
+                        spec.extraArgs wins, and the pairing's two flags are each skipped
+                        independently when already in spec.extraArgs.
+                      type: string
                   type: object
               required:
                 - modelRef
