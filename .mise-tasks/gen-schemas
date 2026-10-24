@@ -129,19 +129,77 @@ process_app() {
   echo "$GENERATED" >"$TALLY/$APP_NAME"
 }
 
+# A failed app has already wiped its version dirs; put back whatever HEAD has
+# so a broken run never commits a deletion of published schemas.
+restore_app() {
+  for dir in "${SCHEMAS_DIR:-}" "${CRDS_DIR:-}"; do
+    [ -n "$dir" ] || continue
+    rm -rf "$dir"
+    if git cat-file -e "HEAD:$dir" 2>/dev/null; then
+      git archive HEAD "$dir" | tar -x || true
+    fi
+    rmdir "$(dirname "$dir")" 2>/dev/null || true
+  done
+}
+
+worker_exit() {
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "ERROR: $APP_FILE failed (exit $rc), restoring its committed schemas"
+    restore_app
+    touch "$FAILED/$(basename "$APP_FILE" .yaml)"
+  fi
+  cat "$LOG" >&3
+  rm -f "$LOG"
+}
+
 # Worker: one app per process.
 if [ "${1:-}" = "--app" ]; then
+  APP_FILE="$2"
   LOG="$(mktemp)"
   exec 3>&1
   exec >"$LOG" 2>&1
-  trap 'cat "$LOG" >&3; rm -f "$LOG"' EXIT
-  process_app "$2"
+  trap worker_exit EXIT
+  process_app "$APP_FILE"
   exit
 fi
 
-[ "$#" -gt 0 ] || set -- apps/*.yaml
-trap 'rm -rf "$TALLY"' EXIT
+# Apps named explicitly (local runs, PRs) fail the run on any error. A full run
+# (main) keeps going so one broken upstream doesn't block every other app.
+STRICT=true
+if [ "$#" -eq 0 ]; then
+  STRICT=false
+  set -- apps/*.yaml
+fi
+FAILED="$(mktemp -d)"
+export FAILED
+trap 'rm -rf "$TALLY" "$FAILED"' EXIT
 
-printf '%s\n' "$@" | xargs -P "${JOBS:-8}" -I{} "$0" --app {}
+printf '%s\n' "$@" | xargs -P "${JOBS:-8}" -I{} "$0" --app {} || true
 
 echo "# schemas generated: $(cat "$TALLY"/* | awk '{n+=$1} END{print n+0}')"
+
+failed="$(ls "$FAILED")"
+if [ -n "$failed" ]; then
+  echo ""
+  echo "################################################################"
+  echo "# $(wc -l <<<"$failed" | tr -d ' ') app(s) FAILED schema generation:"
+  for app in $failed; do
+    echo "#   $app  ->  mise run gen-schemas apps/$app.yaml"
+  done
+  echo "################################################################"
+  for app in $failed; do
+    # Surfaces as an annotation on the GitHub Actions run summary.
+    echo "::error title=gen-schemas failed: $app::Schemas for $app were not updated. Debug with: mise run gen-schemas apps/$app.yaml"
+  done
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+      echo "### :x: gen-schemas failures"
+      echo ""
+      for app in $failed; do
+        echo "- \`$app\`: \`mise run gen-schemas apps/$app.yaml\`"
+      done
+    } >>"$GITHUB_STEP_SUMMARY"
+  fi
+  [ "$STRICT" = false ] || exit 1
+fi
