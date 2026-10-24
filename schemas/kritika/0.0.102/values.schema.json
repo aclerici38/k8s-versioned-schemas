@@ -9,7 +9,7 @@
     },
     "config": {
       "additionalProperties": false,
-      "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap.",
+      "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys the chart derives from its deployment values (`addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `databaseRunnerRole`, `executor`, `runner`, and, when `gatewayCache.enabled` is set, `gatewayCacheDir`, `gatewayCacheStorage`, `gatewayCacheMaxEntrySize`, and `gatewayCacheMaxSize` for filesystem storage or the `gatewayCacheS3*` keys for S3) fail the render.",
       "properties": {
         "accounts": {
           "required": [],
@@ -118,6 +118,10 @@
         "gatewayUrl": {
           "type": "string"
         },
+        "gitea": {
+          "required": [],
+          "type": "object"
+        },
         "gitlab": {
           "required": [],
           "type": "object"
@@ -161,10 +165,6 @@
           "type": "string"
         },
         "providers": {
-          "required": [],
-          "type": "object"
-        },
-        "repositories": {
           "required": [],
           "type": "object"
         },
@@ -574,7 +574,7 @@
       "type": "array"
     },
     "ingress": {
-      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s: GitHub delivers webhooks to that URL and sign-in\nredirects back to it, so a route for another name serves a dashboard\nthat cannot sign in.",
+      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s: the forges deliver webhooks to that URL and sign-in\nredirects back to it, so a route for another name serves a dashboard\nthat cannot sign in.",
       "properties": {
         "annotations": {
           "description": "Ingress annotations.",
@@ -793,7 +793,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics and vector-search errors.",
+              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics, vector-search errors and gateway cache storage errors.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -1122,7 +1122,7 @@
       "properties": {
         "create": {
           "default": true,
-          "description": "Create the Role and RoleBinding kritika serve needs: Jobs in the release namespace, their pods and logs, and the Secrets it hands them. Nothing cluster-wide.",
+          "description": "Create the Role and RoleBinding kritika serve needs: Jobs in the release namespace, their pods and logs, the Secrets it hands them, the Jobs' finalizers, and Events on its Jobs and pods. Nothing cluster-wide.",
           "title": "create",
           "type": "boolean"
         }
@@ -1554,7 +1554,7 @@
       "properties": {
         "gatewayPort": {
           "default": 8082,
-          "description": "Port of the gateway the kritika serve pods run, on the pods and its Service: the forward proxy runner Jobs are handed as `HTTPS_PROXY`, allowing only the hosts the configuration names (github.com once an app is configured, `egress.allow` less `egress.deny`), so runner pods need no direct internet egress, and the model and similar-code endpoints a runner calls with a per-run token, so no provider key enters a runner pod.",
+          "description": "Port of the gateway the kritika serve pods run, on the pods and its Service: the forward proxy runner Jobs are handed as `HTTPS_PROXY`, allowing only the hosts the configuration names (the connections' forges, github.com and api.github.com for an app and the instance host for a Forgejo, GitLab or Gitea connection, plus `egress.allow` less `egress.deny`), so runner pods need no direct internet egress, and the model and similar-code endpoints a runner calls with a per-run token, so no provider key enters a runner pod.",
           "title": "gatewayPort",
           "type": "integer"
         },
@@ -1566,7 +1566,7 @@
         },
         "port": {
           "default": 8080,
-          "description": "Public port: the webhooks (`POST /hooks/{app}`) and the dashboard.",
+          "description": "Public port: the webhooks (`POST /hooks/{connection}`) and the dashboard.",
           "title": "port",
           "type": "integer"
         },
