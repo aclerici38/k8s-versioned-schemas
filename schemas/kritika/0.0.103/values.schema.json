@@ -9,7 +9,7 @@
     },
     "config": {
       "additionalProperties": false,
-      "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap.",
+      "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys the chart derives from its deployment values (`addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `databaseRunnerRole`, `executor`, `runner`, and, when `gatewayCache.enabled` is set, `gatewayCacheDir`, `gatewayCacheStorage`, `gatewayCacheMaxEntrySize`, and `gatewayCacheMaxSize` for filesystem storage or the `gatewayCacheS3*` keys for S3) fail the render.",
       "properties": {
         "accounts": {
           "required": [],
@@ -118,6 +118,10 @@
         "gatewayUrl": {
           "type": "string"
         },
+        "gitea": {
+          "required": [],
+          "type": "object"
+        },
         "gitlab": {
           "required": [],
           "type": "object"
@@ -161,10 +165,6 @@
           "type": "string"
         },
         "providers": {
-          "required": [],
-          "type": "object"
-        },
-        "repositories": {
           "required": [],
           "type": "object"
         },
@@ -574,7 +574,7 @@
       "type": "array"
     },
     "ingress": {
-      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s: GitHub delivers webhooks to that URL and sign-in\nredirects back to it, so a route for another name serves a dashboard\nthat cannot sign in.",
+      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s: the forges deliver webhooks to that URL and sign-in\nredirects back to it, so a route for another name serves a dashboard\nthat cannot sign in.",
       "properties": {
         "annotations": {
           "description": "Ingress annotations.",
@@ -793,7 +793,7 @@
             },
             "enabled": {
               "default": false,
-              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics and vector-search errors.",
+              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics, vector-search errors and gateway cache storage errors.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -909,14 +909,8 @@
       "type": "string"
     },
     "networkPolicy": {
-      "description": "NetworkPolicies (off by default): one for the service pods (ingress to the\nwebhook and metrics ports, and to the gateway port from runner pods;\negress to the cluster's DNS, the forges and models over the egress ports,\nPostgres and the API server) and one for runner pods (egress only: the\ncluster's DNS, Postgres and the gateway port on the service pods, through\nwhich everything else is reached). Runner pods reach the Postgres port\nonly where `postgres` says the database is; the service pods reach it at\nany address, as they do the egress ports.",
+      "description": "NetworkPolicies: one for the service pods (ingress to the webhook and\nmetrics ports, and to the gateway port from runner pods; egress to the\ncluster's DNS, the forges and models over the egress ports, Postgres and\nthe API server) and one for runner pods (egress only: the cluster's DNS,\nPostgres and the gateway port on the service pods, through which\neverything else is reached). Runner pods reach the Postgres port only\nwhere `postgres` says the database is; the service pods reach it at any\naddress, as they do the egress ports.",
       "properties": {
-        "allowDNS": {
-          "default": true,
-          "description": "Allow DNS egress (UDP/TCP 53) to the cluster's DNS, as `dns` describes it, and nowhere else.",
-          "title": "allowDNS",
-          "type": "boolean"
-        },
         "dns": {
           "description": "The cluster's DNS, the one peer the pods may send port 53 to.",
           "properties": {
@@ -972,13 +966,13 @@
           "type": "array"
         },
         "enabled": {
-          "default": false,
-          "description": "Create the NetworkPolicies.",
+          "default": true,
+          "description": "Create the NetworkPolicies. The runner's is what keeps every command a review runs on the egress gateway: the run tool passes the model's arguments as given, so without it a command can connect around the gateway. Turn it off only where something else confines runner pods' egress.",
           "title": "enabled",
           "type": "boolean"
         },
         "postgres": {
-          "description": "Where the database the runner role's URI names is, the one peer runner\npods may reach postgresPort at: every pod in the release namespace unless\nset.",
+          "description": "Where the database the runner role's URI names is, the one peer runner\npods may reach its port at: every pod in the release namespace unless\nset.",
           "properties": {
             "cidrs": {
               "description": "CIDRs of a database outside the cluster, such as `192.0.2.10/32`.",
@@ -1003,21 +997,21 @@
               "required": [],
               "title": "podSelector",
               "type": "object"
+            },
+            "port": {
+              "default": 5432,
+              "description": "Port of the database, which the service pods may reach at any address and runner pods only where the rest of `postgres` says.",
+              "title": "port",
+              "type": "integer"
             }
           },
           "required": [],
           "title": "postgres",
           "type": "object"
         },
-        "postgresPort": {
-          "default": 5432,
-          "description": "Postgres port allowed for egress.",
-          "title": "postgresPort",
-          "type": "integer"
-        },
         "type": {
-          "default": "default",
-          "description": "Policy flavor for your CNI: \"default\" (networking.k8s.io/v1 NetworkPolicy), \"cilium\" (CiliumNetworkPolicy) or \"calico\" (projectcalico.org/v3 NetworkPolicy).",
+          "default": "auto",
+          "description": "Policy flavor for your CNI: \"default\" (networking.k8s.io/v1 NetworkPolicy), \"cilium\" (CiliumNetworkPolicy), \"calico\" (projectcalico.org/v3 NetworkPolicy), or \"auto\": \"cilium\" when the cluster serves CiliumNetworkPolicy, else \"calico\" when it serves Calico's projectcalico.org/v3 NetworkPolicy, else \"default\". Helm and Flux read what the cluster serves from it, and Argo CD passes it to `helm template`; plain `helm template` without `--api-versions` renders \"default\". The Cilium flavor's DNS rules need Cilium's L7 proxy, on unless turned off: without it Cilium refuses the runner's policy, and a NetworkPolicy the flavor adds then keeps runner pods from looking up any name, so runs fail until the type is \"default\". Set the flavor where the cluster serves a policy API its CNI does not enforce.",
           "title": "type",
           "type": "string"
         }
@@ -1122,7 +1116,7 @@
       "properties": {
         "create": {
           "default": true,
-          "description": "Create the Role and RoleBinding kritika serve needs: Jobs in the release namespace, their pods and logs, and the Secrets it hands them. Nothing cluster-wide.",
+          "description": "Create the Role and RoleBinding kritika serve needs: Jobs in the release namespace, their pods and logs, the Secrets it hands them, the Jobs' finalizers, and Events on its Jobs and pods. Nothing cluster-wide.",
           "title": "create",
           "type": "boolean"
         }
@@ -1319,7 +1313,7 @@
                   "type": "object"
                 },
                 "containers": {
-                  "description": "The runner container, the pod's one, named runner: its `image`, empty for this release's `-tools` image pinned by digest, which adds mise with curl, fd, gh, jq, rg and yq for a review's or follow-up's run tool; its `imagePullPolicy`; and its `env`, variables the run tool's commands get, each a `value` or a Secret's key (`valueFrom.secretKeyRef`), which is masked out of what the commands print. kritika sets them on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself, and refuses the names it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
+                  "description": "The runner container, the pod's one, named runner: its `image`, empty for this release's `-tools` image pinned by digest, which carries curl, find, gh, grep and jq, and mise for a repository's tools, for a review's or follow-up's run tool; its `imagePullPolicy`; and its `env`, variables the run tool's commands get, each a `value` or a Secret's key (`valueFrom.secretKeyRef`), which is masked out of what the commands print. kritika sets them on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself, and refuses the names it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
                   "items": {
                     "additionalProperties": false,
                     "properties": {
@@ -1554,7 +1548,7 @@
       "properties": {
         "gatewayPort": {
           "default": 8082,
-          "description": "Port of the gateway the kritika serve pods run, on the pods and its Service: the forward proxy runner Jobs are handed as `HTTPS_PROXY`, allowing only the hosts the configuration names (github.com once an app is configured, `egress.allow` less `egress.deny`), so runner pods need no direct internet egress, and the model and similar-code endpoints a runner calls with a per-run token, so no provider key enters a runner pod.",
+          "description": "Port of the gateway the kritika serve pods run, on the pods and its Service: the forward proxy runner Jobs are handed as `HTTPS_PROXY`, allowing only the hosts the configuration names (the connections' forges, github.com and api.github.com for an app and the instance host for a Forgejo, GitLab or Gitea connection, plus `egress.allow` less `egress.deny`), so runner pods need no direct internet egress, and the model and similar-code endpoints a runner calls with a per-run token, so no provider key enters a runner pod.",
           "title": "gatewayPort",
           "type": "integer"
         },
@@ -1566,7 +1560,7 @@
         },
         "port": {
           "default": 8080,
-          "description": "Public port: the webhooks (`POST /hooks/{app}`) and the dashboard.",
+          "description": "Public port: the webhooks (`POST /hooks/{connection}`) and the dashboard.",
           "title": "port",
           "type": "integer"
         },
