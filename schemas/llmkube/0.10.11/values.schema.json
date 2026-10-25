@@ -35,6 +35,10 @@
           "minimum": 0,
           "maximum": 10
         },
+        "revisionHistoryLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
         "leaderElection": {
           "type": "object",
           "additionalProperties": false,
@@ -399,6 +403,11 @@
           "type": "string",
           "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
         },
+        "prep": {
+          "type": "string",
+          "enum": ["always", "never"],
+          "default": "always"
+        },
         "mountPath": { "type": "string", "pattern": "^/" },
         "annotations": {
           "type": "object",
@@ -591,6 +600,54 @@
           "description": "ValidatingAdmissionPolicy that lets only the controller create the llmkube-metal-relay Secret (#1957).",
           "properties": {
             "enabled": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "metalAgent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Least-privilege identity for the macOS metal-agent (#2152). Off by default.",
+      "properties": {
+        "rbac": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "scope": {
+              "type": "string",
+              "enum": ["namespaced", "cluster"]
+            },
+            "namespaces": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              }
+            },
+            "secretNames": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+              }
+            },
+            "serviceAccount": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "create": { "type": "boolean" },
+                "name": {
+                  "type": "string",
+                  "maxLength": 253,
+                  "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$|^$"
+                }
+              }
+            }
           }
         }
       }
