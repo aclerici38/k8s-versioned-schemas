@@ -1,5 +1,5 @@
 {
-  "description": "MCPExternalAuthConfig is the deprecated v1alpha1 version of the MCPExternalAuthConfig resource.",
+  "description": "MCPExternalAuthConfig is the Schema for the mcpexternalauthconfigs API.\nMCPExternalAuthConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources within the same namespace. Cross-namespace references\nare not supported for security and isolation reasons.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -801,6 +801,36 @@
                 "null"
               ]
             },
+            "registrationRateLimit": {
+              "additionalProperties": false,
+              "description": "RegistrationRateLimit bounds the unauthenticated /oauth/register\nendpoint with a token bucket: up to maxTokens registrations at once,\nrefilled at maxTokens per refillPeriod. For a sustained rate of R per\nsecond with a burst of B, set maxTokens to B and refillPeriod to B/R;\nfor example, 10 per minute with a burst of 3 is maxTokens 3,\nrefillPeriod 18s. If omitted, defaults to 1 registration per second\nwith a burst of 5 (maxTokens 5, refillPeriod 5s). The limit is per\nreplica, so the effective rate is the configured rate multiplied by the\nreplica count. Every successful registration stores a client, so a\nhigher rate fills storage.maxDCRClients sooner, and with maxDCRClients\n0 this limit is the only bound on stored clients.",
+              "properties": {
+                "maxTokens": {
+                  "description": "MaxTokens is the maximum number of tokens (bucket capacity).\nThis is also the burst size: the maximum number of requests that can be served\ninstantaneously before the bucket is depleted.",
+                  "format": "int32",
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "refillPeriod": {
+                  "description": "RefillPeriod is the duration to fully refill the bucket from zero to maxTokens.\nThe effective refill rate is maxTokens / refillPeriod tokens per second.\nFormat: Go duration string (e.g., \"1m0s\", \"30s\", \"1h0m0s\").",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "maxTokens",
+                "refillPeriod"
+              ],
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "registrationRateLimit.refillPeriod must be positive",
+                  "rule": "duration(self.refillPeriod) \u003e duration('0s')"
+                }
+              ]
+            },
             "signingKeySecretRefs": {
               "description": "SigningKeySecretRefs references Kubernetes Secrets containing signing keys for JWT operations.\nSupports key rotation by allowing multiple keys (oldest keys are used for verification only).\nIf not specified, an ephemeral signing key will be auto-generated (development only -\nJWTs will be invalid after restart).",
               "items": {
@@ -985,6 +1015,15 @@
               "additionalProperties": false,
               "description": "Storage configures the storage backend for the embedded auth server.\nIf not specified, defaults to in-memory storage.",
               "properties": {
+                "maxDCRClients": {
+                  "description": "MaxDCRClients caps the number of live clients created by Dynamic Client\nRegistration (/oauth/register). At the cap, registration fails with HTTP\n503 until a client expires; no existing client is evicted. If omitted,\ndefaults to 10000. Operator-configured and CIMD clients are not counted.\nOn Redis the count is shared by every replica; with memory storage each\nreplica keeps its own count.\n\nA client never used for a token exchange lives 24 hours, so a caller\nregistering at the full registrationRateLimit keeps up to\nrate x replicas x 86400 unused clients alive; at the default rate one\nreplica fills the default cap in about 2.8 hours.\n\n0 means unlimited. The endpoint is unauthenticated, so 0 leaves stored\nclients bounded only by the per-replica registrationRateLimit, about\n86400 per replica per day at the default rate. Use 0 only temporarily,\nfor example while an existing client population above the cap drains;\na large finite value, such as two to three times the observed live\nclient count, keeps some protection.",
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
                 "redis": {
                   "additionalProperties": false,
                   "description": "Redis configures the Redis storage backend.\nRequired when type is \"redis\".",
@@ -1747,6 +1786,27 @@
                               "null"
                             ]
                           },
+                          "registrationProbe": {
+                            "description": "RegistrationProbe selects how ToolHive checks the cached upstream client\nat start. tokenEndpoint (the default) redeems a random authorization\ncode with the cached client and reads invalid_client as \"registration\ngone\"; it decides only for upstreams that authenticate the client\nbefore validating the grant. authorizationEndpoint sends an\nauthorization request for the cached client without following\nredirects and reads a direct 400, 401 or 403 that carries an RFC 6749\nJSON error object (error invalid_client, unauthorized_client or\ninvalid_request) as \"gone\" (RFC 6749 §4.1.2.1), for upstreams whose\ntoken endpoint answers invalid_grant for any client_id; an HTML page or\na bare gateway status is not a verdict. A false rejection re-registers\nat every start and, when registration also fails, fails startup. none\nskips the check; the registration is then retired only through\nRotationKey.",
+                            "enum": [
+                              "tokenEndpoint",
+                              "authorizationEndpoint",
+                              "none"
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "rotationKey": {
+                            "description": "RotationKey is an optional operator-chosen label that is part of the\ncached registration's identity but is never sent to the upstream.\nChange it to make the proxies register a fresh client at their next\nstart instead of reusing the cached one: for example after the\nupstream has dropped the registration, or when a rotation is required.\nAt start ToolHive checks the cached client at the upstream (see\nRegistrationProbe) and registers a new one by itself when the upstream\nrejects it. Where the configured probe cannot tell, the stale client_id\nmay only be rejected in the user's browser, and changing this key is\nthe remedy. The previous registration's row stays in storage, and\nupstream refresh tokens bound to the previous client_id stop\nrefreshing, so affected users sign in again.",
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z0-9._-]+$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "softwareId": {
                             "description": "SoftwareID is the RFC 7591 \"software_id\" registration metadata value,\nidentifying the client software independent of any particular\nregistration instance. Typically a UUID or short identifier.",
                             "maxLength": 255,
@@ -1814,6 +1874,13 @@
                       },
                       "insecureAllowHTTP": {
                         "description": "InsecureAllowHTTP permits plain-HTTP authorization and token endpoint URLs\nfor this upstream. Only for in-cluster development environments (e.g. an\nOAuth2 provider served over HTTP in a kind cluster) where TLS is not\navailable. Never set this in production.",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "omitScopeOnRefresh": {
+                        "description": "OmitScopeOnRefresh stops the scope parameter from being sent on\nrefresh_token grant requests to the upstream provider's token endpoint.\nScopes are still sent on the authorization request.\nBy default (false), the configured scopes are sent on refresh as well,\nwhich some providers require to avoid narrowing the refreshed token.\nSet it for providers that reject scope on refresh, such as Salesforce\n(\"invalid_request - scope parameter not supported\").",
                         "type": [
                           "boolean",
                           "null"
@@ -2154,6 +2221,27 @@
                               "null"
                             ]
                           },
+                          "registrationProbe": {
+                            "description": "RegistrationProbe selects how ToolHive checks the cached upstream client\nat start. tokenEndpoint (the default) redeems a random authorization\ncode with the cached client and reads invalid_client as \"registration\ngone\"; it decides only for upstreams that authenticate the client\nbefore validating the grant. authorizationEndpoint sends an\nauthorization request for the cached client without following\nredirects and reads a direct 400, 401 or 403 that carries an RFC 6749\nJSON error object (error invalid_client, unauthorized_client or\ninvalid_request) as \"gone\" (RFC 6749 §4.1.2.1), for upstreams whose\ntoken endpoint answers invalid_grant for any client_id; an HTML page or\na bare gateway status is not a verdict. A false rejection re-registers\nat every start and, when registration also fails, fails startup. none\nskips the check; the registration is then retired only through\nRotationKey.",
+                            "enum": [
+                              "tokenEndpoint",
+                              "authorizationEndpoint",
+                              "none"
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "rotationKey": {
+                            "description": "RotationKey is an optional operator-chosen label that is part of the\ncached registration's identity but is never sent to the upstream.\nChange it to make the proxies register a fresh client at their next\nstart instead of reusing the cached one: for example after the\nupstream has dropped the registration, or when a rotation is required.\nAt start ToolHive checks the cached client at the upstream (see\nRegistrationProbe) and registers a new one by itself when the upstream\nrejects it. Where the configured probe cannot tell, the stale client_id\nmay only be rejected in the user's browser, and changing this key is\nthe remedy. The previous registration's row stays in storage, and\nupstream refresh tokens bound to the previous client_id stop\nrefreshing, so affected users sign in again.",
+                            "maxLength": 64,
+                            "pattern": "^[A-Za-z0-9._-]+$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "softwareId": {
                             "description": "SoftwareID is the RFC 7591 \"software_id\" registration metadata value,\nidentifying the client software independent of any particular\nregistration instance. Typically a UUID or short identifier.",
                             "maxLength": 255,
@@ -2186,6 +2274,13 @@
                         "description": "IssuerURL is the OIDC issuer URL for automatic endpoint discovery.\nMust be a valid HTTPS URL.",
                         "pattern": "^https://.*$",
                         "type": "string"
+                      },
+                      "omitScopeOnRefresh": {
+                        "description": "OmitScopeOnRefresh stops the scope parameter from being sent on\nrefresh_token grant requests to the upstream provider's token endpoint.\nScopes are still sent on the authorization request.\nBy default (false), the configured scopes are sent on refresh as well,\nwhich some providers require to avoid narrowing the refreshed token.\nSet it for providers that reject scope on refresh, such as Salesforce\n(\"invalid_request - scope parameter not supported\").",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
                       },
                       "redirectUri": {
                         "description": "RedirectURI is the callback URL where the upstream IdP will redirect after authentication.\nWhen not specified, defaults to `{resourceUrl}/oauth/callback` where `resourceUrl` is the\nURL associated with the resource (e.g., MCPServer or vMCP) using this config.\nIts hostname must match the browser-facing authorization endpoint (`issuer`, or\n`authorizationEndpointBaseUrl` when set): the callback is bound to the browser that\nstarted the login by a host-only cookie, so a different host rejects every browser login.",
