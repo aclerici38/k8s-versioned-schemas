@@ -7,6 +7,13 @@
       "title": "affinity",
       "type": "object"
     },
+    "clusterDomain": {
+      "default": "cluster.local",
+      "description": "The cluster's DNS domain, the kubelet's `clusterDomain`: the gateway's in-cluster address that runner Jobs are handed as `HTTPS_PROXY`, `\u003crelease\u003e-gateway.\u003cnamespace\u003e.svc.\u003cclusterDomain\u003e`, and the Service names the `cilium` network policy lets runner pods look up end in it. On a cluster with another domain, every runner fails to reach the gateway until this matches.",
+      "minLength": 1,
+      "title": "clusterDomain",
+      "type": "string"
+    },
     "config": {
       "additionalProperties": false,
       "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys the chart derives from its deployment values (`addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `databaseRunnerRole`, `executor`, `runner`, and, when `gatewayCache.enabled` is set, `gatewayCacheDir`, `gatewayCacheStorage`, `gatewayCacheMaxEntrySize`, and `gatewayCacheMaxSize` for filesystem storage or the `gatewayCacheS3*` keys for S3) fail the render.",
@@ -25,6 +32,14 @@
         "apps": {
           "required": [],
           "type": "object"
+        },
+        "aquaRegistryRefresh": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "aquaRegistryUrl": {
+          "minLength": 1,
+          "type": "string"
         },
         "auth": {
           "required": [],
@@ -809,6 +824,12 @@
               "title": "multipleLeadersFor",
               "type": "string"
             },
+            "multipleLeadersWindow": {
+              "default": "1m",
+              "description": "How far back KritikaMultipleLeaders looks for each replica's latest leader sample. Keep it longer than the ServiceMonitor interval and shorter than multipleLeadersFor, so a replaced leader drops out of the sum before the alert fires.",
+              "title": "multipleLeadersWindow",
+              "type": "string"
+            },
             "noLeaderFor": {
               "default": "5m",
               "description": "How long no replica may hold the leader lock before KritikaNoLeader fires. A standby takes the lock within one leader retry interval of the database answering, and a dead leader's session is dropped by Postgres within about a minute.",
@@ -1304,7 +1325,7 @@
                   "type": "object"
                 },
                 "containers": {
-                  "description": "The runner container, the pod's one, named runner: its `image`, empty for this release's `-tools` image pinned by digest, which carries curl, find, gh, grep and jq, and mise for a repository's tools, for a review's or follow-up's run tool; its `imagePullPolicy`; and its `env`, variables the run tool's commands get, each a `value` or a Secret's key (`valueFrom.secretKeyRef`), which is masked out of what the commands print. kritika sets them on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself, and refuses the names it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
+                  "description": "The runner container, the pod's one, named runner: its `image`, empty for this release's `-tools` image pinned by digest, which carries curl, find, gh, grep and jq for a review's or follow-up's run tool; its `imagePullPolicy`; and its `env`, variables the run tool's commands get, each a `value` or a Secret's key (`valueFrom.secretKeyRef`), which is masked out of what the commands print. kritika sets them on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself, and refuses the names it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
                   "items": {
                     "additionalProperties": false,
                     "properties": {
