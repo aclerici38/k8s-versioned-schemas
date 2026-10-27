@@ -1,44 +1,46 @@
 ---
-# Source: sreportal/templates/imageinventory-crd.yaml
+# Source: sreportal/templates/component-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: imageinventories.sreportal.io
+  name: components.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.3
+    helm.sh/chart: sreportal-1.38.0
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.3"
+    app.kubernetes.io/version: "1.38.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: ImageInventory
-    listKind: ImageInventoryList
-    plural: imageinventories
-    singular: imageinventory
+    kind: Component
+    listKind: ComponentList
+    plural: components
+    singular: component
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .spec.namespaceFilter
-          name: Namespace
-          priority: 1
+        - jsonPath: .spec.group
+          name: Group
           type: string
-        - jsonPath: .status.lastScanTime
-          name: Last Scan
-          type: date
+        - jsonPath: .spec.status
+          name: Status
+          type: string
+        - jsonPath: .status.computedStatus
+          name: Computed
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: ImageInventory is the Schema for the imageinventories API
+          description: Component is the Schema for the components API
           properties:
             apiVersion:
               description: |-
@@ -58,55 +60,57 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of ImageInventory
+              description: spec defines the desired state of Component
               properties:
-                interval:
-                  description: |-
-                    interval controls how often this inventory is refreshed.
-                    Empty means default 5m.
+                description:
+                  description: description is a short text displayed below the component name
                   type: string
-                isRemote:
-                  description: |-
-                    isRemote marks this inventory as a shadow projection of a remote portal.
-                    When true, the controller fetches images from the remote portal via the
-                    ImageService Connect API instead of scanning the local cluster.
-                  type: boolean
-                labelSelector:
-                  description: |-
-                    labelSelector is a Kubernetes label selector string used to filter workloads.
-                    Empty means no label filtering.
-                  type: string
-                namespaceFilter:
-                  description: |-
-                    namespaceFilter restricts scan to a single namespace when set.
-                    Empty means all namespaces.
-                  type: string
-                portalRef:
-                  description: portalRef is the Portal name this inventory belongs to.
+                displayName:
+                  description: displayName is the human-readable name shown on the status page
                   minLength: 1
                   type: string
-                watchedKinds:
-                  description: |-
-                    watchedKinds declares which workload kinds are scanned for images.
-                    Empty means all supported defaults.
-                  items:
-                    description: ImageInventoryKind names a Kubernetes workload kind that can be scanned for images.
-                    enum:
-                      - Deployment
-                      - StatefulSet
-                      - DaemonSet
-                      - CronJob
-                      - Job
-                    type: string
-                  type: array
+                group:
+                  description: group is a logical grouping for the status page (e.g. "Infrastructure", "Applications")
+                  minLength: 1
+                  type: string
+                link:
+                  description: link is an optional external URL (e.g. GCP console, Grafana dashboard)
+                  pattern: ^https?://.*
+                  type: string
+                portalRef:
+                  description: portalRef is the name of the Portal this component is linked to
+                  minLength: 1
+                  type: string
+                status:
+                  default: unknown
+                  description: status is the manually declared operational status
+                  enum:
+                    - operational
+                    - degraded
+                    - partial_outage
+                    - major_outage
+                    - unknown
+                  type: string
               required:
+                - displayName
+                - group
                 - portalRef
+                - status
               type: object
             status:
-              description: status defines the observed state of ImageInventory
+              description: status defines the observed state of Component
               properties:
+                activeIncidents:
+                  description: activeIncidents is the number of active (non-resolved) incidents linked to this component
+                  type: integer
+                computedStatus:
+                  description: |-
+                    computedStatus is the effective status calculated by the controller.
+                    If a maintenance is in progress on this component, it is overridden to "maintenance".
+                    Otherwise it reflects spec.status.
+                  type: string
                 conditions:
-                  description: conditions represent the current state of the ImageInventory resource.
+                  description: conditions represent the current state of the Component resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -164,45 +168,30 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                lastScanError:
-                  description: lastScanError contains the latest scan error, if any.
-                  type: string
-                lastScanTime:
-                  description: lastScanTime is the timestamp of the latest completed scan.
-                  format: date-time
-                  type: string
-                observedGeneration:
-                  description: observedGeneration is the most recently observed generation.
-                  format: int64
-                  type: integer
-                registries:
-                  description: |-
-                    registries is a lookup table mapping each child ImageRegistry CR
-                    (created by the SyncRegistryCRs handler) to its (host, namespace)
-                    context. PortalRef is implicit (= Spec.PortalRef).
+                dailyWorstStatus:
+                  description: dailyWorstStatus records the worst computed status per UTC day over a sliding window (30 days).
                   items:
-                    description: |-
-                      ImageRegistryRef references a child ImageRegistry CR managed by this
-                      ImageInventory.
+                    description: DailyComponentStatus records the worst observed status for a single UTC calendar day.
                     properties:
-                      hash:
-                        description: hash is the 12-char sha256 hex used as the CR name.
+                      date:
+                        description: date is the UTC calendar day in YYYY-MM-DD format.
+                        pattern: ^\d{4}-\d{2}-\d{2}$
                         type: string
-                      host:
-                        description: host is the registry-of-origin for the referenced CR.
-                        type: string
-                      namespace:
-                        description: namespace is the targeted Kubernetes namespace.
+                      worstStatus:
+                        description: worstStatus is the worst computed status observed during this day.
                         type: string
                     required:
-                      - hash
-                      - host
-                      - namespace
+                      - date
+                      - worstStatus
                     type: object
                   type: array
                   x-kubernetes-list-map-keys:
-                    - hash
+                    - date
                   x-kubernetes-list-type: map
+                lastStatusChange:
+                  description: lastStatusChange is the timestamp of the last computedStatus transition
+                  format: date-time
+                  type: string
               type: object
           required:
             - spec

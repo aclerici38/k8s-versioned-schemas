@@ -1,46 +1,46 @@
 ---
-# Source: sreportal/templates/component-crd.yaml
+# Source: sreportal/templates/incident-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: components.sreportal.io
+  name: incidents.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.3
+    helm.sh/chart: sreportal-1.38.0
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.3"
+    app.kubernetes.io/version: "1.38.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: Component
-    listKind: ComponentList
-    plural: components
-    singular: component
+    kind: Incident
+    listKind: IncidentList
+    plural: incidents
+    singular: incident
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .spec.group
-          name: Group
+        - jsonPath: .spec.severity
+          name: Severity
           type: string
-        - jsonPath: .spec.status
-          name: Status
+        - jsonPath: .status.currentPhase
+          name: Phase
           type: string
-        - jsonPath: .status.computedStatus
-          name: Computed
-          type: string
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
+        - jsonPath: .status.startedAt
+          name: Started
+          type: date
+        - jsonPath: .status.resolvedAt
+          name: Resolved
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Component is the Schema for the components API
+          description: Incident is the Schema for the incidents API
           properties:
             apiVersion:
               description: |-
@@ -60,57 +60,65 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of Component
+              description: spec defines the desired state of Incident
               properties:
-                description:
-                  description: description is a short text displayed below the component name
-                  type: string
-                displayName:
-                  description: displayName is the human-readable name shown on the status page
-                  minLength: 1
-                  type: string
-                group:
-                  description: group is a logical grouping for the status page (e.g. "Infrastructure", "Applications")
-                  minLength: 1
-                  type: string
-                link:
-                  description: link is an optional external URL (e.g. GCP console, Grafana dashboard)
-                  pattern: ^https?://.*
-                  type: string
+                components:
+                  description: components is the list of Component metadata.name values affected
+                  items:
+                    type: string
+                  type: array
                 portalRef:
-                  description: portalRef is the name of the Portal this component is linked to
+                  description: portalRef is the name of the Portal this incident is linked to
                   minLength: 1
                   type: string
-                status:
-                  default: unknown
-                  description: status is the manually declared operational status
+                severity:
+                  description: severity indicates the impact level of the incident
                   enum:
-                    - operational
-                    - degraded
-                    - partial_outage
-                    - major_outage
-                    - unknown
+                    - critical
+                    - major
+                    - minor
                   type: string
+                title:
+                  description: title is the headline of the incident
+                  minLength: 1
+                  type: string
+                updates:
+                  description: updates is the chronological timeline of the incident, appended via kubectl edit/patch
+                  items:
+                    description: IncidentUpdate represents a single timeline entry in the incident lifecycle.
+                    properties:
+                      message:
+                        description: message is a human-readable description of the update
+                        minLength: 1
+                        type: string
+                      phase:
+                        description: phase is the incident phase at the time of this update
+                        enum:
+                          - investigating
+                          - identified
+                          - monitoring
+                          - resolved
+                        type: string
+                      timestamp:
+                        description: timestamp is the time of this update
+                        format: date-time
+                        type: string
+                    required:
+                      - message
+                      - phase
+                      - timestamp
+                    type: object
+                  type: array
               required:
-                - displayName
-                - group
                 - portalRef
-                - status
+                - severity
+                - title
               type: object
             status:
-              description: status defines the observed state of Component
+              description: status defines the observed state of Incident
               properties:
-                activeIncidents:
-                  description: activeIncidents is the number of active (non-resolved) incidents linked to this component
-                  type: integer
-                computedStatus:
-                  description: |-
-                    computedStatus is the effective status calculated by the controller.
-                    If a maintenance is in progress on this component, it is overridden to "maintenance".
-                    Otherwise it reflects spec.status.
-                  type: string
                 conditions:
-                  description: conditions represent the current state of the Component resource.
+                  description: conditions represent the current state of the Incident resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -168,28 +176,23 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                dailyWorstStatus:
-                  description: dailyWorstStatus records the worst computed status per UTC day over a sliding window (30 days).
-                  items:
-                    description: DailyComponentStatus records the worst observed status for a single UTC calendar day.
-                    properties:
-                      date:
-                        description: date is the UTC calendar day in YYYY-MM-DD format.
-                        pattern: ^\d{4}-\d{2}-\d{2}$
-                        type: string
-                      worstStatus:
-                        description: worstStatus is the worst computed status observed during this day.
-                        type: string
-                    required:
-                      - date
-                      - worstStatus
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - date
-                  x-kubernetes-list-type: map
-                lastStatusChange:
-                  description: lastStatusChange is the timestamp of the last computedStatus transition
+                currentPhase:
+                  description: currentPhase is the phase from the most recent update (by timestamp)
+                  enum:
+                    - investigating
+                    - identified
+                    - monitoring
+                    - resolved
+                  type: string
+                durationMinutes:
+                  description: durationMinutes is the incident duration in minutes (computed when resolved)
+                  type: integer
+                resolvedAt:
+                  description: resolvedAt is the timestamp of the first update with phase=resolved
+                  format: date-time
+                  type: string
+                startedAt:
+                  description: startedAt is the timestamp of the first update
                   format: date-time
                   type: string
               type: object

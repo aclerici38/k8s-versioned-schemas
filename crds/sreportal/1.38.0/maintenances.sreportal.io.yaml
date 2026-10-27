@@ -1,45 +1,43 @@
 ---
-# Source: sreportal/templates/networkflowdiscovery-crd.yaml
+# Source: sreportal/templates/maintenance-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: networkflowdiscoveries.sreportal.io
+  name: maintenances.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.3
+    helm.sh/chart: sreportal-1.38.0
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.3"
+    app.kubernetes.io/version: "1.38.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: NetworkFlowDiscovery
-    listKind: NetworkFlowDiscoveryList
-    plural: networkflowdiscoveries
-    singular: networkflowdiscovery
+    kind: Maintenance
+    listKind: MaintenanceList
+    plural: maintenances
+    singular: maintenance
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .status.nodeCount
-          name: Nodes
-          type: integer
-        - jsonPath: .status.edgeCount
-          name: Edges
-          type: integer
-        - jsonPath: .status.lastReconcileTime
-          name: Last Reconcile
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .spec.scheduledStart
+          name: Start
+          type: date
+        - jsonPath: .spec.scheduledEnd
+          name: End
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: |-
-            NetworkFlowDiscovery is the Schema for the networkflowdiscoveries API.
-            It discovers network flows from Kubernetes NetworkPolicies and FQDNNetworkPolicies.
+          description: Maintenance is the Schema for the maintenances API
           properties:
             apiVersion:
               description: |-
@@ -59,33 +57,53 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of NetworkFlowDiscovery
+              description: spec defines the desired state of Maintenance
               properties:
-                isRemote:
-                  description: |-
-                    isRemote indicates that the corresponding portal is remote and the operator
-                    should fetch network flows from the remote portal Connect API instead of
-                    scanning local Kubernetes NetworkPolicies.
-                  type: boolean
-                namespaces:
-                  description: |-
-                    namespaces is an optional list of namespaces to scan.
-                    When empty, all namespaces are scanned.
+                affectedStatus:
+                  default: maintenance
+                  description: affectedStatus is the status applied to affected components during in_progress phase
+                  enum:
+                    - maintenance
+                    - degraded
+                    - partial_outage
+                    - major_outage
+                  type: string
+                components:
+                  description: components is the list of Component metadata.name values affected by this maintenance
                   items:
                     type: string
                   type: array
+                description:
+                  description: description is a longer explanation (markdown supported in the UI)
+                  type: string
                 portalRef:
-                  description: portalRef is the name of the Portal this resource is linked to
+                  description: portalRef is the name of the Portal this maintenance is linked to
+                  minLength: 1
+                  type: string
+                scheduledEnd:
+                  description: scheduledEnd is the planned end time of the maintenance window
+                  format: date-time
+                  type: string
+                scheduledStart:
+                  description: scheduledStart is the planned start time of the maintenance window
+                  format: date-time
+                  type: string
+                title:
+                  description: title is the headline displayed on the status page
                   minLength: 1
                   type: string
               required:
+                - affectedStatus
                 - portalRef
+                - scheduledEnd
+                - scheduledStart
+                - title
               type: object
             status:
-              description: status defines the observed state of NetworkFlowDiscovery
+              description: status defines the observed state of Maintenance
               properties:
                 conditions:
-                  description: conditions represent the current state of the resource.
+                  description: conditions represent the current state of the Maintenance resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -143,16 +161,13 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                edgeCount:
-                  description: edgeCount is the number of discovered edges
-                  type: integer
-                lastReconcileTime:
-                  description: lastReconcileTime is the timestamp of the last reconciliation
-                  format: date-time
+                phase:
+                  description: phase is the lifecycle phase computed by the controller (upcoming, in_progress, completed)
+                  enum:
+                    - upcoming
+                    - in_progress
+                    - completed
                   type: string
-                nodeCount:
-                  description: nodeCount is the number of discovered nodes
-                  type: integer
               type: object
           required:
             - spec

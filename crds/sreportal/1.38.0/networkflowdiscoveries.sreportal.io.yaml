@@ -1,46 +1,45 @@
 ---
-# Source: sreportal/templates/incident-crd.yaml
+# Source: sreportal/templates/networkflowdiscovery-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: incidents.sreportal.io
+  name: networkflowdiscoveries.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.3
+    helm.sh/chart: sreportal-1.38.0
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.3"
+    app.kubernetes.io/version: "1.38.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: Incident
-    listKind: IncidentList
-    plural: incidents
-    singular: incident
+    kind: NetworkFlowDiscovery
+    listKind: NetworkFlowDiscoveryList
+    plural: networkflowdiscoveries
+    singular: networkflowdiscovery
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .spec.severity
-          name: Severity
-          type: string
-        - jsonPath: .status.currentPhase
-          name: Phase
-          type: string
-        - jsonPath: .status.startedAt
-          name: Started
-          type: date
-        - jsonPath: .status.resolvedAt
-          name: Resolved
+        - jsonPath: .status.nodeCount
+          name: Nodes
+          type: integer
+        - jsonPath: .status.edgeCount
+          name: Edges
+          type: integer
+        - jsonPath: .status.lastReconcileTime
+          name: Last Reconcile
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Incident is the Schema for the incidents API
+          description: |-
+            NetworkFlowDiscovery is the Schema for the networkflowdiscoveries API.
+            It discovers network flows from Kubernetes NetworkPolicies and FQDNNetworkPolicies.
           properties:
             apiVersion:
               description: |-
@@ -60,65 +59,33 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of Incident
+              description: spec defines the desired state of NetworkFlowDiscovery
               properties:
-                components:
-                  description: components is the list of Component metadata.name values affected
+                isRemote:
+                  description: |-
+                    isRemote indicates that the corresponding portal is remote and the operator
+                    should fetch network flows from the remote portal Connect API instead of
+                    scanning local Kubernetes NetworkPolicies.
+                  type: boolean
+                namespaces:
+                  description: |-
+                    namespaces is an optional list of namespaces to scan.
+                    When empty, all namespaces are scanned.
                   items:
                     type: string
                   type: array
                 portalRef:
-                  description: portalRef is the name of the Portal this incident is linked to
+                  description: portalRef is the name of the Portal this resource is linked to
                   minLength: 1
                   type: string
-                severity:
-                  description: severity indicates the impact level of the incident
-                  enum:
-                    - critical
-                    - major
-                    - minor
-                  type: string
-                title:
-                  description: title is the headline of the incident
-                  minLength: 1
-                  type: string
-                updates:
-                  description: updates is the chronological timeline of the incident, appended via kubectl edit/patch
-                  items:
-                    description: IncidentUpdate represents a single timeline entry in the incident lifecycle.
-                    properties:
-                      message:
-                        description: message is a human-readable description of the update
-                        minLength: 1
-                        type: string
-                      phase:
-                        description: phase is the incident phase at the time of this update
-                        enum:
-                          - investigating
-                          - identified
-                          - monitoring
-                          - resolved
-                        type: string
-                      timestamp:
-                        description: timestamp is the time of this update
-                        format: date-time
-                        type: string
-                    required:
-                      - message
-                      - phase
-                      - timestamp
-                    type: object
-                  type: array
               required:
                 - portalRef
-                - severity
-                - title
               type: object
             status:
-              description: status defines the observed state of Incident
+              description: status defines the observed state of NetworkFlowDiscovery
               properties:
                 conditions:
-                  description: conditions represent the current state of the Incident resource.
+                  description: conditions represent the current state of the resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -176,25 +143,16 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                currentPhase:
-                  description: currentPhase is the phase from the most recent update (by timestamp)
-                  enum:
-                    - investigating
-                    - identified
-                    - monitoring
-                    - resolved
-                  type: string
-                durationMinutes:
-                  description: durationMinutes is the incident duration in minutes (computed when resolved)
+                edgeCount:
+                  description: edgeCount is the number of discovered edges
                   type: integer
-                resolvedAt:
-                  description: resolvedAt is the timestamp of the first update with phase=resolved
+                lastReconcileTime:
+                  description: lastReconcileTime is the timestamp of the last reconciliation
                   format: date-time
                   type: string
-                startedAt:
-                  description: startedAt is the timestamp of the first update
-                  format: date-time
-                  type: string
+                nodeCount:
+                  description: nodeCount is the number of discovered nodes
+                  type: integer
               type: object
           required:
             - spec

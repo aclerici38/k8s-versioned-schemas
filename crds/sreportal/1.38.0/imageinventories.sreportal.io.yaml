@@ -1,43 +1,44 @@
 ---
-# Source: sreportal/templates/maintenance-crd.yaml
+# Source: sreportal/templates/imageinventory-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: maintenances.sreportal.io
+  name: imageinventories.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.3
+    helm.sh/chart: sreportal-1.38.0
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.3"
+    app.kubernetes.io/version: "1.38.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: Maintenance
-    listKind: MaintenanceList
-    plural: maintenances
-    singular: maintenance
+    kind: ImageInventory
+    listKind: ImageInventoryList
+    plural: imageinventories
+    singular: imageinventory
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .status.phase
-          name: Phase
+        - jsonPath: .spec.namespaceFilter
+          name: Namespace
+          priority: 1
           type: string
-        - jsonPath: .spec.scheduledStart
-          name: Start
+        - jsonPath: .status.lastScanTime
+          name: Last Scan
           type: date
-        - jsonPath: .spec.scheduledEnd
-          name: End
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Maintenance is the Schema for the maintenances API
+          description: ImageInventory is the Schema for the imageinventories API
           properties:
             apiVersion:
               description: |-
@@ -57,53 +58,55 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of Maintenance
+              description: spec defines the desired state of ImageInventory
               properties:
-                affectedStatus:
-                  default: maintenance
-                  description: affectedStatus is the status applied to affected components during in_progress phase
-                  enum:
-                    - maintenance
-                    - degraded
-                    - partial_outage
-                    - major_outage
+                interval:
+                  description: |-
+                    interval controls how often this inventory is refreshed.
+                    Empty means default 5m.
                   type: string
-                components:
-                  description: components is the list of Component metadata.name values affected by this maintenance
-                  items:
-                    type: string
-                  type: array
-                description:
-                  description: description is a longer explanation (markdown supported in the UI)
+                isRemote:
+                  description: |-
+                    isRemote marks this inventory as a shadow projection of a remote portal.
+                    When true, the controller fetches images from the remote portal via the
+                    ImageService Connect API instead of scanning the local cluster.
+                  type: boolean
+                labelSelector:
+                  description: |-
+                    labelSelector is a Kubernetes label selector string used to filter workloads.
+                    Empty means no label filtering.
+                  type: string
+                namespaceFilter:
+                  description: |-
+                    namespaceFilter restricts scan to a single namespace when set.
+                    Empty means all namespaces.
                   type: string
                 portalRef:
-                  description: portalRef is the name of the Portal this maintenance is linked to
+                  description: portalRef is the Portal name this inventory belongs to.
                   minLength: 1
                   type: string
-                scheduledEnd:
-                  description: scheduledEnd is the planned end time of the maintenance window
-                  format: date-time
-                  type: string
-                scheduledStart:
-                  description: scheduledStart is the planned start time of the maintenance window
-                  format: date-time
-                  type: string
-                title:
-                  description: title is the headline displayed on the status page
-                  minLength: 1
-                  type: string
+                watchedKinds:
+                  description: |-
+                    watchedKinds declares which workload kinds are scanned for images.
+                    Empty means all supported defaults.
+                  items:
+                    description: ImageInventoryKind names a Kubernetes workload kind that can be scanned for images.
+                    enum:
+                      - Deployment
+                      - StatefulSet
+                      - DaemonSet
+                      - CronJob
+                      - Job
+                    type: string
+                  type: array
               required:
-                - affectedStatus
                 - portalRef
-                - scheduledEnd
-                - scheduledStart
-                - title
               type: object
             status:
-              description: status defines the observed state of Maintenance
+              description: status defines the observed state of ImageInventory
               properties:
                 conditions:
-                  description: conditions represent the current state of the Maintenance resource.
+                  description: conditions represent the current state of the ImageInventory resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -161,13 +164,45 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                phase:
-                  description: phase is the lifecycle phase computed by the controller (upcoming, in_progress, completed)
-                  enum:
-                    - upcoming
-                    - in_progress
-                    - completed
+                lastScanError:
+                  description: lastScanError contains the latest scan error, if any.
                   type: string
+                lastScanTime:
+                  description: lastScanTime is the timestamp of the latest completed scan.
+                  format: date-time
+                  type: string
+                observedGeneration:
+                  description: observedGeneration is the most recently observed generation.
+                  format: int64
+                  type: integer
+                registries:
+                  description: |-
+                    registries is a lookup table mapping each child ImageRegistry CR
+                    (created by the SyncRegistryCRs handler) to its (host, namespace)
+                    context. PortalRef is implicit (= Spec.PortalRef).
+                  items:
+                    description: |-
+                      ImageRegistryRef references a child ImageRegistry CR managed by this
+                      ImageInventory.
+                    properties:
+                      hash:
+                        description: hash is the 12-char sha256 hex used as the CR name.
+                        type: string
+                      host:
+                        description: host is the registry-of-origin for the referenced CR.
+                        type: string
+                      namespace:
+                        description: namespace is the targeted Kubernetes namespace.
+                        type: string
+                    required:
+                      - hash
+                      - host
+                      - namespace
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - hash
+                  x-kubernetes-list-type: map
               type: object
           required:
             - spec
