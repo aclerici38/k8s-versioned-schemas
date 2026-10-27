@@ -66,6 +66,9 @@
         "podDisruptionBudget": {
           "$ref": "#/$defs/helm-values.podDisruptionBudget"
         },
+        "podSecurityContext": {
+          "$ref": "#/$defs/helm-values.podSecurityContext"
+        },
         "priorityClassName": {
           "$ref": "#/$defs/helm-values.priorityClassName"
         },
@@ -110,6 +113,9 @@
         "cipherSuites": {
           "$ref": "#/$defs/helm-values.app.cipherSuites"
         },
+        "curvePreferences": {
+          "$ref": "#/$defs/helm-values.app.curvePreferences"
+        },
         "leaderElection": {
           "$ref": "#/$defs/helm-values.app.leaderElection"
         },
@@ -151,7 +157,12 @@
     },
     "helm-values.app.cipherSuites": {
       "default": "",
-      "description": "Comma-separated list of cipher suites for the server. If omitted, the default Go cipher suites will be used.",
+      "description": "Comma-separated list of cipher suites for the webhook server. If omitted, the default Go cipher suites will be used. Only affects TLS 1.2; TLS 1.3 cipher suites are not configurable in Go. Acceptable names match Kubernetes component-base (same as kube-apiserver --tls-cipher-suites); see [TLSCipherPossibleValues](https://pkg.go.dev/k8s.io/component-base/cli/flag#TLSCipherPossibleValues). Some listed values are considered insecure — prefer [PreferredTLSCipherNames](https://pkg.go.dev/k8s.io/component-base/cli/flag#PreferredTLSCipherNames).",
+      "type": "string"
+    },
+    "helm-values.app.curvePreferences": {
+      "default": "",
+      "description": "Comma-separated list of numeric Go crypto/tls CurveID values for the webhook server (for example 23,29 for P-256 and X25519). Applies to TLS 1.2 and TLS 1.3 key exchange. Unlike cipherSuites, this still takes effect when the webhook is TLS 1.3-only. The order of the list is ignored. If omitted, the default Go curves will be used. See https://pkg.go.dev/crypto/tls#CurveID.",
       "type": "string"
     },
     "helm-values.app.leaderElection": {
@@ -319,7 +330,7 @@
     },
     "helm-values.app.podLabels": {
       "default": {},
-      "description": "Pod labels to add to trust-manager pods.",
+      "description": "Pod labels to add to trust-manager pods.\nOn a key collision these win over commonLabels. The \"app\" label cannot be overridden, because it must match the selectors that target these Pods.",
       "type": "object"
     },
     "helm-values.app.readinessProbe": {
@@ -345,18 +356,21 @@
       "type": "number"
     },
     "helm-values.app.securityContext": {
-      "additionalProperties": false,
-      "properties": {
-        "seccompProfileEnabled": {
-          "$ref": "#/$defs/helm-values.app.securityContext.seccompProfileEnabled"
+      "default": {
+        "allowPrivilegeEscalation": false,
+        "capabilities": {
+          "drop": [
+            "ALL"
+          ]
+        },
+        "readOnlyRootFilesystem": true,
+        "runAsNonRoot": true,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
         }
       },
+      "description": "Security Context to be set on the trust-manager app container. For more information, see [Configure a Security Context for a Pod or Container](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/).",
       "type": "object"
-    },
-    "helm-values.app.securityContext.seccompProfileEnabled": {
-      "default": true,
-      "description": "If false, disables the default seccomp profile, which might be required to run on certain platforms.",
-      "type": "boolean"
     },
     "helm-values.app.targetNamespaces": {
       "description": "List of target namespaces that trust-manager can write to. By default, trust-manager can write targets in any namespace.",
@@ -507,11 +521,19 @@
     "helm-values.app.webhook.tls.certificate": {
       "additionalProperties": false,
       "properties": {
+        "duration": {
+          "$ref": "#/$defs/helm-values.app.webhook.tls.certificate.duration"
+        },
         "secretTemplate": {
           "$ref": "#/$defs/helm-values.app.webhook.tls.certificate.secretTemplate"
         }
       },
       "type": "object"
+    },
+    "helm-values.app.webhook.tls.certificate.duration": {
+      "default": "",
+      "description": "Certificate duration, if unset/empty the default from cert-manager will be used. Example configuration to set 1 year: duration: 8766h",
+      "type": "string"
     },
     "helm-values.app.webhook.tls.certificate.secretTemplate": {
       "default": {},
@@ -543,7 +565,7 @@
     },
     "helm-values.commonLabels": {
       "default": {},
-      "description": "Labels to apply to all resources",
+      "description": "Labels to apply to all resources.\nOn a key collision these win over the chart's own labels, except where something selects on the label and overriding it would break that selection:\n\"app\" on the trust-manager Pods, \"app\" and \"app.kubernetes.io/component\" on\nthe metrics Service, \"prometheus\" on the ServiceMonitor, and\n\"rbac.authorization.k8s.io/aggregate-to-cluster-reader\" on the aggregated\nClusterRole. Those keep the chart's value on the resource in question, and are still applied from commonLabels to every other resource.",
       "type": "object"
     },
     "helm-values.crds": {
@@ -576,6 +598,9 @@
         },
         "resources": {
           "$ref": "#/$defs/helm-values.defaultPackage.resources"
+        },
+        "securityContext": {
+          "$ref": "#/$defs/helm-values.defaultPackage.securityContext"
         }
       },
       "type": "object"
@@ -588,6 +613,23 @@
     "helm-values.defaultPackage.resources": {
       "default": {},
       "description": "Kubernetes pod resource limits for default package init container.\n\nFor example:\nresources:\n  limits:\n    cpu: 100m\n    memory: 128Mi\n  requests:\n    cpu: 100m\n    memory: 128Mi",
+      "type": "object"
+    },
+    "helm-values.defaultPackage.securityContext": {
+      "default": {
+        "allowPrivilegeEscalation": false,
+        "capabilities": {
+          "drop": [
+            "ALL"
+          ]
+        },
+        "readOnlyRootFilesystem": true,
+        "runAsNonRoot": true,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      },
+      "description": "Security Context to be set on the trust-manager default package init container. For more information, see [Configure a Security Context for a Pod or Container](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/).",
       "type": "object"
     },
     "helm-values.defaultPackageImage": {
@@ -627,7 +669,7 @@
       "type": "string"
     },
     "helm-values.defaultPackageImage.name": {
-      "default": "trust-pkg-debian-bookworm",
+      "default": "trust-pkg-debian-trixie",
       "description": "The image name for trust-manager.\nThis is used (together with `imageRegistry` and `imageNamespace`) to construct the full image reference.",
       "type": "string"
     },
@@ -646,7 +688,7 @@
       "type": "string"
     },
     "helm-values.defaultPackageImage.tag": {
-      "description": "Override the image tag of the default package image. Is set at chart build time to the version specified in ./make/00_debian_bookworm_version.mk.",
+      "description": "Override the image tag of the default package image. Is set at chart build time to the version specified in ./make/00_debian_trixie_version.mk.",
       "type": "string"
     },
     "helm-values.enabled": {
@@ -699,11 +741,19 @@
     },
     "helm-values.global.rbac": {
       "properties": {
+        "aggregateClusterRoles": {
+          "$ref": "#/$defs/helm-values.global.rbac.aggregateClusterRoles"
+        },
         "create": {
           "$ref": "#/$defs/helm-values.global.rbac.create"
         }
       },
       "type": "object"
+    },
+    "helm-values.global.rbac.aggregateClusterRoles": {
+      "default": true,
+      "description": "Aggregate read access to Bundles into the \"cluster-reader\" ClusterRole, mirroring how cert-manager aggregates its cluster-scoped ClusterIssuers. Bundle is a cluster-scoped resource, so this only takes effect for subjects bound via a ClusterRoleBinding. For more information, see [User-facing roles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles).",
+      "type": "boolean"
     },
     "helm-values.global.rbac.create": {
       "default": true,
@@ -819,6 +869,11 @@
     "helm-values.podDisruptionBudget.minAvailable": {
       "description": "This configures the minimum available pods for disruptions. It can either be set to an integer (e.g. 1) or a percentage value (e.g. 25%).\nIt cannot be used if `maxUnavailable` is set."
     },
+    "helm-values.podSecurityContext": {
+      "default": {},
+      "description": "Security Context to be set on the trust-manager Pod. For more information, see [Configure a Security Context for a Pod or Container](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/).",
+      "type": "object"
+    },
     "helm-values.priorityClassName": {
       "default": "",
       "description": "Configure the priority class of the pod. For more information, see [PriorityClass](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass).",
@@ -854,7 +909,7 @@
     },
     "helm-values.secretTargets.authorizedSecrets": {
       "default": [],
-      "description": "A list of secret names which trust-manager will be permitted to read and write across all namespaces. These are the only allowable Secrets that can be used as targets. If the list is empty (and authorizedSecretsAll is false), trust-manager can't write to secrets and can only read secrets in the trust namespace for use as sources.",
+      "description": "A list of secret names which trust-manager will be permitted to write (patch and delete) within the configured scope (cluster-wide by default, or — when app.targetNamespaces is set — the target namespaces plus the trust namespace). Read access is NOT limited to these names: configuring this list (or authorizedSecretsAll) grants trust-manager read (get/list/watch) on all Secrets in scope (cluster-wide, or — when app.targetNamespaces is set — those namespaces plus the trust namespace). Only patching and deleting are restricted to these names. Kubernetes RBAC ignores resourceNames for the create verb, because the API server does not know the object's name at authorization time. If the list is empty (and authorizedSecretsAll is false), trust-manager can't write to secrets and can only read secrets in the trust namespace for use as sources.",
       "items": {},
       "type": "array"
     },
@@ -865,7 +920,7 @@
     },
     "helm-values.secretTargets.enabled": {
       "default": false,
-      "description": "If set to true, enable writing trust bundles to Kubernetes Secrets as a target. trust-manager can only write to secrets which are explicitly allowed via either authorizedSecrets or authorizedSecretsAll. Note that enabling secret targets will grant trust-manager read access to all secrets in the cluster.",
+      "description": "If set to true, enable writing trust bundles to Kubernetes Secrets as a target. Enabling this alone changes no RBAC: the Secret rules are emitted only once authorizedSecrets or authorizedSecretsAll is configured. Once one of them is, trust-manager is granted read access to all Secrets in scope: cluster-wide by default, or — when app.targetNamespaces is set — only in those namespaces plus the trust namespace.",
       "type": "boolean"
     },
     "helm-values.serviceAccount": {
