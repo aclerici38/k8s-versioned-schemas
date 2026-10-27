@@ -1,0 +1,358 @@
+{
+  "description": "Portal is the Schema for the portals API",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "spec defines the desired state of Portal",
+      "properties": {
+        "features": {
+          "additionalProperties": false,
+          "description": "features controls which features are enabled for this portal.\nAll features default to true when not specified.",
+          "properties": {
+            "alerts": {
+              "default": true,
+              "description": "alerts enables alertmanager integration for this portal.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "dns": {
+              "default": true,
+              "description": "dns enables DNS discovery (controllers, gRPC, MCP, web page) for this portal.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "imageInventory": {
+              "default": true,
+              "description": "imageInventory enables the image inventory page for this portal.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "networkPolicy": {
+              "default": true,
+              "description": "networkPolicy enables network policy visualization for this portal.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "releases": {
+              "default": true,
+              "description": "releases enables the releases page for this portal.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "statusPage": {
+              "default": true,
+              "description": "statusPage enables the status page (components, incidents, maintenances) for this portal.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "main": {
+          "description": "main marks this portal as the default portal for unmatched FQDNs",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "remote": {
+          "additionalProperties": false,
+          "description": "remote configures this portal to fetch data from a remote SRE Portal instance.\nWhen set, the operator will fetch DNS information from the remote portal\ninstead of collecting data from the local cluster.\nThis field cannot be set when main is true.",
+          "properties": {
+            "portal": {
+              "description": "portal is the name of the portal to target on the remote instance.\nIf not set, the main portal of the remote instance will be used.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tls": {
+              "additionalProperties": false,
+              "description": "tls configures TLS settings for connecting to the remote portal.\nIf not set, the default system TLS configuration is used.",
+              "properties": {
+                "caSecretRef": {
+                  "additionalProperties": false,
+                  "description": "caSecretRef references a Secret containing a custom CA certificate bundle.\nThe Secret must contain the key \"ca.crt\".",
+                  "properties": {
+                    "name": {
+                      "description": "name is the name of the Secret.",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "certSecretRef": {
+                  "additionalProperties": false,
+                  "description": "certSecretRef references a Secret containing a client certificate and key for mTLS.\nThe Secret must contain the keys \"tls.crt\" and \"tls.key\".",
+                  "properties": {
+                    "name": {
+                      "description": "name is the name of the Secret.",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "insecureSkipVerify": {
+                  "description": "insecureSkipVerify disables TLS certificate verification when connecting\nto the remote portal. Use with caution: this makes the connection\nsusceptible to man-in-the-middle attacks.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "url": {
+              "description": "url is the base URL of the remote SRE Portal instance.",
+              "pattern": "^https?://.*",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "subPath": {
+          "description": "subPath is the URL subpath for this portal (defaults to metadata.name)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "title is the display title for this portal",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "status defines the observed state of Portal",
+      "properties": {
+        "conditions": {
+          "description": "conditions represent the current state of the Portal resource.",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "ready": {
+          "description": "ready indicates if the portal is fully configured",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "remoteSync": {
+          "additionalProperties": false,
+          "description": "remoteSync contains the status of synchronization with a remote portal.\nThis is only populated when spec.remote is set.",
+          "properties": {
+            "features": {
+              "additionalProperties": false,
+              "description": "features contains the feature flags reported by the remote portal.\nUsed to compute effective features for remote portals (local AND remote).",
+              "properties": {
+                "alerts": {
+                  "description": "alerts indicates whether the remote portal has alertmanager integration enabled.",
+                  "type": "boolean"
+                },
+                "dns": {
+                  "description": "dns indicates whether the remote portal has DNS discovery enabled.",
+                  "type": "boolean"
+                },
+                "imageInventory": {
+                  "description": "imageInventory indicates whether the remote portal has image inventory enabled.",
+                  "type": "boolean"
+                },
+                "networkPolicy": {
+                  "description": "networkPolicy indicates whether the remote portal has network policy visualization enabled.",
+                  "type": "boolean"
+                },
+                "releases": {
+                  "description": "releases indicates whether the remote portal has releases enabled.",
+                  "type": "boolean"
+                },
+                "statusPage": {
+                  "description": "statusPage indicates whether the remote portal has the status page enabled.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "alerts",
+                "dns",
+                "imageInventory",
+                "networkPolicy",
+                "releases",
+                "statusPage"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "fqdnCount": {
+              "description": "fqdnCount is the number of FQDNs fetched from the remote portal.",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "lastSyncError": {
+              "description": "lastSyncError contains the error message from the last failed synchronization attempt.\nEmpty if the last sync was successful.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lastSyncTime": {
+              "description": "lastSyncTime is the timestamp of the last successful synchronization.",
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "remoteTitle": {
+              "description": "remoteTitle is the title of the remote portal as fetched from the remote server.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}
