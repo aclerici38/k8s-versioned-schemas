@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.23.0
     helm.sh/resource-policy: keep
   name: inferenceservices.inference.llmkube.dev
 spec:
@@ -1186,8 +1186,7 @@ spec:
                         ExternalTrafficPolicy sets the Service's externalTrafficPolicy. Local
                         preserves the client source IP on a NodePort or LoadBalancer, which an IP
                         allowlist (NetworkPolicy) needs. Unset keeps the Kubernetes default
-                        (Cluster). Requires endpoint.type NodePort or LoadBalancer. Not supported
-                        on ModelRouter.
+                        (Cluster). Requires endpoint.type NodePort or LoadBalancer.
                       enum:
                         - Cluster
                         - Local
@@ -3469,11 +3468,61 @@ spec:
                     or "50GB". Only meaningful for the omlx runtime; ignored by llamacpp
                     and other runtimes.
                   type: string
+                hubOffline:
+                  description: |-
+                    HubOffline keeps the Hugging Face libraries in the serving container
+                    (huggingface_hub, transformers, which vLLM, SGLang and TGI use) offline:
+                    the container is given HF_HUB_OFFLINE=1 and TRANSFORMERS_OFFLINE=1, so
+                    any lookup the operator did not stage (a tokenizer in another
+                    repository, remote code, an adapter or draft named by repository id)
+                    fails at once instead of downloading on the serving node. llama.cpp's
+                    own downloader does not read these variables. Unset means false.
+
+                    An explicit spec.env entry with the same name lands after the operator's
+                    and wins. The runtime mirror env (HF_ENDPOINT and the HF_TOKEN that goes
+                    with it) is not added when this is set: an offline runtime makes no
+                    request to send them to.
+
+                    The operator stages the Model through its own init containers, which
+                    keep their Hub access under this field. A runtime that downloads the
+                    Model itself instead (skipModelInit: true, TGI, generic without
+                    stageModel) fails at start under it, so the controller emits a
+                    HubOfflineRuntimeDownload Warning event for that combination.
+
+                    In-cluster only. A Metal service runs no serving container and the
+                    metal-agent does not forward spec.env, so neither this field nor a
+                    spec.env entry reaches it.
+                  type: boolean
                 image:
                   description: |-
                     Image is the container image for the inference runtime.
-                    For llamacpp runtime, defaults to ghcr.io/ggml-org/llama.cpp:server.
+                    For llamacpp runtime, defaults to a pinned upstream llama.cpp server build
+                    (ghcr.io/ggml-org/llama.cpp:server-<build>), or the matching CUDA build when
+                    the Model declares an NVIDIA GPU.
                     For generic runtime, this field is required.
+                  type: string
+                imagePullPolicy:
+                  description: |-
+                    ImagePullPolicy sets the image pull policy of the runtime container, the
+                    one that runs spec.image. The model download and cache-prep init
+                    containers run the operator's own images and keep their own policy, which
+                    this field does not change.
+
+                    Always makes the kubelet pull whenever a pod is created. It does not
+                    watch the registry, so picking up a new build of a moving tag such as
+                    :nightly still needs new pods (kubectl rollout restart
+                    deployment/<name>, or any spec change).
+
+                    When unset the field is left off the pod template, so Kubernetes applies
+                    its own default: Always for a :latest or untagged image, IfNotPresent
+                    otherwise. Upgrading the operator alone therefore rolls no pod.
+
+                    In-cluster only. A Metal service runs no pod, so the field has no effect
+                    there.
+                  enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
                   type: string
                 imagePullSecrets:
                   description: ImagePullSecrets for pulling container images from private registries.
@@ -3643,9 +3692,10 @@ spec:
                         mounted) and pre-staged sources (pvc://, oci://, local paths). A
                         request the pods could not consume is refused and held as
                         PrefetchUnsupported: model caching disabled on the operator, a runtime
-                        the operator does not stage, a speculativeDecoding draft model, a
-                        multiNode member with its own modelCache.claimName, or a source the
-                        downloader does not stage ahead of time (s3://).
+                        the operator does not stage, a spec.speculativeDecoding.draftModelRef or a
+                        spec.vllmConfig.speculative.model, a multiNode member with its own
+                        modelCache.claimName, or a source the downloader does not stage ahead
+                        of time (s3://).
                       type: boolean
                     storageClassName:
                       description: |-
@@ -4777,8 +4827,8 @@ spec:
                 revisionHistoryLimit:
                   description: |-
                     RevisionHistoryLimit caps how many old ReplicaSets the inference
-                    Deployment keeps for rollback. Unset uses the Kubernetes default (10);
-                    0 keeps none.
+                    Deployment keeps for rollback. Unset keeps 3 old ReplicaSets; 0 keeps
+                    none.
                   format: int32
                   minimum: 0
                   type: integer
@@ -5119,10 +5169,13 @@ spec:
                         that: Qwen3.5-family hybrid models on Blackwell get triton while the
                         prefix cache runs without the mamba extra buffer, which is slow on long
                         prompts; flashinfer is the typed fix (see the SGLang on Blackwell guide).
-                        The values are SGLang v0.5.15's --attention-backend choices. flash_attn
-                        is not one (SGLang exits with an invalid-choice error); it stays
-                        accepted so existing objects remain valid, and the SGLangSpecValid
-                        condition reports it. Maps to SGLang --attention-backend flag.
+                        The values are the --attention-backend choices SGLang accepted through
+                        v0.5.19. flash_attn is not one (SGLang exits with an invalid-choice
+                        error); it stays accepted so existing objects remain valid, and the
+                        SGLangSpecValid condition reports it. SGLang v0.5.20 removed cutlass_mla
+                        and dual_chunk_flash_attn: the default image rejects them, they stay
+                        accepted for a service pinned to an older image, and the same condition
+                        reports them. Maps to SGLang --attention-backend flag.
                       enum:
                         - triton
                         - torch_native
@@ -5185,9 +5238,10 @@ spec:
                       type: integer
                     enablePrefixCaching:
                       description: |-
-                        EnablePrefixCaching turns on RadixAttention automatic prefix caching.
-                        Headline feature for agentic workloads with shared system-prompt +
-                        tool-definition + repo-context prefixes. Maps to SGLang --enable-prefix-caching.
+                        EnablePrefixCaching controls RadixAttention automatic prefix caching,
+                        the headline feature for agentic workloads with shared system-prompt +
+                        tool-definition + repo-context prefixes. SGLang enables it by default, so
+                        true and unset render no flag; false maps to SGLang --disable-radix-cache.
                       type: boolean
                     expertParallelSize:
                       description: |-
@@ -5334,9 +5388,17 @@ spec:
                       description: |-
                         ReasoningParser selects the reasoning-content extraction format. For
                         thinking models (qwen3, deepseek-r1). Maps to SGLang --reasoning-parser.
+
+                        GLM stops at glm45: SGLang has no glm47 reasoning detector, and
+                        --reasoning-parser rejects a value outside its choices at startup. The
+                        enum lists the values LLMKube supports, not every key in SGLang's
+                        detector map; an unsupported value goes in spec.extraArgs, and the field
+                        must then be cleared because SGLang does not suppress a typed parser the
+                        way the vLLM fields do.
                       enum:
                         - qwen3
                         - deepseek-r1
+                        - glm45
                       type: string
                     skipTokenizerInit:
                       description: |-
@@ -5463,6 +5525,15 @@ spec:
                         Agentic glue
                         ToolCallParser selects the tool-call extraction format. For foreman
                         tool-loop workloads. Maps to SGLang --tool-call-parser flag.
+
+                        glm and glm45 both select the GLM-4.5/4.7 MoE detector; SGLang
+                        v0.5.15.post1 also logs a deprecation warning for a passed glm45 and
+                        rewrites it to glm (server_args.py), so either spelling works. qwen3 and
+                        functionary are kept for objects written against earlier LLMKube
+                        releases: no SGLang release checked registers either, so the server
+                        exits at startup with an invalid-choice error, and SGLangSpecValid
+                        reports them with reason ToolCallParserUnsupported. qwen25 covers Qwen3
+                        models; qwen3_coder covers Qwen3-Coder and Qwen3.5 or newer.
                       enum:
                         - llama3
                         - qwen3
@@ -5470,6 +5541,9 @@ spec:
                         - hermes
                         - functionary
                         - mistral
+                        - glm
+                        - glm45
+                        - glm47
                       type: string
                     trustRemoteCode:
                       description: |-
@@ -6064,26 +6138,35 @@ spec:
                     kvCacheCustomDtype:
                       description: |-
                         KVCacheCustomDtype sets a custom vLLM KV cache element type that is not
-                        in the standard enum. Used for vLLM versions with additional cache
-                        formats such as TurboQuant 2-bit (turbo2, shipped in v0.20.0). Maps to
-                        vLLM --kv-cache-dtype. The runtime image must understand the value or
-                        vLLM will fail to start; LLMKube does not validate the string. Mirrors
-                        the llama.cpp-side CacheTypeCustomK/V escape hatch.
+                        in the standard enum. Covers build- or hardware-specific formats
+                        (fp8_ds_mla from v0.20+) and values added by a vLLM image newer than
+                        the operator's default. Maps to vLLM --kv-cache-dtype. The runtime image
+                        must understand the value or vLLM will fail to start; LLMKube does not
+                        validate the string. Mirrors the llama.cpp-side CacheTypeCustomK/V
+                        escape hatch.
                         Takes precedence over KVCacheDtype when both are set.
                       type: string
                     kvCacheDtype:
                       default: auto
                       description: |-
-                        KVCacheDtype selects the KV cache element type. fp8_e5m2 and fp8_e4m3 cut
-                        KV cache memory roughly in half versus auto (which follows dtype), which
-                        is what unlocks 128K+ context on consumer VRAM for agentic workloads.
+                        KVCacheDtype selects the KV cache element type. fp8, fp8_e4m3 and
+                        fp8_e5m2 cut KV cache memory roughly in half versus auto (which follows
+                        dtype), which is what unlocks 128K+ context on consumer VRAM for agentic
+                        workloads. fp8 is vLLM's platform-resolved alias, passed through
+                        unrewritten: it is fp8_e4m3 on CUDA and ROCm, fp8_inc on Gaudi. float16
+                        pins a 16-bit cache. bfloat16 is the opt-out for models whose cache
+                        defaults to fp8 (DeepSeek-V3.2), and vLLM documents it as an invalid
+                        option for models that do not default to fp8.
                         Maps to vLLM --kv-cache-dtype flag.
-                        For custom build types not in the enum (e.g. TurboQuant turbo2 from
-                        vLLM v0.20+), use KVCacheCustomDtype instead.
+                        For cache types not in the enum (fp8_ds_mla, nvfp4, the turboquant_* and
+                        *_per_token_head families), use KVCacheCustomDtype instead.
                       enum:
                         - auto
                         - fp8_e5m2
                         - fp8_e4m3
+                        - fp8
+                        - float16
+                        - bfloat16
                       type: string
                     maxModelLen:
                       description: MaxModelLen sets the maximum model context length.
@@ -6138,38 +6221,77 @@ spec:
                         - mxfp4
                         - compressed-tensors
                       type: string
+                    reasoningParser:
+                      description: |-
+                        ReasoningParser selects the reasoning-content parser, e.g. glm45, glm47,
+                        deepseek_v4. Maps to vLLM --reasoning-parser, which vLLM validates
+                        against its registry (vllm/reasoning/__init__.py in the image you run):
+                        the value must be there or the server refuses to start with "invalid
+                        reasoning parser". Not an enum for the same reason as ToolCallParser.
+                        Emitted alone; vLLM has no paired flag. A parser already set in
+                        spec.extraArgs wins.
+                      type: string
                     speculative:
                       description: |-
-                        Speculative enables draft-model speculative decoding. On single-stream
-                        agentic workloads this can be 30-60% faster than plain tensor-parallel
-                        execution. Requires a second (smaller) Model CR to act as the draft.
+                        Speculative enables speculative decoding, rendered as one
+                        --speculative-config JSON document (method, model, num_speculative_tokens).
+                        On single-stream agentic workloads this can be 30-60% faster than plain
+                        tensor-parallel execution. A draft Model is mounted and passed by path
+                        for the methods that need one; methods whose drafter lives in the target
+                        checkpoint (mtp, dspark) need only the method and a token count. Keys
+                        outside the three typed fields (draft_sample_method,
+                        rejection_sample_method, prompt_lookup_max, ...) go in spec.extraArgs as
+                        --speculative-config, which wins over this block.
                       properties:
                         enabled:
                           description: |-
                             Enabled toggles speculative decoding on. When false or nil, no
                             speculative flags are emitted regardless of other fields.
                           type: boolean
+                        method:
+                          description: |-
+                            Method is the vLLM speculative method, rendered as the
+                            --speculative-config "method" key. Values current vLLM registers
+                            include draft_model, mtp, eagle, eagle3, medusa, dflash, dspark,
+                            ngram and suffix. Not an enum: vLLM adds and retires methods per
+                            release, so the set this operator would freeze is neither the one your
+                            image has nor the one it will have; the value must exist in the image
+                            you run or vLLM refuses to start. Optional: with a draft Model and no
+                            method, vLLM infers draft_model.
+                          type: string
                         model:
                           description: |-
                             Model references the Model CR (in the same namespace as the
-                            InferenceService) to use as the speculative draft model.
-                            Required when Enabled is true. If missing, speculative decoding is
-                            skipped and the InferenceService surfaces a SpeculativeInvalid
-                            status condition rather than failing the reconcile.
-                            Maps to vLLM --speculative-model flag.
+                            InferenceService) holding the draft weights. The operator stages and
+                            mounts it exactly like the target model, and vLLM receives its
+                            in-container path as the --speculative-config "model" key, never the
+                            CR name. The draft must declare a directory format (safetensors, and
+                            specs files): Model.spec.format defaults to gguf, and a single-file
+                            draft is staged as one file rather than the model tree vLLM loads.
+                            Required for the methods that load separate weights (draft_model,
+                            eagle, eagle3); omit it for methods whose drafter ships in the target
+                            checkpoint (mtp, dspark) or needs none (ngram, suffix).
                           type: string
                         numSpeculativeTokens:
                           default: 4
                           description: |-
-                            NumSpeculativeTokens is the number of draft tokens proposed per step.
-                            Typical sweet spot is 3-5; higher values increase wasted work when the
-                            draft disagrees with the target model.
-                            Maps to vLLM --num-speculative-tokens flag.
+                            NumSpeculativeTokens is the number of draft tokens proposed per step,
+                            rendered as the --speculative-config "num_speculative_tokens" key.
+                            With a separate draft model the typical sweet spot is 3-5; higher values
+                            increase wasted work when the draft disagrees with the target model. For
+                            mtp, set it to the number of MTP layers the checkpoint ships, usually 1:
+                            a larger value runs the same MTP layer again for each extra token, and
+                            vLLM warns that acceptance may drop. Always emitted: 4 when unset, the
+                            same value the CRD defaults the field to, because vLLM requires one
+                            whenever a speculative model is provided.
                           format: int32
                           maximum: 16
                           minimum: 1
                           type: integer
                       type: object
+                      x-kubernetes-validations:
+                        - message: 'speculative decoding needs a method (e.g. draft_model, mtp, dspark, ngram) or a draft Model in model: vLLM rejects num_speculative_tokens without one'
+                          rule: '!has(self.enabled) || !self.enabled || (has(self.model) && self.model.size() > 0) || (has(self.method) && self.method.size() > 0)'
                     stallDetection:
                       description: |-
                         StallDetection opts into a liveness probe that detects a silently
@@ -6227,6 +6349,19 @@ spec:
                       description: TensorParallelSize sets the number of GPUs for tensor parallelism.
                       format: int32
                       type: integer
+                    toolCallParser:
+                      description: |-
+                        ToolCallParser selects the tool-call parser, e.g. glm47, hermes. Maps to
+                        vLLM --tool-call-parser, always together with --enable-auto-tool-choice:
+                        vLLM ignores a parser unless auto tool choice is on, so a request with
+                        tool_choice: auto fails with "requires --enable-auto-tool-choice and
+                        --tool-call-parser". Not an enum because vLLM registers a parser per
+                        model family, every release (see vllm/tool_parsers/__init__.py in the
+                        image you run), so the value must exist in that registry or vLLM refuses
+                        to start with "invalid tool call parser". A parser already set in
+                        spec.extraArgs wins, and the pairing's two flags are each skipped
+                        independently when already in spec.extraArgs.
+                      type: string
                   type: object
               required:
                 - modelRef
