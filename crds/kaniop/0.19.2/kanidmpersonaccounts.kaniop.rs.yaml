@@ -152,6 +152,18 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                sshPublicKeys:
+                  additionalProperties:
+                    type: string
+                  description: |-
+                    SSH public keys managed by Kaniop, indexed by their Kanidm tag.
+                    Keys added directly in Kanidm under other tags are preserved.
+                    If omitted, SSH keys are not managed. An empty map removes previously managed keys.
+                    Kanidm performs the validation of SSH key material.
+                    The map is a single atomic unit for server-side apply ownership.
+                  nullable: true
+                  type: object
+                  x-kubernetes-map-type: atomic
               required:
                 - kanidmRef
                 - personAttributes
@@ -236,6 +248,15 @@ spec:
                   nullable: true
                 kanidmRef:
                   type: string
+                managedSshPublicKeyTags:
+                  default: []
+                  description: |-
+                    Tags claimed by this resource after successful synchronization with Kanidm.
+                    Used to revoke only keys previously managed by Kaniop.
+                  items:
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: set
                 ready:
                   type: boolean
               required:
