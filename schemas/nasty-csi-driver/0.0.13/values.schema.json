@@ -1,0 +1,477 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "NASty CSI Driver chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nasty", "image", "csiDriverName", "controller", "node", "sidecars", "storageClasses"],
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "nasty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "apiKey", "existingSecret", "skipTLSVerify"],
+      "properties": {
+        "url": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "existingSecret": { "type": "string" },
+        "skipTLSVerify": { "type": "boolean" }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "existingSecret": { "minLength": 1 }
+          }
+        },
+        {
+          "properties": {
+            "url": { "minLength": 1 },
+            "apiKey": { "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "image": {
+      "$ref": "#/definitions/image"
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "clusterID": {
+      "type": "string"
+    },
+    "csiDriverName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "pattern": "^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
+    },
+    "driverName": {
+      "type": "string",
+      "description": "Legacy upgrade value retained for compatibility; use csiDriverName."
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas", "logLevel", "debug", "metrics", "dashboard", "resources", "nodeSelector", "tolerations", "affinity"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "logLevel": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "debug": { "type": "boolean" },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "port", "service", "serviceMonitor"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "port": { "$ref": "#/definitions/servicePort" },
+            "service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "type", "port", "clusterIP", "annotations", "labels"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+                "port": { "$ref": "#/definitions/servicePort" },
+                "clusterIP": { "type": "string" },
+                "annotations": { "$ref": "#/definitions/stringMap" },
+                "labels": { "$ref": "#/definitions/stringMap" }
+              }
+            },
+            "serviceMonitor": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "namespace", "labels", "annotations", "interval", "scrapeTimeout", "relabelings", "metricRelabelings"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "namespace": { "$ref": "#/definitions/namespace" },
+                "labels": { "$ref": "#/definitions/stringMap" },
+                "annotations": { "$ref": "#/definitions/stringMap" },
+                "interval": { "type": "string", "minLength": 1 },
+                "scrapeTimeout": { "type": "string", "minLength": 1 },
+                "relabelings": { "type": "array", "items": { "type": "object" } },
+                "metricRelabelings": { "type": "array", "items": { "type": "object" } }
+              }
+            }
+          }
+        },
+        "dashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "port", "filesystem", "service", "ingress"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "port": { "$ref": "#/definitions/servicePort" },
+            "filesystem": { "type": "string" },
+            "service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "type", "port", "annotations"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+                "port": { "$ref": "#/definitions/servicePort" },
+                "annotations": { "$ref": "#/definitions/stringMap" }
+              }
+            },
+            "ingress": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "className", "annotations", "hosts", "tls"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "className": { "type": "string" },
+                "annotations": { "$ref": "#/definitions/stringMap" },
+                "hosts": {
+                  "type": "array",
+                  "items": { "$ref": "#/definitions/ingressHost" }
+                },
+                "tls": {
+                  "type": "array",
+                  "items": { "$ref": "#/definitions/ingressTLS" }
+                }
+              }
+            }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array", "items": { "type": "object" } },
+        "affinity": { "type": "object" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kubeletPath", "logLevel", "debug", "resources", "nodeSelector", "tolerations", "affinity", "protocols", "enableNVMeDiscovery", "maxConcurrentNVMeConnects", "updateStrategy"],
+      "properties": {
+        "kubeletPath": { "type": "string", "pattern": "^/" },
+        "logLevel": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "debug": { "type": "boolean" },
+        "resources": { "$ref": "#/definitions/resources" },
+        "nodeSelector": { "$ref": "#/definitions/stringMap" },
+        "tolerations": { "type": "array", "items": { "type": "object" } },
+        "affinity": { "type": "object" },
+        "protocols": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["iscsi"],
+          "properties": {
+            "iscsi": { "type": "boolean" },
+            "smb": { "type": "boolean" }
+          }
+        },
+        "enableNVMeDiscovery": { "type": "boolean" },
+        "maxConcurrentNVMeConnects": { "type": "integer", "minimum": 0 },
+        "updateStrategy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["RollingUpdate", "OnDelete"] },
+            "rollingUpdate": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxUnavailable": { "$ref": "#/definitions/intOrString" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sidecars": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provisioner", "attacher", "resizer", "nodeDriverRegistrar", "snapshotter", "livenessprobe"],
+      "properties": {
+        "provisioner": { "$ref": "#/definitions/sidecar" },
+        "attacher": { "$ref": "#/definitions/sidecar" },
+        "resizer": { "$ref": "#/definitions/sidecar" },
+        "nodeDriverRegistrar": { "$ref": "#/definitions/sidecar" },
+        "snapshotter": { "$ref": "#/definitions/sidecar" },
+        "livenessprobe": { "$ref": "#/definitions/sidecar" }
+      }
+    },
+    "storageClasses": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/storageClass" }
+    },
+    "snapshots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "volumeSnapshotClass"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "volumeSnapshotClass": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["create", "deletionPolicy"],
+          "properties": {
+            "create": { "type": "boolean" },
+            "deletionPolicy": { "type": "string", "enum": ["Delete", "Retain"] }
+          }
+        },
+        "detached": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Legacy value retained for upgrade compatibility.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "parentDataset": { "type": "string" },
+            "deletionPolicy": { "type": "string", "enum": ["Delete", "Retain"] }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runAsNonRoot", "runAsUser", "fsGroup"],
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer", "minimum": 0 },
+        "fsGroup": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "priorityClassName": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["controller", "node"],
+      "properties": {
+        "controller": { "type": "string" },
+        "node": { "type": "string" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annotations"],
+      "properties": {
+        "annotations": { "$ref": "#/definitions/stringMap" }
+      }
+    },
+    "namespace": { "$ref": "#/definitions/namespace" },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create"],
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    },
+    "openshift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "customLabels": { "$ref": "#/definitions/stringMap" },
+    "customAnnotations": { "$ref": "#/definitions/stringMap" },
+    "grafana": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dashboards"],
+      "properties": {
+        "dashboards": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "labels", "annotations"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "labels": { "$ref": "#/definitions/stringMap" },
+            "annotations": { "$ref": "#/definitions/stringMap" }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "intOrString": {
+      "anyOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
+    "quantity": {
+      "anyOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/quantity" }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/quantity" }
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "pullPolicy", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "tag": { "type": "string" }
+      }
+    },
+    "sidecar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image", "resources"],
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "servicePort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "namespace": {
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "ingressHost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "paths"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "pathType"],
+            "properties": {
+              "path": { "type": "string", "pattern": "^/" },
+              "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
+            }
+          }
+        }
+      }
+    },
+    "ingressTLS": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretName", "hosts"],
+      "properties": {
+        "secretName": { "type": "string", "minLength": 1 },
+        "hosts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "storageClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "enabled", "protocol", "server"],
+      "properties": {
+        "name": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "protocol": { "type": "string", "enum": ["nfs", "nvmeof", "iscsi", "smb"] },
+        "isDefault": { "type": "boolean" },
+        "filesystem": { "type": "string" },
+        "server": { "type": "string" },
+        "pool": {
+          "type": "string",
+          "description": "Legacy value retained for upgrade compatibility; use filesystem."
+        },
+        "parentDataset": {
+          "type": "string",
+          "description": "Legacy value retained for upgrade compatibility."
+        },
+        "reclaimPolicy": { "type": "string", "enum": ["Delete", "Retain"] },
+        "volumeBindingMode": { "type": "string", "enum": ["Immediate", "WaitForFirstConsumer"] },
+        "allowVolumeExpansion": { "type": "boolean" },
+        "mountOptions": { "type": "array", "items": { "type": "string" } },
+        "deleteStrategy": { "type": "string", "enum": ["", "delete", "retain"] },
+        "compression": { "type": "string" },
+        "foregroundTarget": { "type": "string" },
+        "backgroundTarget": { "type": "string" },
+        "promoteTarget": { "type": "string" },
+        "metadataTarget": { "type": "string" },
+        "dataReplicas": { "type": "string" },
+        "nameTemplate": { "type": "string" },
+        "namePrefix": { "type": "string" },
+        "nameSuffix": { "type": "string" },
+        "commentTemplate": { "type": "string" },
+        "markAdoptable": { "type": "string", "enum": ["", "true", "false"] },
+        "adoptExisting": { "type": "string", "enum": ["", "true", "false"] },
+        "encryption": { "type": "string", "enum": ["", "true", "false"] },
+        "encryptionAlgorithm": { "type": "string" },
+        "encryptionGenerateKey": { "type": "string" },
+        "transport": { "type": "string", "enum": ["tcp", "rdma"] },
+        "port": { "type": "string", "pattern": "^[0-9]+$" },
+        "fsType": { "type": "string", "enum": ["ext3", "ext4", "xfs"] },
+        "subsystemNQN": { "type": "string" },
+        "smbCredentialsSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "namespace": { "$ref": "#/definitions/namespace" }
+          }
+        },
+        "smbUsername": { "type": "string" },
+        "parameters": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "enabled": { "const": true } },
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "name": { "minLength": 1 },
+              "server": { "minLength": 1 }
+            },
+            "anyOf": [
+              {
+                "required": ["filesystem"],
+                "properties": { "filesystem": { "minLength": 1 } }
+              },
+              {
+                "required": ["pool"],
+                "properties": { "pool": { "minLength": 1 } }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
