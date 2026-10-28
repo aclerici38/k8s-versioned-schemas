@@ -3714,8 +3714,11 @@
           ]
         },
         "image": {
-          "description": "Renovate Docker image to use",
-          "type": "string"
+          "description": "Renovate Docker image to use. Required, but may be inherited from templateRef,\nso it can be left unset here.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "imagePullSecrets": {
           "description": "Image pull secrets for the renovate pods",
@@ -3779,9 +3782,12 @@
           ]
         },
         "parallelism": {
-          "description": "Maximum number of projects to process in parallel",
+          "description": "Maximum number of projects to process in parallel. Required, but may be\ninherited from templateRef, so it can be left unset here.",
           "format": "int32",
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "priorityClassName": {
           "description": "PriorityClassName for the resulting pod, used to set the pod's scheduling priority.",
@@ -3792,7 +3798,7 @@
         },
         "provider": {
           "additionalProperties": false,
-          "description": "Renovate Provider Information to fill \"RENOVATE_ENDPOINT\" and \"RENOVATE_PLATFORM\" environment variables in the renovate container",
+          "description": "Renovate Provider Information to fill \"RENOVATE_ENDPOINT\" and \"RENOVATE_PLATFORM\" environment variables in the renovate container.\nRequired, but may be inherited from templateRef, so it can be left unset here.",
           "properties": {
             "endpoint": {
               "description": "Endpoint is the platform API base URL. Its host must be listed in the\noperator's policy.allowedHosts, otherwise the job is refused.",
@@ -3817,7 +3823,10 @@
           "required": [
             "name"
           ],
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "renovateConfig": {
           "additionalProperties": false,
@@ -3967,8 +3976,11 @@
           ]
         },
         "schedule": {
-          "description": "Cron schedule in standard cron format",
-          "type": "string"
+          "description": "Cron schedule in standard cron format. Required, but may be inherited from\ntemplateRef, so it can be left unset here.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "scratchVolume": {
           "additionalProperties": false,
@@ -4762,16 +4774,54 @@
           ]
         },
         "skipForks": {
-          "description": "If true, forked repositories discovered during autodiscovery will be excluded by querying the platform API",
+          "description": "If true, forked repositories discovered during autodiscovery will be excluded by querying the platform API.\nA pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.",
           "type": [
             "boolean",
             "null"
           ]
         },
         "skipPendingDeletion": {
-          "description": "If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.",
+          "description": "If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.\nA pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.",
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "suspend": {
+          "description": "If true, the operator starts no new run for this RenovateJob: the schedule\ndoes not fire, discovery is refused and queued projects are not dispatched.\nRuns already in progress finish. Projects queued meanwhile, by webhooks,\nthe UI or annotation triggers, stay Scheduled and run once it is resumed.\nA pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "templateRef": {
+          "additionalProperties": false,
+          "description": "TemplateRef inherits shared configuration from a RenovateJobTemplate (in the\nsame namespace) or a cluster-scoped ClusterRenovateJobTemplate. Fields set on\nthis RenovateJob override the template's per field; fields left unset are\ninherited. A templateRef set on a template itself is ignored: templates do not\nnest.",
+          "properties": {
+            "kind": {
+              "default": "RenovateJobTemplate",
+              "description": "Kind of the referenced template. Defaults to RenovateJobTemplate.",
+              "enum": [
+                "RenovateJobTemplate",
+                "ClusterRenovateJobTemplate"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Name of the referenced template.",
+              "maxLength": 253,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
             "null"
           ]
         },
@@ -5051,12 +5101,6 @@
           ]
         }
       },
-      "required": [
-        "image",
-        "parallelism",
-        "provider",
-        "schedule"
-      ],
       "type": [
         "object",
         "null"
@@ -5065,6 +5109,10 @@
         {
           "message": "allowedGroups and access are mutually exclusive; migrate allowedGroups to access.adminGroups",
           "rule": "!(has(self.allowedGroups) \u0026\u0026 has(self.access))"
+        },
+        {
+          "message": "githubAppReference requires provider.name github",
+          "rule": "!has(self.githubAppReference) || !has(self.provider) || self.provider.name.lowerAscii() == 'github'"
         }
       ]
     },
