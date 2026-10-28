@@ -1012,7 +1012,7 @@
         },
         "autoscaling": {
           "additionalProperties": false,
-          "description": "Autoscaling configures horizontal pod autoscaling for the inference service.\nWhen set, the controller creates and manages an HPA resource targeting the\ninference Deployment. Requires Prometheus Adapter for custom metrics.\nMutually exclusive with manual replica management: when autoscaling is enabled,\nthe Replicas field serves as the initial replica count only.",
+          "description": "Autoscaling configures horizontal pod autoscaling for the inference service.\nWhen set, the controller creates and manages an HPA resource targeting the\ninference Deployment. Requires Prometheus Adapter for custom metrics.\nMutually exclusive with manual replica management: when autoscaling is enabled,\nthe Replicas field serves as the initial replica count only.\nNot supported with multiNode: a multiNode service gets no HPA, and the\nAutoscalingReady condition reports UnsupportedForMultiNode.",
           "properties": {
             "maxReplicas": {
               "description": "MaxReplicas is the upper limit for the number of replicas.",
@@ -3907,7 +3907,19 @@
           ]
         },
         "image": {
-          "description": "Image is the container image for the inference runtime.\nFor llamacpp runtime, defaults to ghcr.io/ggml-org/llama.cpp:server.\nFor generic runtime, this field is required.",
+          "description": "Image is the container image for the inference runtime.\nFor llamacpp runtime, defaults to a pinned upstream llama.cpp server build\n(ghcr.io/ggml-org/llama.cpp:server-\u003cbuild\u003e), or the matching CUDA build when\nthe Model declares an NVIDIA GPU.\nFor generic runtime, this field is required.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "imagePullPolicy": {
+          "description": "ImagePullPolicy sets the image pull policy of the runtime container, the\none that runs spec.image. The model download and cache-prep init\ncontainers run the operator's own images and keep their own policy, which\nthis field does not change.\n\nAlways makes the kubelet pull whenever a pod is created. It does not\nwatch the registry, so picking up a new build of a moving tag such as\n:nightly still needs new pods (kubectl rollout restart\ndeployment/\u003cname\u003e, or any spec change).\n\nWhen unset the field is left off the pod template, so Kubernetes applies\nits own default: Always for a :latest or untagged image, IfNotPresent\notherwise. Upgrading the operator alone therefore rolls no pod.\n\nIn-cluster only. A Metal service runs no pod, so the field has no effect\nthere.",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
           "type": [
             "string",
             "null"
@@ -4008,7 +4020,7 @@
               ]
             },
             "prefetch": {
-              "description": "Prefetch asks for the Model's weights to be staged into this cache claim\nby a prefetch Job before any serving pod consumes them.\n\nOn an InferenceService, the operator runs the referenced Model's\nprefetch Job against this service's resolved cache claim (claimName,\nelse the Model's spec.modelCache.claimName, else the operator cache),\nplaced by the Model's prefetchNodeSelector, prefetchTolerations and\nprefetchAffinity, whether or not the Model sets spec.prefetch. The\nservice creates no pods, and rolls no new pod template, until that\nprefetch has succeeded for the Model's current spec; meanwhile it\nreports ModelPrefetched=False with reason WaitingForPrefetch (or\nPrefetchFailed, with the live workload left as it was). Once staged, the\nserving pods mount the claim read-only with no downloader init\ncontainer, and fail with PrefetchedFilesMissing rather than download on\nthe serving node if a staged file is absent. Progress is reported per\nclaim in the Model's status.prefetch.\n\nOn a Model, it is equivalent to spec.prefetch: either field makes the\nModel stage itself into its own modelCache.claimName.\n\nCannot be set with persistence Ephemeral: an emptyDir cannot be\nprefetched. Reported as PrefetchNotApplicable, and not waited for, only\nwhere nothing downloads at serve time: Metal (no cache claim is\nmounted) and pre-staged sources (pvc://, oci://, local paths). A\nrequest the pods could not consume is refused and held as\nPrefetchUnsupported: model caching disabled on the operator, a runtime\nthe operator does not stage, a speculativeDecoding draft model, a\nmultiNode member with its own modelCache.claimName, or a source the\ndownloader does not stage ahead of time (s3://).",
+              "description": "Prefetch asks for the Model's weights to be staged into this cache claim\nby a prefetch Job before any serving pod consumes them.\n\nOn an InferenceService, the operator runs the referenced Model's\nprefetch Job against this service's resolved cache claim (claimName,\nelse the Model's spec.modelCache.claimName, else the operator cache),\nplaced by the Model's prefetchNodeSelector, prefetchTolerations and\nprefetchAffinity, whether or not the Model sets spec.prefetch. The\nservice creates no pods, and rolls no new pod template, until that\nprefetch has succeeded for the Model's current spec; meanwhile it\nreports ModelPrefetched=False with reason WaitingForPrefetch (or\nPrefetchFailed, with the live workload left as it was). Once staged, the\nserving pods mount the claim read-only with no downloader init\ncontainer, and fail with PrefetchedFilesMissing rather than download on\nthe serving node if a staged file is absent. Progress is reported per\nclaim in the Model's status.prefetch.\n\nOn a Model, it is equivalent to spec.prefetch: either field makes the\nModel stage itself into its own modelCache.claimName.\n\nCannot be set with persistence Ephemeral: an emptyDir cannot be\nprefetched. Reported as PrefetchNotApplicable, and not waited for, only\nwhere nothing downloads at serve time: Metal (no cache claim is\nmounted) and pre-staged sources (pvc://, oci://, local paths). A\nrequest the pods could not consume is refused and held as\nPrefetchUnsupported: model caching disabled on the operator, a runtime\nthe operator does not stage, a spec.speculativeDecoding.draftModelRef or a\nspec.vllmConfig.speculative.model, a multiNode member with its own\nmodelCache.claimName, or a source the downloader does not stage ahead\nof time (s3://).",
               "type": [
                 "boolean",
                 "null"
@@ -5726,7 +5738,7 @@
           "description": "SGLangConfig holds configuration for the SGLang runtime.\nOnly used when Runtime is \"sglang\".",
           "properties": {
             "attentionBackend": {
-              "description": "Attention\nAttentionBackend selects the attention implementation. Unset lets SGLang\nchoose per model and GPU: fa3 on Hopper, trtllm_mha (MHA) or flashinfer\n(MLA) on Blackwell, flashinfer or triton elsewhere. Some models override\nthat: Qwen3.5-family hybrid models on Blackwell get triton while the\nprefix cache runs without the mamba extra buffer, which is slow on long\nprompts; flashinfer is the typed fix (see the SGLang on Blackwell guide).\nThe values are SGLang v0.5.15's --attention-backend choices. flash_attn\nis not one (SGLang exits with an invalid-choice error); it stays\naccepted so existing objects remain valid, and the SGLangSpecValid\ncondition reports it. Maps to SGLang --attention-backend flag.",
+              "description": "Attention\nAttentionBackend selects the attention implementation. Unset lets SGLang\nchoose per model and GPU: fa3 on Hopper, trtllm_mha (MHA) or flashinfer\n(MLA) on Blackwell, flashinfer or triton elsewhere. Some models override\nthat: Qwen3.5-family hybrid models on Blackwell get triton while the\nprefix cache runs without the mamba extra buffer, which is slow on long\nprompts; flashinfer is the typed fix (see the SGLang on Blackwell guide).\nThe values are the --attention-backend choices SGLang accepted through\nv0.5.19. flash_attn is not one (SGLang exits with an invalid-choice\nerror); it stays accepted so existing objects remain valid, and the\nSGLangSpecValid condition reports it. SGLang v0.5.20 removed cutlass_mla\nand dual_chunk_flash_attn: the default image rejects them, they stay\naccepted for a service pinned to an older image, and the same condition\nreports them. Maps to SGLang --attention-backend flag.",
               "enum": [
                 "triton",
                 "torch_native",
@@ -5790,7 +5802,7 @@
               ]
             },
             "enablePrefixCaching": {
-              "description": "EnablePrefixCaching turns on RadixAttention automatic prefix caching.\nHeadline feature for agentic workloads with shared system-prompt +\ntool-definition + repo-context prefixes. Maps to SGLang --enable-prefix-caching.",
+              "description": "EnablePrefixCaching controls RadixAttention automatic prefix caching,\nthe headline feature for agentic workloads with shared system-prompt +\ntool-definition + repo-context prefixes. SGLang enables it by default, so\ntrue and unset render no flag; false maps to SGLang --disable-radix-cache.",
               "type": [
                 "boolean",
                 "null"
@@ -6091,7 +6103,7 @@
               ]
             },
             "toolCallParser": {
-              "description": "Agentic glue\nToolCallParser selects the tool-call extraction format. For foreman\ntool-loop workloads. Maps to SGLang --tool-call-parser flag.\n\nglm and glm45 both select the GLM-4.5/4.7 MoE detector; SGLang\nv0.5.15.post1 also logs a deprecation warning for a passed glm45 and\nrewrites it to glm (server_args.py), so either spelling works. qwen3 and\nfunctionary are kept for objects written against earlier releases even\nthough the pinned image no longer registers them.",
+              "description": "Agentic glue\nToolCallParser selects the tool-call extraction format. For foreman\ntool-loop workloads. Maps to SGLang --tool-call-parser flag.\n\nglm and glm45 both select the GLM-4.5/4.7 MoE detector; SGLang\nv0.5.15.post1 also logs a deprecation warning for a passed glm45 and\nrewrites it to glm (server_args.py), so either spelling works. qwen3 and\nfunctionary are kept for objects written against earlier LLMKube\nreleases: no SGLang release checked registers either, so the server\nexits at startup with an invalid-choice error, and SGLangSpecValid\nreports them with reason ToolCallParserUnsupported. qwen25 covers Qwen3\nmodels; qwen3_coder covers Qwen3-Coder and Qwen3.5 or newer.",
               "enum": [
                 "llama3",
                 "qwen3",
@@ -6697,7 +6709,7 @@
               "x-kubernetes-map-type": "atomic"
             },
             "kvCacheCustomDtype": {
-              "description": "KVCacheCustomDtype sets a custom vLLM KV cache element type that is not\nin the standard enum. Used for vLLM versions with additional cache\nformats such as TurboQuant 2-bit (turbo2, shipped in v0.20.0). Maps to\nvLLM --kv-cache-dtype. The runtime image must understand the value or\nvLLM will fail to start; LLMKube does not validate the string. Mirrors\nthe llama.cpp-side CacheTypeCustomK/V escape hatch.\nTakes precedence over KVCacheDtype when both are set.",
+              "description": "KVCacheCustomDtype sets a custom vLLM KV cache element type that is not\nin the standard enum. Covers build- or hardware-specific formats\n(fp8_ds_mla from v0.20+) and values added by a vLLM image newer than\nthe operator's default. Maps to vLLM --kv-cache-dtype. The runtime image\nmust understand the value or vLLM will fail to start; LLMKube does not\nvalidate the string. Mirrors the llama.cpp-side CacheTypeCustomK/V\nescape hatch.\nTakes precedence over KVCacheDtype when both are set.",
               "type": [
                 "string",
                 "null"
@@ -6705,11 +6717,14 @@
             },
             "kvCacheDtype": {
               "default": "auto",
-              "description": "KVCacheDtype selects the KV cache element type. fp8_e5m2 and fp8_e4m3 cut\nKV cache memory roughly in half versus auto (which follows dtype), which\nis what unlocks 128K+ context on consumer VRAM for agentic workloads.\nMaps to vLLM --kv-cache-dtype flag.\nFor custom build types not in the enum (e.g. TurboQuant turbo2 from\nvLLM v0.20+), use KVCacheCustomDtype instead.",
+              "description": "KVCacheDtype selects the KV cache element type. fp8, fp8_e4m3 and\nfp8_e5m2 cut KV cache memory roughly in half versus auto (which follows\ndtype), which is what unlocks 128K+ context on consumer VRAM for agentic\nworkloads. fp8 is vLLM's platform-resolved alias, passed through\nunrewritten: it is fp8_e4m3 on CUDA and ROCm, fp8_inc on Gaudi. float16\npins a 16-bit cache. bfloat16 is the opt-out for models whose cache\ndefaults to fp8 (DeepSeek-V3.2), and vLLM documents it as an invalid\noption for models that do not default to fp8.\nMaps to vLLM --kv-cache-dtype flag.\nFor cache types not in the enum (fp8_ds_mla, nvfp4, the turboquant_* and\n*_per_token_head families), use KVCacheCustomDtype instead.",
               "enum": [
                 "auto",
                 "fp8_e5m2",
-                "fp8_e4m3"
+                "fp8_e4m3",
+                "fp8",
+                "float16",
+                "bfloat16"
               ],
               "type": [
                 "string",
@@ -6767,7 +6782,7 @@
             },
             "speculative": {
               "additionalProperties": false,
-              "description": "Speculative enables draft-model speculative decoding. On single-stream\nagentic workloads this can be 30-60% faster than plain tensor-parallel\nexecution. Requires a second (smaller) Model CR to act as the draft.",
+              "description": "Speculative enables speculative decoding, rendered as one\n--speculative-config JSON document (method, model, num_speculative_tokens).\nOn single-stream agentic workloads this can be 30-60% faster than plain\ntensor-parallel execution. A draft Model is mounted and passed by path\nfor the methods that need one; methods whose drafter lives in the target\ncheckpoint (mtp, dspark) need only the method and a token count. Keys\noutside the three typed fields (draft_sample_method,\nrejection_sample_method, prompt_lookup_max, ...) go in spec.extraArgs as\n--speculative-config, which wins over this block.",
               "properties": {
                 "enabled": {
                   "description": "Enabled toggles speculative decoding on. When false or nil, no\nspeculative flags are emitted regardless of other fields.",
@@ -6776,8 +6791,15 @@
                     "null"
                   ]
                 },
+                "method": {
+                  "description": "Method is the vLLM speculative method, rendered as the\n--speculative-config \"method\" key. Values current vLLM registers\ninclude draft_model, mtp, eagle, eagle3, medusa, dflash, dspark,\nngram and suffix. Not an enum: vLLM adds and retires methods per\nrelease, so the set this operator would freeze is neither the one your\nimage has nor the one it will have; the value must exist in the image\nyou run or vLLM refuses to start. Optional: with a draft Model and no\nmethod, vLLM infers draft_model.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "model": {
-                  "description": "Model references the Model CR (in the same namespace as the\nInferenceService) to use as the speculative draft model.\nRequired when Enabled is true. If missing, speculative decoding is\nskipped and the InferenceService surfaces a SpeculativeInvalid\nstatus condition rather than failing the reconcile.\nMaps to vLLM --speculative-model flag.",
+                  "description": "Model references the Model CR (in the same namespace as the\nInferenceService) holding the draft weights. The operator stages and\nmounts it exactly like the target model, and vLLM receives its\nin-container path as the --speculative-config \"model\" key, never the\nCR name. The draft must declare a directory format (safetensors, and\nspecs files): Model.spec.format defaults to gguf, and a single-file\ndraft is staged as one file rather than the model tree vLLM loads.\nRequired for the methods that load separate weights (draft_model,\neagle, eagle3); omit it for methods whose drafter ships in the target\ncheckpoint (mtp, dspark) or needs none (ngram, suffix).",
                   "type": [
                     "string",
                     "null"
@@ -6785,7 +6807,7 @@
                 },
                 "numSpeculativeTokens": {
                   "default": 4,
-                  "description": "NumSpeculativeTokens is the number of draft tokens proposed per step.\nTypical sweet spot is 3-5; higher values increase wasted work when the\ndraft disagrees with the target model.\nMaps to vLLM --num-speculative-tokens flag.",
+                  "description": "NumSpeculativeTokens is the number of draft tokens proposed per step,\nrendered as the --speculative-config \"num_speculative_tokens\" key.\nWith a separate draft model the typical sweet spot is 3-5; higher values\nincrease wasted work when the draft disagrees with the target model. For\nmtp, set it to the number of MTP layers the checkpoint ships, usually 1:\na larger value runs the same MTP layer again for each extra token, and\nvLLM warns that acceptance may drop. Always emitted: 4 when unset, the\nsame value the CRD defaults the field to, because vLLM requires one\nwhenever a speculative model is provided.",
                   "format": "int32",
                   "maximum": 16,
                   "minimum": 1,
@@ -6798,6 +6820,12 @@
               "type": [
                 "object",
                 "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "speculative decoding needs a method (e.g. draft_model, mtp, dspark, ngram) or a draft Model in model: vLLM rejects num_speculative_tokens without one",
+                  "rule": "!has(self.enabled) || !self.enabled || (has(self.model) \u0026\u0026 self.model.size() \u003e 0) || (has(self.method) \u0026\u0026 self.method.size() \u003e 0)"
+                }
               ]
             },
             "stallDetection": {
