@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.23.0
     helm.sh/resource-policy: keep
   name: modelrouters.inference.llmkube.dev
 spec:
@@ -108,6 +108,18 @@ spec:
                       maximum: 65535
                       minimum: 1
                       type: integer
+                    hostnames:
+                      description: |-
+                        Hostnames limit the generated HTTPRoute to these hosts. routing: Model
+                        only, where it or sectionName is required.
+                      items:
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^(\*\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                        type: string
+                      maxItems: 16
+                      minItems: 1
+                      type: array
                     name:
                       description: Name is the agentgateway Gateway's name.
                       type: string
@@ -122,12 +134,41 @@ spec:
                         EndpointPicker Service all live in this ModelRouter's namespace
                         regardless.
                       type: string
+                    routing:
+                      default: InferencePool
+                      description: |-
+                        Routing selects the compile target. "InferencePool" (the default) is the
+                        Gateway API Inference Extension path described on spec.agentGatewayRef.
+                        "Model" uses agentgateway's model router (v1.6.0+): one AgentgatewayModel
+                        per backend, matched on its displayName (else name), behind one
+                        catch-all HTTPRoute. It needs no Inference Extension CRDs or Endpoint
+                        Picker. spec.rules, spec.defaultRoute, external backends, resolution:
+                        endpoint, and per-backend endpoint pickers are refused in this mode.
+                      enum:
+                        - InferencePool
+                        - Model
+                      type: string
+                    sectionName:
+                      description: |-
+                        SectionName names the Gateway listener the generated HTTPRoute attaches
+                        to. routing: Model only, where it or hostnames is required, because the
+                        route takes every path on its listeners.
+                      maxLength: 253
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      type: string
                   required:
                     - name
                   type: object
                   x-kubernetes-validations:
                     - message: endpointPicker and endpointPickerPort must be set together
                       rule: has(self.endpointPicker) == has(self.endpointPickerPort)
+                    - message: 'endpointPicker and endpointPickerPort apply only to routing: InferencePool'
+                      rule: '!(has(self.routing) && self.routing == ''Model'') || !has(self.endpointPicker)'
+                    - message: 'routing: Model requires sectionName or hostnames: its HTTPRoute matches every path, so it must not take over a whole Gateway'
+                      rule: '!(has(self.routing) && self.routing == ''Model'') || has(self.sectionName) || has(self.hostnames)'
+                    - message: 'sectionName and hostnames apply only to routing: Model'
+                      rule: (has(self.routing) && self.routing == 'Model') || (!has(self.sectionName) && !has(self.hostnames))
                 backends:
                   description: |-
                     Backends are the candidate destinations the router can dispatch to.
@@ -357,6 +398,55 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      modelInfo:
+                        description: |-
+                          ModelInfo describes what this backend's model accepts and how much
+                          context it holds. The proxy publishes it on the backend's /v1/models
+                          entry, where clients decide whether to send images and how to size
+                          their context. Informational only: the proxy does not enforce it.
+                          Unset, the entry carries only the model id. Applies to the Proxy data
+                          plane only; the Gateway and AgentGateway data planes ignore it.
+                        properties:
+                          contextLength:
+                            description: |-
+                              ContextLength is the context window one request gets, in tokens. When
+                              unset, the controller fills it from the InferenceService:
+                              vllmConfig.maxModelLen (or --max-model-len in extraArgs) for vLLM, and
+                              contextSize divided across parallelSlots for llama.cpp. Other runtimes,
+                              and llama.cpp extraArgs that set those flags, publish none.
+                            format: int64
+                            minimum: 1
+                            type: integer
+                          inputModalities:
+                            description: |-
+                              InputModalities the model accepts. When unset, a backend whose
+                              capabilities include "vision" publishes ["text", "image"], and any
+                              other backend ["text"]. When set, it wins over capabilities.
+                            items:
+                              enum:
+                                - text
+                                - image
+                                - audio
+                                - video
+                                - file
+                              type: string
+                            maxItems: 5
+                            type: array
+                            x-kubernetes-list-type: set
+                          outputModalities:
+                            description: OutputModalities the model produces. Defaults to ["text"].
+                            items:
+                              enum:
+                                - text
+                                - image
+                                - audio
+                                - video
+                                - file
+                              type: string
+                            maxItems: 5
+                            type: array
+                            x-kubernetes-list-type: set
+                        type: object
                       name:
                         description: |-
                           Name is the stable identifier used by rules and observability labels.
@@ -633,6 +723,18 @@ spec:
                         AuditLog controls structured audit emission. Auditing is always on;
                         this field tunes the destination and verbosity.
                       properties:
+                        callerHeader:
+                          description: |-
+                            CallerHeader names a request header whose value is added to every
+                            audit entry as caller, for example X-LLMKube-Client set by each
+                            client. The client chooses the value, so it is a label rather than an
+                            identity. It is cut to 128 bytes, and characters outside printable
+                            ASCII are replaced with '?'. A header that carries a credential (Authorization,
+                            Proxy-Authorization, Cookie, X-Api-Key, Api-Key, X-Goog-Api-Key) is
+                            refused.
+                          maxLength: 64
+                          pattern: ^[A-Za-z0-9!#$%&'*+.^_|~-]+$
+                          type: string
                         filePath:
                           description: |-
                             FilePath is the destination when Sink=file. Must be writable inside
@@ -642,6 +744,15 @@ spec:
                           description: |-
                             IncludeRequestBody, when true, includes the OpenAI request body in
                             every audit entry. Disabled by default for size and privacy.
+                          type: boolean
+                        logClientAddress:
+                          description: |-
+                            LogClientAddress, when true, adds the address of the request's sender
+                            to every audit entry as client. It is the TCP peer: in-cluster callers
+                            keep their pod IP through the ClusterIP. When the peer is in
+                            TrustedProxyCIDRs, it is the first address in X-Forwarded-For, read
+                            from the right, that is not a trusted proxy. Off by default, because a
+                            client address is personal data in some deployments.
                           type: boolean
                         sink:
                           default: stdout
@@ -657,6 +768,18 @@ spec:
                             - file
                             - otlp
                           type: string
+                        trustedProxyCIDRs:
+                          description: |-
+                            TrustedProxyCIDRs lists the proxies in front of the router (an
+                            ingress, a gateway) whose X-Forwarded-For is believed, as CIDRs or
+                            single addresses. Any client can send X-Forwarded-For, so with this
+                            unset the header is ignored and client is always the TCP peer.
+                            Requires logClientAddress. The controller validates the entries.
+                          items:
+                            maxLength: 50
+                            type: string
+                          maxItems: 32
+                          type: array
                       type: object
                     auth:
                       description: |-
@@ -1726,6 +1849,24 @@ spec:
                               x-kubernetes-list-type: atomic
                           type: object
                       type: object
+                    drainTimeout:
+                      description: |-
+                        DrainTimeout is how long a router-proxy replica keeps serving its
+                        in-flight requests after SIGTERM, so a rollout finishes the streams
+                        it holds instead of cutting them at the proxy's own default. It
+                        sets the proxy's --shutdown-timeout and the pod's
+                        terminationGracePeriodSeconds, which is this value plus a fixed
+                        5s margin so the kubelet does not SIGKILL before the drain ends.
+                        A stream longer than this still ends at the drain deadline. The
+                        proxy's default of 30s applies when unset, and nothing is rendered
+                        on the pod template, so an operator upgrade does not roll existing
+                        proxies. Changing it changes the pod template, so it rolls the
+                        proxy pods, and a replica that drains stays Terminating for up to
+                        this long, delaying that roll. Must be between 1s and 1h.
+                      type: string
+                      x-kubernetes-validations:
+                        - message: drainTimeout must be between 1s and 1h
+                          rule: duration(self) >= duration('1s') && duration(self) <= duration('1h')
                     image:
                       description: |-
                         Image overrides the default router-proxy container image. Useful
@@ -1758,6 +1899,27 @@ spec:
                         Use it when the proxy image is only present on specific nodes (for
                         example a node-local registry) or to co-locate the proxy with its
                         backends. Passthrough to the Pod spec.
+                      type: object
+                    podAnnotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        PodAnnotations are merged into the router-proxy pod's
+                        metadata.annotations. The operator's own annotations (the config hash,
+                        and the prometheus.io scrape annotations when the operator emits them)
+                        win on collision. An annotation removed here is removed from the pods;
+                        annotations other tools add are kept.
+                      type: object
+                    podLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        PodLabels are merged into the router-proxy pod's metadata.labels, for
+                        example so label-based NetworkPolicies select the proxy. The operator's
+                        own labels (app, inference.llmkube.dev/model-router) win on collision,
+                        and the Deployment and Service selectors use only those, so changing
+                        PodLabels rolls the pods without touching a selector. A label removed
+                        here is removed from the pods; labels other tools add are kept.
                       type: object
                     quarantineDuration:
                       description: |-
