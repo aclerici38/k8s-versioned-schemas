@@ -5,6 +5,18 @@
       "additionalProperties": false,
       "description": "A person represents a human's account in Kanidm. The majority of your users will be a person who\nwill use this account in their daily activities. These entries may contain personally\nidentifying information that is considered by Kanidm to be sensitive. Because of this, there\nare default limits to who may access these data.\nMore info:\nhttps://kanidm.github.io/kanidm/master/accounts/people_accounts.html",
       "properties": {
+        "credentialBootstrapDelivery": {
+          "default": "event",
+          "description": "How to deliver initial credential bootstrap invitations. Defaults to Kubernetes Events.\nEmail delivery must be explicitly enabled per person. Re-sends use a metadata annotation.",
+          "enum": [
+            "event",
+            "email"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "credentialsTokenTtl": {
           "default": 3600,
           "description": "If credentials are not defined, Kaniop will generate a link accessible when describing\nthe person account. This link will be valid for the number of seconds defined here.\nThe default is 3600 seconds (1 hour).",
@@ -133,6 +145,18 @@
             "object",
             "null"
           ]
+        },
+        "sshPublicKeys": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "SSH public keys managed by Kaniop, indexed by their Kanidm tag.\nKeys added directly in Kanidm under other tags are preserved.\nIf omitted, SSH keys are not managed. An empty map removes previously managed keys.\nKanidm performs the validation of SSH key material.\nThe map is a single atomic unit for server-side apply ownership.",
+          "nullable": true,
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-map-type": "atomic"
         }
       },
       "required": [
@@ -207,6 +231,45 @@
           },
           "description": "Persistent bootstrap state. Keeping the token expiry in status prevents operator restarts from\ngenerating duplicate reset tokens while preserving the existing retry-after-expiry behaviour.",
           "properties": {
+            "deliveryError": {
+              "description": "A known blocking reason; cleared after a successful bootstrap request.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "deliveryMethod": {
+              "description": "The successful delivery method for the current bootstrap attempt.",
+              "enum": [
+                "event",
+                "email",
+                null
+              ],
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emailQueuedAt": {
+              "description": "When Kanidm accepted an email into its outgoing queue (not SMTP delivery).",
+              "format": "date-time",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lastQueuedResendRevision": {
+              "description": "Highest resend revision whose email was accepted into Kanidm's queue.\nKept across changes to the configured delivery method.",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "state": {
               "default": "pending",
               "description": "Lifecycle of the initial credential bootstrap for a person account.",
@@ -258,6 +321,18 @@
         },
         "kanidmRef": {
           "type": "string"
+        },
+        "managedSshPublicKeyTags": {
+          "default": [],
+          "description": "Tags claimed by this resource after successful synchronization with Kanidm.\nUsed to revoke only keys previously managed by Kaniop.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-type": "set"
         },
         "ready": {
           "type": "boolean"
