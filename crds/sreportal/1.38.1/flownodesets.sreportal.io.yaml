@@ -1,37 +1,37 @@
 ---
-# Source: sreportal/templates/flowedgeset-crd.yaml
+# Source: sreportal/templates/flownodeset-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: flowedgesets.sreportal.io
+  name: flownodesets.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.4
+    helm.sh/chart: sreportal-1.38.1
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.4"
+    app.kubernetes.io/version: "1.38.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: FlowEdgeSet
-    listKind: FlowEdgeSetList
-    plural: flowedgesets
-    singular: flowedgeset
+    kind: FlowNodeSet
+    listKind: FlowNodeSetList
+    plural: flownodesets
+    singular: flownodeset
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.discoveryRef
           name: Discovery
           type: string
-        - jsonPath: .status.edges
-          name: Edges
+        - jsonPath: .status.nodes
+          name: Nodes
           type: integer
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: FlowEdgeSet stores the discovered flow edges for a NetworkFlowDiscovery resource.
+          description: FlowNodeSet stores the discovered flow nodes for a NetworkFlowDiscovery resource.
           properties:
             apiVersion:
               description: |-
@@ -51,7 +51,7 @@ spec:
             metadata:
               type: object
             spec:
-              description: FlowEdgeSetSpec defines the desired state of FlowEdgeSet.
+              description: FlowNodeSetSpec defines the desired state of FlowNodeSet.
               properties:
                 discoveryRef:
                   description: discoveryRef is the name of the parent NetworkFlowDiscovery resource
@@ -61,34 +61,34 @@ spec:
                 - discoveryRef
               type: object
             status:
-              description: FlowEdgeSetStatus defines the observed state of FlowEdgeSet.
+              description: FlowNodeSetStatus defines the observed state of FlowNodeSet.
               properties:
-                edges:
-                  description: edges are the directional flow relations between nodes
+                nodes:
+                  description: nodes are all discovered services, databases, crons, and external endpoints
                   items:
-                    description: FlowEdge represents a directional flow between two nodes.
+                    description: FlowNode represents a service, database, cron job, or external endpoint.
                     properties:
-                      edgeType:
-                        description: edgeType describes the flow type (e.g. internal, cross-ns, cron, database, messaging, external)
+                      group:
+                        description: group is the logical group (namespace name by default)
                         type: string
-                      evaluated:
-                        description: |-
-                          evaluated indicates whether the observer attempted to check this edge.
-                          When false, the Used field should be ignored (edge type is not observable).
-                        type: boolean
-                      from:
-                        description: from is the source node id
+                      id:
+                        description: id is the unique node identifier (e.g. "service:core:my-account-api")
                         type: string
-                      to:
-                        description: to is the target node id
+                      label:
+                        description: label is the human-readable name
                         type: string
-                      used:
-                        description: used indicates whether traffic has been observed on this edge.
-                        type: boolean
+                      namespace:
+                        description: namespace is the Kubernetes namespace
+                        type: string
+                      nodeType:
+                        description: 'nodeType is one of: service, cron, database, messaging, external'
+                        type: string
                     required:
-                      - edgeType
-                      - from
-                      - to
+                      - group
+                      - id
+                      - label
+                      - namespace
+                      - nodeType
                     type: object
                   type: array
               type: object

@@ -1,44 +1,45 @@
 ---
-# Source: sreportal/templates/imageinventory-crd.yaml
+# Source: sreportal/templates/networkflowdiscovery-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: imageinventories.sreportal.io
+  name: networkflowdiscoveries.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.4
+    helm.sh/chart: sreportal-1.38.1
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.4"
+    app.kubernetes.io/version: "1.38.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: ImageInventory
-    listKind: ImageInventoryList
-    plural: imageinventories
-    singular: imageinventory
+    kind: NetworkFlowDiscovery
+    listKind: NetworkFlowDiscoveryList
+    plural: networkflowdiscoveries
+    singular: networkflowdiscovery
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .spec.namespaceFilter
-          name: Namespace
-          priority: 1
-          type: string
-        - jsonPath: .status.lastScanTime
-          name: Last Scan
-          type: date
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
+        - jsonPath: .status.nodeCount
+          name: Nodes
+          type: integer
+        - jsonPath: .status.edgeCount
+          name: Edges
+          type: integer
+        - jsonPath: .status.lastReconcileTime
+          name: Last Reconcile
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: ImageInventory is the Schema for the imageinventories API
+          description: |-
+            NetworkFlowDiscovery is the Schema for the networkflowdiscoveries API.
+            It discovers network flows from Kubernetes NetworkPolicies and FQDNNetworkPolicies.
           properties:
             apiVersion:
               description: |-
@@ -58,55 +59,33 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of ImageInventory
+              description: spec defines the desired state of NetworkFlowDiscovery
               properties:
-                interval:
-                  description: |-
-                    interval controls how often this inventory is refreshed.
-                    Empty means default 5m.
-                  type: string
                 isRemote:
                   description: |-
-                    isRemote marks this inventory as a shadow projection of a remote portal.
-                    When true, the controller fetches images from the remote portal via the
-                    ImageService Connect API instead of scanning the local cluster.
+                    isRemote indicates that the corresponding portal is remote and the operator
+                    should fetch network flows from the remote portal Connect API instead of
+                    scanning local Kubernetes NetworkPolicies.
                   type: boolean
-                labelSelector:
+                namespaces:
                   description: |-
-                    labelSelector is a Kubernetes label selector string used to filter workloads.
-                    Empty means no label filtering.
-                  type: string
-                namespaceFilter:
-                  description: |-
-                    namespaceFilter restricts scan to a single namespace when set.
-                    Empty means all namespaces.
-                  type: string
-                portalRef:
-                  description: portalRef is the Portal name this inventory belongs to.
-                  minLength: 1
-                  type: string
-                watchedKinds:
-                  description: |-
-                    watchedKinds declares which workload kinds are scanned for images.
-                    Empty means all supported defaults.
+                    namespaces is an optional list of namespaces to scan.
+                    When empty, all namespaces are scanned.
                   items:
-                    description: ImageInventoryKind names a Kubernetes workload kind that can be scanned for images.
-                    enum:
-                      - Deployment
-                      - StatefulSet
-                      - DaemonSet
-                      - CronJob
-                      - Job
                     type: string
                   type: array
+                portalRef:
+                  description: portalRef is the name of the Portal this resource is linked to
+                  minLength: 1
+                  type: string
               required:
                 - portalRef
               type: object
             status:
-              description: status defines the observed state of ImageInventory
+              description: status defines the observed state of NetworkFlowDiscovery
               properties:
                 conditions:
-                  description: conditions represent the current state of the ImageInventory resource.
+                  description: conditions represent the current state of the resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -164,45 +143,16 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                lastScanError:
-                  description: lastScanError contains the latest scan error, if any.
-                  type: string
-                lastScanTime:
-                  description: lastScanTime is the timestamp of the latest completed scan.
+                edgeCount:
+                  description: edgeCount is the number of discovered edges
+                  type: integer
+                lastReconcileTime:
+                  description: lastReconcileTime is the timestamp of the last reconciliation
                   format: date-time
                   type: string
-                observedGeneration:
-                  description: observedGeneration is the most recently observed generation.
-                  format: int64
+                nodeCount:
+                  description: nodeCount is the number of discovered nodes
                   type: integer
-                registries:
-                  description: |-
-                    registries is a lookup table mapping each child ImageRegistry CR
-                    (created by the SyncRegistryCRs handler) to its (host, namespace)
-                    context. PortalRef is implicit (= Spec.PortalRef).
-                  items:
-                    description: |-
-                      ImageRegistryRef references a child ImageRegistry CR managed by this
-                      ImageInventory.
-                    properties:
-                      hash:
-                        description: hash is the 12-char sha256 hex used as the CR name.
-                        type: string
-                      host:
-                        description: host is the registry-of-origin for the referenced CR.
-                        type: string
-                      namespace:
-                        description: namespace is the targeted Kubernetes namespace.
-                        type: string
-                    required:
-                      - hash
-                      - host
-                      - namespace
-                    type: object
-                  type: array
-                  x-kubernetes-list-map-keys:
-                    - hash
-                  x-kubernetes-list-type: map
               type: object
           required:
             - spec

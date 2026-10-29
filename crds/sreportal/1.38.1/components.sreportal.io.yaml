@@ -1,43 +1,46 @@
 ---
-# Source: sreportal/templates/maintenance-crd.yaml
+# Source: sreportal/templates/component-crd.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: maintenances.sreportal.io
+  name: components.sreportal.io
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    helm.sh/chart: sreportal-1.36.4
+    helm.sh/chart: sreportal-1.38.1
     app.kubernetes.io/name: sreportal
     app.kubernetes.io/instance: sreportal
-    app.kubernetes.io/version: "1.36.4"
+    app.kubernetes.io/version: "1.38.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: sreportal.io
   names:
-    kind: Maintenance
-    listKind: MaintenanceList
-    plural: maintenances
-    singular: maintenance
+    kind: Component
+    listKind: ComponentList
+    plural: components
+    singular: component
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.portalRef
           name: Portal
           type: string
-        - jsonPath: .status.phase
-          name: Phase
+        - jsonPath: .spec.group
+          name: Group
           type: string
-        - jsonPath: .spec.scheduledStart
-          name: Start
-          type: date
-        - jsonPath: .spec.scheduledEnd
-          name: End
+        - jsonPath: .spec.status
+          name: Status
+          type: string
+        - jsonPath: .status.computedStatus
+          name: Computed
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Maintenance is the Schema for the maintenances API
+          description: Component is the Schema for the components API
           properties:
             apiVersion:
               description: |-
@@ -57,53 +60,57 @@ spec:
             metadata:
               type: object
             spec:
-              description: spec defines the desired state of Maintenance
+              description: spec defines the desired state of Component
               properties:
-                affectedStatus:
-                  default: maintenance
-                  description: affectedStatus is the status applied to affected components during in_progress phase
+                description:
+                  description: description is a short text displayed below the component name
+                  type: string
+                displayName:
+                  description: displayName is the human-readable name shown on the status page
+                  minLength: 1
+                  type: string
+                group:
+                  description: group is a logical grouping for the status page (e.g. "Infrastructure", "Applications")
+                  minLength: 1
+                  type: string
+                link:
+                  description: link is an optional external URL (e.g. GCP console, Grafana dashboard)
+                  pattern: ^https?://.*
+                  type: string
+                portalRef:
+                  description: portalRef is the name of the Portal this component is linked to
+                  minLength: 1
+                  type: string
+                status:
+                  default: unknown
+                  description: status is the manually declared operational status
                   enum:
-                    - maintenance
+                    - operational
                     - degraded
                     - partial_outage
                     - major_outage
-                  type: string
-                components:
-                  description: components is the list of Component metadata.name values affected by this maintenance
-                  items:
-                    type: string
-                  type: array
-                description:
-                  description: description is a longer explanation (markdown supported in the UI)
-                  type: string
-                portalRef:
-                  description: portalRef is the name of the Portal this maintenance is linked to
-                  minLength: 1
-                  type: string
-                scheduledEnd:
-                  description: scheduledEnd is the planned end time of the maintenance window
-                  format: date-time
-                  type: string
-                scheduledStart:
-                  description: scheduledStart is the planned start time of the maintenance window
-                  format: date-time
-                  type: string
-                title:
-                  description: title is the headline displayed on the status page
-                  minLength: 1
+                    - unknown
                   type: string
               required:
-                - affectedStatus
+                - displayName
+                - group
                 - portalRef
-                - scheduledEnd
-                - scheduledStart
-                - title
+                - status
               type: object
             status:
-              description: status defines the observed state of Maintenance
+              description: status defines the observed state of Component
               properties:
+                activeIncidents:
+                  description: activeIncidents is the number of active (non-resolved) incidents linked to this component
+                  type: integer
+                computedStatus:
+                  description: |-
+                    computedStatus is the effective status calculated by the controller.
+                    If a maintenance is in progress on this component, it is overridden to "maintenance".
+                    Otherwise it reflects spec.status.
+                  type: string
                 conditions:
-                  description: conditions represent the current state of the Maintenance resource.
+                  description: conditions represent the current state of the Component resource.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -161,12 +168,29 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
-                phase:
-                  description: phase is the lifecycle phase computed by the controller (upcoming, in_progress, completed)
-                  enum:
-                    - upcoming
-                    - in_progress
-                    - completed
+                dailyWorstStatus:
+                  description: dailyWorstStatus records the worst computed status per UTC day over a sliding window (30 days).
+                  items:
+                    description: DailyComponentStatus records the worst observed status for a single UTC calendar day.
+                    properties:
+                      date:
+                        description: date is the UTC calendar day in YYYY-MM-DD format.
+                        pattern: ^\d{4}-\d{2}-\d{2}$
+                        type: string
+                      worstStatus:
+                        description: worstStatus is the worst computed status observed during this day.
+                        type: string
+                    required:
+                      - date
+                      - worstStatus
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - date
+                  x-kubernetes-list-type: map
+                lastStatusChange:
+                  description: lastStatusChange is the timestamp of the last computedStatus transition
+                  format: date-time
                   type: string
               type: object
           required:
