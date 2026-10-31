@@ -1,0 +1,343 @@
+---
+# Source: llmkube/templates/crds/metalnodes.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.23.0
+    helm.sh/resource-policy: keep
+  name: metalnodes.inference.llmkube.dev
+spec:
+  group: inference.llmkube.dev
+  names:
+    kind: MetalNode
+    listKind: MetalNodeList
+    plural: metalnodes
+    shortNames:
+      - mn
+    singular: metalnode
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.hostIP
+          name: Host IP
+          type: string
+        - jsonPath: .status.capacity.memory
+          name: Memory
+          type: string
+        - jsonPath: .status.capacity.chip
+          name: Chip
+          type: string
+        - jsonPath: .status.conditions[?(@.type=="Reachable")].status
+          name: Reachable
+          type: string
+        - jsonPath: .status.agentVersion
+          name: Version
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            MetalNode is one Mac running the metal-agent, joined to the cluster. The
+            admin creates it (with its ServiceAccount and Lease); the agent reports
+            through the Lease; the controller fills status and verifies the Mac is
+            reachable with a dial-back.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                MetalNodeSpec is written by the cluster admin (llmkube metal token create).
+                The agent has no write access to it.
+              properties:
+                hostIP:
+                  description: |-
+                    HostIP is an address the admin knows reaches this Mac. It is tried
+                    before the agent's own candidates and is still verified by the
+                    dial-back; it is never trusted on its own.
+                    The controller validates it (Reachable=False, reason InvalidSpec, when
+                    it is not an IP address) rather than a CEL rule, whose isIP() would
+                    need Kubernetes 1.31.
+                  maxLength: 45
+                  type: string
+                leaseName:
+                  description: |-
+                    LeaseName is the coordination.k8s.io Lease, in this namespace, that the
+                    agent renews as its heartbeat and annotates with its report.
+                  maxLength: 253
+                  minLength: 1
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                  type: string
+                serviceAccountName:
+                  description: |-
+                    ServiceAccountName is the ServiceAccount the Mac's agent authenticates
+                    as. Deleting that ServiceAccount revokes every token the agent holds.
+                  maxLength: 253
+                  minLength: 1
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                  type: string
+                verifier:
+                  description: |-
+                    Verifier places the dial-back verifier pod. Point it at the nodes the
+                    relay pods for this Mac run on, so the check tests the network path
+                    the relay will use.
+                  properties:
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      description: NodeSelector is copied to the verifier pod.
+                      type: object
+                    tolerations:
+                      description: Tolerations are copied to the verifier pod.
+                      items:
+                        description: |-
+                          The pod this Toleration is attached to tolerates any taint that matches
+                          the triple <key,value,effect> using the matching operator <operator>.
+                        properties:
+                          effect:
+                            description: |-
+                              Effect indicates the taint effect to match. Empty means match all taint effects.
+                              When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                            type: string
+                          key:
+                            description: |-
+                              Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                              If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                            type: string
+                          operator:
+                            description: |-
+                              Operator represents a key's relationship to the value.
+                              Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
+                              Exists is equivalent to wildcard for value, so that a pod can
+                              tolerate all taints of a particular category.
+                              Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
+                            type: string
+                          tolerationSeconds:
+                            description: |-
+                              TolerationSeconds represents the period of time the toleration (which must be
+                              of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                              it is not set, which means tolerate the taint forever (do not evict). Zero and
+                              negative values will be treated as 0 (evict immediately) by the system.
+                            format: int64
+                            type: integer
+                          value:
+                            description: |-
+                              Value is the taint value the toleration matches to.
+                              If the operator is Exists, the value should be empty, otherwise just a regular string.
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+              required:
+                - leaseName
+                - serviceAccountName
+              type: object
+            status:
+              description: MetalNodeStatus is written only by the controller.
+              properties:
+                agentVersion:
+                  description: AgentVersion is the version the agent reports.
+                  type: string
+                candidates:
+                  description: |-
+                    Candidates are the addresses tried, in preference order, with the last
+                    dial-back result for each.
+                  items:
+                    description: MetalNodeCandidate is one address and what the last dial-back found there.
+                    properties:
+                      address:
+                        description: Address is an IP address.
+                        type: string
+                      checkedAt:
+                        description: CheckedAt is when the verifier finished the check that produced Result.
+                        format: date-time
+                        type: string
+                      result:
+                        description: Result is the dial-back outcome.
+                        enum:
+                          - Pending
+                          - Reachable
+                          - Timeout
+                          - Refused
+                          - PinMismatch
+                          - CertificateMismatch
+                          - NotAllowed
+                          - Error
+                        type: string
+                      source:
+                        description: |-
+                          Source says where the address came from: override (spec.hostIP or the
+                          agent's --host-ip), tailnet, lan or docker-host.
+                        type: string
+                    required:
+                      - address
+                      - result
+                    type: object
+                  maxItems: 17
+                  type: array
+                  x-kubernetes-list-type: atomic
+                capacity:
+                  description: Capacity is the hardware the agent reports.
+                  properties:
+                    chip:
+                      description: Chip is the CPU brand string (for example "Apple M5 Max").
+                      type: string
+                    gpuCores:
+                      description: GPUCores is the GPU core count.
+                      format: int32
+                      type: integer
+                    memory:
+                      description: Memory is MemoryBytes as a quantity (for example 128Gi), for display.
+                      type: string
+                    memoryBytes:
+                      description: MemoryBytes is the Mac's unified memory in bytes.
+                      format: int64
+                      type: integer
+                    metalVersion:
+                      description: MetalVersion is the Metal family the GPU supports (for example "Metal 4").
+                      type: string
+                  type: object
+                conditions:
+                  description: 'Conditions: AgentConnected and Reachable.'
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                hostIP:
+                  description: |-
+                    HostIP is the first candidate the dial-back verified. It is set only
+                    while Reachable is True.
+                  type: string
+                ingressPort:
+                  description: IngressPort is the agent's TLS ingress port.
+                  format: int32
+                  type: integer
+                ingressSPKI:
+                  description: |-
+                    IngressSPKI is the base64 SHA-256 digest of the agent ingress
+                    certificate's public key, as the agent reports it. The dial-back and
+                    the relay complete TLS only against this key; the dial-back also
+                    requires the certificate the agent reports, which must name this
+                    MetalNode's UID.
+                  type: string
+                lastHeartbeatTime:
+                  description: |-
+                    LastHeartbeatTime is the Lease's renewTime, accurate to about a
+                    minute: it advances when AgentConnected changes or when it is more
+                    than 60 seconds behind. The Lease holds the exact time.
+                  format: date-time
+                  type: string
+                observedGeneration:
+                  description: ObservedGeneration is the spec generation this status reflects.
+                  format: int64
+                  type: integer
+                verification:
+                  description: Verification is the dial-back bookkeeping.
+                  properties:
+                    consecutiveFailures:
+                      description: |-
+                        ConsecutiveFailures counts checks in a row that verified no address;
+                        it sets the retry backoff.
+                      format: int32
+                      type: integer
+                    inputHash:
+                      description: |-
+                        InputHash identifies the pin, ingress certificate, port, candidate
+                        list and verifier placement the last completed check ran against. A
+                        change starts a new check.
+                      type: string
+                    lastCheckTime:
+                      description: LastCheckTime is when the last completed check finished.
+                      format: date-time
+                      type: string
+                    lastStartTime:
+                      description: |-
+                        LastStartTime is when the controller last started a verifier pod.
+                        Starts are at least 30 seconds apart, whatever the Mac reports.
+                      format: date-time
+                      type: string
+                    podUID:
+                      description: |-
+                        PodUID is the UID of the verifier pod the controller last created.
+                        Only that pod's results are read.
+                      type: string
+                  type: object
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.23.0
     helm.sh/resource-policy: keep
   name: models.inference.llmkube.dev
 spec:
@@ -480,9 +480,10 @@ spec:
                         mounted) and pre-staged sources (pvc://, oci://, local paths). A
                         request the pods could not consume is refused and held as
                         PrefetchUnsupported: model caching disabled on the operator, a runtime
-                        the operator does not stage, a speculativeDecoding draft model, a
-                        multiNode member with its own modelCache.claimName, or a source the
-                        downloader does not stage ahead of time (s3://).
+                        the operator does not stage, a spec.speculativeDecoding.draftModelRef or a
+                        spec.vllmConfig.speculative.model, a multiNode member with its own
+                        modelCache.claimName, or a source the downloader does not stage ahead
+                        of time (s3://).
                       type: boolean
                     storageClassName:
                       description: |-
@@ -1576,6 +1577,11 @@ spec:
 
                     One Secret may carry both sets of keys; each is used only by the source
                     scheme it belongs to.
+
+                    On the Metal path the metal-agent reads the Secret only when it carries
+                    the label inference.llmkube.dev/model-source-credentials=true, and never
+                    reads the relay token Secret (llmkube-metal-relay); any other Secret
+                    refuses the start with SourceSecretNotAllowed.
                   properties:
                     name:
                       default: ""

@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.23.0
     helm.sh/resource-policy: keep
   name: modelrouters.inference.llmkube.dev
 spec:
@@ -398,6 +398,55 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      modelInfo:
+                        description: |-
+                          ModelInfo describes what this backend's model accepts and how much
+                          context it holds. The proxy publishes it on the backend's /v1/models
+                          entry, where clients decide whether to send images and how to size
+                          their context. Informational only: the proxy does not enforce it.
+                          Unset, the entry carries only the model id. Applies to the Proxy data
+                          plane only; the Gateway and AgentGateway data planes ignore it.
+                        properties:
+                          contextLength:
+                            description: |-
+                              ContextLength is the context window one request gets, in tokens. When
+                              unset, the controller fills it from the InferenceService:
+                              vllmConfig.maxModelLen (or --max-model-len in extraArgs) for vLLM, and
+                              contextSize divided across parallelSlots for llama.cpp. Other runtimes,
+                              and llama.cpp extraArgs that set those flags, publish none.
+                            format: int64
+                            minimum: 1
+                            type: integer
+                          inputModalities:
+                            description: |-
+                              InputModalities the model accepts. When unset, a backend whose
+                              capabilities include "vision" publishes ["text", "image"], and any
+                              other backend ["text"]. When set, it wins over capabilities.
+                            items:
+                              enum:
+                                - text
+                                - image
+                                - audio
+                                - video
+                                - file
+                              type: string
+                            maxItems: 5
+                            type: array
+                            x-kubernetes-list-type: set
+                          outputModalities:
+                            description: OutputModalities the model produces. Defaults to ["text"].
+                            items:
+                              enum:
+                                - text
+                                - image
+                                - audio
+                                - video
+                                - file
+                              type: string
+                            maxItems: 5
+                            type: array
+                            x-kubernetes-list-type: set
+                        type: object
                       name:
                         description: |-
                           Name is the stable identifier used by rules and observability labels.
@@ -442,7 +491,11 @@ spec:
                         description: |-
                           Weight is used for the "weighted" routing strategy. Higher values
                           receive proportionally more traffic. Ignored for other strategies.
-                          Default 1 when unset.
+                          Default 1 when unset. 0 drains the backend from weighted rules: it
+                          receives no traffic from them, even while every other backend in the
+                          rule is unavailable (the Gateway API meaning of a zero weight, which
+                          both data planes follow). A weighted rule needs at least one backend
+                          with a positive weight.
                         format: int32
                         minimum: 0
                         type: integer
@@ -674,6 +727,18 @@ spec:
                         AuditLog controls structured audit emission. Auditing is always on;
                         this field tunes the destination and verbosity.
                       properties:
+                        callerHeader:
+                          description: |-
+                            CallerHeader names a request header whose value is added to every
+                            audit entry as caller, for example X-LLMKube-Client set by each
+                            client. The client chooses the value, so it is a label rather than an
+                            identity. It is cut to 128 bytes, and characters outside printable
+                            ASCII are replaced with '?'. A header that carries a credential (Authorization,
+                            Proxy-Authorization, Cookie, X-Api-Key, Api-Key, X-Goog-Api-Key) is
+                            refused.
+                          maxLength: 64
+                          pattern: ^[A-Za-z0-9!#$%&'*+.^_|~-]+$
+                          type: string
                         filePath:
                           description: |-
                             FilePath is the destination when Sink=file. Must be writable inside
@@ -683,6 +748,15 @@ spec:
                           description: |-
                             IncludeRequestBody, when true, includes the OpenAI request body in
                             every audit entry. Disabled by default for size and privacy.
+                          type: boolean
+                        logClientAddress:
+                          description: |-
+                            LogClientAddress, when true, adds the address of the request's sender
+                            to every audit entry as client. It is the TCP peer: in-cluster callers
+                            keep their pod IP through the ClusterIP. When the peer is in
+                            TrustedProxyCIDRs, it is the first address in X-Forwarded-For, read
+                            from the right, that is not a trusted proxy. Off by default, because a
+                            client address is personal data in some deployments.
                           type: boolean
                         sink:
                           default: stdout
@@ -698,6 +772,18 @@ spec:
                             - file
                             - otlp
                           type: string
+                        trustedProxyCIDRs:
+                          description: |-
+                            TrustedProxyCIDRs lists the proxies in front of the router (an
+                            ingress, a gateway) whose X-Forwarded-For is believed, as CIDRs or
+                            single addresses. Any client can send X-Forwarded-For, so with this
+                            unset the header is ignored and client is always the TCP peer.
+                            Requires logClientAddress. The controller validates the entries.
+                          items:
+                            maxLength: 50
+                            type: string
+                          maxItems: 32
+                          type: array
                       type: object
                     auth:
                       description: |-
@@ -1767,6 +1853,24 @@ spec:
                               x-kubernetes-list-type: atomic
                           type: object
                       type: object
+                    drainTimeout:
+                      description: |-
+                        DrainTimeout is how long a router-proxy replica keeps serving its
+                        in-flight requests after SIGTERM, so a rollout finishes the streams
+                        it holds instead of cutting them at the proxy's own default. It
+                        sets the proxy's --shutdown-timeout and the pod's
+                        terminationGracePeriodSeconds, which is this value plus a fixed
+                        5s margin so the kubelet does not SIGKILL before the drain ends.
+                        A stream longer than this still ends at the drain deadline. The
+                        proxy's default of 30s applies when unset, and nothing is rendered
+                        on the pod template, so an operator upgrade does not roll existing
+                        proxies. Changing it changes the pod template, so it rolls the
+                        proxy pods, and a replica that drains stays Terminating for up to
+                        this long, delaying that roll. Must be between 1s and 1h.
+                      type: string
+                      x-kubernetes-validations:
+                        - message: drainTimeout must be between 1s and 1h
+                          rule: duration(self) >= duration('1s') && duration(self) <= duration('1h')
                     image:
                       description: |-
                         Image overrides the default router-proxy container image. Useful
@@ -1799,6 +1903,27 @@ spec:
                         Use it when the proxy image is only present on specific nodes (for
                         example a node-local registry) or to co-locate the proxy with its
                         backends. Passthrough to the Pod spec.
+                      type: object
+                    podAnnotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        PodAnnotations are merged into the router-proxy pod's
+                        metadata.annotations. The operator's own annotations (the config hash,
+                        and the prometheus.io scrape annotations when the operator emits them)
+                        win on collision. An annotation removed here is removed from the pods;
+                        annotations other tools add are kept.
+                      type: object
+                    podLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        PodLabels are merged into the router-proxy pod's metadata.labels, for
+                        example so label-based NetworkPolicies select the proxy. The operator's
+                        own labels (app, inference.llmkube.dev/model-router) win on collision,
+                        and the Deployment and Service selectors use only those, so changing
+                        PodLabels rolls the pods without touching a selector. A label removed
+                        here is removed from the pods; labels other tools add are kept.
                       type: object
                     quarantineDuration:
                       description: |-
@@ -2210,7 +2335,9 @@ spec:
                             description: |-
                               RequiredCapabilities filters backends. The rule only matches if at
                               least one backend in Route.Backends advertises every listed
-                              capability.
+                              capability, and on dataPlane: Proxy only those backends serve the
+                              rule's requests, under every strategy. A backend that lacks one is
+                              never tried, not even as a fallback.
                             items:
                               type: string
                             type: array
@@ -2237,8 +2364,9 @@ spec:
                               "primary-fallback" strategy, the first entry is the primary and
                               subsequent entries are tried in order on failure. For "weighted",
                               traffic is distributed across all entries by Backend.Weight. For
-                              "shadow", the first entry serves the response and subsequent entries
-                              receive mirrored requests for evaluation only.
+                              "shadow", the first entry serves the response (falling back in order
+                              as primary-fallback does) and the entries after the one that served
+                              receive mirrored copies for evaluation only; it needs at least two.
                             items:
                               type: string
                             minItems: 1
@@ -2263,7 +2391,21 @@ spec:
                           strategy:
                             default: primary-fallback
                             description: |-
-                              Strategy selects how multiple backends are used. On dataPlane:
+                              Strategy selects how multiple backends are used. On dataPlane: Proxy,
+                              weighted picks a backend per request in proportion to its weight among
+                              the rule's backends that are healthy, not quarantined and advertise
+                              every required capability; a request that fails on it fails over to
+                              another backend of the rule picked the same way, never the same one
+                              twice. A weighted rule there cannot name two members of one ModelPool,
+                              since they share one GPU slot and would swap on every other request.
+                              shadow serves the client exactly as primary-fallback does and sends a
+                              copy of each request, marked x-llmkube-shadow: true, to the rule's
+                              other healthy backends after the one that served; their responses are
+                              discarded, their failures never quarantine them, and they are not
+                              charged to budgets. Copies are best effort: at most 4 run at once per
+                              backend and the rest are dropped and counted. An external backend that
+                              is a shadow target receives, and bills, every request. A shadow target
+                              cannot be a ModelPool member. dataPlane: Gateway rejects shadow. On dataPlane:
                               AgentGateway only primary-fallback compiles, and a rule routes to its
                               first healthy backend: when that backend's InferenceService has no
                               ready replica, the next reconcile moves the rule to the next backend.
