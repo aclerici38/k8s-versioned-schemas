@@ -3,54 +3,42 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: snapshotreplications.kopiur.home-operations.com
+  name: maintenances.kopiur.home-operations.com
 spec:
   group: kopiur.home-operations.com
   names:
     categories:
       - kopiur
-    kind: SnapshotReplication
-    plural: snapshotreplications
+    kind: Maintenance
+    plural: maintenances
     shortNames:
-      - kopiasrepl
-    singular: snapshotreplication
+      - kopiamaint
+    singular: maintenance
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.sourceRef.name
-          name: Source
+        - jsonPath: .spec.repository.name
+          name: Repository
           type: string
-        - jsonPath: .spec.destinationRef.name
-          name: Destination
+        - jsonPath: .status.ownership.owner
+          name: Owner
           type: string
-        - jsonPath: .spec.schedule.cron
-          name: Schedule
-          type: string
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.lastReplicated
-          name: Last
-          type: date
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for SnapshotReplicationSpec via `CustomResource`
+          description: Auto-generated derived type for MaintenanceSpec via `CustomResource`
           properties:
             spec:
               description: |-
-                Copy selected snapshots from a source repository into a destination repository on a schedule (`kopia snapshot migrate`).
+                Maintenance schedule and ownership lease for one `Repository`/`ClusterRepository`.
 
                 Not `Eq`: `mover` transitively embeds k8s-openapi types.
               properties:
                 credentialProjection:
-                  description: |-
-                    Opt-in projection of BOTH repositories' credential Secrets into the mover
-                    Job's namespace (required when the destination is a `ClusterRepository`
-                    whose Secrets live elsewhere).
+                  description: Opt-in projection of the repository's credential Secret(s) into this run's namespace (default off).
                   nullable: true
                   properties:
                     enabled:
@@ -58,128 +46,28 @@ spec:
                       description: Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.
                       type: boolean
                   type: object
-                destinationRef:
-                  description: |-
-                    The `Repository` or `ClusterRepository` snapshots are copied INTO. A real
-                    repository CR with its own password and format (unlike a
-                    `RepositoryReplication` destination, which is a bare backend reusing the
-                    source's password). Must not resolve to the same repository as `sourceRef`
-                    (webhook-enforced structurally; the shared validator catches the literal
-                    same-ref case at admission).
-                  properties:
-                    kind:
-                      default: Repository
-                      description: Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].
-                      enum:
-                        - Repository
-                        - ClusterRepository
-                      type: string
-                    name:
-                      description: Name of the referenced `Repository`/`ClusterRepository`.
-                      type: string
-                    namespace:
-                      description: Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.
-                      nullable: true
-                      type: string
-                  required:
-                    - name
-                  type: object
-                migrate:
-                  description: |-
-                    Tuning for the underlying `kopia snapshot migrate` invocation. Absent:
-                    sequential copy, and NO policy copying (see [`PolicyCopyMode`]).
+                failurePolicy:
+                  description: How a failed maintenance run is retried and bounded (backoff, deadline).
                   nullable: true
                   properties:
-                    parallel:
-                      description: |-
-                        `--parallel`: number of snapshots migrated concurrently (kopia default
-                        `1` — sequential). Must be >= 1 when set.
-                      format: uint32
-                      minimum: 0.0
+                    activeDeadlineSeconds:
+                      description: Mover `Job.spec.activeDeadlineSeconds` — wall-clock cap after which a running run is killed.
+                      format: int64
                       nullable: true
                       type: integer
-                    policies:
-                      default: none
-                      description: |-
-                        Whether kopia **policies** attached to the copied sources are also copied
-                        to the destination. Defaults to [`PolicyCopyMode::None`].
-                      enum:
-                        - none
-                        - copy
-                        - copyOverwrite
-                      type: string
-                    throttle:
-                      description: |-
-                        Bandwidth/ops caps for THIS replication's runs, per side. `snapshot
-                        migrate` has no speed flags, so each side is applied as `kopia repository
-                        throttle set` on that side's connection; `source` overrides the source
-                        repository's `moverDefaults.throttle` and `destination` the destination
-                        repository's, field by field (a field left unset keeps that repository's
-                        default). Absent: both sides use their repository's defaults.
+                    backoffLimit:
+                      description: Mover `Job.spec.backoffLimit` — retries before a failed run is marked failed.
+                      format: int32
                       nullable: true
-                      properties:
-                        destination:
-                          description: |-
-                            Caps for the DESTINATION (write) side, overriding the destination
-                            repository's `moverDefaults.throttle` field by field. Applied with
-                            `repository throttle set` on the destination connection the migrate
-                            writes through.
-                          nullable: true
-                          properties:
-                            downloadBytesPerSecond:
-                              description: Cap download throughput in bytes/sec (`--download-bytes-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                            readOpsPerSecond:
-                              description: Cap read/list ops/sec (`--read-requests-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                            uploadBytesPerSecond:
-                              description: Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                            writeOpsPerSecond:
-                              description: Cap write ops/sec (`--write-requests-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                          type: object
-                        source:
-                          description: |-
-                            Caps for the SOURCE (read) side, overriding the source repository's
-                            `moverDefaults.throttle` field by field. Applied with `repository
-                            throttle set` on the migrate's read-only source connection — accepted
-                            there, so a read-only source is throttled like any other.
-                          nullable: true
-                          properties:
-                            downloadBytesPerSecond:
-                              description: Cap download throughput in bytes/sec (`--download-bytes-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                            readOpsPerSecond:
-                              description: Cap read/list ops/sec (`--read-requests-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                            uploadBytesPerSecond:
-                              description: Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                            writeOpsPerSecond:
-                              description: Cap write ops/sec (`--write-requests-per-second`).
-                              format: int64
-                              nullable: true
-                              type: integer
-                          type: object
-                      type: object
+                      type: integer
+                    podStartupDeadlineSeconds:
+                      description: Seconds a non-starting (wedged) mover pod may sit before the run is failed; default 300s.
+                      format: int64
+                      nullable: true
+                      type: integer
                   type: object
                 mover:
-                  description: Mover (Job pod) overrides for the replication run.
+                  description: Mover (Job pod) overrides for the maintenance run.
                   nullable: true
                   properties:
                     cache:
@@ -232,7 +120,7 @@ spec:
                             - snapshot
                       properties:
                         pvcConsumer:
-                          description: 'Backup sources only: auto-derive the workload from the PVC this snapshot backs up.'
+                          description: "Backup sources only: auto-derive the workload from the PVC this snapshot backs up."
                           properties:
                             container:
                               description: Which container within the matched consumer pod to inherit from; absent uses the first/only.
@@ -323,7 +211,7 @@ spec:
                           format: int64
                           type: integer
                         fsGroupChangePolicy:
-                          description: 'fsGroupChangePolicy defines behavior of changing ownership and permission of the volume before being exposed inside Pod. This field will only apply to volume types which support fsGroup based ownership(and permissions). It will have no effect on ephemeral volume types such as: secret, configmaps and emptydir. Valid values are "OnRootMismatch" and "Always". If not specified, "Always" is used. Note that this field cannot be set when spec.os.name is windows.'
+                          description: "fsGroupChangePolicy defines behavior of changing ownership and permission of the volume before being exposed inside Pod. This field will only apply to volume types which support fsGroup based ownership(and permissions). It will have no effect on ephemeral volume types such as: secret, configmaps and emptydir. Valid values are \"OnRootMismatch\" and \"Always\". If not specified, \"Always\" is used. Note that this field cannot be set when spec.os.name is windows."
                           type: string
                         runAsGroup:
                           description: The GID to run the entrypoint of the container process. Uses runtime default if unset. May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence for that container. Note that this field cannot be set when spec.os.name is windows.
@@ -424,7 +312,13 @@ spec:
                           type: object
                       type: object
                     privilegedMode:
-                      description: Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.
+                      description: |-
+                        Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs
+                        as root (`runAsUser: 0`), adds the capabilities the operation needs on top of
+                        `drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);
+                        `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original
+                        ownership). Grants nothing for maintenance, or when the mover does not run as
+                        root (capabilities are inert for non-root); set `runAsUser: 0` yourself.
                       nullable: true
                       type: boolean
                     resources:
@@ -453,15 +347,89 @@ spec:
                           type: array
                         limits:
                           additionalProperties:
-                            description: "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n``` <quantity>        ::= <signedNumber><suffix>\n\n\t(Note that <suffix> may be empty, from the \"\" case in <decimalSI>.)\n\n<digit>           ::= 0 | 1 | ... | 9 <digits>          ::= <digit> | <digit><digits> <number>          ::= <digits> | <digits>.<digits> | <digits>. | .<digits> <sign>            ::= \"+\" | \"-\" <signedNumber>    ::= <number> | <sign><number> <suffix>          ::= <binarySI> | <decimalExponent> | <decimalSI> <binarySI>        ::= Ki | Mi | Gi | Ti | Pi | Ei\n\n\t(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\n<decimalSI>       ::= m | \"\" | k | M | G | T | P | E\n\n\t(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\n<decimalExponent> ::= \"e\" <signedNumber> | \"E\" <signedNumber> ```\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n\n- No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.\n\nThe sign will be omitted unless the number is negative.\n\nExamples:\n\n- 1.5 will be serialized as \"1500m\" - 1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation."
+                            description: |-
+                              Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.
+
+                              The serialization format is:
+
+                              ``` <quantity>        ::= <signedNumber><suffix>
+
+                              	(Note that <suffix> may be empty, from the "" case in <decimalSI>.)
+
+                              <digit>           ::= 0 | 1 | ... | 9 <digits>          ::= <digit> | <digit><digits> <number>          ::= <digits> | <digits>.<digits> | <digits>. | .<digits> <sign>            ::= "+" | "-" <signedNumber>    ::= <number> | <sign><number> <suffix>          ::= <binarySI> | <decimalExponent> | <decimalSI> <binarySI>        ::= Ki | Mi | Gi | Ti | Pi | Ei
+
+                              	(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)
+
+                              <decimalSI>       ::= m | "" | k | M | G | T | P | E
+
+                              	(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)
+
+                              <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber> ```
+
+                              No matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.
+
+                              When a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.
+
+                              Before serializing, Quantity will be put in "canonical form". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:
+
+                              - No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.
+
+                              The sign will be omitted unless the number is negative.
+
+                              Examples:
+
+                              - 1.5 will be serialized as "1500m" - 1.5Gi will be serialized as "1536Mi"
+
+                              Note that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.
+
+                              Non-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)
+
+                              This format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.
                             x-kubernetes-int-or-string: true
-                          description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                          description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
                           type: object
                         requests:
                           additionalProperties:
-                            description: "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n``` <quantity>        ::= <signedNumber><suffix>\n\n\t(Note that <suffix> may be empty, from the \"\" case in <decimalSI>.)\n\n<digit>           ::= 0 | 1 | ... | 9 <digits>          ::= <digit> | <digit><digits> <number>          ::= <digits> | <digits>.<digits> | <digits>. | .<digits> <sign>            ::= \"+\" | \"-\" <signedNumber>    ::= <number> | <sign><number> <suffix>          ::= <binarySI> | <decimalExponent> | <decimalSI> <binarySI>        ::= Ki | Mi | Gi | Ti | Pi | Ei\n\n\t(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\n<decimalSI>       ::= m | \"\" | k | M | G | T | P | E\n\n\t(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\n<decimalExponent> ::= \"e\" <signedNumber> | \"E\" <signedNumber> ```\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n\n- No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.\n\nThe sign will be omitted unless the number is negative.\n\nExamples:\n\n- 1.5 will be serialized as \"1500m\" - 1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation."
+                            description: |-
+                              Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.
+
+                              The serialization format is:
+
+                              ``` <quantity>        ::= <signedNumber><suffix>
+
+                              	(Note that <suffix> may be empty, from the "" case in <decimalSI>.)
+
+                              <digit>           ::= 0 | 1 | ... | 9 <digits>          ::= <digit> | <digit><digits> <number>          ::= <digits> | <digits>.<digits> | <digits>. | .<digits> <sign>            ::= "+" | "-" <signedNumber>    ::= <number> | <sign><number> <suffix>          ::= <binarySI> | <decimalExponent> | <decimalSI> <binarySI>        ::= Ki | Mi | Gi | Ti | Pi | Ei
+
+                              	(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)
+
+                              <decimalSI>       ::= m | "" | k | M | G | T | P | E
+
+                              	(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)
+
+                              <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber> ```
+
+                              No matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.
+
+                              When a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.
+
+                              Before serializing, Quantity will be put in "canonical form". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:
+
+                              - No precision is lost - No fractional digits will be emitted - The exponent (or suffix) is as large as possible.
+
+                              The sign will be omitted unless the number is negative.
+
+                              Examples:
+
+                              - 1.5 will be serialized as "1500m" - 1.5Gi will be serialized as "1536Mi"
+
+                              Note that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.
+
+                              Non-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)
+
+                              This format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.
                             x-kubernetes-int-or-string: true
-                          description: 'Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                          description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
                           type: object
                       type: object
                     securityContext:
@@ -474,7 +442,7 @@ spec:
                       nullable: true
                       properties:
                         allowPrivilegeEscalation:
-                          description: 'AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. This bool directly controls if the no_new_privs flag will be set on the container process. AllowPrivilegeEscalation is true always when the container is: 1) run as Privileged 2) has CAP_SYS_ADMIN Note that this field cannot be set when spec.os.name is windows.'
+                          description: "AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. This bool directly controls if the no_new_privs flag will be set on the container process. AllowPrivilegeEscalation is true always when the container is: 1) run as Privileged 2) has CAP_SYS_ADMIN Note that this field cannot be set when spec.os.name is windows."
                           type: boolean
                         appArmorProfile:
                           description: appArmorProfile is the AppArmor options to use by this container. If set, this profile overrides the pod's appArmorProfile. Note that this field cannot be set when spec.os.name is windows.
@@ -580,184 +548,38 @@ spec:
                       nullable: true
                       type: integer
                   type: object
-                pruning:
-                  description: |-
-                    What happens to already-replicated copies at the destination on later runs.
-                    Absent = `none`: copies accumulate forever and — like every mode here —
-                    **survive deletion of this CR** (copy `Snapshot` CRs carry no
-                    ownerReference to it). Pruning only ever considers snapshots this CR
-                    replicated (labeled at birth); it never touches the destination's own
-                    directly-written snapshots.
-                  nullable: true
-                  oneOf:
-                    - required:
-                        - none
-                    - required:
-                        - mirrorSource
-                    - required:
-                        - retention
+                ownership:
+                  description: Maintenance ownership lease holder and takeover policy.
                   properties:
-                    mirrorSource:
-                      description: |-
-                        Mirror the source: delete a copy when its `(identity, startTime)` has
-                        vanished from the source repository.
-                      type: object
-                    none:
-                      description: |-
-                        Never prune: copies accumulate until deleted by hand (the default when
-                        `spec.pruning` is absent).
-                      type: object
-                    retention:
-                      description: |-
-                        Keep copies under an independent GFS retention at the destination,
-                        regardless of what the source still holds.
-                      properties:
-                        keepAnnual:
-                          description: Keep one snapshot per year for the most-recent N years.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepDaily:
-                          description: Keep one snapshot per day for the most-recent N days.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepHourly:
-                          description: Keep one snapshot per hour for the most-recent N hours.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepLatest:
-                          description: Keep the N most-recent snapshots regardless of age.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepMonthly:
-                          description: Keep one snapshot per month for the most-recent N months.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        keepWeekly:
-                          description: Keep one snapshot per week for the most-recent N weeks.
-                          format: uint32
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                      type: object
-                  type: object
-                schedule:
-                  description: Cron and deterministic jitter for the replication runs.
-                  properties:
-                    cron:
-                      description: The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.
+                    owner:
+                      description: Stable lease holder identity (e.g. `kopia-operator/nas-primary`).
                       type: string
-                    jitter:
-                      description: Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).
-                      nullable: true
-                      type: string
-                    timezone:
+                    ownerAliases:
                       description: |-
-                        IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses
-                        the enclosing schedule's timezone, else the controller default (UTC).
-                      nullable: true
+                        Previous lease strings still recognized as SELF (a migration path):
+                        when kopia's currently-recorded maintenance owner matches the owner
+                        derived from one of these aliases, a run treats the lease as its own —
+                        it claims it and re-stamps `owner`, upgrading the recorded owner to the
+                        current format. The operator populates this when a repository's managed
+                        Maintenance moves to a cluster-qualified lease (identityDefaults.cluster),
+                        so the transition never yields the lease to what merely looks like a
+                        foreign owner.
+                      items:
+                        type: string
+                      type: array
+                    takeoverPolicy:
+                      default: Never
+                      description: What to do when the lease is already held by a different `owner`.
+                      enum:
+                        - Never
+                        - PromptCondition
+                        - Force
                       type: string
                   required:
-                    - cron
+                    - owner
                   type: object
-                selection:
-                  description: |-
-                    Which snapshots to copy. Absent: every identity in the source repository,
-                    full history (`kopia snapshot migrate --all`).
-                  nullable: true
-                  properties:
-                    identities:
-                      description: |-
-                        Select source identities (`username@hostname:path`) to copy. Absent: all
-                        identities in the source repository.
-                      nullable: true
-                      properties:
-                        exclude:
-                          description: Identities to skip, applied after `include`. Exclude wins on overlap.
-                          items:
-                            description: |-
-                              One glob match against a kopia identity's structured
-                              `(username, hostname, sourcePath)` triple. Every set component must match
-                              (AND); an unset component matches anything — but at least one component must
-                              be set (webhook-refused otherwise: a fully-empty matcher constrains nothing).
-
-                              Glob semantics, **per component** (non-crossing — a `*` in `username` can
-                              never reach into `hostname`): `*` matches any run of characters (including
-                              none), `?` matches exactly one character, everything else matches literally,
-                              and the pattern is anchored (it must cover the WHOLE component — `pg` does
-                              not match `pg-main`; `pg*` does). Matching is always on the structured
-                              triple, never on a joined `username@hostname:path` string, so literal `@`/`:`
-                              inside a component cannot confuse it. No character classes (`[...]`) or brace
-                              expansion — those are rejected at admission rather than silently matched
-                              literally. See [`component_glob_matches`].
-                            properties:
-                              hostname:
-                                description: Glob for the `hostname` component; absent matches any hostname.
-                                nullable: true
-                                type: string
-                              sourcePath:
-                                description: Glob for the `sourcePath` component; absent matches any path.
-                                nullable: true
-                                type: string
-                              username:
-                                description: Glob for the `username` component; absent matches any username.
-                                nullable: true
-                                type: string
-                            type: object
-                          type: array
-                        include:
-                          description: 'Identities to copy. Empty/absent: every identity in the source.'
-                          items:
-                            description: |-
-                              One glob match against a kopia identity's structured
-                              `(username, hostname, sourcePath)` triple. Every set component must match
-                              (AND); an unset component matches anything — but at least one component must
-                              be set (webhook-refused otherwise: a fully-empty matcher constrains nothing).
-
-                              Glob semantics, **per component** (non-crossing — a `*` in `username` can
-                              never reach into `hostname`): `*` matches any run of characters (including
-                              none), `?` matches exactly one character, everything else matches literally,
-                              and the pattern is anchored (it must cover the WHOLE component — `pg` does
-                              not match `pg-main`; `pg*` does). Matching is always on the structured
-                              triple, never on a joined `username@hostname:path` string, so literal `@`/`:`
-                              inside a component cannot confuse it. No character classes (`[...]`) or brace
-                              expansion — those are rejected at admission rather than silently matched
-                              literally. See [`component_glob_matches`].
-                            properties:
-                              hostname:
-                                description: Glob for the `hostname` component; absent matches any hostname.
-                                nullable: true
-                                type: string
-                              sourcePath:
-                                description: Glob for the `sourcePath` component; absent matches any path.
-                                nullable: true
-                                type: string
-                              username:
-                                description: Glob for the `username` component; absent matches any username.
-                                nullable: true
-                                type: string
-                            type: object
-                          type: array
-                      type: object
-                    latestOnly:
-                      description: |-
-                        Copy only each selected identity's most recent snapshot instead of its
-                        full history (`kopia snapshot migrate --latest`). Default `false`.
-                      type: boolean
-                  type: object
-                sourceRef:
-                  description: |-
-                    The `Repository` or `ClusterRepository` snapshots are copied FROM. Opened
-                    read-only by the replication mover — a replication never writes to its source.
+                repository:
+                  description: Reference to the `Repository` or `ClusterRepository` to maintain.
                   properties:
                     kind:
                       default: Repository
@@ -776,20 +598,66 @@ spec:
                   required:
                     - name
                   type: object
-                suspend:
-                  description: Pause this replication; a suspended replication runs no copies (default `false`).
-                  type: boolean
+                schedule:
+                  description: quick (cheap) and full (`--full`, reclamation) maintenance crons.
+                  properties:
+                    full:
+                      description: Cron and jitter for `kopia maintenance run --full` (content reclamation).
+                      properties:
+                        cron:
+                          description: The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.
+                          type: string
+                        jitter:
+                          description: Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).
+                          nullable: true
+                          type: string
+                        timezone:
+                          description: |-
+                            IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses
+                            the enclosing schedule's timezone, else the controller default (UTC).
+                          nullable: true
+                          type: string
+                      required:
+                        - cron
+                      type: object
+                    quick:
+                      description: Cron and jitter for `kopia maintenance run` (quick, cheap index/log work).
+                      properties:
+                        cron:
+                          description: The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.
+                          type: string
+                        jitter:
+                          description: Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).
+                          nullable: true
+                          type: string
+                        timezone:
+                          description: |-
+                            IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses
+                            the enclosing schedule's timezone, else the controller default (UTC).
+                          nullable: true
+                          type: string
+                      required:
+                        - cron
+                      type: object
+                    timezone:
+                      description: IANA timezone both crons are evaluated in; absent means the controller default.
+                      nullable: true
+                      type: string
+                  required:
+                    - full
+                    - quick
+                  type: object
               required:
-                - destinationRef
+                - ownership
+                - repository
                 - schedule
-                - sourceRef
               type: object
             status:
-              description: Observed state of a `SnapshotReplication`.
+              description: "Observed maintenance state: lease holder and per-kind run results."
               nullable: true
               properties:
                 conditions:
-                  description: Standard Kubernetes conditions (`Ready`, `Reconciling`, `Stalled`).
+                  description: Standard Kubernetes conditions surfacing maintenance health.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -821,107 +689,147 @@ spec:
                       - type
                     type: object
                   type: array
-                lastReplicated:
-                  description: |-
-                    RFC3339 timestamp of the most recent successful replication run (also the
-                    scheduling anchor for the next slot).
-                  nullable: true
-                  type: string
-                lastRun:
-                  description: Counters from the most recent run.
+                full:
+                  description: Last/next-run state for the full maintenance schedule.
                   nullable: true
                   properties:
-                    alreadyPresent:
-                      description: Selected snapshots that were already present at the destination (skipped).
-                      format: uint32
-                      minimum: 0.0
+                    consecutiveFailures:
+                      description: Count of back-to-back failed runs of this kind; resets on success.
+                      format: int64
                       nullable: true
                       type: integer
-                    failed:
+                    lastContentReclaimedBytes:
                       description: |-
-                        Selected snapshots that failed to copy (kopia migrate exits 0 on
-                        per-source failures; the mover's post-verify counts them here).
-                      format: uint32
-                      minimum: 0.0
+                        Bytes of backend storage the most recent run of this kind actually freed:
+                        the blobs kopia deleted (unreferenced packs, superseded epoch indexes and
+                        expired logs), summed from the run history `kopia maintenance info`
+                        reports. It deliberately EXCLUDES kopia's snapshot-GC figure, which only
+                        marks contents deleted in the index and frees no storage until a later run
+                        removes the blobs. Absent when the run reclaimed nothing measurable — a
+                        quick run on an epoch-enabled repository only advances and compacts
+                        epochs, so there is no figure to report; `0` always means a measured zero,
+                        never "unknown".
+                      format: int64
                       nullable: true
                       type: integer
-                    identitiesSelected:
-                      description: Source identities the selector matched this run.
-                      format: uint32
-                      minimum: 0.0
+                    lastHandledAt:
+                      description: RFC3339 instant the controller last observed this kind's per-slot Job reach terminal success.
                       nullable: true
-                      type: integer
-                    incompleteSkipped:
-                      description: |-
-                        Incomplete source manifests of selected identities — checkpoints an
-                        interrupted `kopia snapshot create` left behind — that this run did not
-                        replicate. kopia can never migrate a checkpoint as a complete snapshot,
-                        so they are skipped rather than failing the post-verify. Non-zero
-                        usually means an abandoned manual backup worth cleaning up with
-                        `kopia snapshot delete <id> --delete` (the mover log names the ids).
-                      format: uint32
-                      minimum: 0.0
+                      type: string
+                    lastRunAt:
+                      description: RFC3339 instant of the most recent run of this kind.
                       nullable: true
-                      type: integer
-                    pruned:
-                      description: Copies pruned this run per `spec.pruning`.
-                      format: uint32
-                      minimum: 0.0
+                      type: string
+                    nextScheduledAt:
+                      description: RFC3339 instant of the next scheduled run of this kind (cron + jitter, pinned).
                       nullable: true
-                      type: integer
-                    snapshotsCopied:
-                      description: Snapshots newly copied to the destination this run.
-                      format: uint32
-                      minimum: 0.0
-                      nullable: true
-                      type: integer
+                      type: string
                   type: object
                 manualRun:
-                  description: |-
-                    State of the most recent annotation-requested out-of-band run
-                    (`kopiur.home-operations.com/run-requested`); absent until one is
-                    requested.
+                  description: State of the most recent annotation-requested out-of-band run; absent until one is requested.
                   nullable: true
                   properties:
                     completedAt:
                       description: RFC3339 instant the run reached a terminal phase.
                       nullable: true
                       type: string
-                    phase:
-                      description: Lifecycle of a manual replication run. Closed enum.
+                    mode:
+                      description: |-
+                        Which maintenance kind a manual (annotation-requested) run performs; the wire
+                        values are the `run-mode` annotation values. Defaults to `quick`.
                       enum:
-                        - Pending
+                        - quick
+                        - full
+                      nullable: true
+                      type: string
+                    phase:
+                      description: Lifecycle of a manual run. Closed enum.
+                      enum:
                         - Running
                         - Succeeded
                         - Failed
                       nullable: true
                       type: string
                     requestedAt:
-                      description: |-
-                        The `run-requested` annotation value this status reflects (RFC3339),
-                        verbatim as the user wrote it — it pins WHICH request is answered.
+                      description: The `run-requested` annotation value this status reflects (RFC3339).
                       nullable: true
                       type: string
                   type: object
                 observedGeneration:
-                  description: '`metadata.generation` last reconciled, for staleness detection / kstatus.'
+                  description: The `metadata.generation` this status reflects, for staleness detection.
                   format: int64
                   nullable: true
                   type: integer
-                phase:
-                  description: Lifecycle phase of a snapshot replication.
-                  enum:
-                    - Pending
-                    - Replicating
-                    - Succeeded
-                    - Failed
-                    - Suspended
+                observedIndexBlobs:
+                  description: Content-index blob count re-counted right after the most recent successful run.
                   nullable: true
-                  type: string
+                  properties:
+                    count:
+                      default: 0
+                      description: Number of content-index blobs (`kopia index list`) after the run.
+                      format: int64
+                      type: integer
+                    observedAt:
+                      default: ""
+                      description: |-
+                        RFC3339 instant the recount was taken. What makes this observation
+                        comparable against the repository's own `storageStats.indexBlobCountAt`,
+                        so whichever is newer wins rather than whichever was written last.
+                      type: string
+                  type: object
+                ownership:
+                  description: Current lease holder, if the lease has been claimed.
+                  nullable: true
+                  properties:
+                    claimedAt:
+                      description: RFC3339 instant the lease was claimed.
+                      nullable: true
+                      type: string
+                    owner:
+                      description: The current lease holder's identity (matches `Ownership.owner`).
+                      nullable: true
+                      type: string
+                  type: object
+                quick:
+                  description: Last/next-run state for the quick maintenance schedule.
+                  nullable: true
+                  properties:
+                    consecutiveFailures:
+                      description: Count of back-to-back failed runs of this kind; resets on success.
+                      format: int64
+                      nullable: true
+                      type: integer
+                    lastContentReclaimedBytes:
+                      description: |-
+                        Bytes of backend storage the most recent run of this kind actually freed:
+                        the blobs kopia deleted (unreferenced packs, superseded epoch indexes and
+                        expired logs), summed from the run history `kopia maintenance info`
+                        reports. It deliberately EXCLUDES kopia's snapshot-GC figure, which only
+                        marks contents deleted in the index and frees no storage until a later run
+                        removes the blobs. Absent when the run reclaimed nothing measurable — a
+                        quick run on an epoch-enabled repository only advances and compacts
+                        epochs, so there is no figure to report; `0` always means a measured zero,
+                        never "unknown".
+                      format: int64
+                      nullable: true
+                      type: integer
+                    lastHandledAt:
+                      description: RFC3339 instant the controller last observed this kind's per-slot Job reach terminal success.
+                      nullable: true
+                      type: string
+                    lastRunAt:
+                      description: RFC3339 instant of the most recent run of this kind.
+                      nullable: true
+                      type: string
+                    nextScheduledAt:
+                      description: RFC3339 instant of the next scheduled run of this kind (cron + jitter, pinned).
+                      nullable: true
+                      type: string
+                  type: object
               type: object
           required:
             - spec
-          title: SnapshotReplication
+          title: Maintenance
           type: object
       served: true
       storage: true
