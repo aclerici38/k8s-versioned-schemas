@@ -9,14 +9,14 @@
     },
     "clusterDomain": {
       "default": "cluster.local",
-      "description": "The cluster's DNS domain, the kubelet's `clusterDomain`: the gateway's in-cluster address that runner Jobs are handed as `HTTPS_PROXY`, `\u003crelease\u003e-gateway.\u003cnamespace\u003e.svc.\u003cclusterDomain\u003e`, and the Service names the `cilium` network policy lets runner pods look up end in it. On a cluster with another domain, every runner fails to reach the gateway until this matches.",
+      "description": "The cluster's DNS domain, the kubelet's `clusterDomain`. The gateway's in-cluster address, which runner Jobs are handed as `HTTPS_PROXY`, is `\u003crelease\u003e-gateway.\u003cnamespace\u003e.svc.\u003cclusterDomain\u003e`. The Service names that the `cilium` network policy lets runner pods look up also end in it. On a cluster with another domain, every runner fails to reach the gateway until this matches.",
       "minLength": 1,
       "title": "clusterDomain",
       "type": "string"
     },
     "config": {
       "additionalProperties": false,
-      "description": "Application configuration, using the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted settings use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys the chart derives from its deployment values (`addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `databaseRunnerRole`, `executor`, `runner`, and, when `gatewayCache.enabled` is set, `gatewayCacheDir`, `gatewayCacheStorage`, `gatewayCacheMaxEntrySize`, and `gatewayCacheMaxSize` for filesystem storage or the `gatewayCacheS3*` keys for S3) fail the render.",
+      "description": "Application configuration, with the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted keys use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys that the chart derives from its deployment values fail the render. These keys are `addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `databaseRunnerRole`, `executor` and `runner`. When `gatewayCache.enabled` is set, they also include `gatewayCacheDir`, `gatewayCacheStorage` and `gatewayCacheMaxEntrySize`. For filesystem storage, they also include `gatewayCacheMaxSize`. For S3, they also include the `gatewayCacheS3*` keys.",
       "properties": {
         "accounts": {
           "required": [],
@@ -221,7 +221,7 @@
       "type": "object"
     },
     "database": {
-      "description": "Three Postgres connection strings, each from its own Secret. The\napplication role must not own the tables (row-level security), the owner\nrole runs migrations and applies configuration on the leader, and the\nrunner role is handed to runner Jobs and can only write its own run. On\nCloudNativePG, declare `app` and `runner` as DatabaseRole resources and\nuse the bootstrap owner as `owner`; see the database docs.",
+      "description": "Three Postgres connection strings, each from its own Secret. The application\nrole must not own the tables (row-level security). The owner role runs\nmigrations and applies configuration on the leader. The runner role is\nhanded to runner Jobs and can only write its own run. On CloudNativePG,\ndeclare `app` and `runner` as DatabaseRole resources and use the bootstrap\nowner as `owner`. See the database docs.",
       "properties": {
         "app": {
           "properties": {
@@ -271,7 +271,7 @@
           "properties": {
             "existingSecret": {
               "default": "",
-              "description": "(required) Secret holding the runner role's connection URI; referenced by runner Jobs, never read by kritika serve.",
+              "description": "(required) Secret holding the runner role's connection URI. Runner Jobs reference it, and kritika serve never reads it.",
               "title": "existingSecret",
               "type": "string"
             },
@@ -298,19 +298,19 @@
       "type": "object"
     },
     "deploymentAnnotations": {
-      "description": "Annotations added to the Deployment (e.g. `reloader.stakater.com/auto: \"true\"`). Pod-level annotations go in `podAnnotations`.",
+      "description": "Annotations added to the Deployment (for example, `reloader.stakater.com/auto: \"true\"`). Pod-level annotations go in `podAnnotations`.",
       "required": [],
       "title": "deploymentAnnotations",
       "type": "object"
     },
     "env": {
-      "description": "Operational settings and referenced secrets, keyed by environment variable name. Use valueFrom.secretKeyRef for credentials. Do not duplicate file settings or chart-managed variables. Rendered through tpl.",
+      "description": "Operational configuration and referenced secrets, keyed by environment variable name. Use valueFrom.secretKeyRef for credentials. Do not duplicate file configuration or chart-managed variables. Rendered through tpl.",
       "required": [],
       "title": "env",
       "type": "object"
     },
     "envFrom": {
-      "description": "Secrets and ConfigMaps loaded as environment variables in bulk. Keys must match the secret references in config. Application settings must not also be set in the file.",
+      "description": "Secrets and ConfigMaps loaded as environment variables in bulk. Keys must match the secret references in config. Application configuration must not also be set in the file.",
       "items": {
         "required": []
       },
@@ -334,7 +334,7 @@
       "properties": {
         "enabled": {
           "default": false,
-          "description": "Cache eligible gateway downloads. Filesystem storage uses a private emptyDir per replica; S3 shares completed objects across replicas and rollouts.",
+          "description": "Cache eligible gateway downloads. Filesystem storage uses a private emptyDir per replica. S3 shares completed objects across replicas and rollouts.",
           "title": "enabled",
           "type": "boolean"
         },
@@ -364,7 +364,7 @@
             },
             "endpoint": {
               "default": "",
-              "description": "S3 API origin, including http:// or https:// and an optional port; no bucket path.",
+              "description": "S3 API origin, with http:// or https:// and an optional port. No bucket path.",
               "title": "endpoint",
               "type": "string"
             },
@@ -382,13 +382,13 @@
             },
             "maxSize": {
               "default": "2Gi",
-              "description": "Filesystem storage only: retained-entry budget, and separately the aggregate fill budget. Allow twice this plus evicted files still being served. S3's private local cache instead uses eight times maxEntrySize for each budget; this does not bound bucket usage.",
+              "description": "Filesystem storage only: retained-entry budget, and separately the aggregate fill budget. Allow twice this plus evicted files still being served. S3's private local cache instead uses eight times maxEntrySize for each budget. This does not bound bucket usage.",
               "title": "maxSize",
               "type": "string"
             },
             "prefix": {
               "default": "gateway/",
-              "description": "Object prefix dedicated to this instance. Kritika appends the storage format version.",
+              "description": "Object prefix dedicated to this instance. kritika appends the storage format version.",
               "title": "prefix",
               "type": "string"
             },
@@ -440,7 +440,7 @@
       "type": "object"
     },
     "httpRoute": {
-      "description": "Gateway API HTTPRoute, an alternative to `ingress`; one route to the public\nService. Named `httpRoute`, not `route`, to keep clear of the OpenShift\nRoute kind.",
+      "description": "Gateway API HTTPRoute, an alternative to `ingress`. One route to the public\nService. Named `httpRoute`, not `route`, to keep clear of the OpenShift\nRoute kind.",
       "properties": {
         "additionalRules": {
           "description": "Custom rules prepended before the default rule (templated).",
@@ -458,7 +458,7 @@
         },
         "apiVersion": {
           "default": "",
-          "description": "HTTPRoute apiVersion; empty defaults to gateway.networking.k8s.io/v1.",
+          "description": "HTTPRoute apiVersion. Empty defaults to gateway.networking.k8s.io/v1.",
           "title": "apiVersion",
           "type": "string"
         },
@@ -477,7 +477,7 @@
           "type": "array"
         },
         "hostnames": {
-          "description": "Hostnames matched against the Host header; `config.webUrl`'s host (templated).",
+          "description": "Hostnames matched against the Host header. `config.webUrl`'s host (templated).",
           "items": {
             "required": []
           },
@@ -492,7 +492,7 @@
         },
         "kind": {
           "default": "",
-          "description": "HTTPRoute kind; empty defaults to HTTPRoute.",
+          "description": "HTTPRoute kind. Empty defaults to HTTPRoute.",
           "title": "kind",
           "type": "string"
         },
@@ -549,11 +549,11 @@
       "type": "object"
     },
     "image": {
-      "description": "Default values for kritika.\n\nMost string, list and map values below are rendered through Helm's `tpl`, so\nthey may carry template expressions that resolve at install time, e.g.\n  ingress.hosts[0].host: kritika.{{ .Values.global.domain }}\nPlain numbers and booleans are passed through as they are.",
+      "description": "Default values for kritika.\n\nMost string, list and map values below are rendered through Helm's `tpl`, so\nthey can carry template expressions that resolve at install time, for example:\n  ingress.hosts[0].host: kritika.{{ .Values.global.domain }}\nPlain numbers and booleans are passed through as they are.",
       "properties": {
         "digest": {
           "default": "",
-          "description": "Pin the image by digest (sha256:…); when set, overrides the tag. The release pipeline fills it with the published image's digest.",
+          "description": "Pin the image by digest (sha256:…). When set, it overrides the tag. The release pipeline fills it with the published image's digest.",
           "title": "digest",
           "type": "string"
         },
@@ -571,7 +571,7 @@
         },
         "tag": {
           "default": "",
-          "description": "Overrides the image tag; defaults to the chart appVersion.",
+          "description": "Overrides the image tag. Defaults to the chart appVersion.",
           "title": "tag",
           "type": "string"
         }
@@ -589,7 +589,7 @@
       "type": "array"
     },
     "ingress": {
-      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s: the forges deliver webhooks to that URL and sign-in\nredirects back to it, so a route for another name serves a dashboard\nthat cannot sign in.",
+      "description": "One Ingress, or one Gateway API HTTPRoute, to the public Service, which\nserves the webhooks under `/hooks` and the dashboard. Its host must be\n`config.webUrl`'s. The forges deliver webhooks to that URL, and sign-in\nredirects back to it. A route for another name therefore serves a dashboard\nthat cannot sign in.",
       "properties": {
         "annotations": {
           "description": "Ingress annotations.",
@@ -610,7 +610,7 @@
           "type": "boolean"
         },
         "hosts": {
-          "description": "Ingress hosts and their paths; the host is `config.webUrl`'s.",
+          "description": "Ingress hosts and their paths. The host is `config.webUrl`'s.",
           "items": {
             "anyOf": [
               {
@@ -730,12 +730,12 @@
                 },
                 "folder": {
                   "default": "",
-                  "description": "Folder to create the dashboard in (templated); empty uses the Grafana default.",
+                  "description": "Folder to create the dashboard in (templated). Empty uses the Grafana default.",
                   "title": "folder",
                   "type": "string"
                 },
                 "matchLabels": {
-                  "description": "Label selector matching the target Grafana instance (templated; required when grafanaOperator is enabled).",
+                  "description": "Label selector matching the target Grafana instance (templated, and required when grafanaOperator is enabled).",
                   "required": [],
                   "title": "matchLabels",
                   "type": "object"
@@ -759,7 +759,7 @@
             },
             "namespace": {
               "default": "",
-              "description": "Namespace for the dashboard objects; defaults to the release namespace.",
+              "description": "Namespace for the dashboard objects. Defaults to the release namespace.",
               "title": "namespace",
               "type": "string"
             }
@@ -777,7 +777,7 @@
               "type": "object"
             },
             "additionalRuleLabels": {
-              "description": "Extra labels on every alert rule, e.g. a routing label for Alertmanager. The rule's own `severity` wins.",
+              "description": "Extra labels on every alert rule, for example, a routing label for Alertmanager. The rule's own `severity` wins.",
               "required": [],
               "title": "additionalRuleLabels",
               "type": "object"
@@ -796,19 +796,19 @@
             },
             "configDriftFor": {
               "default": "15m",
-              "description": "How long a replica's configuration file may differ from the applied one before KritikaConfigDrift fires; a rollout drifts briefly until the new leader applies its file.",
+              "description": "How long a replica's configuration file can differ from the applied one before KritikaConfigDrift fires. A rollout drifts briefly until the new leader applies its file.",
               "title": "configDriftFor",
               "type": "string"
             },
             "configErrorFor": {
               "default": "5m",
-              "description": "How long the leader's latest apply of the configuration may stay refused before KritikaConfigError fires.",
+              "description": "How long the leader's latest apply of the configuration can stay refused before KritikaConfigError fires.",
               "title": "configErrorFor",
               "type": "string"
             },
             "enabled": {
               "default": false,
-              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration the leader could not apply, configuration drift, delayed queues, unavailable queue metrics, vector-search errors and gateway cache storage errors.",
+              "description": "Create a Prometheus Operator PrometheusRule with kritika's alerts (requires its CRDs): no leader, more than one leader, a configuration that the leader failed to apply, configuration drift, delayed queues, unavailable queue metrics, vector-search errors and gateway cache storage errors.",
               "title": "enabled",
               "type": "boolean"
             },
@@ -820,7 +820,7 @@
             },
             "multipleLeadersFor": {
               "default": "2m",
-              "description": "How long more than one replica may report the lock before KritikaMultipleLeaders fires. A database failover can show two for one leader retry interval.",
+              "description": "How long more than one replica can report the lock before KritikaMultipleLeaders fires. A database failover can show two for one leader retry interval.",
               "title": "multipleLeadersFor",
               "type": "string"
             },
@@ -832,13 +832,13 @@
             },
             "noLeaderFor": {
               "default": "5m",
-              "description": "How long no replica may hold the leader lock before KritikaNoLeader fires. A standby takes the lock within one leader retry interval of the database answering, and a dead leader's session is dropped by Postgres within about a minute.",
+              "description": "How long the leader lock can go without a holder before KritikaNoLeader fires. A standby takes the lock within one leader retry interval of the database answering. Postgres drops a dead leader's session within about a minute.",
               "title": "noLeaderFor",
               "type": "string"
             },
             "queueAgeSeconds": {
               "default": 600,
-              "description": "Oldest runnable review/followup/thread job age in seconds that triggers KritikaQueueDelayed. Index onboarding is excluded; its age remains on the dashboard.",
+              "description": "Age in seconds of the oldest runnable review/followup/thread job that triggers KritikaQueueDelayed. Index onboarding is excluded. Its age remains on the dashboard.",
               "title": "queueAgeSeconds",
               "type": "integer"
             },
@@ -850,7 +850,7 @@
             },
             "queueStatsUnavailableFor": {
               "default": "5m",
-              "description": "How long every scraped replica may succeed on fewer than 75% of queue snapshot reads over 5 minutes before warning.",
+              "description": "How long every scraped replica can succeed on fewer than 75% of queue snapshot reads over 5 minutes before warning.",
               "title": "queueStatsUnavailableFor",
               "type": "string"
             },
@@ -930,10 +930,10 @@
       "type": "string"
     },
     "networkPolicy": {
-      "description": "NetworkPolicies: one for the service pods (ingress to the webhook and\nmetrics ports, and to the gateway port from runner pods; egress to the\ncluster's DNS, the forges and models over the egress ports, Postgres, the\nAPI server and what `extraEgress` adds) and one for runner pods (egress\nonly: the cluster's DNS, Postgres and the gateway port on the service\npods, through which everything else is reached). Both reach the Postgres\nport only where `postgres` says the database is.",
+      "description": "NetworkPolicies: one for the service pods and one for runner pods. The one\nfor the service pods allows ingress to the webhook and metrics ports, and to\nthe gateway port from runner pods. It allows egress to the cluster's DNS,\nthe forges and models over the egress ports, Postgres, the API server and\nwhat `extraEgress` adds. The one for runner pods allows egress only: the\ncluster's DNS, Postgres and the gateway port on the service pods, through\nwhich everything else is reached. Both reach the Postgres port only where\n`postgres` says the database is.",
       "properties": {
         "dns": {
-          "description": "The cluster's DNS, the one peer the pods may send port 53 to.",
+          "description": "The cluster's DNS, the one peer that the pods can send port 53 to.",
           "properties": {
             "namespace": {
               "default": "kube-system",
@@ -954,7 +954,7 @@
               "additionalProperties": {
                 "type": "string"
               },
-              "description": "Empty rather than kube-dns's label: Helm merges maps, so a default here\nwould stay beside the labels set in its place.\nLabels of the cluster's DNS pods; empty stands for `k8s-app: kube-dns`.",
+              "description": "Empty rather than kube-dns's label. Helm merges maps, so a default here\nstays beside the labels set in its place.\nLabels of the cluster's DNS pods. Empty stands for `k8s-app: kube-dns`.",
               "required": [],
               "title": "podSelector",
               "type": "object"
@@ -965,7 +965,7 @@
           "type": "object"
         },
         "egressPorts": {
-          "description": "TCP ports the service pods may egress to at any address, for forges, model endpoints and S3 storage outside the cluster. Runner pods reach the gateway alone.",
+          "description": "TCP ports that the service pods can egress to at any address, for forges, model endpoints and S3 storage outside the cluster. Runner pods reach the gateway alone.",
           "items": {
             "anyOf": [
               {
@@ -979,12 +979,12 @@
         },
         "enabled": {
           "default": true,
-          "description": "Create the NetworkPolicies. The runner's is what keeps every command a review runs on the egress gateway: the run tool passes the model's arguments as given, so without it a command can connect around the gateway. Turn it off only where something else confines runner pods' egress.",
+          "description": "Create the NetworkPolicies. The runner's is what keeps every command that a review runs on the egress gateway. The run tool passes the model's arguments as given, so without it a command can connect around the gateway. Turn it off only where something else confines runner pods' egress.",
           "title": "enabled",
           "type": "boolean"
         },
         "extraEgress": {
-          "description": "More egress rules for the service pods, as a networking.k8s.io/v1 NetworkPolicy's `egress`, rendered as a NetworkPolicy of their own whatever the type, since Cilium and Calico allow what any policy selecting a pod allows: for a destination in the cluster, such as an S3 bucket on Ceph RGW or a model server, its pods and their own ports, which a NetworkPolicy matches rather than a Service's. Runner pods never get them.",
+          "description": "More egress rules for the service pods, as a networking.k8s.io/v1 NetworkPolicy's `egress`. They render as a NetworkPolicy of their own whatever the type, since Cilium and Calico allow what any policy that selects a pod allows. For a destination in the cluster, such as an S3 bucket on Ceph RGW or a model server, name its pods and their own ports. A NetworkPolicy matches those rather than a Service's. Runner pods never get them.",
           "items": {
             "required": [],
             "type": "object"
@@ -993,11 +993,11 @@
           "type": "array"
         },
         "postgres": {
-          "description": " - to:\n     - namespaceSelector:\n         matchLabels:\n           kubernetes.io/metadata.name: rook-ceph\n       podSelector:\n         matchLabels:\n           rook_object_store: ceph-objectstore\n   ports:\n     - port: 8080\n       protocol: TCP\nWhere the database is, the one peer the service pods and runner pods\nmay reach its port at: every pod in the release namespace unless set.\nIt must take in every pod the owner, application and runner URIs\nconnect to.",
+          "description": " - to:\n     - namespaceSelector:\n         matchLabels:\n           kubernetes.io/metadata.name: rook-ceph\n       podSelector:\n         matchLabels:\n           rook_object_store: ceph-objectstore\n   ports:\n     - port: 8080\n       protocol: TCP\nWhere the database is, the one peer at which the service pods and runner\npods can reach its port. It is every pod in the release namespace unless\nset. It must take in every pod that the owner, application and runner URIs\nconnect to.",
           "properties": {
             "namespace": {
               "default": "",
-              "description": "Namespace of the database's pods; the release namespace when empty.",
+              "description": "Namespace of the database's pods. The release namespace when empty.",
               "title": "namespace",
               "type": "string"
             },
@@ -1005,14 +1005,14 @@
               "additionalProperties": {
                 "type": "string"
               },
-              "description": "Labels of the database's pods, such as `cnpg.io/cluster: kritika-postgres`, which CloudNativePG gives a cluster's instances and its Poolers' pods alike, so it also covers a URI that goes through a session-mode Pooler. Empty selects every pod in `namespace`.",
+              "description": "Labels of the database's pods, such as `cnpg.io/cluster: kritika-postgres`. CloudNativePG gives that label to a cluster's instances and its Poolers' pods alike, so it also covers a URI that goes through a session-mode Pooler. Empty selects every pod in `namespace`.",
               "required": [],
               "title": "podSelector",
               "type": "object"
             },
             "port": {
               "default": 5432,
-              "description": "Port of the database, which the pods may reach only where the rest of `postgres` says.",
+              "description": "Port of the database, which the pods can reach only where the rest of `postgres` says.",
               "title": "port",
               "type": "integer"
             }
@@ -1023,7 +1023,7 @@
         },
         "type": {
           "default": "auto",
-          "description": "Policy flavor for your CNI: \"default\" (networking.k8s.io/v1 NetworkPolicy), \"cilium\" (CiliumNetworkPolicy), \"calico\" (projectcalico.org/v3 NetworkPolicy), or \"auto\": \"cilium\" when the cluster serves CiliumNetworkPolicy, else \"calico\" when it serves Calico's projectcalico.org/v3 NetworkPolicy, else \"default\". Helm and Flux read what the cluster serves from it, and Argo CD passes it to `helm template`; plain `helm template` without `--api-versions` renders \"default\". The Cilium flavor's DNS rules need Cilium's L7 proxy, on unless turned off: without it Cilium refuses the runner's policy, and a NetworkPolicy the flavor adds then keeps runner pods from looking up any name, so runs fail until the type is \"default\". Set the flavor where the cluster serves a policy API its CNI does not enforce.",
+          "description": "Policy flavor for your CNI: \"default\" (networking.k8s.io/v1 NetworkPolicy), \"cilium\" (CiliumNetworkPolicy), \"calico\" (projectcalico.org/v3 NetworkPolicy), or \"auto\". \"auto\" is \"cilium\" when the cluster serves CiliumNetworkPolicy, else \"calico\" when it serves Calico's projectcalico.org/v3 NetworkPolicy, else \"default\". Helm and Flux read what the cluster serves from it, and Argo CD passes it to `helm template`. Plain `helm template` without `--api-versions` renders \"default\". The Cilium flavor's DNS rules need Cilium's L7 proxy, on unless turned off. Without it, Cilium refuses the runner's policy. A NetworkPolicy that the flavor adds then keeps runner pods from looking up any name, so runs fail until the type is \"default\". Set the flavor where the cluster serves a policy API that its CNI does not enforce.",
           "title": "type",
           "type": "string"
         }
@@ -1054,7 +1054,7 @@
         },
         "maxUnavailable": {
           "default": 1,
-          "description": "Maximum pods that may be unavailable, as a count or percentage; takes precedence over `minAvailable` when set.",
+          "description": "Maximum pods that can be unavailable, as a count or percentage. Takes precedence over `minAvailable` when set.",
           "required": [],
           "title": "maxUnavailable",
           "type": [
@@ -1138,7 +1138,7 @@
       "type": "object"
     },
     "readinessProbe": {
-      "description": "Readiness probe, on the metrics port. A replica is ready once its configuration file has loaded, the database answers and it serves webhooks and the dashboard, so a rollout takes the previous pod down only once the new one can hold a delivery.",
+      "description": "Readiness probe, on the metrics port. A replica is ready once its configuration file loads, the database answers and it serves webhooks and the dashboard. A rollout therefore takes the previous pod down only once the new one can hold a delivery.",
       "properties": {
         "httpGet": {
           "properties": {
@@ -1169,7 +1169,7 @@
     },
     "replicas": {
       "default": 1,
-      "description": "kritika runs as one Deployment of `kritika serve`: webhooks, the dashboard,\nthe job queues, runner Jobs, the gateway and, on the replica holding the\nleader lock, the leader duties. Runner pods are not part of it: serve\ncreates them as Jobs, one per review, follow-up and index run.\nReplicas of kritika serve. Every replica serves webhooks and the dashboard and works jobs; exactly one holds the leader lock at a time. A rollout keeps one serving on its own; set 2 for one to keep serving while a pod or node is lost.",
+      "description": "kritika runs as one Deployment of `kritika serve`: webhooks, the dashboard,\nthe job queues, runner Jobs and the gateway. On the replica that holds the\nleader lock, it also runs the leader duties. Runner pods are not part of it:\nserve creates them as Jobs, one per review, follow-up and index run.\nReplicas of kritika serve. Every replica serves webhooks and the dashboard and works jobs. Exactly one holds the leader lock at a time. A rollout keeps one serving on its own. To keep one serving while a pod or node is lost, set 2.",
       "title": "replicas",
       "type": "integer"
     },
@@ -1211,13 +1211,13 @@
       "type": "object"
     },
     "runner": {
-      "description": "Runner Jobs: one pod per review, follow-up or index run, created by kritika\nserve in the release namespace from the release's -tools image, running as a\nservice account with no permissions and a database role that can only touch\nits own run. The server's Role reaches every Secret in the release namespace,\nso install kritika into a namespace of its own. A sandboxed RuntimeClass\n(gVisor, Kata), `runner.podTemplate.spec.runtimeClassName`, is advised,\nsince a runner parses untrusted repository content and runs what the model\nasks.",
+      "description": "Runner Jobs: one pod per review, follow-up or index run. kritika serve\ncreates them in the release namespace from the release's -tools image. They\nrun as a service account with no permissions and a database role that can\nonly touch its own run. The server's Role reaches every Secret in the\nrelease namespace, so install kritika into a namespace of its own. We\nrecommend a sandboxed RuntimeClass (gVisor, Kata),\n`runner.podTemplate.spec.runtimeClassName`, since a runner parses untrusted\nrepository content and runs what the model asks.",
       "properties": {
         "admissionPolicy": {
           "properties": {
             "enabled": {
               "default": true,
-              "description": "Have the cluster refuse, from kritika serve's ServiceAccount, any Job that is not a runner Job as kritika builds it, any Secret that is not a run's, and any deletion of a Job but in the foreground, which takes its run's Secret with it, with three ValidatingAdmissionPolicies and their bindings: cluster-scoped objects the chart's installer must be allowed to create. Without them the Role lets kritika serve create any Job in its namespace, whose pod may run as another ServiceAccount and mount another Secret. Any tag or digest of the runner image's repository passes, so the runs an older replica starts mid-rollout do too; changing the repository, the runner ServiceAccount, RuntimeClass, database Secret or a Secret the runner container's `env` names refuses them until the rollout ends, and they are retried.",
+              "description": "Have the cluster refuse three things from kritika serve's ServiceAccount. The first is any Job that is not a runner Job as kritika builds it. The second is any Secret that is not a run's. The third is any deletion of a Job but in the foreground, which takes its run's Secret with it. The cluster uses three ValidatingAdmissionPolicies and their bindings: cluster-scoped objects that the chart's installer must be allowed to create. Without them, the Role lets kritika serve create any Job in its namespace. That Job's pod can run as another ServiceAccount and mount another Secret. Any tag or digest of the runner image's repository passes, so the runs that an older replica starts mid-rollout pass too. Some changes refuse those runs until the rollout ends, and the runs are retried. These are changes to the repository, the runner ServiceAccount, RuntimeClass, database Secret or a Secret that the runner container's `env` names.",
               "title": "enabled",
               "type": "boolean"
             }
@@ -1261,7 +1261,7 @@
               "properties": {
                 "activeDeadlineSeconds": {
                   "default": 900,
-                  "description": "How long a runner Job may run, in seconds: at most 7200, or River's job timeout cap would cut the run off early. A review's or follow-up's Job runs as long as its agent's `timeout`, for each part a review is split into, needs, if that is longer. The deadline bounds the work around the run and the run's gateway token too.",
+                  "description": "How long a runner Job can run, in seconds. It is at most 7200, since River's job timeout cap otherwise cuts the run off early. A review's or follow-up's Job runs as long as its agent's `timeout` needs, if that is longer. That need covers each part that a review is split into. The deadline bounds the work around the run and the run's gateway token too.",
                   "maximum": 7200,
                   "minimum": 1,
                   "title": "activeDeadlineSeconds",
@@ -1269,7 +1269,7 @@
                 },
                 "ttlSecondsAfterFinished": {
                   "default": 600,
-                  "description": "How long a finished Job stays for kubectl before Kubernetes removes it, in seconds; the run row keeps everything the Job knew.",
+                  "description": "How long a finished Job stays for kubectl before Kubernetes removes it, in seconds. The run row keeps everything that the Job knew.",
                   "maximum": 2147483647,
                   "minimum": 1,
                   "title": "ttlSecondsAfterFinished",
@@ -1296,7 +1296,7 @@
                   "additionalProperties": {
                     "type": "string"
                   },
-                  "description": "Annotations for runner pods, such as `karpenter.sh/do-not-disrupt: \"true\"`. kritika refuses AppArmor's, which would set the runner's profile.",
+                  "description": "Annotations for runner pods, such as `karpenter.sh/do-not-disrupt: \"true\"`. kritika refuses AppArmor's, which will otherwise set the runner's profile.",
                   "required": [],
                   "title": "annotations",
                   "type": "object"
@@ -1325,7 +1325,7 @@
                   "type": "object"
                 },
                 "containers": {
-                  "description": "The runner container, the pod's one, named runner: its `image`, empty for this release's `-tools` image pinned by digest, which carries curl, find, gh, grep and jq for a review's or follow-up's run tool; its `imagePullPolicy`; and its `env`, variables the run tool's commands get, each a `value` or a Secret's key (`valueFrom.secretKeyRef`), which is masked out of what the commands print. kritika sets them on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself, and refuses the names it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
+                  "description": "The runner container, the pod's one, named runner. It has an `image`, an `imagePullPolicy` and an `env`. An empty `image` is this release's `-tools` image pinned by digest. That image carries curl, find, gh, grep and jq for a review's or follow-up's run tool. `env` holds variables that the run tool's commands get, each a `value` or a Secret's key (`valueFrom.secretKeyRef`). The value of a Secret's key is masked out of what the commands print. kritika sets these variables on the container as `KRITIKA_COMMAND_ENV_\u003cname\u003e`, so they configure the commands and never kritika itself. kritika refuses the names that it keeps for the commands, such as `HOME`, `PATH`, the proxy variables and `GH_*`. The Secret must be in the release namespace.",
                   "items": {
                     "additionalProperties": false,
                     "properties": {
@@ -1407,7 +1407,7 @@
                 },
                 "hostUsers": {
                   "default": true,
-                  "description": "Set false to run runner pods in a user namespace of their own, which the nodes' kernel and container runtime must support; true shares the node's, as Kubernetes does by default.",
+                  "description": "Set false to run runner pods in a user namespace of their own, which the nodes' kernel and container runtime must support. True shares the node's, as Kubernetes does by default.",
                   "title": "hostUsers",
                   "type": "boolean"
                 },
@@ -1428,7 +1428,7 @@
                 },
                 "resources": {
                   "additionalProperties": false,
-                  "description": "Requests and limits of cpu, memory and hugepages for the whole runner pod, the run tool's commands included: pod-level resources, on by default from Kubernetes 1.34. A LimitRange's container defaults in the release namespace still apply to the runner container: its default limit bounds the runner within the pod's, and the API refuses a runner pod whose requests are below its default requests.",
+                  "description": "Requests and limits of cpu, memory and hugepages for the whole runner pod, the run tool's commands included. These are pod-level resources, on by default from Kubernetes 1.34. A LimitRange's container defaults in the release namespace still apply to the runner container. Its default limit bounds the runner within the pod's, and the API refuses a runner pod whose requests are below its default requests.",
                   "properties": {
                     "limits": {
                       "additionalProperties": {
@@ -1505,7 +1505,7 @@
             },
             "name": {
               "default": "",
-              "description": "Runner ServiceAccount name; generated from the release name if empty.",
+              "description": "Runner ServiceAccount name. Generated from the release name if empty.",
               "title": "name",
               "type": "string"
             }
@@ -1560,7 +1560,7 @@
       "properties": {
         "gatewayPort": {
           "default": 8082,
-          "description": "Port of the gateway the kritika serve pods run, on the pods and its Service: the forward proxy runner Jobs are handed as `HTTPS_PROXY`, allowing only the hosts the configuration names (the connections' forges, github.com and api.github.com for an app and the instance host for a Forgejo, GitLab or Gitea connection, plus `egress.allow` less `egress.deny`), so runner pods need no direct internet egress, and the model and similar-code endpoints a runner calls with a per-run token, so no provider key enters a runner pod.",
+          "description": "Port of the gateway that the kritika serve pods run, on the pods and its Service. The gateway is the forward proxy that runner Jobs are handed as `HTTPS_PROXY`. It allows only the hosts that the configuration names, so runner pods need no direct internet egress. These hosts are the connections' forges, plus `egress.allow` less `egress.deny`. The forges are github.com and api.github.com for an app, and the instance host for a Forgejo, GitLab or Gitea connection. The gateway also serves the model and similar-code endpoints that a runner calls with a per-run token, so no provider key enters a runner pod.",
           "title": "gatewayPort",
           "type": "integer"
         },
@@ -1609,7 +1609,7 @@
         },
         "name": {
           "default": "",
-          "description": "ServiceAccount name; generated from the release name if empty.",
+          "description": "ServiceAccount name. Generated from the release name if empty.",
           "title": "name",
           "type": "string"
         }
@@ -1619,7 +1619,7 @@
       "type": "object"
     },
     "startupProbe": {
-      "description": "Startup probe, on the metrics port. The liveness and readiness probes wait until it passes, so a pod still opening its listeners is not reported unready; it allows a minute.",
+      "description": "Startup probe, on the metrics port. The liveness and readiness probes wait until it passes, so a pod still opening its listeners is not reported unready. It allows a minute.",
       "properties": {
         "failureThreshold": {
           "default": 30,
@@ -1685,12 +1685,12 @@
     },
     "terminationGracePeriodSeconds": {
       "default": 200,
-      "description": "Grace period for a clean shutdown: kritika serve keeps accepting webhooks, dashboard requests and model steps for 5s while traffic moves off the pod, stops taking jobs and lets running ones finish for up to 100s, then takes up to 90s to hand back the reviews it cut for a retry, and its gateway lets model steps in flight finish for up to 2m.",
+      "description": "Grace period for a clean shutdown. kritika serve keeps accepting webhooks, dashboard requests and model steps for 5s while traffic moves off the pod. It stops taking jobs and lets running ones finish for up to 100s. It then takes up to 90s to hand back the reviews that it cut for a retry. Its gateway lets model steps in flight finish for up to 2m.",
       "title": "terminationGracePeriodSeconds",
       "type": "integer"
     },
     "tests": {
-      "description": "Config for the chart's `helm test` hook: a one-shot pod that curls the\nmetrics Service's /readyz to prove the release serves. Used only by `helm\ntest`, never the workload.",
+      "description": "Configuration for the chart's `helm test` hook: a one-shot pod that curls\nthe metrics Service's /readyz to prove the release serves. Used only by\n`helm test`, never the workload.",
       "properties": {
         "image": {
           "properties": {
@@ -1702,12 +1702,12 @@
             },
             "repository": {
               "default": "mirror.gcr.io/curlimages/curl",
-              "description": "`helm test` connection-pod image; a gcr-mirrored curl, so the test never pulls from Docker Hub.",
+              "description": "`helm test` connection-pod image. A gcr-mirrored curl, so the test never pulls from Docker Hub.",
               "title": "repository",
               "type": "string"
             },
             "tag": {
-              "default": "8.23.0@sha256:11e64e28c5f58c8d93ee95fcf22ac055f48b0bc440e0ce7d8013bbb5ad6aa8ac",
+              "default": "8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93",
               "description": "`helm test` image, pinned as `tag",
               "title": "tag",
               "type": "string"
@@ -1731,7 +1731,7 @@
       "type": "array"
     },
     "topologySpreadConstraints": {
-      "description": "Spread the kritika serve pods across nodes, so with `replicas: 2` a node loss takes one of them: a soft constraint, so a one-node cluster still schedules them. Rendered through `tpl`; empty leaves scheduling to Kubernetes.",
+      "description": "Spread the kritika serve pods across nodes, so with `replicas: 2` a node loss takes one of them. This is a soft constraint, so a one-node cluster still schedules them. Rendered through `tpl`. Empty leaves scheduling to Kubernetes.",
       "items": {
         "anyOf": [
           {
