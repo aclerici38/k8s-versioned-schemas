@@ -1909,6 +1909,78 @@
             "null"
           ]
         },
+        "extraContainers": {
+          "description": "ExtraContainers run beside the Garage container in the same pod and network\nnamespace. They cannot mount operator-owned volumes.",
+          "items": {
+            "additionalProperties": false,
+            "description": "PodExtraContainer is one user-supplied container. The CRD schema declares\nonly name and preserves all other fields; the complete object is validated\nby the admission webhook and re-validated by the controller by strictly\ndecoding it into a corev1.Container (Resolve). This keeps the CRD small:\na fully typed corev1.Container would add ~120 KB per occurrence.",
+            "properties": {
+              "name": {
+                "description": "Name of the container. It must be unique across initContainers and\nextraContainers, a DNS-1123 label, and not an operator-reserved name.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object",
+            "x-kubernetes-preserve-unknown-fields": true
+          },
+          "maxItems": 16,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-validations": [
+            {
+              "message": "container name is operator-reserved",
+              "rule": "self.all(c, c.name != 'garage' \u0026\u0026 c.name != 'purge-cluster-layout' \u0026\u0026 !c.name.startsWith('garage-operator-'))"
+            }
+          ]
+        },
+        "extraVolumes": {
+          "description": "ExtraVolumes are added to the pod. Operator-owned volume names are reserved\n(config, metadata, data, data-\u003cN\u003e, rpc-secret, admin-token, metrics-token).",
+          "items": {
+            "additionalProperties": false,
+            "description": "PodExtraVolume is one user-supplied pod volume; same contract as\nPodExtraContainer, resolved as a corev1.Volume.",
+            "properties": {
+              "name": {
+                "description": "Name of the volume. It must be unique across extraVolumes, a DNS-1123\nlabel, and not an operator-reserved volume name.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object",
+            "x-kubernetes-preserve-unknown-fields": true
+          },
+          "maxItems": 32,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-validations": [
+            {
+              "message": "volume name is operator-reserved",
+              "rule": "self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) \u0026\u0026 !v.name.matches('^data-[0-9]+$'))"
+            }
+          ]
+        },
         "gateway": {
           "description": "Gateway marks this cluster as a gateway-only cluster.\nGateway clusters don't store data - they only handle API requests.\nWhen true:\n- Creates a StatefulSet with metadata PVC only (for node identity persistence)\n- Data storage uses EmptyDir (gateways don't store blocks)\n- Pods are registered as gateway nodes in the layout (capacity=null)\n- Must specify connectTo to reference a storage cluster",
           "type": [
@@ -1959,6 +2031,42 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "initContainers": {
+          "description": "InitContainers run before the Garage container, after any operator-injected\ninit containers. Entries with restartPolicy: Always are native sidecars\n(Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and\nthe prefix garage-operator- are reserved. Applies to the Garage pods of\nthis cluster (the gateway tier when gateway is true).",
+          "items": {
+            "additionalProperties": false,
+            "description": "PodExtraContainer is one user-supplied container. The CRD schema declares\nonly name and preserves all other fields; the complete object is validated\nby the admission webhook and re-validated by the controller by strictly\ndecoding it into a corev1.Container (Resolve). This keeps the CRD small:\na fully typed corev1.Container would add ~120 KB per occurrence.",
+            "properties": {
+              "name": {
+                "description": "Name of the container. It must be unique across initContainers and\nextraContainers, a DNS-1123 label, and not an operator-reserved name.",
+                "maxLength": 63,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object",
+            "x-kubernetes-preserve-unknown-fields": true
+          },
+          "maxItems": 16,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-validations": [
+            {
+              "message": "container name is operator-reserved",
+              "rule": "self.all(c, c.name != 'garage' \u0026\u0026 c.name != 'purge-cluster-layout' \u0026\u0026 !c.name.startsWith('garage-operator-'))"
+            }
           ]
         },
         "k2vApi": {
@@ -2026,6 +2134,17 @@
               "description": "MinNodesHealthy is the minimum healthy nodes required before applying layout changes",
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "siteRole": {
+              "description": "SiteRole selects whether this GarageCluster may change the shared Garage\nlayout. Absent is equivalent to Writer, the behavior of every release\nbefore this field existed. A Follower never stages, applies, reverts,\nor removes roles; it only reconciles its own workloads and reports\nstatus. Exactly one site in a federation should be the Writer.",
+              "enum": [
+                "Writer",
+                "Follower"
+              ],
+              "type": [
+                "string",
                 "null"
               ]
             }
@@ -3544,6 +3663,16 @@
                               "null"
                             ]
                           },
+                          "volumeAttributesClassName": {
+                            "description": "VolumeAttributesClassName is the name of a cluster-scoped Kubernetes\nVolumeAttributesClass applied to every PVC generated for this volume role.\nThe class's driver must match the StorageClass provisioner; the operator\ndoes not check that or whether the class exists. Valid only for\nPersistentVolumeClaim volumes. Unlike storageClassName it may be changed\nwhile replicas are live: the operator updates bound claims in place, which\nasks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or\n1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that\nsupports ModifyVolume. Removing a configured value from a live volume is\nrejected.",
+                            "maxLength": 253,
+                            "minLength": 1,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "volumeClaimTemplateSpec": {
                             "additionalProperties": false,
                             "description": "VolumeClaimTemplateSpec is retained for API compatibility but is not\nsupported by operator-managed workloads. Admission rejects new or changed\nvalues; an unchanged legacy value is tolerated only so it can be removed.\nUse the explicit PVC fields above, or pre-provision a PVC and reference it\nfrom an ordinary GarageNode storage existingClaim.\nDeprecated: use explicit PVC fields or GarageNode existingClaim.",
@@ -3770,6 +3899,12 @@
                         "type": [
                           "object",
                           "null"
+                        ],
+                        "x-kubernetes-validations": [
+                          {
+                            "message": "volumeAttributesClassName is only valid for PersistentVolumeClaim volumes",
+                            "rule": "!has(self.volumeAttributesClassName) || !has(self.type) || self.type == 'PersistentVolumeClaim'"
+                          }
                         ]
                       }
                     },
@@ -3872,6 +4007,16 @@
                     "PersistentVolumeClaim",
                     "EmptyDir"
                   ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "volumeAttributesClassName": {
+                  "description": "VolumeAttributesClassName is the name of a cluster-scoped Kubernetes\nVolumeAttributesClass applied to every PVC generated for this volume role.\nThe class's driver must match the StorageClass provisioner; the operator\ndoes not check that or whether the class exists. Valid only for\nPersistentVolumeClaim volumes. Unlike storageClassName it may be changed\nwhile replicas are live: the operator updates bound claims in place, which\nasks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or\n1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that\nsupports ModifyVolume. Removing a configured value from a live volume is\nrejected.",
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
                   "type": [
                     "string",
                     "null"
@@ -4103,6 +4248,12 @@
               "type": [
                 "object",
                 "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "volumeAttributesClassName is only valid for PersistentVolumeClaim volumes",
+                  "rule": "!has(self.volumeAttributesClassName) || !has(self.type) || self.type == 'PersistentVolumeClaim'"
+                }
               ]
             },
             "dataFsync": {
@@ -4665,6 +4816,16 @@
                               "null"
                             ]
                           },
+                          "volumeAttributesClassName": {
+                            "description": "VolumeAttributesClassName is the name of a cluster-scoped Kubernetes\nVolumeAttributesClass applied to every PVC generated for this volume role.\nThe class's driver must match the StorageClass provisioner; the operator\ndoes not check that or whether the class exists. Valid only for\nPersistentVolumeClaim volumes. Unlike storageClassName it may be changed\nwhile replicas are live: the operator updates bound claims in place, which\nasks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or\n1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that\nsupports ModifyVolume. Removing a configured value from a live volume is\nrejected.",
+                            "maxLength": 253,
+                            "minLength": 1,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "volumeClaimTemplateSpec": {
                             "additionalProperties": false,
                             "description": "VolumeClaimTemplateSpec is retained for API compatibility but is not\nsupported by operator-managed workloads. Admission rejects new or changed\nvalues; an unchanged legacy value is tolerated only so it can be removed.\nUse the explicit PVC fields above, or pre-provision a PVC and reference it\nfrom an ordinary GarageNode storage existingClaim.\nDeprecated: use explicit PVC fields or GarageNode existingClaim.",
@@ -4891,6 +5052,12 @@
                         "type": [
                           "object",
                           "null"
+                        ],
+                        "x-kubernetes-validations": [
+                          {
+                            "message": "volumeAttributesClassName is only valid for PersistentVolumeClaim volumes",
+                            "rule": "!has(self.volumeAttributesClassName) || !has(self.type) || self.type == 'PersistentVolumeClaim'"
+                          }
                         ]
                       }
                     },
@@ -4993,6 +5160,16 @@
                     "PersistentVolumeClaim",
                     "EmptyDir"
                   ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "volumeAttributesClassName": {
+                  "description": "VolumeAttributesClassName is the name of a cluster-scoped Kubernetes\nVolumeAttributesClass applied to every PVC generated for this volume role.\nThe class's driver must match the StorageClass provisioner; the operator\ndoes not check that or whether the class exists. Valid only for\nPersistentVolumeClaim volumes. Unlike storageClassName it may be changed\nwhile replicas are live: the operator updates bound claims in place, which\nasks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or\n1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that\nsupports ModifyVolume. Removing a configured value from a live volume is\nrejected.",
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
                   "type": [
                     "string",
                     "null"
@@ -5224,6 +5401,12 @@
               "type": [
                 "object",
                 "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "volumeAttributesClassName is only valid for PersistentVolumeClaim volumes",
+                  "rule": "!has(self.volumeAttributesClassName) || !has(self.type) || self.type == 'PersistentVolumeClaim'"
+                }
               ]
             },
             "metadataAutoSnapshotInterval": {
@@ -5511,6 +5694,18 @@
                 "string",
                 "null"
               ]
+            },
+            "scheme": {
+              "default": "http",
+              "description": "Scheme is the URL scheme used when publishing bucket website URLs.\nSet to https when TLS is terminated in front of the Garage Web API.\nDefaults to http.",
+              "enum": [
+                "http",
+                "https"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "type": [
@@ -5595,6 +5790,18 @@
         {
           "message": "connectTo can only be specified when gateway is true",
           "rule": "(has(self.gateway) \u0026\u0026 self.gateway) || !has(self.connectTo)"
+        },
+        {
+          "message": "layoutManagement.siteRole: Follower requires at least one remoteClusters entry (a Follower with nothing to follow is a cluster nobody can assign roles to)",
+          "rule": "!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != 'Follower' || (has(self.remoteClusters) \u0026\u0026 size(self.remoteClusters) \u003e 0)"
+        },
+        {
+          "message": "layoutManagement.siteRole: Follower is not supported with connectTo; edge gateways and management handles act on their layout owner",
+          "rule": "!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != 'Follower' || !has(self.connectTo)"
+        },
+        {
+          "message": "initContainers and extraContainers names must be unique across both lists",
+          "rule": "!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))"
         }
       ]
     },
@@ -5772,7 +5979,7 @@
           ]
         },
         "blockErrors": {
-          "description": "BlockErrors is the count of blocks with sync errors across all nodes",
+          "description": "BlockErrors is the count of blocks with sync errors across all nodes.\nAbsent means not observed (Admin API unreachable, or a node that can\nhold blocks did not answer; silent capacityless gateways are ignored).\n0 means observed with no errors.",
           "format": "int32",
           "type": [
             "integer",
@@ -6284,6 +6491,27 @@
             "null"
           ]
         },
+        "layoutWriter": {
+          "additionalProperties": false,
+          "description": "LayoutWriter reports the layout role the controller is currently\nenforcing for this site. Nil until the controller first records it.",
+          "properties": {
+            "role": {
+              "description": "Role is the role the controller is currently enforcing.",
+              "enum": [
+                "Writer",
+                "Follower"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "role"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "lifecycleStatus": {
           "additionalProperties": false,
           "description": "LifecycleStatus contains the status of bucket lifecycle operations",
@@ -6535,7 +6763,7 @@
           "type": "integer"
         },
         "resyncQueueLength": {
-          "description": "ResyncQueueLength is the total block resync queue depth across all nodes",
+          "description": "ResyncQueueLength is the total block resync queue depth across all nodes.\nAbsent means not observed (Admin API unreachable, or a node that can\nhold blocks did not answer; silent capacityless gateways are ignored).\n0 means observed and drained.",
           "format": "int64",
           "type": [
             "integer",
