@@ -3,21 +3,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.22.0
   labels:
     gateway.networking.k8s.io/policy: inherited
-  name: ratelimitpolicies.gateway.nginx.org
+  name: proxysettingspolicies.gateway.nginx.org
 spec:
   group: gateway.nginx.org
   names:
     categories:
       - nginx-gateway-fabric
-    kind: RateLimitPolicy
-    listKind: RateLimitPolicyList
-    plural: ratelimitpolicies
+    kind: ProxySettingsPolicy
+    listKind: ProxySettingsPolicyList
+    plural: proxysettingspolicies
     shortNames:
-      - rlpolicy
-    singular: ratelimitpolicy
+      - pspolicy
+    singular: proxysettingspolicy
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -27,7 +27,9 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: RateLimitPolicy is an Inherited Attached Policy. It provides a way to set local rate limiting rules in NGINX.
+          description: |-
+            ProxySettingsPolicy is an Inherited Attached Policy. It provides a way to configure the behavior of the connection
+            between NGINX Gateway Fabric and the upstream applications (backends).
           properties:
             apiVersion:
               description: |-
@@ -47,109 +49,56 @@ spec:
             metadata:
               type: object
             spec:
-              description: Spec defines the desired state of the RateLimitPolicy.
+              description: Spec defines the desired state of the ProxySettingsPolicy.
               properties:
-                rateLimit:
-                  description: RateLimit defines the Rate Limit settings.
+                buffering:
+                  description: Buffering configures the buffering of responses from the proxied server.
                   properties:
-                    dryRun:
+                    bufferSize:
                       description: |-
-                        DryRun enables the dry run mode. In this mode, the rate limit is not actually applied, but the number of excessive
-                        requests is accounted as usual in the shared memory zone.
-
-                        Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_dry_run
-                      type: boolean
-                    local:
-                      description: Local defines the local rate limit rules for this policy.
-                      properties:
-                        rules:
-                          description: Rules contains the list of rate limit rules.
-                          items:
-                            description: RateLimitRule contains settings for a RateLimit Rule.
-                            properties:
-                              burst:
-                                description: |-
-                                  Burst sets the maximum burst size of requests. If the requests rate exceeds the rate configured for a zone,
-                                  their processing is delayed such that requests are processed at a defined rate. Excessive requests are delayed
-                                  until their number exceeds the maximum burst size in which case the request is terminated with an error.
-
-                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req
-                                format: int32
-                                type: integer
-                              delay:
-                                description: |-
-                                  Delay specifies a limit at which excessive requests become delayed.
-                                  Default value is zero, which means all excessive requests are delayed.
-
-                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req
-                                format: int32
-                                type: integer
-                              key:
-                                description: |-
-                                  Key represents the key to which the rate limit is applied. The key can contain text, variables,
-                                  and their combination.
-
-                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone
-                                pattern: ^(?:[^ \t\r\n;{}#$]+|\$\w+)+$
-                                type: string
-                              noDelay:
-                                description: |-
-                                  NoDelay disables the delaying of excessive requests while requests are being limited.
-                                  NoDelay cannot be true when Delay is also set.
-
-                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req
-                                type: boolean
-                              rate:
-                                description: |-
-                                  Rate represents the rate of requests permitted. The rate is specified in requests per second (r/s)
-                                  or requests per minute (r/m).
-
-                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone
-                                pattern: ^\d+r/[sm]$
-                                type: string
-                              zoneSize:
-                                description: |-
-                                  ZoneSize is the size of the shared memory zone.
-
-                                  Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone
-                                pattern: ^\d{1,4}(k|m|g)?$
-                                type: string
-                            required:
-                              - key
-                              - rate
-                            type: object
-                            x-kubernetes-validations:
-                              - message: NoDelay cannot be true when Delay is also set
-                                rule: '!(has(self.noDelay) && has(self.delay) && self.noDelay == true)'
-                          type: array
-                      type: object
-                    logLevel:
-                      description: |-
-                        LogLevel sets the desired logging level for cases when the server refuses to process requests due to rate exceeding,
-                        or delays request processing. Allowed values are info, notice, warn or error.
-
-                        Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_log_level
-                      enum:
-                        - info
-                        - notice
-                        - warn
-                        - error
+                        BufferSize sets the size of the buffer used for reading the first part of the response received from
+                        the proxied server. This part usually contains a small response header.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffer_size
+                      pattern: ^\d{1,4}(k|m|g)?$
                       type: string
-                    rejectCode:
+                    buffers:
                       description: |-
-                        RejectCode sets the status code to return in response to rejected requests. Must fall into the range 400-599.
-
-                        Directive: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_status
-                      format: int32
-                      maximum: 599
-                      minimum: 400
-                      type: integer
+                        Buffers sets the number and size of buffers used for reading a response from the proxied server,
+                        for a single connection.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffers
+                      properties:
+                        number:
+                          description: Number sets the number of buffers.
+                          format: int32
+                          maximum: 256
+                          minimum: 2
+                          type: integer
+                        size:
+                          description: Size sets the size of each buffer.
+                          pattern: ^\d{1,4}(k|m|g)?$
+                          type: string
+                      required:
+                        - number
+                        - size
+                      type: object
+                    busyBuffersSize:
+                      description: |-
+                        BusyBuffersSize sets the total size of buffers that can be busy sending a response to the client,
+                        while the response is not yet fully read.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_busy_buffers_size
+                      pattern: ^\d{1,4}(k|m|g)?$
+                      type: string
+                    disable:
+                      description: |-
+                        Disable enables or disables buffering of responses from the proxied server.
+                        If Disable is true, buffering is disabled. If Disable is false, or if Disable is not set, buffering is enabled.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering
+                      type: boolean
                   type: object
                 targetRefs:
                   description: |-
-                    TargetRefs identifies API object(s) to apply the policy to.
+                    TargetRefs identifies the API object(s) to apply the policy to.
                     Objects must be in the same namespace as the policy.
-
                     Support: Gateway, HTTPRoute, GRPCRoute
                   items:
                     description: |-
@@ -187,16 +136,38 @@ spec:
                     - message: 'TargetRef Kind must be one of: Gateway, HTTPRoute, or GRPCRoute'
                       rule: self.all(t, t.kind == 'Gateway' || t.kind == 'HTTPRoute' || t.kind == 'GRPCRoute')
                     - message: TargetRef Group must be gateway.networking.k8s.io
-                      rule: self.all(t, t.group=='gateway.networking.k8s.io')
+                      rule: self.all(t, t.group == 'gateway.networking.k8s.io')
                     - message: TargetRef Kind and Name combination must be unique
-                      rule: self.all(p1, self.exists_one(p2, (p1.name == p2.name) && (p1.kind == p2.kind)))
+                      rule: self.all(t1, self.exists_one(t2, t1.group == t2.group && t1.kind == t2.kind && t1.name == t2.name))
                     - message: Cannot mix Gateway kind with HTTPRoute or GRPCRoute kinds in targetRefs
                       rule: '!(self.exists(t, t.kind == ''Gateway'') && self.exists(t, t.kind == ''HTTPRoute'' || t.kind == ''GRPCRoute''))'
+                timeout:
+                  description: Timeout configures timeouts for the connection to the proxied server.
+                  properties:
+                    connect:
+                      description: |-
+                        Connect sets the timeout for establishing a connection with the proxied server.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_connect_timeout
+                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
+                      type: string
+                    read:
+                      description: |-
+                        Read sets the timeout for reading a response from the proxied server.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout
+                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
+                      type: string
+                    send:
+                      description: |-
+                        Send sets the timeout for transmitting a request to the proxied server.
+                        Directive: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_send_timeout
+                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
+                      type: string
+                  type: object
               required:
                 - targetRefs
               type: object
             status:
-              description: Status defines the state of the RateLimitPolicy.
+              description: Status defines the state of the ProxySettingsPolicy.
               properties:
                 ancestors:
                   description: |-

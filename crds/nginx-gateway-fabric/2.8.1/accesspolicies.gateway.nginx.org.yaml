@@ -3,21 +3,19 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.22.0
   labels:
-    gateway.networking.k8s.io/policy: direct
-  name: snippetspolicies.gateway.nginx.org
+    gateway.networking.k8s.io/policy: inherited
+  name: accesspolicies.gateway.nginx.org
 spec:
   group: gateway.nginx.org
   names:
     categories:
       - nginx-gateway-fabric
-    kind: SnippetsPolicy
-    listKind: SnippetsPolicyList
-    plural: snippetspolicies
-    shortNames:
-      - snippetspolicy
-    singular: snippetspolicy
+    kind: AccessPolicy
+    listKind: AccessPolicyList
+    plural: accesspolicies
+    singular: accesspolicy
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -27,7 +25,9 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: SnippetsPolicy provides a way to inject NGINX snippets into the configuration on Gateway level.
+          description: |-
+            AccessPolicy is an Inherited Attached Policy. It provides a way to configure IP-based allowlists
+            and denylists for traffic flowing through NGINX Gateway Fabric.
           properties:
             apiVersion:
               description: |-
@@ -47,36 +47,85 @@ spec:
             metadata:
               type: object
             spec:
-              description: Spec defines the desired state of the SnippetsPolicy.
+              description: Spec defines the desired state of the AccessPolicy.
               properties:
-                snippets:
-                  description: Snippets is a list of snippets to be injected into the NGINX configuration.
+                action:
+                  description: |-
+                    Action specifies the action to take when rules match.
+                    Allow permits traffic only if it matches at least one rule; all non-matching traffic is denied.
+                    Deny blocks traffic if it matches any rule; all non-matching traffic is allowed.
+                    When multiple AccessPolicies apply to the same target, Deny policies are evaluated first.
+                    If any Deny policy matches, the request is rejected.
+                    The Gateway-level Allow defines the permitted range. A Route-level Allow policy can only
+                    restrict access within that range, never extend beyond it. Deny policies are always merged across levels.
+                    Directives:
+                    - https://nginx.org/en/docs/http/ngx_http_access_module.html#allow
+                    - https://nginx.org/en/docs/http/ngx_http_access_module.html#deny
+                  enum:
+                    - Allow
+                    - Deny
+                  type: string
+                rules:
+                  description: |-
+                    Rules defines the access control rules.
+                    For Allow policies, a request is allowed if it matches any rule (OR semantics).
+                    For Deny policies, a request is denied if it matches any rule (OR semantics).
                   items:
-                    description: Snippet represents an NGINX configuration snippet.
+                    description: AccessRule defines an access control rule.
                     properties:
-                      context:
-                        description: Context is the NGINX context to insert the snippet into.
-                        enum:
-                          - main
-                          - http
-                          - http.server
-                          - http.server.location
-                        type: string
-                      value:
-                        description: Value is the NGINX configuration snippet.
+                      name:
+                        description: |-
+                          Name specifies the name for this rule.
+                          This follows the DNS Subdomain naming convention.
+                        maxLength: 63
                         minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
+                      source:
+                        description: |-
+                          Source specifies the source of the request to match against.
+                          If omitted, the rule matches requests from any source.
+                        properties:
+                          ipAddress:
+                            description: |-
+                              IPAddress specifies an IP address or CIDR range.
+                              Required when type is IPAddress; must not be set otherwise.
+                            properties:
+                              address:
+                                maxLength: 64
+                                minLength: 1
+                                type: string
+                            required:
+                              - address
+                            type: object
+                          type:
+                            description: Type identifies the source type.
+                            enum:
+                              - IPAddress
+                            type: string
+                        required:
+                          - type
+                        type: object
+                        x-kubernetes-validations:
+                          - message: ipAddress must be set when type is IPAddress
+                            rule: (self.type == 'IPAddress') == has(self.ipAddress)
                     required:
-                      - context
-                      - value
+                      - name
                     type: object
-                  maxItems: 4
+                  maxItems: 64
+                  minItems: 1
                   type: array
+                  x-kubernetes-list-type: atomic
                   x-kubernetes-validations:
-                    - message: Only one snippet allowed per context
-                      rule: self.all(s1, self.exists_one(s2, s1.context == s2.context))
+                    - message: AccessRule names must be unique
+                      rule: self.all(r, self.filter(x, x.name == r.name).size() == 1)
                 targetRefs:
-                  description: TargetRefs identifies API object(s) to apply the policy to.
+                  description: |-
+                    TargetRefs identifies API object(s) to apply the policy to.
+                    Objects must be in the same namespace as the policy.
+                    A single policy may not target both Gateway and Route kinds simultaneously.
+
+                    Support: Gateway, HTTPRoute, GRPCRoute
                   items:
                     description: |-
                       LocalPolicyTargetReference identifies an API object to apply a direct or
@@ -106,21 +155,25 @@ spec:
                       - kind
                       - name
                     type: object
-                  maxItems: 16
+                  maxItems: 10
                   minItems: 1
                   type: array
                   x-kubernetes-validations:
-                    - message: 'TargetRef Kind must be: Gateway'
-                      rule: self.all(t, t.kind == 'Gateway')
-                    - message: TargetRef Name must be unique
-                      rule: self.all(p1, self.exists_one(p2, (p1.name == p2.name)))
+                    - message: 'TargetRef Kind must be one of: Gateway, HTTPRoute, or GRPCRoute'
+                      rule: self.all(t, t.kind == 'Gateway' || t.kind == 'HTTPRoute' || t.kind == 'GRPCRoute')
                     - message: TargetRef Group must be gateway.networking.k8s.io
                       rule: self.all(t, t.group == 'gateway.networking.k8s.io')
+                    - message: TargetRef Kind and Name combination must be unique
+                      rule: self.all(t1, self.exists_one(t2, t1.group == t2.group && t1.kind == t2.kind && t1.name == t2.name))
+                    - message: Cannot mix Gateway kind with HTTPRoute or GRPCRoute kinds in targetRefs
+                      rule: '!(self.exists(t, t.kind == ''Gateway'') && self.exists(t, t.kind == ''HTTPRoute'' || t.kind == ''GRPCRoute''))'
               required:
+                - action
+                - rules
                 - targetRefs
               type: object
             status:
-              description: Status defines the current state of the SnippetsPolicy.
+              description: Status defines the state of the AccessPolicy.
               properties:
                 ancestors:
                   description: |-
