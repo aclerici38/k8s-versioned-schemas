@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: renovatejobs.renovate-operator.mogenius.com
 spec:
   group: renovate-operator.mogenius.com
@@ -18,6 +18,9 @@ spec:
         - jsonPath: .spec.schedule
           name: Schedule
           type: string
+        - jsonPath: .spec.suspend
+          name: Suspend
+          type: boolean
         - jsonPath: .spec.provider.name
           name: Provider
           type: string
@@ -4078,6 +4081,14 @@ spec:
                     If true, repositories marked for delayed deletion (pending deletion) will be excluded by querying the platform API. Only GitLab exposes this state.
                     A pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.
                   type: boolean
+                suspend:
+                  description: |-
+                    If true, the operator starts no new run for this RenovateJob: the schedule
+                    does not fire, discovery is refused and queued projects are not dispatched.
+                    Runs already in progress finish. Projects queued meanwhile, by webhooks,
+                    the UI or annotation triggers, stay Scheduled and run once it is resumed.
+                    A pointer so an unset value inherits from templateRef while an explicit false overrides an inherited true.
+                  type: boolean
                 templateRef:
                   description: |-
                     TemplateRef inherits shared configuration from a RenovateJobTemplate (in the
@@ -4373,6 +4384,8 @@ spec:
               x-kubernetes-validations:
                 - message: allowedGroups and access are mutually exclusive; migrate allowedGroups to access.adminGroups
                   rule: '!(has(self.allowedGroups) && has(self.access))'
+                - message: githubAppReference requires provider.name github
+                  rule: '!has(self.githubAppReference) || !has(self.provider) || self.provider.name.lowerAscii() == ''github'''
             status:
               description: RenovateJobStatus defines the observed state of RenovateJob
               properties:
