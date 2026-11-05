@@ -8,11 +8,11 @@ metadata:
     helm.sh/resource-policy: keep
     cert-manager.io/inject-ca-from: default/garage-operator-webhook-cert
   labels:
-    helm.sh/chart: garage-operator-0.7.11
+    helm.sh/chart: garage-operator-0.9.0
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.11"
+    app.kubernetes.io/version: "0.9.0"
     app.kubernetes.io/managed-by: Helm
   name: garageclusters.garage.rajsingh.info
 spec:
@@ -1595,6 +1595,67 @@ spec:
                           type: boolean
                       type: object
                   type: object
+                extraContainers:
+                  description: |-
+                    ExtraContainers run beside the Garage container in the same pod and network
+                    namespace. They cannot mount operator-owned volumes.
+                  items:
+                    description: |-
+                      PodExtraContainer is one user-supplied container. The CRD schema declares
+                      only name and preserves all other fields; the complete object is validated
+                      by the admission webhook and re-validated by the controller by strictly
+                      decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                      a fully typed corev1.Container would add ~120 KB per occurrence.
+                    properties:
+                      name:
+                        description: |-
+                          Name of the container. It must be unique across initContainers and
+                          extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  maxItems: 16
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                  x-kubernetes-validations:
+                    - message: container name is operator-reserved
+                      rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                extraVolumes:
+                  description: |-
+                    ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                    (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                  items:
+                    description: |-
+                      PodExtraVolume is one user-supplied pod volume; same contract as
+                      PodExtraContainer, resolved as a corev1.Volume.
+                    properties:
+                      name:
+                        description: |-
+                          Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                          label, and not an operator-reserved volume name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  maxItems: 32
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                  x-kubernetes-validations:
+                    - message: volume name is operator-reserved
+                      rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
                 gateway:
                   description: |-
                     Gateway marks this cluster as a gateway-only cluster.
@@ -1641,6 +1702,41 @@ spec:
                     produces "my-mirror/garage:v2.4.0".
                     Ignored if image is set.
                   type: string
+                initContainers:
+                  description: |-
+                    InitContainers run before the Garage container, after any operator-injected
+                    init containers. Entries with restartPolicy: Always are native sidecars
+                    (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                    the prefix garage-operator- are reserved. Applies to the Garage pods of
+                    this cluster (the gateway tier when gateway is true).
+                  items:
+                    description: |-
+                      PodExtraContainer is one user-supplied container. The CRD schema declares
+                      only name and preserves all other fields; the complete object is validated
+                      by the admission webhook and re-validated by the controller by strictly
+                      decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                      a fully typed corev1.Container would add ~120 KB per occurrence.
+                    properties:
+                      name:
+                        description: |-
+                          Name of the container. It must be unique across initContainers and
+                          extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  maxItems: 16
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                  x-kubernetes-validations:
+                    - message: container name is operator-reserved
+                      rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                 k2vApi:
                   description: |-
                     K2VAPI configures the K2V (key-value) API endpoint.
@@ -1690,6 +1786,28 @@ spec:
                     minNodesHealthy:
                       description: MinNodesHealthy is the minimum healthy nodes required before applying layout changes
                       type: integer
+                    redundancyVerification:
+                      description: RedundancyVerification configures the FullyReplicated proof (#474).
+                      properties:
+                        onTopologyChange:
+                          description: |-
+                            OnTopologyChange starts a blocks-only proof, one local storage node at
+                            a time, when the storage nodes, zones or capacities of the layout change
+                            after the operator recorded its baseline. Off by default: proofs then
+                            run only from the annotation. Ignored on a Follower site.
+                          type: boolean
+                      type: object
+                    siteRole:
+                      description: |-
+                        SiteRole selects whether this GarageCluster may change the shared Garage
+                        layout. Absent is equivalent to Writer, the behavior of every release
+                        before this field existed. A Follower never stages, applies, reverts,
+                        or removes roles; it only reconciles its own workloads and reports
+                        status. Exactly one site in a federation should be the Writer.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
                   type: object
                 layoutPolicy:
                   default: Auto
@@ -1914,7 +2032,9 @@ spec:
                       description: RPCTimeout sets the RPC call timeout (e.g. "30s").
                       type: string
                     service:
-                      description: Service configures the Kubernetes Service for the cluster
+                      description: |-
+                        Service configures operator-managed Kubernetes Services for the cluster
+                        (API, gateway, headless, and public-endpoint RPC), including optional IP family fields
                       properties:
                         annotations:
                           additionalProperties:
@@ -1922,7 +2042,36 @@ spec:
                           description: Annotations to add to the service.
                           type: object
                         externalTrafficPolicy:
-                          description: ExternalTrafficPolicy for LoadBalancer/NodePort
+                          description: ExternalTrafficPolicy for LoadBalancer/NodePort.
+                          type: string
+                        ipFamilies:
+                          description: |-
+                            IPFamilies for every operator-managed Service, primary family first.
+                            Unset keeps the Kubernetes default (on create) or the last applied live
+                            value (on update). The primary family is immutable on an existing
+                            Service (enforced by the Kubernetes API server); a rejected update
+                            surfaces as a reconcile error.
+                          items:
+                            description: |-
+                              IPFamily represents the IP Family (IPv4 or IPv6). This type is used
+                              to express the family of an IP expressed by a type (e.g. service.spec.ipFamilies).
+                            enum:
+                              - IPv4
+                              - IPv6
+                            type: string
+                          maxItems: 2
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        ipFamilyPolicy:
+                          description: |-
+                            IPFamilyPolicy for every operator-managed Service. Unset keeps the
+                            Kubernetes default (on create) or the last applied live value (on
+                            update); set SingleStack to return to single-stack. Headless Services
+                            (ClusterIP=None) still accept these fields for dual-stack EndpointSlices.
+                          enum:
+                            - SingleStack
+                            - PreferDualStack
+                            - RequireDualStack
                           type: string
                         labels:
                           additionalProperties:
@@ -1930,22 +2079,27 @@ spec:
                           description: Labels to add to the service. Operator-managed labels take precedence on conflict.
                           type: object
                         loadBalancerIP:
-                          description: LoadBalancerIP for LoadBalancer type
+                          description: LoadBalancerIP for LoadBalancer type.
                           type: string
                         loadBalancerSourceRanges:
-                          description: LoadBalancerSourceRanges for LoadBalancer type
+                          description: LoadBalancerSourceRanges for LoadBalancer type.
                           items:
                             type: string
                           type: array
                         type:
                           default: ClusterIP
-                          description: Type of service
+                          description: Type of service.
                           enum:
                             - ClusterIP
                             - NodePort
                             - LoadBalancer
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                        - message: ipFamilies may list at most one family when ipFamilyPolicy is SingleStack
+                          rule: '!has(self.ipFamilyPolicy) || self.ipFamilyPolicy != ''SingleStack'' || !has(self.ipFamilies) || size(self.ipFamilies) <= 1'
+                        - message: ipFamilies must not repeat the same family
+                          rule: '!has(self.ipFamilies) || size(self.ipFamilies) < 2 || self.ipFamilies[0] != self.ipFamilies[1]'
                   type: object
                 nodeSelector:
                   additionalProperties:
@@ -2814,6 +2968,22 @@ spec:
                                       - PersistentVolumeClaim
                                       - EmptyDir
                                     type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                    type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
                                       VolumeClaimTemplateSpec is retained for API compatibility but is not
@@ -3011,6 +3181,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -3083,6 +3256,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -3283,6 +3472,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     dataFsync:
                       description: DataFsync enables fsync for data block writes
                       type: boolean
@@ -3673,6 +3865,22 @@ spec:
                                       - PersistentVolumeClaim
                                       - EmptyDir
                                     type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                    type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
                                       VolumeClaimTemplateSpec is retained for API compatibility but is not
@@ -3870,6 +4078,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -3942,6 +4153,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -4142,6 +4369,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     metadataAutoSnapshotInterval:
                       description: |-
                         MetadataAutoSnapshotInterval enables automatic metadata snapshots.
@@ -4515,11 +4745,20 @@ spec:
                   rule: '!has(self.gateway) || !self.gateway || has(self.connectTo)'
                 - message: connectTo can only be specified when gateway is true
                   rule: (has(self.gateway) && self.gateway) || !has(self.connectTo)
+                - message: 'layoutManagement.siteRole: Follower requires at least one remoteClusters entry (a Follower with nothing to follow is a cluster nobody can assign roles to)'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || (has(self.remoteClusters) && size(self.remoteClusters) > 0)'
+                - message: 'layoutManagement.siteRole: Follower is not supported with connectTo; edge gateways and management handles act on their layout owner'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || !has(self.connectTo)'
+                - message: initContainers and extraContainers names must be unique across both lists
+                  rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
             status:
               description: GarageClusterStatus defines the observed state of GarageCluster
               properties:
                 activeRepairs:
-                  description: ActiveRepairs contains currently running repair operations
+                  description: |-
+                    ActiveRepairs contains currently running repair operations
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   items:
                     description: RepairStatus contains status of a repair operation
                     properties:
@@ -4609,7 +4848,11 @@ spec:
                       type: array
                   type: object
                 blockErrors:
-                  description: BlockErrors is the count of blocks with sync errors across all nodes
+                  description: |-
+                    BlockErrors is the count of blocks with sync errors across all nodes.
+                    Absent means not observed (Admin API unreachable, or a node that can
+                    hold blocks did not answer; silent capacityless gateways are ignored).
+                    0 means observed with no errors.
                   format: int32
                   type: integer
                 buildInfo:
@@ -4878,8 +5121,25 @@ spec:
                   description: LayoutVersion is the current layout version
                   format: int64
                   type: integer
+                layoutWriter:
+                  description: |-
+                    LayoutWriter reports the layout role the controller is currently
+                    enforcing for this site. Nil until the controller first records it.
+                  properties:
+                    role:
+                      description: Role is the role the controller is currently enforcing.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
+                  required:
+                    - role
+                  type: object
                 lifecycleStatus:
-                  description: LifecycleStatus contains the status of bucket lifecycle operations
+                  description: |-
+                    LifecycleStatus contains the status of bucket lifecycle operations
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     lastCompleted:
                       description: |-
@@ -4889,7 +5149,10 @@ spec:
                       type: string
                   type: object
                 nodes:
-                  description: Nodes contains status information for each node
+                  description: |-
+                    Nodes contains status information for each node
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   items:
                     description: NodeStatus contains status information for a Garage node
                     properties:
@@ -4969,6 +5232,354 @@ spec:
                   description: ReadyReplicas is the number of ready Garage pods
                   format: int32
                   type: integer
+                redundancy:
+                  description: |-
+                    Redundancy reports block-resync progress and the last full-redundancy
+                    proof. Absent on clusters without a storage tier, on connectTo clusters,
+                    and until the controller first observes Garage.
+                  properties:
+                    coordination:
+                      description: |-
+                        Coordination is what this site last saw of other sites' repairs. It
+                        serializes proofs across a federation. Absent on a cluster that is not
+                        federated.
+                      properties:
+                        lastRemoteRepairAt:
+                          description: |-
+                            LastRemoteRepairAt is when a blocks repair on a remote storage node was
+                            last seen starting or running, or when this site started watching.
+                          format: date-time
+                          type: string
+                        lastRemoteRepairNodeId:
+                          description: LastRemoteRepairNodeID is the remote node of that repair.
+                          pattern: ^[0-9a-f]{64}$
+                          type: string
+                        remoteRepairWorkerIds:
+                          additionalProperties:
+                            format: int64
+                            type: integer
+                          description: |-
+                            RemoteRepairWorkerIDs maps each remote storage node ID to the highest
+                            Block repair worker ID seen on it.
+                          maxProperties: 256
+                          type: object
+                      type: object
+                    deferredNodes:
+                      description: |-
+                        DeferredNodes lists owned storage nodes the current proof skipped.
+                        Down and NotReporting nodes are retried once they are back, no sooner
+                        than retryAfter.
+                      items:
+                        description: RedundancyDeferredNode is an owned storage node the proof skipped.
+                        properties:
+                          nodeId:
+                            description: NodeID is the full Garage node ID.
+                            pattern: ^[0-9a-f]{64}$
+                            type: string
+                          reason:
+                            description: Reason says why the node was skipped.
+                            enum:
+                              - Down
+                              - NotReporting
+                              - RepairFailed
+                            type: string
+                          retryAfter:
+                            description: |-
+                              RetryAfter is the earliest time the operator retries the node. Absent
+                              for RepairFailed, which only a new verify-redundancy value retries.
+                            format: date-time
+                            type: string
+                          since:
+                            description: Since is when the node was skipped.
+                            format: date-time
+                            type: string
+                        required:
+                          - nodeId
+                          - reason
+                          - since
+                        type: object
+                      maxItems: 256
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - nodeId
+                      x-kubernetes-list-type: map
+                    lastProgressAt:
+                      description: |-
+                        LastProgressAt is the last time remaining work decreased (a resync or
+                        table sync queue shrank, a repair scan advanced, or the proof moved to
+                        a later step). It moves forward in steps of at least one minute.
+                      format: date-time
+                      type: string
+                    nodes:
+                      description: |-
+                        Nodes holds per-node progress for every current storage node and every
+                        other node that reports block errors, sorted by nodeId.
+                      items:
+                        description: NodeRedundancyStatus is the progress of one Garage node.
+                        properties:
+                          blockErrors:
+                            description: BlockErrors is the node's number of blocks with resync errors.
+                            format: int32
+                            type: integer
+                          blockRepairProgress:
+                            description: |-
+                              BlockRepairProgress is Garage's progress string for the exact
+                              verification repair worker on this node while it runs.
+                            maxLength: 64
+                            type: string
+                          metadataQueueLength:
+                            description: MetadataQueueLength is the sum of the Merkle-updater and insert queues.
+                            format: int64
+                            type: integer
+                          metadataSyncPartitions:
+                            description: |-
+                              MetadataSyncPartitions is the sum over tables of partitions left in the
+                              current full-sync pass. It is 0 between passes.
+                            format: int32
+                            type: integer
+                          nodeId:
+                            description: NodeID is the full Garage node ID.
+                            pattern: ^[0-9a-f]{64}$
+                            type: string
+                          observed:
+                            description: |-
+                              Observed is false when the node did not answer this pass; the counters
+                              then keep their previous values.
+                            type: boolean
+                          resyncIdle:
+                            description: ResyncIdle is true when every enabled resync worker is idle.
+                            type: boolean
+                          resyncQueueLength:
+                            description: |-
+                              ResyncQueueLength is the node's block resync queue, including delayed
+                              rechecks.
+                            format: int64
+                            type: integer
+                        required:
+                          - nodeId
+                          - observed
+                        type: object
+                      maxItems: 256
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - nodeId
+                      x-kubernetes-list-type: map
+                    progressObservedAt:
+                      description: |-
+                        ProgressObservedAt is when nodes[] was last rewritten. Progress is
+                        rewritten at most once per minute unless another redundancy field
+                        changes in the same pass, and only when a value changed.
+                      format: date-time
+                      type: string
+                    scope:
+                      description: |-
+                        Scope is Cluster when every storage role of the layout runs at this
+                        site, and Local when other sites run some of them; the proof covers
+                        only this site's local storage nodes.
+                      enum:
+                        - Cluster
+                        - Local
+                      type: string
+                    storageNodes:
+                      description: StorageNodes counts the layout's storage roles for this site.
+                      properties:
+                        local:
+                          description: Local is the number of storage roles that run at this site.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        remote:
+                          description: Remote is the number of storage roles that run at other sites.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        total:
+                          description: Total is the number of storage roles across all sites.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        verified:
+                          description: |-
+                            Verified is the number of local storage nodes the current or last
+                            proof has completed.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                      required:
+                        - local
+                        - remote
+                        - total
+                        - verified
+                      type: object
+                    verification:
+                      description: |-
+                        Verification is the proof state. Absent on a federated site without
+                        spec.layoutManagement.siteRole.
+                      properties:
+                        completedNodeIds:
+                          description: |-
+                            CompletedNodeIDs are the owned storage nodes that finished this proof,
+                            sorted.
+                          items:
+                            type: string
+                          maxItems: 256
+                          type: array
+                          x-kubernetes-list-type: set
+                        currentNodeId:
+                          description: |-
+                            CurrentNodeID is the owned storage node whose turn it is. Repairs run
+                            on one storage node at a time.
+                          pattern: ^[0-9a-f]{64}$
+                          type: string
+                        evidence:
+                          description: |-
+                            Evidence is the internal proof state. Its shape may change between
+                            operator releases; an unrecognized shape restarts the current node.
+                          properties:
+                            blockErrorsBaseline:
+                              description: |-
+                                BlockErrorsBaseline is the block-error count at the start of the
+                                current 30-minute window used to detect a growing count.
+                              format: int64
+                              type: integer
+                            blockErrorsBaselineAt:
+                              description: BlockErrorsBaselineAt is when the current block-error window opened.
+                              format: date-time
+                              type: string
+                            idleSince:
+                              description: |-
+                                IdleSince is the first pass, after the tables launch, at which the
+                                current node's sync workers were idle and its metadata queues empty.
+                              format: date-time
+                              type: string
+                            launches:
+                              description: |-
+                                Launches counts the launches of the current node's stage. After three
+                                the node is deferred as RepairFailed.
+                              format: int32
+                              maximum: 3
+                              minimum: 0
+                              type: integer
+                            nodeStage:
+                              description: NodeStage is the current node's step.
+                              enum:
+                                - Tables
+                                - Blocks
+                                - Pause
+                              type: string
+                            pauseUntil:
+                              description: PauseUntil ends the pause after the current node finished.
+                              format: date-time
+                              type: string
+                            peerDownSeen:
+                              description: |-
+                                PeerDownSeen is true when some storage node was down during the
+                                current node's table sync. Sync errors are then expected; the node is
+                                rechecked with a tables-only pass once every node is up.
+                              type: boolean
+                            quietSince:
+                              description: QuietSince starts the final quiet period.
+                              format: date-time
+                              type: string
+                            repairWorkerId:
+                              description: RepairWorkerID is the blocks repair worker adopted on the current node.
+                              format: int64
+                              type: integer
+                            resyncErrorBaselines:
+                              additionalProperties:
+                                format: int64
+                                type: integer
+                              description: |-
+                                ResyncErrorBaselines is the persistent-error counter of every block
+                                resync worker on the owned nodes when the quiet period started.
+                              type: object
+                            skipTables:
+                              description: |-
+                                SkipTables is true for a proof started by a layout change: Garage's
+                                settled layout history already proves a full table sync on every node.
+                              type: boolean
+                            stageLaunchedAt:
+                              description: StageLaunchedAt is when the current node's repair was launched.
+                              format: date-time
+                              type: string
+                            syncErrorBaselines:
+                              additionalProperties:
+                                format: int64
+                                type: integer
+                              description: |-
+                                SyncErrorBaselines is the errors counter of each of the five
+                                "<table> sync" workers of the current node at the tables launch.
+                              type: object
+                            tablesRecheckNodeIds:
+                              description: |-
+                                TablesRecheckNodeIDs are completed nodes whose table sync ran while a
+                                peer was down; each gets a tables-only pass once every node is up.
+                              items:
+                                type: string
+                              maxItems: 256
+                              type: array
+                              x-kubernetes-list-type: set
+                            workerBaseline:
+                              description: |-
+                                WorkerBaseline is the current node's highest worker ID at the launch.
+                                A lower maximum later means Garage restarted.
+                              format: int64
+                              type: integer
+                          type: object
+                        layoutVersion:
+                          description: LayoutVersion is the Garage layout version last observed.
+                          format: int64
+                          minimum: 0
+                          type: integer
+                        phase:
+                          description: Phase is the proof step.
+                          enum:
+                            - Idle
+                            - Pending
+                            - SyncingMetadata
+                            - ScanningBlocks
+                            - Settling
+                            - Partial
+                            - Verified
+                          type: string
+                        phaseStartedAt:
+                          description: PhaseStartedAt is when Phase was entered.
+                          format: date-time
+                          type: string
+                        requestToken:
+                          description: |-
+                            RequestToken is the last handled value of the
+                            garage.rajsingh.info/verify-redundancy annotation.
+                          maxLength: 253
+                          type: string
+                        startedAt:
+                          description: StartedAt is when the current proof attempt began.
+                          format: date-time
+                          type: string
+                        topologyHash:
+                          description: |-
+                            TopologyHash fingerprints the ID, zone and capacity of every storage
+                            role in the current layout. A change after the baseline starts a proof;
+                            tag-only layout changes and Pod restarts do not change it.
+                          maxLength: 64
+                          type: string
+                        trigger:
+                          description: Trigger is what started the current proof. Absent while Idle.
+                          enum:
+                            - Requested
+                            - LayoutChanged
+                            - NodeChanged
+                          type: string
+                        verifiedAt:
+                          description: |-
+                            VerifiedAt is when the last proof completed. It survives later proofs
+                            and outages, so it records the last time full redundancy was proven.
+                          format: date-time
+                          type: string
+                      required:
+                        - phase
+                      type: object
+                  type: object
                 remoteClusters:
                   description: RemoteClusters contains status of remote clusters in the federation
                   items:
@@ -5000,7 +5611,11 @@ spec:
                   format: int32
                   type: integer
                 resyncQueueLength:
-                  description: ResyncQueueLength is the total block resync queue depth across all nodes
+                  description: |-
+                    ResyncQueueLength is the total block resync queue depth across all nodes.
+                    Absent means not observed (Admin API unreachable, or a node that can
+                    hold blocks did not answer; silent capacityless gateways are ignored).
+                    0 means observed and drained.
                   format: int64
                   type: integer
                 scaleReplicas:
@@ -5019,7 +5634,10 @@ spec:
                     contaminate v1beta1 scale status.
                   type: string
                 scrubStatus:
-                  description: ScrubStatus contains the status of data scrub operations
+                  description: |-
+                    ScrubStatus contains the status of data scrub operations
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     corruptedBlocks:
                       description: |-
@@ -5293,14 +5911,23 @@ spec:
                       x-kubernetes-int-or-string: true
                   type: object
                 totalNodes:
-                  description: TotalNodes is the total nodes across all clusters (local + remote)
+                  description: |-
+                    TotalNodes is the total nodes across all clusters (local + remote)
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   type: integer
                 workerCount:
-                  description: WorkerCount is the total number of background workers
+                  description: |-
+                    WorkerCount is the total number of background workers
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
                 workers:
-                  description: Workers contains detailed information about background workers
+                  description: |-
+                    Workers contains detailed information about background workers
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     busy:
                       description: Busy is the number of busy/active workers
@@ -5352,7 +5979,10 @@ spec:
                       type: object
                   type: object
                 workersFailed:
-                  description: WorkersFailed is the number of failed workers
+                  description: |-
+                    WorkersFailed is the number of failed workers
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
               required:
@@ -7114,6 +7744,101 @@ spec:
                             x-kubernetes-map-type: atomic
                         type: object
                       type: array
+                    extraContainers:
+                      description: |-
+                        ExtraContainers run beside the Garage container in the same pod and network
+                        namespace. They cannot mount operator-owned volumes.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                    extraVolumes:
+                      description: |-
+                        ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                        (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                      items:
+                        description: |-
+                          PodExtraVolume is one user-supplied pod volume; same contract as
+                          PodExtraContainer, resolved as a corev1.Volume.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                              label, and not an operator-reserved volume name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 32
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: volume name is operator-reserved
+                          rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
+                    initContainers:
+                      description: |-
+                        InitContainers run before the Garage container, after any operator-injected
+                        init containers. Entries with restartPolicy: Always are native sidecars
+                        (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                        the prefix garage-operator- are reserved.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                     metadata:
                       description: |-
                         Metadata configures gateway metadata storage for Auto unified gateways and
@@ -7304,6 +8029,22 @@ spec:
                                     enum:
                                       - PersistentVolumeClaim
                                       - EmptyDir
+                                    type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                                     type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
@@ -7502,6 +8243,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -7569,6 +8313,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -7769,6 +8529,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     nodeSelector:
                       additionalProperties:
                         type: string
@@ -8520,6 +9283,9 @@ spec:
                   required:
                     - replicas
                   type: object
+                  x-kubernetes-validations:
+                    - message: initContainers and extraContainers names must be unique across both lists
+                      rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                 image:
                   description: |-
                     Image specifies the Garage container image to use.
@@ -8598,6 +9364,28 @@ spec:
                     minNodesHealthy:
                       description: MinNodesHealthy is the minimum healthy nodes required before applying layout changes.
                       type: integer
+                    redundancyVerification:
+                      description: RedundancyVerification configures the FullyReplicated proof (#474).
+                      properties:
+                        onTopologyChange:
+                          description: |-
+                            OnTopologyChange starts a blocks-only proof, one local storage node at
+                            a time, when the storage nodes, zones or capacities of the layout change
+                            after the operator recorded its baseline. Off by default: proofs then
+                            run only from the annotation. Ignored on a Follower site.
+                          type: boolean
+                      type: object
+                    siteRole:
+                      description: |-
+                        SiteRole selects whether this GarageCluster may change the shared Garage
+                        layout. Absent is equivalent to Writer, the behavior of every release
+                        before this field existed. A Follower never stages, applies, reverts,
+                        or removes roles; it only reconciles its own workloads and reports
+                        status. Exactly one site in a federation should be the Writer.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
                   type: object
                 layoutPolicy:
                   default: Auto
@@ -8790,7 +9578,9 @@ spec:
                       description: RPCTimeout sets the RPC call timeout.
                       type: string
                     service:
-                      description: Service configures the Kubernetes Service for the cluster.
+                      description: |-
+                        Service configures operator-managed Kubernetes Services for the cluster
+                        (API, gateway, headless, and public-endpoint RPC), including optional IP family fields.
                       properties:
                         annotations:
                           additionalProperties:
@@ -8799,6 +9589,35 @@ spec:
                           type: object
                         externalTrafficPolicy:
                           description: ExternalTrafficPolicy for LoadBalancer/NodePort.
+                          type: string
+                        ipFamilies:
+                          description: |-
+                            IPFamilies for every operator-managed Service, primary family first.
+                            Unset keeps the Kubernetes default (on create) or the last applied live
+                            value (on update). The primary family is immutable on an existing
+                            Service (enforced by the Kubernetes API server); a rejected update
+                            surfaces as a reconcile error.
+                          items:
+                            description: |-
+                              IPFamily represents the IP Family (IPv4 or IPv6). This type is used
+                              to express the family of an IP expressed by a type (e.g. service.spec.ipFamilies).
+                            enum:
+                              - IPv4
+                              - IPv6
+                            type: string
+                          maxItems: 2
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        ipFamilyPolicy:
+                          description: |-
+                            IPFamilyPolicy for every operator-managed Service. Unset keeps the
+                            Kubernetes default (on create) or the last applied live value (on
+                            update); set SingleStack to return to single-stack. Headless Services
+                            (ClusterIP=None) still accept these fields for dual-stack EndpointSlices.
+                          enum:
+                            - SingleStack
+                            - PreferDualStack
+                            - RequireDualStack
                           type: string
                         labels:
                           additionalProperties:
@@ -8822,6 +9641,11 @@ spec:
                             - LoadBalancer
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                        - message: ipFamilies may list at most one family when ipFamilyPolicy is SingleStack
+                          rule: '!has(self.ipFamilyPolicy) || self.ipFamilyPolicy != ''SingleStack'' || !has(self.ipFamilies) || size(self.ipFamilies) <= 1'
+                        - message: ipFamilies must not repeat the same family
+                          rule: '!has(self.ipFamilies) || size(self.ipFamilies) < 2 || self.ipFamilies[0] != self.ipFamilies[1]'
                   type: object
                 publicEndpoint:
                   description: |-
@@ -10396,6 +11220,22 @@ spec:
                                       - PersistentVolumeClaim
                                       - EmptyDir
                                     type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                    type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
                                       VolumeClaimTemplateSpec is retained for API compatibility but is not
@@ -10593,6 +11433,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -10660,6 +11503,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -10860,6 +11719,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     dataFsync:
                       description: DataFsync enables fsync for data block writes.
                       type: boolean
@@ -11066,6 +11928,101 @@ spec:
                             x-kubernetes-map-type: atomic
                         type: object
                       type: array
+                    extraContainers:
+                      description: |-
+                        ExtraContainers run beside the Garage container in the same pod and network
+                        namespace. They cannot mount operator-owned volumes.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                    extraVolumes:
+                      description: |-
+                        ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                        (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                      items:
+                        description: |-
+                          PodExtraVolume is one user-supplied pod volume; same contract as
+                          PodExtraContainer, resolved as a corev1.Volume.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                              label, and not an operator-reserved volume name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 32
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: volume name is operator-reserved
+                          rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
+                    initContainers:
+                      description: |-
+                        InitContainers run before the Garage container, after any operator-injected
+                        init containers. Entries with restartPolicy: Always are native sidecars
+                        (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                        the prefix garage-operator- are reserved.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                     layoutPolicy:
                       description: |-
                         LayoutPolicy overrides the cluster-level spec.layoutPolicy for the STORAGE
@@ -11261,6 +12218,22 @@ spec:
                                     enum:
                                       - PersistentVolumeClaim
                                       - EmptyDir
+                                    type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                                     type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
@@ -11459,6 +12432,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -11526,6 +12502,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -11726,6 +12718,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     metadataAutoSnapshotInterval:
                       description: MetadataAutoSnapshotInterval enables automatic metadata snapshots.
                       pattern: ^(\d+(\.\d+)?\s*(ns|us|ms|s|m|h|d|w|M|y)\s*)+$
@@ -13178,6 +14173,101 @@ spec:
                                       x-kubernetes-map-type: atomic
                                   type: object
                                 type: array
+                              extraContainers:
+                                description: |-
+                                  ExtraContainers run beside the Garage container in the same pod and network
+                                  namespace. They cannot mount operator-owned volumes.
+                                items:
+                                  description: |-
+                                    PodExtraContainer is one user-supplied container. The CRD schema declares
+                                    only name and preserves all other fields; the complete object is validated
+                                    by the admission webhook and re-validated by the controller by strictly
+                                    decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                                    a fully typed corev1.Container would add ~120 KB per occurrence.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name of the container. It must be unique across initContainers and
+                                        extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                    - name
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                  - name
+                                x-kubernetes-list-type: map
+                                x-kubernetes-validations:
+                                  - message: container name is operator-reserved
+                                    rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                              extraVolumes:
+                                description: |-
+                                  ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                                  (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                                items:
+                                  description: |-
+                                    PodExtraVolume is one user-supplied pod volume; same contract as
+                                    PodExtraContainer, resolved as a corev1.Volume.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                                        label, and not an operator-reserved volume name.
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                    - name
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                maxItems: 32
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                  - name
+                                x-kubernetes-list-type: map
+                                x-kubernetes-validations:
+                                  - message: volume name is operator-reserved
+                                    rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
+                              initContainers:
+                                description: |-
+                                  InitContainers run before the Garage container, after any operator-injected
+                                  init containers. Entries with restartPolicy: Always are native sidecars
+                                  (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                                  the prefix garage-operator- are reserved.
+                                items:
+                                  description: |-
+                                    PodExtraContainer is one user-supplied container. The CRD schema declares
+                                    only name and preserves all other fields; the complete object is validated
+                                    by the admission webhook and re-validated by the controller by strictly
+                                    decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                                    a fully typed corev1.Container would add ~120 KB per occurrence.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name of the container. It must be unique across initContainers and
+                                        extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                    - name
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                  - name
+                                x-kubernetes-list-type: map
+                                x-kubernetes-validations:
+                                  - message: container name is operator-reserved
+                                    rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                               podAnnotations:
                                 additionalProperties:
                                   type: string
@@ -13686,6 +14776,9 @@ spec:
                                   type: object
                                 type: array
                             type: object
+                            x-kubernetes-validations:
+                              - message: initContainers and extraContainers names must be unique across both lists
+                                rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                           selector:
                             description: |-
                               Selector chooses the Kubernetes Nodes that own a persistent Garage
@@ -14329,6 +15422,9 @@ spec:
                   required:
                     - replicas
                   type: object
+                  x-kubernetes-validations:
+                    - message: initContainers and extraContainers names must be unique across both lists
+                      rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                 webApi:
                   description: |-
                     WebAPI configures the static website hosting endpoint.
@@ -14427,11 +15523,18 @@ spec:
                   rule: has(self.storage) || has(self.gateway) || has(self.connectTo)
                 - message: spec.gateway requires either spec.storage (unified cluster) or spec.connectTo (edge gateway)
                   rule: '!has(self.gateway) || has(self.storage) || has(self.connectTo)'
+                - message: 'layoutManagement.siteRole: Follower requires at least one remoteClusters entry (a Follower with nothing to follow is a cluster nobody can assign roles to)'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || (has(self.remoteClusters) && size(self.remoteClusters) > 0)'
+                - message: 'layoutManagement.siteRole: Follower is not supported with connectTo; edge gateways and management handles act on their layout owner'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || !has(self.connectTo)'
             status:
               description: GarageClusterStatus defines the observed state of GarageCluster.
               properties:
                 activeRepairs:
-                  description: ActiveRepairs contains currently running repair operations.
+                  description: |-
+                    ActiveRepairs contains currently running repair operations.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   items:
                     description: RepairStatus contains status of a repair operation.
                     properties:
@@ -14534,7 +15637,11 @@ spec:
                       type: array
                   type: object
                 blockErrors:
-                  description: BlockErrors is the count of blocks with sync errors across all nodes.
+                  description: |-
+                    BlockErrors is the count of blocks with sync errors across all nodes.
+                    Absent means not observed (Admin API unreachable, or a node that can
+                    hold blocks did not answer; silent capacityless gateways are ignored).
+                    0 means observed with no errors.
                   format: int32
                   type: integer
                 buildInfo:
@@ -14844,8 +15951,25 @@ spec:
                   description: LayoutVersion is the current layout version.
                   format: int64
                   type: integer
+                layoutWriter:
+                  description: |-
+                    LayoutWriter reports the layout role the controller is currently
+                    enforcing for this site. Nil until the controller first records it.
+                  properties:
+                    role:
+                      description: Role is the role the controller is currently enforcing.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
+                  required:
+                    - role
+                  type: object
                 lifecycleStatus:
-                  description: LifecycleStatus contains the status of bucket lifecycle operations.
+                  description: |-
+                    LifecycleStatus contains the status of bucket lifecycle operations.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     lastCompleted:
                       description: LastCompleted is when the last lifecycle worker run completed.
@@ -14853,7 +15977,10 @@ spec:
                       type: string
                   type: object
                 nodes:
-                  description: Nodes contains status information for each node.
+                  description: |-
+                    Nodes contains status information for each node.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   items:
                     description: NodeStatus contains status information for a Garage node.
                     properties:
@@ -14944,6 +16071,354 @@ spec:
                   description: ReadyReplicas is the number of ready Garage pods.
                   format: int32
                   type: integer
+                redundancy:
+                  description: |-
+                    Redundancy reports block-resync progress and the last full-redundancy
+                    proof. Absent on clusters without a storage tier, on connectTo clusters,
+                    and until the controller first observes Garage.
+                  properties:
+                    coordination:
+                      description: |-
+                        Coordination is what this site last saw of other sites' repairs. It
+                        serializes proofs across a federation. Absent on a cluster that is not
+                        federated.
+                      properties:
+                        lastRemoteRepairAt:
+                          description: |-
+                            LastRemoteRepairAt is when a blocks repair on a remote storage node was
+                            last seen starting or running, or when this site started watching.
+                          format: date-time
+                          type: string
+                        lastRemoteRepairNodeId:
+                          description: LastRemoteRepairNodeID is the remote node of that repair.
+                          pattern: ^[0-9a-f]{64}$
+                          type: string
+                        remoteRepairWorkerIds:
+                          additionalProperties:
+                            format: int64
+                            type: integer
+                          description: |-
+                            RemoteRepairWorkerIDs maps each remote storage node ID to the highest
+                            Block repair worker ID seen on it.
+                          maxProperties: 256
+                          type: object
+                      type: object
+                    deferredNodes:
+                      description: |-
+                        DeferredNodes lists owned storage nodes the current proof skipped.
+                        Down and NotReporting nodes are retried once they are back, no sooner
+                        than retryAfter.
+                      items:
+                        description: RedundancyDeferredNode is an owned storage node the proof skipped.
+                        properties:
+                          nodeId:
+                            description: NodeID is the full Garage node ID.
+                            pattern: ^[0-9a-f]{64}$
+                            type: string
+                          reason:
+                            description: Reason says why the node was skipped.
+                            enum:
+                              - Down
+                              - NotReporting
+                              - RepairFailed
+                            type: string
+                          retryAfter:
+                            description: |-
+                              RetryAfter is the earliest time the operator retries the node. Absent
+                              for RepairFailed, which only a new verify-redundancy value retries.
+                            format: date-time
+                            type: string
+                          since:
+                            description: Since is when the node was skipped.
+                            format: date-time
+                            type: string
+                        required:
+                          - nodeId
+                          - reason
+                          - since
+                        type: object
+                      maxItems: 256
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - nodeId
+                      x-kubernetes-list-type: map
+                    lastProgressAt:
+                      description: |-
+                        LastProgressAt is the last time remaining work decreased (a resync or
+                        table sync queue shrank, a repair scan advanced, or the proof moved to
+                        a later step). It moves forward in steps of at least one minute.
+                      format: date-time
+                      type: string
+                    nodes:
+                      description: |-
+                        Nodes holds per-node progress for every current storage node and every
+                        other node that reports block errors, sorted by nodeId.
+                      items:
+                        description: NodeRedundancyStatus is the progress of one Garage node.
+                        properties:
+                          blockErrors:
+                            description: BlockErrors is the node's number of blocks with resync errors.
+                            format: int32
+                            type: integer
+                          blockRepairProgress:
+                            description: |-
+                              BlockRepairProgress is Garage's progress string for the exact
+                              verification repair worker on this node while it runs.
+                            maxLength: 64
+                            type: string
+                          metadataQueueLength:
+                            description: MetadataQueueLength is the sum of the Merkle-updater and insert queues.
+                            format: int64
+                            type: integer
+                          metadataSyncPartitions:
+                            description: |-
+                              MetadataSyncPartitions is the sum over tables of partitions left in the
+                              current full-sync pass. It is 0 between passes.
+                            format: int32
+                            type: integer
+                          nodeId:
+                            description: NodeID is the full Garage node ID.
+                            pattern: ^[0-9a-f]{64}$
+                            type: string
+                          observed:
+                            description: |-
+                              Observed is false when the node did not answer this pass; the counters
+                              then keep their previous values.
+                            type: boolean
+                          resyncIdle:
+                            description: ResyncIdle is true when every enabled resync worker is idle.
+                            type: boolean
+                          resyncQueueLength:
+                            description: |-
+                              ResyncQueueLength is the node's block resync queue, including delayed
+                              rechecks.
+                            format: int64
+                            type: integer
+                        required:
+                          - nodeId
+                          - observed
+                        type: object
+                      maxItems: 256
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - nodeId
+                      x-kubernetes-list-type: map
+                    progressObservedAt:
+                      description: |-
+                        ProgressObservedAt is when nodes[] was last rewritten. Progress is
+                        rewritten at most once per minute unless another redundancy field
+                        changes in the same pass, and only when a value changed.
+                      format: date-time
+                      type: string
+                    scope:
+                      description: |-
+                        Scope is Cluster when every storage role of the layout runs at this
+                        site, and Local when other sites run some of them; the proof covers
+                        only this site's local storage nodes.
+                      enum:
+                        - Cluster
+                        - Local
+                      type: string
+                    storageNodes:
+                      description: StorageNodes counts the layout's storage roles for this site.
+                      properties:
+                        local:
+                          description: Local is the number of storage roles that run at this site.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        remote:
+                          description: Remote is the number of storage roles that run at other sites.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        total:
+                          description: Total is the number of storage roles across all sites.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        verified:
+                          description: |-
+                            Verified is the number of local storage nodes the current or last
+                            proof has completed.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                      required:
+                        - local
+                        - remote
+                        - total
+                        - verified
+                      type: object
+                    verification:
+                      description: |-
+                        Verification is the proof state. Absent on a federated site without
+                        spec.layoutManagement.siteRole.
+                      properties:
+                        completedNodeIds:
+                          description: |-
+                            CompletedNodeIDs are the owned storage nodes that finished this proof,
+                            sorted.
+                          items:
+                            type: string
+                          maxItems: 256
+                          type: array
+                          x-kubernetes-list-type: set
+                        currentNodeId:
+                          description: |-
+                            CurrentNodeID is the owned storage node whose turn it is. Repairs run
+                            on one storage node at a time.
+                          pattern: ^[0-9a-f]{64}$
+                          type: string
+                        evidence:
+                          description: |-
+                            Evidence is the internal proof state. Its shape may change between
+                            operator releases; an unrecognized shape restarts the current node.
+                          properties:
+                            blockErrorsBaseline:
+                              description: |-
+                                BlockErrorsBaseline is the block-error count at the start of the
+                                current 30-minute window used to detect a growing count.
+                              format: int64
+                              type: integer
+                            blockErrorsBaselineAt:
+                              description: BlockErrorsBaselineAt is when the current block-error window opened.
+                              format: date-time
+                              type: string
+                            idleSince:
+                              description: |-
+                                IdleSince is the first pass, after the tables launch, at which the
+                                current node's sync workers were idle and its metadata queues empty.
+                              format: date-time
+                              type: string
+                            launches:
+                              description: |-
+                                Launches counts the launches of the current node's stage. After three
+                                the node is deferred as RepairFailed.
+                              format: int32
+                              maximum: 3
+                              minimum: 0
+                              type: integer
+                            nodeStage:
+                              description: NodeStage is the current node's step.
+                              enum:
+                                - Tables
+                                - Blocks
+                                - Pause
+                              type: string
+                            pauseUntil:
+                              description: PauseUntil ends the pause after the current node finished.
+                              format: date-time
+                              type: string
+                            peerDownSeen:
+                              description: |-
+                                PeerDownSeen is true when some storage node was down during the
+                                current node's table sync. Sync errors are then expected; the node is
+                                rechecked with a tables-only pass once every node is up.
+                              type: boolean
+                            quietSince:
+                              description: QuietSince starts the final quiet period.
+                              format: date-time
+                              type: string
+                            repairWorkerId:
+                              description: RepairWorkerID is the blocks repair worker adopted on the current node.
+                              format: int64
+                              type: integer
+                            resyncErrorBaselines:
+                              additionalProperties:
+                                format: int64
+                                type: integer
+                              description: |-
+                                ResyncErrorBaselines is the persistent-error counter of every block
+                                resync worker on the owned nodes when the quiet period started.
+                              type: object
+                            skipTables:
+                              description: |-
+                                SkipTables is true for a proof started by a layout change: Garage's
+                                settled layout history already proves a full table sync on every node.
+                              type: boolean
+                            stageLaunchedAt:
+                              description: StageLaunchedAt is when the current node's repair was launched.
+                              format: date-time
+                              type: string
+                            syncErrorBaselines:
+                              additionalProperties:
+                                format: int64
+                                type: integer
+                              description: |-
+                                SyncErrorBaselines is the errors counter of each of the five
+                                "<table> sync" workers of the current node at the tables launch.
+                              type: object
+                            tablesRecheckNodeIds:
+                              description: |-
+                                TablesRecheckNodeIDs are completed nodes whose table sync ran while a
+                                peer was down; each gets a tables-only pass once every node is up.
+                              items:
+                                type: string
+                              maxItems: 256
+                              type: array
+                              x-kubernetes-list-type: set
+                            workerBaseline:
+                              description: |-
+                                WorkerBaseline is the current node's highest worker ID at the launch.
+                                A lower maximum later means Garage restarted.
+                              format: int64
+                              type: integer
+                          type: object
+                        layoutVersion:
+                          description: LayoutVersion is the Garage layout version last observed.
+                          format: int64
+                          minimum: 0
+                          type: integer
+                        phase:
+                          description: Phase is the proof step.
+                          enum:
+                            - Idle
+                            - Pending
+                            - SyncingMetadata
+                            - ScanningBlocks
+                            - Settling
+                            - Partial
+                            - Verified
+                          type: string
+                        phaseStartedAt:
+                          description: PhaseStartedAt is when Phase was entered.
+                          format: date-time
+                          type: string
+                        requestToken:
+                          description: |-
+                            RequestToken is the last handled value of the
+                            garage.rajsingh.info/verify-redundancy annotation.
+                          maxLength: 253
+                          type: string
+                        startedAt:
+                          description: StartedAt is when the current proof attempt began.
+                          format: date-time
+                          type: string
+                        topologyHash:
+                          description: |-
+                            TopologyHash fingerprints the ID, zone and capacity of every storage
+                            role in the current layout. A change after the baseline starts a proof;
+                            tag-only layout changes and Pod restarts do not change it.
+                          maxLength: 64
+                          type: string
+                        trigger:
+                          description: Trigger is what started the current proof. Absent while Idle.
+                          enum:
+                            - Requested
+                            - LayoutChanged
+                            - NodeChanged
+                          type: string
+                        verifiedAt:
+                          description: |-
+                            VerifiedAt is when the last proof completed. It survives later proofs
+                            and outages, so it records the last time full redundancy was proven.
+                          format: date-time
+                          type: string
+                      required:
+                        - phase
+                      type: object
+                  type: object
                 remoteClusters:
                   description: RemoteClusters contains status of remote clusters in the federation.
                   items:
@@ -14977,7 +16452,11 @@ spec:
                   format: int32
                   type: integer
                 resyncQueueLength:
-                  description: ResyncQueueLength is the total block resync queue depth across all nodes.
+                  description: |-
+                    ResyncQueueLength is the total block resync queue depth across all nodes.
+                    Absent means not observed (Admin API unreachable, or a node that can
+                    hold blocks did not answer; silent capacityless gateways are ignored).
+                    0 means observed and drained.
                   format: int64
                   type: integer
                 scaleReplicas:
@@ -15000,7 +16479,10 @@ spec:
                     workloads cannot make /scale fail to converge.
                   type: string
                 scrubStatus:
-                  description: ScrubStatus contains the status of data scrub operations.
+                  description: |-
+                    ScrubStatus contains the status of data scrub operations.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     corruptedBlocks:
                       description: CorruptedBlocks is the number of corrupted blocks found in the last scrub.
@@ -15419,7 +16901,10 @@ spec:
                       x-kubernetes-int-or-string: true
                   type: object
                 totalNodes:
-                  description: TotalNodes is the total nodes across all clusters (local + remote).
+                  description: |-
+                    TotalNodes is the total nodes across all clusters (local + remote).
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   type: integer
                 unreachablePeers:
                   description: |-
@@ -15430,11 +16915,17 @@ spec:
                     type: string
                   type: array
                 workerCount:
-                  description: WorkerCount is the total number of background workers.
+                  description: |-
+                    WorkerCount is the total number of background workers.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
                 workers:
-                  description: Workers contains detailed information about background workers.
+                  description: |-
+                    Workers contains detailed information about background workers.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     busy:
                       description: Busy is the number of busy/active workers.
@@ -15484,7 +16975,10 @@ spec:
                       type: object
                   type: object
                 workersFailed:
-                  description: WorkersFailed is the number of failed workers.
+                  description: |-
+                    WorkersFailed is the number of failed workers.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
               required:
