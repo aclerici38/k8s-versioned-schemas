@@ -965,6 +965,8 @@ spec:
                     inference Deployment. Requires Prometheus Adapter for custom metrics.
                     Mutually exclusive with manual replica management: when autoscaling is enabled,
                     the Replicas field serves as the initial replica count only.
+                    Not supported with multiNode: a multiNode service gets no HPA, and the
+                    AutoscalingReady condition reports UnsupportedForMultiNode.
                   properties:
                     maxReplicas:
                       description: MaxReplicas is the upper limit for the number of replicas.
@@ -3919,8 +3921,9 @@ spec:
                     PodAnnotations are merged into the inference Pod's metadata.annotations.
                     Use this to tag Pods for downstream tooling (cost attribution, service
                     mesh routing, custom admission controllers) without those tools needing
-                    to know about LLMKube's CRD schema. Pure passthrough; the operator
-                    itself does not set any annotations on inference Pods today.
+                    to know about LLMKube's CRD schema. A value set here wins over an
+                    annotation the operator sets (karpenter.sh/do-not-disrupt, the
+                    prometheus.io scrape hints). A key removed here is removed from the Pods.
                   type: object
                 podLabels:
                   additionalProperties:
@@ -3931,7 +3934,8 @@ spec:
                     `inference.llmkube.dev/service`). Operator-managed keys take precedence
                     on collision so the Deployment selector stays in sync with the Pods it
                     owns. The Deployment selector itself uses only the operator-managed
-                    labels and is immutable, so changing PodLabels later is safe.
+                    labels and is immutable, so changing PodLabels later is safe. A key
+                    removed here is removed from the Pods.
                   type: object
                 podSecurityContext:
                   description: |-

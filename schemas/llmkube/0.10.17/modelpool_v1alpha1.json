@@ -43,7 +43,7 @@
           ]
         },
         "members": {
-          "description": "Members lists the InferenceServices that share the pool's GPU slot. Each\nmember is an ordinary single-model InferenceService with its own image,\ncontext size, and runtime.",
+          "description": "Members lists the InferenceServices that share the pool's GPU slot. Each\nmember is an ordinary single-model InferenceService with its own image,\ncontext size, and runtime. The pool owns each member's spec.replicas:\nleave it out of GitOps manifests, or every sync that restores it is read\nas a request for that member (docs/operations/gpu-sharing.md, \"GitOps\").",
           "items": {
             "additionalProperties": false,
             "description": "ModelPoolMember names one InferenceService that shares the pool's GPU slot.",
@@ -187,6 +187,42 @@
             "type"
           ],
           "x-kubernetes-list-type": "map"
+        },
+        "externalScale": {
+          "additionalProperties": false,
+          "description": "ExternalScale records the last scale-up of a non-resident member by a\nfield manager outside LLMKube. It identifies the write already reported,\nso the same scale-up seen on a later pass is not reported again, and times\nthe ExternallyScaled condition's quiet period.",
+          "properties": {
+            "manager": {
+              "description": "Manager is the field manager that owns the member's spec.replicas, as\nrecorded in its managedFields (for example kustomize-controller or\nkubectl).",
+              "type": "string"
+            },
+            "member": {
+              "description": "Member is the member InferenceService that was scaled up.",
+              "type": "string"
+            },
+            "memberGeneration": {
+              "description": "MemberGeneration is the member's metadata.generation when the scale-up\nwas observed. With Member and Manager it identifies one write.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "observedAt": {
+              "description": "ObservedAt is when the pool first observed this scale-up.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          "required": [
+            "manager",
+            "member",
+            "observedAt"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "members": {
           "description": "Members reports the observed state of each pool member.",
