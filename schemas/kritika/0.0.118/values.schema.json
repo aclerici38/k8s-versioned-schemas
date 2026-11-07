@@ -16,7 +16,7 @@
     },
     "config": {
       "additionalProperties": false,
-      "description": "Application configuration, with the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted keys use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys that the chart derives from its deployment values fail the render. These keys are `addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `databaseRunnerRole`, `executor` and `runner`. When `gatewayCache.enabled` is set, they also include `gatewayCacheDir`, `gatewayCacheStorage` and `gatewayCacheMaxEntrySize`. For filesystem storage, they also include `gatewayCacheMaxSize`. For S3, they also include the `gatewayCacheS3*` keys.",
+      "description": "Application configuration, with the same YAML schema as config.yaml. Secrets are references such as { env: ADMIN_PASSWORD }, supplied through env or envFrom. Omitted keys use application defaults. Rendered through tpl with the release context. Mutually exclusive with existingConfigMap. The keys that the chart derives from its deployment values fail the render. These keys are `addr`, `metricsAddr`, `gatewayAddr`, `gatewayUrl`, `databaseAppRole`, `executor` and `runner`. When `gatewayCache.enabled` is set, they also include `gatewayCacheDir`, `gatewayCacheStorage` and `gatewayCacheMaxEntrySize`. For filesystem storage, they also include `gatewayCacheMaxSize`. For S3, they also include the `gatewayCacheS3*` keys.",
       "properties": {
         "accounts": {
           "required": [],
@@ -57,9 +57,6 @@
           "type": "array"
         },
         "databaseAppRole": {
-          "type": "string"
-        },
-        "databaseRunnerRole": {
           "type": "string"
         },
         "diffRetention": {
@@ -221,7 +218,7 @@
       "type": "object"
     },
     "database": {
-      "description": "Three Postgres connection strings, each from its own Secret. The application\nrole must not own the tables (row-level security). The owner role runs\nmigrations and applies configuration on the leader. The runner role is\nhanded to runner Jobs and can only write its own run. On CloudNativePG,\ndeclare `app` and `runner` as DatabaseRole resources and use the bootstrap\nowner as `owner`. See the database docs.",
+      "description": "Two Postgres connection strings, each from its own Secret. The application\nrole must not own the tables (row-level security). The owner role runs\nmigrations and applies configuration on the leader. On CloudNativePG,\ndeclare `app` as a DatabaseRole resource and use the bootstrap owner as\n`owner`. See the database docs.",
       "properties": {
         "app": {
           "properties": {
@@ -265,31 +262,6 @@
           },
           "required": [],
           "title": "owner",
-          "type": "object"
-        },
-        "runner": {
-          "properties": {
-            "existingSecret": {
-              "default": "",
-              "description": "(required) Secret holding the runner role's connection URI. Runner Jobs reference it, and kritika serve never reads it.",
-              "title": "existingSecret",
-              "type": "string"
-            },
-            "key": {
-              "default": "uri",
-              "description": "Key in that Secret.",
-              "title": "key",
-              "type": "string"
-            },
-            "role": {
-              "default": "kritika_runner",
-              "description": "Name of the runner role, granted only what runner Jobs need.",
-              "title": "role",
-              "type": "string"
-            }
-          },
-          "required": [],
-          "title": "runner",
           "type": "object"
         }
       },
@@ -993,7 +965,7 @@
           "type": "array"
         },
         "postgres": {
-          "description": " - to:\n     - namespaceSelector:\n         matchLabels:\n           kubernetes.io/metadata.name: rook-ceph\n       podSelector:\n         matchLabels:\n           rook_object_store: ceph-objectstore\n   ports:\n     - port: 8080\n       protocol: TCP\nWhere the database is, the one peer at which the service pods and runner\npods can reach its port. It is every pod in the release namespace unless\nset. It must take in every pod that the owner, application and runner URIs\nconnect to.",
+          "description": " - to:\n     - namespaceSelector:\n         matchLabels:\n           kubernetes.io/metadata.name: rook-ceph\n       podSelector:\n         matchLabels:\n           rook_object_store: ceph-objectstore\n   ports:\n     - port: 8080\n       protocol: TCP\nWhere the database is, the one peer at which the service pods can reach\nits port. It is every pod in the release namespace unless set. It must take\nin every pod that the owner and application URIs connect to.",
           "properties": {
             "namespace": {
               "default": "",
@@ -1211,13 +1183,13 @@
       "type": "object"
     },
     "runner": {
-      "description": "Runner Jobs: one pod per review, follow-up or index run. kritika serve\ncreates them in the release namespace from the release's -tools image. They\nrun as a service account with no permissions and a database role that can\nonly touch its own run. The server's Role reaches every Secret in the\nrelease namespace, so install kritika into a namespace of its own. We\nrecommend a sandboxed RuntimeClass (gVisor, Kata),\n`runner.podTemplate.spec.runtimeClassName`, since a runner parses untrusted\nrepository content and runs what the model asks.",
+      "description": "Runner Jobs: one pod per review, follow-up or index run. kritika serve\ncreates them in the release namespace from the release's -tools image. They\nrun as a service account with no permissions, hold no database credential, and\nreport what they find to the gateway. The server's Role reaches every Secret in the\nrelease namespace, so install kritika into a namespace of its own. We\nrecommend a sandboxed RuntimeClass (gVisor, Kata),\n`runner.podTemplate.spec.runtimeClassName`, since a runner parses untrusted\nrepository content and runs what the model asks.",
       "properties": {
         "admissionPolicy": {
           "properties": {
             "enabled": {
               "default": true,
-              "description": "Have the cluster refuse three things from kritika serve's ServiceAccount. The first is any Job that is not a runner Job as kritika builds it. The second is any Secret that is not a run's. The third is any deletion of a Job but in the foreground, which takes its run's Secret with it. The cluster uses three ValidatingAdmissionPolicies and their bindings: cluster-scoped objects that the chart's installer must be allowed to create. Without them, the Role lets kritika serve create any Job in its namespace. That Job's pod can run as another ServiceAccount and mount another Secret. Any tag or digest of the runner image's repository passes, so the runs that an older replica starts mid-rollout pass too. Some changes refuse those runs until the rollout ends, and the runs are retried. These are changes to the repository, the runner ServiceAccount, RuntimeClass, database Secret or a Secret that the runner container's `env` names.",
+              "description": "Have the cluster refuse three things from kritika serve's ServiceAccount. The first is any Job that is not a runner Job as kritika builds it. The second is any Secret that is not a run's. The third is any deletion of a Job but in the foreground, which takes its run's Secret with it. The cluster uses three ValidatingAdmissionPolicies and their bindings: cluster-scoped objects that the chart's installer must be allowed to create. Without them, the Role lets kritika serve create any Job in its namespace. That Job's pod can run as another ServiceAccount and mount another Secret. Any tag or digest of the runner image's repository passes, so the runs that an older replica starts mid-rollout pass too. Some changes refuse those runs until the rollout ends, and the runs are retried. These are changes to the repository, the runner ServiceAccount, RuntimeClass or a Secret that the runner container's `env` names.",
               "title": "enabled",
               "type": "boolean"
             }
