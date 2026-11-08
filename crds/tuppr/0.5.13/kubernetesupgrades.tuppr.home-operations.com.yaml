@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: kubernetesupgrades.tuppr.home-operations.com
 spec:
   group: tuppr.home-operations.com
@@ -149,7 +149,9 @@ spec:
                           TalosUpgrade has hooks, so this has no effect on a KubernetesUpgrade.
                         type: boolean
                       timeout:
-                        description: Timeout for this health check
+                        description: |-
+                          Timeout has no effect and is kept for compatibility. Health checks are
+                          re-evaluated until they pass; a failing check never fails the upgrade.
                         minLength: 2
                         pattern: ^([0-9]+[smh])+$
                         type: string
@@ -312,6 +314,14 @@ spec:
                   type: string
                 currentVersion:
                   description: CurrentVersion is the current Kubernetes version detected in the cluster
+                  type: string
+                healthChecksFailingSince:
+                  description: |-
+                    HealthChecksFailingSince is when spec.healthChecks started failing in
+                    their current streak; cleared once they pass. It spaces out the
+                    re-evaluations while they keep failing and times how long they took
+                    to pass.
+                  format: date-time
                   type: string
                 history:
                   description: History records past version transitions on this CR, newest first
