@@ -1142,7 +1142,7 @@
               ]
             },
             "privilegedMode": {
-              "description": "Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.",
+              "description": "Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs\nas root (`runAsUser: 0`), adds the capabilities the operation needs on top of\n`drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);\n`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original\nownership). Grants nothing for maintenance, or when the mover does not run as\nroot (capabilities are inert for non-root); set `runAsUser: 0` yourself.",
               "nullable": true,
               "type": [
                 "boolean",
@@ -1988,7 +1988,7 @@
               ]
             },
             "storageClassName": {
-              "description": "StorageClass for the **staged PVC** — the temporary PVC restored from the\nCSI `VolumeSnapshot` (`copyMethod: Snapshot`) or cloned from the source\n(`copyMethod: Clone`). Absent ⇒ the staged PVC copies the source PVC's\nclass. Must belong to the **same CSI driver** as the source (staging fails\nfast on a mismatch). Flagship use: a rook-ceph CephFS class with\n`backingSnapshot: \"true\"`, which mounts the snapshot shallowly\n(metadata-only, near-instant, read-only) instead of running a full\nsubvolume clone that can take many minutes on small-file-heavy volumes.",
+              "description": "StorageClass for the **staged PVC** — the temporary PVC restored from the\nCSI `VolumeSnapshot` (`copyMethod: Snapshot`) or cloned from the source\n(`copyMethod: Clone`). Absent ⇒ the staged PVC copies the source PVC's\nclass. A statically-provisioned source whose class can't provision its CSI\ndriver (no class, a class with no StorageClass object, or a\n`kubernetes.io/no-provisioner` placeholder) instead gets a StorageClass of\nthe driver named in its bound PV — the only one, else the cluster default\namong several (set this field when neither exists; `copyMethod: Clone`\ncan't stage such a source). Must belong to the **same CSI driver** as the\nsource (staging fails fast on a mismatch). Flagship use: a rook-ceph CephFS class with\n`backingSnapshot: \"true\"`, which mounts the snapshot shallowly\n(metadata-only, near-instant, read-only) instead of running a full\nsubvolume clone that can take many minutes on small-file-heavy volumes.",
               "nullable": true,
               "type": [
                 "string",
