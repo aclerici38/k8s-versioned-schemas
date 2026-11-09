@@ -1,0 +1,366 @@
+{
+  "description": "Harness defines a reusable agent runtime and infrastructure policy.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "HarnessSpec defines a reusable runtime and its infrastructure policy.",
+      "properties": {
+        "byo": {
+          "description": "BYOHarness selects an image that implements kagent's private A2A contract.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "claude": {
+          "description": "ClaudeHarness selects the Claude runtime adapter.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "codex": {
+          "description": "CodexHarness selects the Codex runtime adapter.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "env": {
+          "items": {
+            "additionalProperties": false,
+            "description": "RuntimeEnvVar configures one literal runtime environment variable.",
+            "properties": {
+              "name": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "value": {
+                "description": "Value is a literal value, including an empty string.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "kagent": {
+          "additionalProperties": false,
+          "description": "KagentHarness configures the kagent runtime adapter.",
+          "properties": {
+            "compaction": {
+              "additionalProperties": false,
+              "description": "Compaction summarizes older session events so the prompt stays small as\na conversation grows. Omitted leaves the history uncompacted.",
+              "properties": {
+                "compactionInterval": {
+                  "description": "CompactionInterval is the number of new user-initiated invocations that,\nonce fully represented in the session, triggers a sliding-window\ncompaction of those invocations.",
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "eventRetentionSize": {
+                  "description": "EventRetentionSize is the number of most recent events that tail\nretention keeps uncompacted.",
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "overlapSize": {
+                  "description": "OverlapSize is the number of already-compacted invocations pulled back\ninto the next sliding window so consecutive summaries overlap.",
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "summarizer": {
+                  "additionalProperties": false,
+                  "description": "Summarizer selects the model and prompt that write the summaries.\nOmitted summarizes with the agent's own model and the runtime's default\nprompt.",
+                  "properties": {
+                    "modelConfigRef": {
+                      "additionalProperties": false,
+                      "description": "ModelConfigRef references the ModelConfig (defaulting to the Harness namespace) that\nwrites the summaries. Omitted uses the agent's own model.",
+                      "properties": {
+                        "name": {
+                          "maxLength": 253,
+                          "minLength": 1,
+                          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "maxLength": 63,
+                          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "name must not be empty",
+                          "rule": "has(self.name) \u0026\u0026 self.name != ''"
+                        }
+                      ]
+                    },
+                    "promptTemplate": {
+                      "description": "PromptTemplate replaces the runtime's default summarization prompt. It\nmust contain {conversation_history}, which the runtime replaces with the\nrendered events.",
+                      "minLength": 1,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "promptTemplate must contain {conversation_history}",
+                      "rule": "!has(self.promptTemplate) || self.promptTemplate.contains('{conversation_history}')"
+                    }
+                  ]
+                },
+                "tokenThreshold": {
+                  "description": "TokenThreshold is the prompt token count at which tail-retention\ncompaction summarizes the history before the next model call.",
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "tokenThreshold and eventRetentionSize must be specified together",
+                  "rule": "has(self.tokenThreshold) == has(self.eventRetentionSize)"
+                },
+                {
+                  "message": "overlapSize requires compactionInterval",
+                  "rule": "!has(self.overlapSize) || has(self.compactionInterval)"
+                },
+                {
+                  "message": "at least one of the fields in [compactionInterval tokenThreshold] must be set",
+                  "rule": "has(self.compactionInterval)||has(self.tokenThreshold)"
+                }
+              ]
+            },
+            "memory": {
+              "additionalProperties": false,
+              "description": "Memory enables long-term memory for agents using this Harness.",
+              "properties": {
+                "modelConfigRef": {
+                  "additionalProperties": false,
+                  "description": "ModelConfigRef references the embedding ModelConfig (defaulting to the Harness namespace).",
+                  "properties": {
+                    "name": {
+                      "maxLength": 253,
+                      "minLength": 1,
+                      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "maxLength": 63,
+                      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "ttlDays": {
+                  "description": "TTLDays controls how many days a stored memory entry remains valid.",
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "modelConfigRef"
+              ],
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "modelConfigRef name must not be empty",
+                  "rule": "self.modelConfigRef.name.size() \u003e 0"
+                }
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "substrate": {
+          "additionalProperties": false,
+          "description": "RuntimeSubstratePolicy contains the Substrate policy shared by all runtime variants.",
+          "properties": {
+            "snapshotPolicy": {
+              "additionalProperties": false,
+              "description": "SnapshotPolicy configures runtime snapshot storage.",
+              "properties": {
+                "location": {
+                  "description": "Location is the snapshot storage location used by Substrate.",
+                  "pattern": "^[^[:space:]]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "location"
+              ],
+              "type": "object"
+            },
+            "workerPoolRef": {
+              "additionalProperties": false,
+              "description": "WorkerPoolRef references a WorkerPool in the resource's namespace.",
+              "properties": {
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object",
+              "x-kubernetes-map-type": "atomic"
+            }
+          },
+          "required": [
+            "snapshotPolicy",
+            "workerPoolRef"
+          ],
+          "type": "object",
+          "x-kubernetes-validations": [
+            {
+              "message": "workerPoolRef name must not be empty",
+              "rule": "self.workerPoolRef.name.size() \u003e 0"
+            }
+          ]
+        },
+        "workload": {
+          "additionalProperties": false,
+          "description": "Workload overrides the built-in runtime image and its command. BYO requires it.",
+          "properties": {
+            "args": {
+              "description": "Args overrides the image command arguments when set.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 64,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "command": {
+              "description": "Command overrides the image entrypoint when set.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 32,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "image": {
+              "description": "Image overrides the release's built-in runtime image. BYO requires an image.\nWhen set, it must be an OCI image reference pinned by sha256 digest.",
+              "pattern": "^[^[:space:]@]+@sha256:[a-f0-9]{64}$",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "substrate"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "BYO harnesses must specify workload.command",
+          "rule": "!has(self.byo) || (has(self.workload) \u0026\u0026 has(self.workload.command) \u0026\u0026 size(self.workload.command) \u003e 0)"
+        },
+        {
+          "message": "BYO harnesses must specify workload.image",
+          "rule": "!has(self.byo) || (has(self.workload) \u0026\u0026 has(self.workload.image))"
+        },
+        {
+          "message": "exactly one of the fields in [kagent codex claude byo] must be set",
+          "rule": "(has(self.kagent)?1:0)+(has(self.codex)?1:0)+(has(self.claude)?1:0)+(has(self.byo)?1:0) == 1"
+        }
+      ]
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "type": "object"
+}

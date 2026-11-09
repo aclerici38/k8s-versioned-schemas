@@ -1,0 +1,426 @@
+{
+  "description": "ModelProviderConfig is the Schema for the modelproviderconfigs API.\nIt represents a model provider configuration with automatic model discovery.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "ModelProviderConfigSpec defines the desired state of ModelProviderConfig.",
+      "properties": {
+        "discoveryAuth": {
+          "additionalProperties": false,
+          "description": "DiscoveryAuth authenticates requests to list models. Omit for unauthenticated discovery.\nThese credentials are never used to invoke discovered models.",
+          "properties": {
+            "secretRef": {
+              "additionalProperties": false,
+              "description": "SecretRef selects the discovery Bearer token from a Secret in the\nModelProviderConfig's namespace. The selected value must be nonempty.",
+              "properties": {
+                "key": {
+                  "description": "The key of the secret to select from.  Must be a valid secret key.",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "optional": {
+                  "description": "Specify whether the Secret or its key must be defined",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "type": "object",
+              "x-kubernetes-map-type": "atomic",
+              "x-kubernetes-validations": [
+                {
+                  "message": "secretRef requires a name and key",
+                  "rule": "has(self.name) \u0026\u0026 self.name != '' \u0026\u0026 self.key != ''"
+                },
+                {
+                  "message": "discovery credentials cannot be optional",
+                  "rule": "!has(self.optional) || !self.optional"
+                }
+              ]
+            }
+          },
+          "required": [
+            "secretRef"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "endpoint": {
+          "description": "Endpoint is the API endpoint URL for the provider.\nIf not specified, the default endpoint for the provider type will be used.",
+          "pattern": "^https?://[^/?#@]+(/[^?#]*)?$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modelConfigTemplate": {
+          "additionalProperties": false,
+          "description": "ModelConfigTemplate configures the ModelConfigs created for discovered models\nin this ModelProviderConfig's namespace.",
+          "properties": {
+            "allowedNamespaces": {
+              "additionalProperties": false,
+              "description": "AllowedNamespaces controls which namespaces may reference discovered models\nand their invocation credentials. Omitted policy permits only the same namespace.",
+              "properties": {
+                "from": {
+                  "default": "Same",
+                  "description": "From indicates where references to this resource can originate.\nPossible values are:\n* All: References from all namespaces are allowed.\n* Same: Only references from the same namespace are allowed (default).\n* Selector: References from namespaces matching the selector are allowed.",
+                  "enum": [
+                    "All",
+                    "Same",
+                    "Selector"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "selector": {
+                  "additionalProperties": false,
+                  "description": "Selector is a label selector for namespaces that are allowed to reference this resource.\nOnly used when From is set to \"Selector\".",
+                  "properties": {
+                    "matchExpressions": {
+                      "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                        "properties": {
+                          "key": {
+                            "description": "key is the label key that the selector applies to.",
+                            "type": "string"
+                          },
+                          "operator": {
+                            "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                            "type": "string"
+                          },
+                          "values": {
+                            "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "x-kubernetes-list-type": "atomic"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "operator"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "x-kubernetes-list-type": "atomic"
+                    },
+                    "matchLabels": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic"
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "selector must be specified when from is Selector",
+                  "rule": "!(self.from == 'Selector' \u0026\u0026 !has(self.selector))"
+                }
+              ]
+            },
+            "auth": {
+              "additionalProperties": false,
+              "description": "Auth configures invocation credentials. Omit to add no explicit credentials.\nDiscovery credentials are not inherited.",
+              "properties": {
+                "actorJwt": {
+                  "additionalProperties": false,
+                  "description": "ActorJWT authenticates as the executing Actor. Substrate mints and injects the token.",
+                  "properties": {
+                    "audiences": {
+                      "description": "Audiences names the services permitted to accept this token. The runtime\ncontrol-plane audience is reserved and cannot be exported downstream.",
+                      "items": {
+                        "maxLength": 512,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "maxItems": 16,
+                      "minItems": 1,
+                      "type": "array",
+                      "x-kubernetes-list-type": "set",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "the runtime control-plane audience is reserved",
+                          "rule": "!self.exists(a, a == 'kagent-runtime')"
+                        }
+                      ]
+                    },
+                    "expirationSeconds": {
+                      "default": 900,
+                      "description": "ExpirationSeconds requests a token lifetime. Substrate refreshes tokens at\nthe gateway independently of the invocation caller's token lifetime.",
+                      "format": "int64",
+                      "maximum": 3600,
+                      "minimum": 300,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "audiences"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "secretRef": {
+                  "additionalProperties": false,
+                  "description": "SecretRef selects the invocation API key from a Secret in the\nModelProviderConfig and generated ModelConfig namespace.",
+                  "properties": {
+                    "key": {
+                      "description": "The key of the secret to select from.  Must be a valid secret key.",
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "",
+                      "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "optional": {
+                      "description": "Specify whether the Secret or its key must be defined",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "x-kubernetes-map-type": "atomic",
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "secretRef requires a name and key",
+                      "rule": "has(self.name) \u0026\u0026 self.name != '' \u0026\u0026 self.key != ''"
+                    },
+                    {
+                      "message": "invocation credentials cannot be optional",
+                      "rule": "!has(self.optional) || !self.optional"
+                    }
+                  ]
+                },
+                "tokenPassthrough": {
+                  "description": "TokenPassthrough forwards the incoming A2A bearer token to the model provider.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "at most one of the fields in [actorJwt secretRef tokenPassthrough] may be set",
+                  "rule": "(has(self.actorJwt)?1:0)+(has(self.secretRef)?1:0)+(has(self.tokenPassthrough)?1:0) \u003c= 1"
+                }
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "type": {
+          "description": "Type is the discovery protocol. OpenAI-compatible endpoints are supported.",
+          "enum": [
+            "Anthropic",
+            "OpenAI",
+            "AzureOpenAI",
+            "Ollama",
+            "Gemini",
+            "GeminiVertexAI",
+            "AnthropicVertexAI",
+            "Bedrock",
+            "SAPAICore",
+            "Foundry",
+            "Mistral"
+          ],
+          "type": "string",
+          "x-kubernetes-validations": [
+            {
+              "message": "only OpenAI-compatible discovery is supported",
+              "rule": "self == 'OpenAI'"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": [
+        "object",
+        "null"
+      ],
+      "x-kubernetes-validations": [
+        {
+          "message": "endpoint must be a valid URL starting with http:// or https://",
+          "rule": "!has(self.endpoint) || size(self.endpoint) == 0 || self.endpoint.startsWith('http://') || self.endpoint.startsWith('https://')"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "ModelProviderConfigStatus defines the observed state of ModelProviderConfig.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions represent the latest available observations of the ModelProviderConfig's state",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "modelCount": {
+          "description": "ModelCount is the number of discovered models (for kubectl display)",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "observedGeneration": {
+          "description": "ObservedGeneration reflects the generation of the most recently observed ModelProviderConfig spec",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
