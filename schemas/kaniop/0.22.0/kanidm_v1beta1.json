@@ -6467,6 +6467,29 @@
                 "null"
               ]
             },
+            "caBundleRef": {
+              "additionalProperties": false,
+              "description": "Optional same-namespace ConfigMap containing a PEM-encoded CA bundle for\nverifying the Kanidm HTTPS endpoint used by the mail sender.",
+              "nullable": true,
+              "properties": {
+                "key": {
+                  "description": "Key in the ConfigMap containing a PEM-encoded CA bundle.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Name of the ConfigMap containing trusted CA certificates.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "connectTimeoutSeconds": {
               "description": "Optional SMTP connection timeout in seconds.\nDefaults to 15 seconds.",
               "format": "int32",
@@ -6478,7 +6501,8 @@
             },
             "credentialsSecret": {
               "additionalProperties": false,
-              "description": "Kubernetes secret containing SMTP credentials (username and password).\nThe secret must have keys for username and password (defaults to \"username\" and \"password\").",
+              "description": "Optional Secret containing SMTP credentials (username and password).\nOmit for relays without SMTP AUTH. When present, it must contain the\nconfigured username and password keys (defaults to \"username\" and \"password\").",
+              "nullable": true,
               "properties": {
                 "name": {
                   "description": "Name of the Kubernetes secret containing SMTP credentials.",
@@ -6504,7 +6528,10 @@
               "required": [
                 "name"
               ],
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "fromAddress": {
               "description": "Email address used as the \"From\" address in sent emails.\nExample: `kanidm@example.com`",
@@ -6680,7 +6707,6 @@
             }
           },
           "required": [
-            "credentialsSecret",
             "fromAddress",
             "relay"
           ],
@@ -6850,6 +6876,63 @@
           "description": "Port name used for the pods and governing service. Defaults to https.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "radiusServerNamespaceSelector": {
+          "additionalProperties": false,
+          "description": "Namespaces permitted to hold KanidmRadiusServer resources referencing this\nKanidm cluster. Absent selector permits only this Kanidm's namespace.\nAn empty selector `{}` permits all namespaces; a non-empty selector\nadmits only matching namespaces. Independent of service accounts.",
+          "nullable": true,
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "items": {
+                "additionalProperties": false,
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "matchLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
             "null"
           ]
         },
@@ -12020,7 +12103,8 @@
               "default": "compatible",
               "enum": [
                 "compatible",
-                "incompatible"
+                "incompatible",
+                "not_checked"
               ],
               "type": [
                 "string",
@@ -12033,7 +12117,8 @@
             "upgradeCheckResult": {
               "enum": [
                 "passed",
-                "failed"
+                "failed",
+                "skipped"
               ],
               "type": "string"
             }

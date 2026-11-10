@@ -5037,6 +5037,22 @@ spec:
                               type: array
                           type: object
                       type: object
+                    caBundleRef:
+                      description: |-
+                        Optional same-namespace ConfigMap containing a PEM-encoded CA bundle for
+                        verifying the Kanidm HTTPS endpoint used by the mail sender.
+                      nullable: true
+                      properties:
+                        key:
+                          description: Key in the ConfigMap containing a PEM-encoded CA bundle.
+                          type: string
+                        name:
+                          description: Name of the ConfigMap containing trusted CA certificates.
+                          type: string
+                      required:
+                        - key
+                        - name
+                      type: object
                     connectTimeoutSeconds:
                       description: |-
                         Optional SMTP connection timeout in seconds.
@@ -5046,8 +5062,10 @@ spec:
                       type: integer
                     credentialsSecret:
                       description: |-
-                        Kubernetes secret containing SMTP credentials (username and password).
-                        The secret must have keys for username and password (defaults to "username" and "password").
+                        Optional Secret containing SMTP credentials (username and password).
+                        Omit for relays without SMTP AUTH. When present, it must contain the
+                        configured username and password keys (defaults to "username" and "password").
+                      nullable: true
                       properties:
                         name:
                           description: Name of the Kubernetes secret containing SMTP credentials.
@@ -5166,7 +5184,6 @@ spec:
                       nullable: true
                       type: array
                   required:
-                    - credentialsSecret
                     - fromAddress
                     - relay
                   type: object
@@ -5287,6 +5304,41 @@ spec:
                   default: https
                   description: Port name used for the pods and governing service. Defaults to https.
                   type: string
+                radiusServerNamespaceSelector:
+                  description: |-
+                    Namespaces permitted to hold KanidmRadiusServer resources referencing this
+                    Kanidm cluster. Absent selector permits only this Kanidm's namespace.
+                    An empty selector `{}` permits all namespaces; a non-empty selector
+                    admits only matching namespaces. Independent of service accounts.
+                  nullable: true
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      items:
+                        description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies to.
+                            type: string
+                          operator:
+                            description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                            items:
+                              type: string
+                            type: array
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      type: object
+                  type: object
                 regionIngress:
                   description: |-
                     Region-specific ingress configuration for multi-region deployments.
@@ -8247,6 +8299,7 @@ spec:
                       enum:
                         - compatible
                         - incompatible
+                        - not_checked
                       type: string
                     imageTag:
                       type: string
@@ -8254,6 +8307,7 @@ spec:
                       enum:
                         - passed
                         - failed
+                        - skipped
                       type: string
                   required:
                     - imageTag
