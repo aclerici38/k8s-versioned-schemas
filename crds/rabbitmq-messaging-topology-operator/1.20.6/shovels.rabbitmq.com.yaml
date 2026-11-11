@@ -3,24 +3,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
-  name: schemareplications.rabbitmq.com
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: shovels.rabbitmq.com
 spec:
   group: rabbitmq.com
   names:
-    kind: SchemaReplication
-    listKind: SchemaReplicationList
-    plural: schemareplications
-    singular: schemareplication
+    categories:
+      - rabbitmq
+    kind: Shovel
+    listKind: ShovelList
+    plural: shovels
+    singular: shovel
   scope: Namespaced
   versions:
     - name: v1beta1
       schema:
         openAPIV3Schema:
-          description: |-
-            SchemaReplication is the Schema for the schemareplications API
-            This feature requires Tanzu RabbitMQ with schema replication plugin.
-            For more information, see: https://tanzu.vmware.com/rabbitmq and https://www.rabbitmq.com/definitions-standby.html.
+          description: Shovel is the Schema for the shovels API
           properties:
             apiVersion:
               description: |-
@@ -40,17 +39,78 @@ spec:
             metadata:
               type: object
             spec:
-              description: SchemaReplicationSpec defines the desired state of SchemaReplication
+              description: |-
+                ShovelSpec defines the desired state of Shovel
+                For how to configure Shovel, see: https://www.rabbitmq.com/shovel.html.
               properties:
-                endpoints:
-                  description: |-
-                    endpoints should be one or multiple endpoints separated by ','.
-                    Must provide either spec.endpoints or endpoints in spec.upstreamSecret.
-                    When endpoints are provided in both spec.endpoints and spec.upstreamSecret, spec.endpoints takes
-                    precedence.
+                ackMode:
+                  enum:
+                    - on-confirm
+                    - on-publish
+                    - no-ack
                   type: string
+                addForwardHeaders:
+                  type: boolean
+                deleteAfter:
+                  type: string
+                deletionPolicy:
+                  default: delete
+                  description: |-
+                    DeletionPolicy defines the behavior of shovel in the RabbitMQ cluster when the corresponding custom resource is deleted.
+                    Can be set to 'delete' or 'retain'. Default is 'delete'.
+                  enum:
+                    - delete
+                    - retain
+                  type: string
+                destAddForwardHeaders:
+                  type: boolean
+                destAddTimestampHeader:
+                  type: boolean
+                destAddress:
+                  description: amqp10 configuration; required if destProtocol is amqp10
+                  type: string
+                destApplicationProperties:
+                  description: amqp10 configuration
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                destExchange:
+                  description: amqp091 configuration
+                  type: string
+                destExchangeKey:
+                  description: amqp091 configuration
+                  type: string
+                destMessageAnnotations:
+                  description: amqp10 configuration
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                destProperties:
+                  description: amqp10 configuration
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                destProtocol:
+                  enum:
+                    - amqp091
+                    - amqp10
+                  type: string
+                destPublishProperties:
+                  description: amqp091 configuration
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                destQueue:
+                  description: amqp091 configuration
+                  type: string
+                destQueueArgs:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                name:
+                  description: Required property; cannot be updated
+                  type: string
+                prefetchCount:
+                  type: integer
                 rabbitmqClusterReference:
-                  description: Reference to the RabbitmqCluster that schema replication would be set for. Must be an existing cluster.
+                  description: |-
+                    Reference to the RabbitmqCluster that this Shovel will be created in.
+                    Required property.
                   properties:
                     connectionSecret:
                       description: |-
@@ -80,25 +140,42 @@ spec:
                         Defaults to the namespace of the requested resource if omitted.
                       type: string
                   type: object
-                secretBackend:
-                  description: Set to fetch user credentials from K8s external secret stores to be used for schema replication.
-                  properties:
-                    vault:
-                      properties:
-                        secretPath:
-                          description: |-
-                            Path in Vault to access a KV (Key-Value) secret with the fields username and password to be used for replication.
-                            For example "secret/data/rabbitmq/config".
-                            Optional; if not provided, username and password will come from upstreamSecret instead.
-                            Have to set either secretBackend.vault.secretPath or upstreamSecret, but not both.
-                          type: string
-                      type: object
+                reconnectDelay:
+                  type: integer
+                srcAddress:
+                  description: amqp10 configuration; required if srcProtocol is amqp10
+                  type: string
+                srcConsumerArgs:
+                  description: amqp091 configuration
                   type: object
-                upstreamSecret:
+                  x-kubernetes-preserve-unknown-fields: true
+                srcDeleteAfter:
+                  type: string
+                srcExchange:
+                  description: amqp091 configuration
+                  type: string
+                srcExchangeKey:
+                  description: amqp091 configuration
+                  type: string
+                srcPrefetchCount:
+                  type: integer
+                srcProtocol:
+                  enum:
+                    - amqp091
+                    - amqp10
+                  type: string
+                srcQueue:
+                  description: amqp091 configuration
+                  type: string
+                srcQueueArgs:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                uriSecret:
                   description: |-
-                    Defines a Secret which contains credentials to be used for schema replication.
-                    The Secret must contain the keys `username` and `password` in its Data field, or operator will error.
-                    Have to set either secretBackend.vault.secretPath or spec.upstreamSecret, but not both.
+                    Secret contains the AMQP URI(s) to configure Shovel destination and source.
+                    The Secret must contain the key `destUri` and `srcUri` or operator will error.
+                    Both fields should be one or multiple uris separated by ','.
+                    Required property.
                   properties:
                     name:
                       default: ""
@@ -111,11 +188,17 @@ spec:
                       type: string
                   type: object
                   x-kubernetes-map-type: atomic
+                vhost:
+                  default: /
+                  description: Default to vhost '/'; cannot be updated
+                  type: string
               required:
+                - name
                 - rabbitmqClusterReference
+                - uriSecret
               type: object
             status:
-              description: SchemaReplicationStatus defines the observed state of SchemaReplication
+              description: ShovelStatus defines the observed state of Shovel
               properties:
                 conditions:
                   items:
@@ -143,8 +226,8 @@ spec:
                   type: array
                 observedGeneration:
                   description: |-
-                    observedGeneration is the most recent successful generation observed for this Queue. It corresponds to the
-                    Queue's generation, which is updated on mutation by the API Server.
+                    observedGeneration is the most recent successful generation observed for this Shovel. It corresponds to the
+                    Shovel's generation, which is updated on mutation by the API Server.
                   format: int64
                   type: integer
               type: object

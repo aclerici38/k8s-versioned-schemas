@@ -3,23 +3,24 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
-  name: vhosts.rabbitmq.com
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: schemareplications.rabbitmq.com
 spec:
   group: rabbitmq.com
   names:
-    categories:
-      - rabbitmq
-    kind: Vhost
-    listKind: VhostList
-    plural: vhosts
-    singular: vhost
+    kind: SchemaReplication
+    listKind: SchemaReplicationList
+    plural: schemareplications
+    singular: schemareplication
   scope: Namespaced
   versions:
     - name: v1beta1
       schema:
         openAPIV3Schema:
-          description: Vhost is the Schema for the vhosts API
+          description: |-
+            SchemaReplication is the Schema for the schemareplications API
+            This feature requires Tanzu RabbitMQ with schema replication plugin.
+            For more information, see: https://tanzu.vmware.com/rabbitmq and https://www.rabbitmq.com/definitions-standby.html.
           properties:
             apiVersion:
               description: |-
@@ -39,46 +40,17 @@ spec:
             metadata:
               type: object
             spec:
-              description: VhostSpec defines the desired state of Vhost
+              description: SchemaReplicationSpec defines the desired state of SchemaReplication
               properties:
-                defaultQueueType:
+                endpoints:
                   description: |-
-                    Default queue type for this vhost; can be set to quorum, classic or stream.
-                    Supported in RabbitMQ 3.11.12 or above.
-                  enum:
-                    - quorum
-                    - classic
-                    - stream
-                  type: string
-                deletionPolicy:
-                  default: delete
-                  description: |-
-                    DeletionPolicy defines the behavior of vhost in the RabbitMQ cluster when the corresponding custom resource is deleted.
-                    Can be set to 'delete' or 'retain'. Default is 'delete'.
-                  enum:
-                    - delete
-                    - retain
-                  type: string
-                limits:
-                  description: |-
-                    Limits defines limits to be applied to the vhost.
-                    Supported limits include max-connections and max-queues.
-                    See https://www.rabbitmq.com/docs/vhosts#limits
-                  properties:
-                    connections:
-                      format: int32
-                      type: integer
-                    queues:
-                      format: int32
-                      type: integer
-                  type: object
-                name:
-                  description: Name of the vhost; see https://www.rabbitmq.com/vhosts.html.
+                    endpoints should be one or multiple endpoints separated by ','.
+                    Must provide either spec.endpoints or endpoints in spec.upstreamSecret.
+                    When endpoints are provided in both spec.endpoints and spec.upstreamSecret, spec.endpoints takes
+                    precedence.
                   type: string
                 rabbitmqClusterReference:
-                  description: |-
-                    Reference to the RabbitmqCluster that the vhost will be created in.
-                    Required property.
+                  description: Reference to the RabbitmqCluster that schema replication would be set for. Must be an existing cluster.
                   properties:
                     connectionSecret:
                       description: |-
@@ -108,18 +80,42 @@ spec:
                         Defaults to the namespace of the requested resource if omitted.
                       type: string
                   type: object
-                tags:
-                  items:
-                    type: string
-                  type: array
-                tracing:
-                  type: boolean
+                secretBackend:
+                  description: Set to fetch user credentials from K8s external secret stores to be used for schema replication.
+                  properties:
+                    vault:
+                      properties:
+                        secretPath:
+                          description: |-
+                            Path in Vault to access a KV (Key-Value) secret with the fields username and password to be used for replication.
+                            For example "secret/data/rabbitmq/config".
+                            Optional; if not provided, username and password will come from upstreamSecret instead.
+                            Have to set either secretBackend.vault.secretPath or upstreamSecret, but not both.
+                          type: string
+                      type: object
+                  type: object
+                upstreamSecret:
+                  description: |-
+                    Defines a Secret which contains credentials to be used for schema replication.
+                    The Secret must contain the keys `username` and `password` in its Data field, or operator will error.
+                    Have to set either secretBackend.vault.secretPath or spec.upstreamSecret, but not both.
+                  properties:
+                    name:
+                      default: ""
+                      description: |-
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
               required:
-                - name
                 - rabbitmqClusterReference
               type: object
             status:
-              description: VhostStatus defines the observed state of Vhost
+              description: SchemaReplicationStatus defines the observed state of SchemaReplication
               properties:
                 conditions:
                   items:
@@ -147,8 +143,8 @@ spec:
                   type: array
                 observedGeneration:
                   description: |-
-                    observedGeneration is the most recent successful generation observed for this Vhost. It corresponds to the
-                    Vhost's generation, which is updated on mutation by the API Server.
+                    observedGeneration is the most recent successful generation observed for this Queue. It corresponds to the
+                    Queue's generation, which is updated on mutation by the API Server.
                   format: int64
                   type: integer
               type: object

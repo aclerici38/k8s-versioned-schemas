@@ -3,21 +3,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
-  name: topicpermissions.rabbitmq.com
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: policies.rabbitmq.com
 spec:
   group: rabbitmq.com
   names:
-    kind: TopicPermission
-    listKind: TopicPermissionList
-    plural: topicpermissions
-    singular: topicpermission
+    categories:
+      - rabbitmq
+    kind: Policy
+    listKind: PolicyList
+    plural: policies
+    singular: policy
   scope: Namespaced
   versions:
     - name: v1beta1
       schema:
         openAPIV3Schema:
-          description: TopicPermission is the Schema for the topicpermissions API
+          description: Policy is the Schema for the policies API
           properties:
             apiVersion:
               description: |-
@@ -37,24 +39,44 @@ spec:
             metadata:
               type: object
             spec:
-              description: TopicPermissionSpec defines the desired state of TopicPermission
+              description: |-
+                PolicySpec defines the desired state of Policy
+                https://www.rabbitmq.com/parameters.html#policies
               properties:
-                permissions:
-                  description: Permissions to grant to the user to a topic exchange; required property.
-                  properties:
-                    exchange:
-                      description: Name of a topic exchange; required property; cannot be updated.
-                      type: string
-                    read:
-                      type: string
-                    write:
-                      type: string
-                  required:
-                    - exchange
+                applyTo:
+                  default: all
+                  description: |-
+                    What this policy applies to: 'queues', 'classic_queues', 'quorum_queues', 'streams', 'exchanges', or 'all'.
+                    Default to 'all'.
+                  enum:
+                    - queues
+                    - classic_queues
+                    - quorum_queues
+                    - streams
+                    - exchanges
+                    - all
+                  type: string
+                definition:
+                  description: Policy definition. Required property.
                   type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                name:
+                  description: Required property; cannot be updated
+                  type: string
+                pattern:
+                  description: |-
+                    Regular expression pattern used to match queues and exchanges, e.g. "^amq.".
+                    Required property.
+                  type: string
+                priority:
+                  default: 0
+                  description: |-
+                    Default to '0'.
+                    In the event that more than one policy can match a given exchange or queue, the policy with the greatest priority applies.
+                  type: integer
                 rabbitmqClusterReference:
                   description: |-
-                    Reference to the RabbitmqCluster that both the provided user and vhost are.
+                    Reference to the RabbitmqCluster that the policy will be created in.
                     Required property.
                   properties:
                     connectionSecret:
@@ -85,33 +107,18 @@ spec:
                         Defaults to the namespace of the requested resource if omitted.
                       type: string
                   type: object
-                user:
-                  description: Name of an existing user; must provide user or userReference, else create/update will fail; cannot be updated.
-                  type: string
-                userReference:
-                  description: Reference to an existing user.rabbitmq.com object; must provide user or userReference, else create/update will fail; cannot be updated.
-                  properties:
-                    name:
-                      default: ""
-                      description: |-
-                        Name of the referent.
-                        This field is effectively required, but due to backwards compatibility is
-                        allowed to be empty. Instances of this type with an empty value here are
-                        almost certainly wrong.
-                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      type: string
-                  type: object
-                  x-kubernetes-map-type: atomic
                 vhost:
-                  description: Name of an existing vhost; required property; cannot be updated.
+                  default: /
+                  description: Default to vhost '/'; cannot be updated
                   type: string
               required:
-                - permissions
+                - definition
+                - name
+                - pattern
                 - rabbitmqClusterReference
-                - vhost
               type: object
             status:
-              description: TopicPermissionStatus defines the observed state of TopicPermission
+              description: PolicyStatus defines the observed state of Policy
               properties:
                 conditions:
                   items:
@@ -139,8 +146,8 @@ spec:
                   type: array
                 observedGeneration:
                   description: |-
-                    observedGeneration is the most recent successful generation observed for this TopicPermission. It corresponds to the
-                    TopicPermission's generation, which is updated on mutation by the API Server.
+                    observedGeneration is the most recent successful generation observed for this Policy. It corresponds to the
+                    Policy's generation, which is updated on mutation by the API Server.
                   format: int64
                   type: integer
               type: object
