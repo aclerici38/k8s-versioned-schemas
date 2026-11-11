@@ -155,7 +155,7 @@
           ]
         },
         "extraArgs": {
-          "description": "Escape hatch for kopia flags not yet modeled.",
+          "description": "Escape hatch for `kopia policy set` flags not yet modeled. The original\nspelling of `kopiaArgs.policySet`; set one or the other, not both. A flag\nKopiur models, owns or forbids is refused at admission (a stored object\ncarrying one keeps running and reports an `UnsupportedKopiaArgs` condition).",
           "items": {
             "type": "string"
           },
@@ -731,6 +731,37 @@
             "null"
           ]
         },
+        "kopiaArgs": {
+          "additionalProperties": false,
+          "description": "Per-command escape hatch for kopia flags Kopiur does not model yet, appended\nto the named command. Only flags kopia's table marks unmodeled or\nlog-only are accepted; anything Kopiur models (use the field), owns or\nforbids is refused at admission with the reason and the field to use.",
+          "nullable": true,
+          "properties": {
+            "policySet": {
+              "description": "Appended to `kopia policy set` for each source's policy. The same list as\nthe legacy `spec.extraArgs`; set one of the two.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "snapshotCreate": {
+              "description": "Appended to `kopia snapshot create` on every backup run.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "mover": {
           "additionalProperties": false,
           "description": "Per-recipe mover overrides (resources, cache, security context).",
@@ -742,15 +773,51 @@
               "nullable": true,
               "properties": {
                 "capacity": {
-                  "description": "Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).",
+                  "description": "Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,\nunset cache budgets default to a percentage of it (content 60%, metadata\n15%) and the two budgets together may claim at most 90% of it. Raising it on\na `Persistent` cache grows the existing PVC when its StorageClass allows\nvolume expansion; a smaller value is never applied to an existing PVC. Must be\nat least `3Mi` (1MiB for each cache under the 90% ceiling).",
                   "nullable": true,
                   "type": [
                     "string",
                     "null"
                   ]
                 },
+                "contentCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "contentCacheSizeMb": {
-                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`).",
+                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`). The original\nspelling of `contentCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -758,8 +825,44 @@
                     "null"
                   ]
                 },
+                "metadataCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "metadataCacheSizeMb": {
-                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).",
+                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original\nspelling of `metadataCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -1142,7 +1245,7 @@
               ]
             },
             "privilegedMode": {
-              "description": "Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.",
+              "description": "Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs\nas root (`runAsUser: 0`), adds the capabilities the operation needs on top of\n`drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);\n`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original\nownership). Grants nothing for maintenance, or when the mover does not run as\nroot (capabilities are inert for non-root); set `runAsUser: 0` yourself.",
               "nullable": true,
               "type": [
                 "boolean",
@@ -1988,7 +2091,7 @@
               ]
             },
             "storageClassName": {
-              "description": "StorageClass for the **staged PVC** — the temporary PVC restored from the\nCSI `VolumeSnapshot` (`copyMethod: Snapshot`) or cloned from the source\n(`copyMethod: Clone`). Absent ⇒ the staged PVC copies the source PVC's\nclass. Must belong to the **same CSI driver** as the source (staging fails\nfast on a mismatch). Flagship use: a rook-ceph CephFS class with\n`backingSnapshot: \"true\"`, which mounts the snapshot shallowly\n(metadata-only, near-instant, read-only) instead of running a full\nsubvolume clone that can take many minutes on small-file-heavy volumes.",
+              "description": "StorageClass for the **staged PVC** — the temporary PVC restored from the\nCSI `VolumeSnapshot` (`copyMethod: Snapshot`) or cloned from the source\n(`copyMethod: Clone`). Absent ⇒ the staged PVC copies the source PVC's\nclass. A statically-provisioned source whose class can't provision its CSI\ndriver (no class, a class with no StorageClass object, or a\n`kubernetes.io/no-provisioner` placeholder) instead gets a StorageClass of\nthe driver named in its bound PV — the only one, else the cluster default\namong several (set this field when neither exists; `copyMethod: Clone`\ncan't stage such a source). Must belong to the **same CSI driver** as the\nsource (staging fails fast on a mismatch). Flagship use: a rook-ceph CephFS class with\n`backingSnapshot: \"true\"`, which mounts the snapshot shallowly\n(metadata-only, near-instant, read-only) instead of running a full\nsubvolume clone that can take many minutes on small-file-heavy volumes.",
               "nullable": true,
               "type": [
                 "string",
@@ -2021,6 +2124,17 @@
           "description": "Upload parallelism (kopia's `--max-parallel-snapshots` / `--max-parallel-file-reads`).",
           "nullable": true,
           "properties": {
+            "forceHashPercent": {
+              "description": "`snapshot create --force-hash`: re-read and re-hash this percentage of files\n(0–100) even when their size and modification time match the previous\nsnapshot. kopia normally reuses the previous snapshot's content for such a\nfile without reading it, so a file rewritten in place without its mtime\nmoving (MariaDB/InnoDB's `ib_logfile0`, Aria logs) is backed up STALE.\n`100` is the only value that guarantees every file is read; lower values\npick files at random and only bound how stale one can get. Costs a full\nread of the volume per snapshot (uploads stay deduplicated). Absent:\nkopia's default, 0.",
+              "format": "uint8",
+              "maximum": 100,
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "limitMb": {
               "description": "`snapshot create --upload-limit-mb`: abort the snapshot once this many\nMB have been uploaded (kopia default: 0 — unlimited). Named `limitMb`\nrather than `uploadLimitMb` to avoid the `upload.uploadLimitMb` stutter;\nlike `failFast`, this is a `snapshot create` argv flag, not a `policy\nset` knob, but lives here beside its parallelism siblings.",
               "format": "int64",

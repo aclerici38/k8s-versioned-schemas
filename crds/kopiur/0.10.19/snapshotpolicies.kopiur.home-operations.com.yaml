@@ -133,7 +133,11 @@ spec:
                       type: boolean
                   type: object
                 extraArgs:
-                  description: Escape hatch for kopia flags not yet modeled.
+                  description: |-
+                    Escape hatch for `kopia policy set` flags not yet modeled. The original
+                    spelling of `kopiaArgs.policySet`; set one or the other, not both. A flag
+                    Kopiur models, owns or forbids is refused at admission (a stored object
+                    carrying one keeps running and reports an `UnsupportedKopiaArgs` condition).
                   items:
                     type: string
                   type: array
@@ -448,6 +452,27 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                kopiaArgs:
+                  description: |-
+                    Per-command escape hatch for kopia flags Kopiur does not model yet, appended
+                    to the named command. Only flags kopia's table marks unmodeled or
+                    log-only are accepted; anything Kopiur models (use the field), owns or
+                    forbids is refused at admission with the reason and the field to use.
+                  nullable: true
+                  properties:
+                    policySet:
+                      description: |-
+                        Appended to `kopia policy set` for each source's policy. The same list as
+                        the legacy `spec.extraArgs`; set one of the two.
+                      items:
+                        type: string
+                      type: array
+                    snapshotCreate:
+                      description: Appended to `kopia snapshot create` on every backup run.
+                      items:
+                        type: string
+                      type: array
+                  type: object
                 mover:
                   description: Per-recipe mover overrides (resources, cache, security context).
                   nullable: true
@@ -457,16 +482,76 @@ spec:
                       nullable: true
                       properties:
                         capacity:
-                          description: Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).
+                          description: |-
+                            Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,
+                            unset cache budgets default to a percentage of it (content 60%, metadata
+                            15%) and the two budgets together may claim at most 90% of it. Raising it on
+                            a `Persistent` cache grows the existing PVC when its StorageClass allows
+                            volume expansion; a smaller value is never applied to an existing PVC. Must be
+                            at least `3Mi` (1MiB for each cache under the 90% ceiling).
                           nullable: true
                           type: string
+                        contentCacheSize:
+                          description: |-
+                            kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         contentCacheSizeMb:
-                          description: kopia content cache budget in MiB (`--content-cache-size-mb`).
+                          description: |-
+                            kopia content cache budget in MiB (`--content-cache-size-mb`). The original
+                            spelling of `contentCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
+                        metadataCacheSize:
+                          description: |-
+                            kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         metadataCacheSizeMb:
-                          description: kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).
+                          description: |-
+                            kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original
+                            spelling of `metadataCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
@@ -694,7 +779,13 @@ spec:
                           type: object
                       type: object
                     privilegedMode:
-                      description: Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.
+                      description: |-
+                        Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs
+                        as root (`runAsUser: 0`), adds the capabilities the operation needs on top of
+                        `drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);
+                        `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original
+                        ownership). Grants nothing for maintenance, or when the mover does not run as
+                        root (capabilities are inert for non-root); set `runAsUser: 0` yourself.
                       nullable: true
                       type: boolean
                     resources:
@@ -1321,8 +1412,13 @@ spec:
                         StorageClass for the **staged PVC** — the temporary PVC restored from the
                         CSI `VolumeSnapshot` (`copyMethod: Snapshot`) or cloned from the source
                         (`copyMethod: Clone`). Absent ⇒ the staged PVC copies the source PVC's
-                        class. Must belong to the **same CSI driver** as the source (staging fails
-                        fast on a mismatch). Flagship use: a rook-ceph CephFS class with
+                        class. A statically-provisioned source whose class can't provision its CSI
+                        driver (no class, a class with no StorageClass object, or a
+                        `kubernetes.io/no-provisioner` placeholder) instead gets a StorageClass of
+                        the driver named in its bound PV — the only one, else the cluster default
+                        among several (set this field when neither exists; `copyMethod: Clone`
+                        can't stage such a source). Must belong to the **same CSI driver** as the
+                        source (staging fails fast on a mismatch). Flagship use: a rook-ceph CephFS class with
                         `backingSnapshot: "true"`, which mounts the snapshot shallowly
                         (metadata-only, near-instant, read-only) instead of running a full
                         subvolume clone that can take many minutes on small-file-heavy volumes.
@@ -1350,6 +1446,22 @@ spec:
                   description: Upload parallelism (kopia's `--max-parallel-snapshots` / `--max-parallel-file-reads`).
                   nullable: true
                   properties:
+                    forceHashPercent:
+                      description: |-
+                        `snapshot create --force-hash`: re-read and re-hash this percentage of files
+                        (0–100) even when their size and modification time match the previous
+                        snapshot. kopia normally reuses the previous snapshot's content for such a
+                        file without reading it, so a file rewritten in place without its mtime
+                        moving (MariaDB/InnoDB's `ib_logfile0`, Aria logs) is backed up STALE.
+                        `100` is the only value that guarantees every file is read; lower values
+                        pick files at random and only bound how stale one can get. Costs a full
+                        read of the volume per snapshot (uploads stay deduplicated). Absent:
+                        kopia's default, 0.
+                      format: uint8
+                      maximum: 100.0
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
                     limitMb:
                       description: |-
                         `snapshot create --upload-limit-mb`: abort the snapshot once this many

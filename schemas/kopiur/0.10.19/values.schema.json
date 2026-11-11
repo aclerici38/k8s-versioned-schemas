@@ -39,7 +39,7 @@
       "type": "array"
     },
     "features": {
-      "description": "=============================================================================\nFeature permissions\n=============================================================================\nA few opt-in features need the operator to WRITE Secrets in the namespaces it\nmanages, so each grants extra RBAC. All are OFF by default (least privilege):\nthe chart does not hand out cluster-wide `secrets` write until you turn on the\nfeature you use. The flag names match the CRD fields that trigger them.\n\nSymptom → fix: if you enable the feature in a CR but forget the flag here, the\nresource's `.status` shows an actionable condition like\n  \"... (HTTP 403). ... Fix: set features.\u003cname\u003e.enabled: true ...\"\nSet the matching flag below and the operator heals on the next reconcile.\nSee docs/feature-permissions.md for the full mapping and security trade-offs.",
+      "description": "=============================================================================\nFeature permissions\n=============================================================================\nA few opt-in features need the operator to WRITE Secrets in the namespaces it\nmanages, so each grants extra RBAC. All are OFF by default (least privilege):\nthe chart does not hand out cluster-wide `secrets` write until you turn on the\nfeature you use. The flag names match the CRD fields that trigger them.\n\nSymptom → fix: if you enable the feature in a CR but forget the flag here, the\nresource's `.status` shows an actionable condition like\n  \"... (HTTP 403). ... Fix: set features.\u003cname\u003e.enabled: true ...\"\nSet the matching flag below and the operator heals on the next reconcile.\nSee https://kopiur.home-operations.com/feature-permissions/ for the full mapping and security trade-offs.",
       "properties": {
         "credentialProjection": {
           "properties": {
@@ -93,7 +93,7 @@
           "type": "object"
         },
         "imagePullSecrets": {
-          "description": "Concatenated with the top-level imagePullSecrets; reaches controller,\nwebhook, and mover Jobs.",
+          "description": "Concatenated with the top-level imagePullSecrets. Set on the controller,\nwebhook and console pods, and the NAMES are passed to every mover pod\n(backup/restore/maintenance Jobs, kopia server, browse sessions). A name\nresolves in the pod's own namespace and kopiur never copies Secrets, so the\nSecret must exist in each namespace movers run in (see imagePullSecrets).",
           "items": {
             "required": []
           },
@@ -158,7 +158,7 @@
       "type": "object"
     },
     "imagePullSecrets": {
-      "description": "Image pull secrets for the controller pod (concatenated with\nglobal.imagePullSecrets; also reaches the webhook pod and mover Jobs).",
+      "description": "Image pull secrets (concatenated with global.imagePullSecrets) for the\ncontroller, webhook and console pods. Their NAMES are also passed to every\nmover pod, but a name resolves in the pod's own namespace and kopiur does not\ncopy Secrets: create the Secret in each namespace movers run in — every\nnamespace with a SnapshotPolicy/Snapshot/Restore (backup, restore, verify and\nbrowse-session pods run beside the workload), each Repository's namespace\n(bootstrap, delete, pin, replication, kopia server), the Maintenance CR's\nnamespace, and the operator namespace (ClusterRepository bootstrap/delete).",
       "items": {
         "required": []
       },
@@ -842,7 +842,7 @@
               "type": "boolean"
             },
             "allowedGroups": {
-              "description": "Optional allow-list of groups the console may impersonate. It only\nrestricts, it never grants: listing `Admins` here gives Admins no access\n— bind a role for that (ui.rbac.bindings). Empty (the\ndefault) means \"whatever groups the proxy asserts\". Set, every other\ngroup the proxy sends is dropped before it reaches Kubernetes (the user\nmenu lists them under \"Not forwarded\"), and the list is enforced twice:\nthe console filters inbound groups, and the same list is pinned as\n`resourceNames` on the impersonate rule so the apiserver enforces it even\nif the console did not. Use it when your IdP sends many groups and only a\nfew matter. Names are exact and case-sensitive, and may not contain a\ncomma.",
+              "description": "Optional allow-list of groups the console may impersonate. It only\nrestricts, it never grants: listing `Admins` here gives Admins no access\n— bind a role for that (ui.rbac.bindings). Empty (the\ndefault) means \"whatever groups the proxy asserts\". Set, every other\ngroup the proxy sends is dropped before it reaches Kubernetes (the user\nmenu names them behind a collapsed \"N groups not forwarded\" line), and\nthe list is enforced twice:\nthe console filters inbound groups, and the same list is pinned as\n`resourceNames` on the impersonate rule so the apiserver enforces it even\nif the console did not. Use it when your IdP sends many groups and only a\nfew matter. Names are exact and case-sensitive, and may not contain a\ncomma.",
               "items": {
                 "required": []
               },
