@@ -74,16 +74,76 @@ spec:
                       nullable: true
                       properties:
                         capacity:
-                          description: Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).
+                          description: |-
+                            Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,
+                            unset cache budgets default to a percentage of it (content 60%, metadata
+                            15%) and the two budgets together may claim at most 90% of it. Raising it on
+                            a `Persistent` cache grows the existing PVC when its StorageClass allows
+                            volume expansion; a smaller value is never applied to an existing PVC. Must be
+                            at least `3Mi` (1MiB for each cache under the 90% ceiling).
                           nullable: true
                           type: string
+                        contentCacheSize:
+                          description: |-
+                            kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         contentCacheSizeMb:
-                          description: kopia content cache budget in MiB (`--content-cache-size-mb`).
+                          description: |-
+                            kopia content cache budget in MiB (`--content-cache-size-mb`). The original
+                            spelling of `contentCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
+                        metadataCacheSize:
+                          description: |-
+                            kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         metadataCacheSizeMb:
-                          description: kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).
+                          description: |-
+                            kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original
+                            spelling of `metadataCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
@@ -311,7 +371,13 @@ spec:
                           type: object
                       type: object
                     privilegedMode:
-                      description: Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.
+                      description: |-
+                        Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs
+                        as root (`runAsUser: 0`), adds the capabilities the operation needs on top of
+                        `drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);
+                        `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original
+                        ownership). Grants nothing for maintenance, or when the mover does not run as
+                        root (capabilities are inert for non-root); set `runAsUser: 0` yourself.
                       nullable: true
                       type: boolean
                     resources:
@@ -648,6 +714,32 @@ spec:
                       type: string
                   required:
                     - name
+                  type: object
+                selection:
+                  description: |-
+                    Restore only some paths out of the snapshot instead of its whole root —
+                    a partial restore (e.g. bring back one deleted file into a live, shared
+                    PVC). Absent restores everything. Not allowed with `target.streamExec`,
+                    which already selects exactly one file.
+                  nullable: true
+                  properties:
+                    paths:
+                      description: |-
+                        Snapshot-root-relative paths to restore (files or directories), e.g.
+                        `docs/report.odt` or `music/album`. Relative, `/`-separated, normalized:
+                        no leading `/`, no `.` or `..` segments, no empty segments (`a//b`), no
+                        trailing `/`. At most 64 paths and 16 KiB in total, no duplicates, and no
+                        path inside another selected path (selecting `docs` already restores
+                        `docs/report.odt`).
+                      items:
+                        maxLength: 4096
+                        minLength: 1
+                        type: string
+                      maxItems: 64
+                      minItems: 1
+                      type: array
+                  required:
+                    - paths
                   type: object
                 source:
                   description: Where to read data from (snapshotRef, fromPolicy, or identity).
@@ -1331,6 +1423,18 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                waitPausedAt:
+                  description: |-
+                    When the `policy.waitTimeout` window was PAUSED (RFC3339) because the
+                    repository was suspended (`spec.suspend: true`) while this restore — or
+                    one of its populator claims — was still waiting to launch. Set on the
+                    first suspended pass that finds an open window; on the first pass after
+                    the repository is resumed, every still-waiting anchor
+                    (`waitStartedAt`, and each unlaunched claim's `waitStartedAt`) is moved
+                    forward by the paused interval and this field is cleared, so time spent
+                    suspended never consumes the window. Absent when nothing is paused.
+                  nullable: true
+                  type: string
                 waitStartedAt:
                   description: |-
                     When the `policy.waitTimeout` window OPENED (RFC3339) — the first reconcile on which

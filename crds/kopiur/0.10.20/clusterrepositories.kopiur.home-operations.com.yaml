@@ -3,18 +3,18 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: repositories.kopiur.home-operations.com
+  name: clusterrepositories.kopiur.home-operations.com
 spec:
   group: kopiur.home-operations.com
   names:
     categories:
       - kopiur
-    kind: Repository
-    plural: repositories
+    kind: ClusterRepository
+    plural: clusterrepositories
     shortNames:
-      - kopiarepo
-    singular: repository
-  scope: Namespaced
+      - kopiacrepo
+    singular: clusterrepository
+  scope: Cluster
   versions:
     - additionalPrinterColumns:
         - jsonPath: .status.phase
@@ -23,6 +23,9 @@ spec:
         - jsonPath: .status.backend
           name: Backend
           type: string
+        - jsonPath: .status.allowedNamespaceCount
+          name: Namespaces
+          type: integer
         - jsonPath: .status.server.endpoint
           name: Server
           type: string
@@ -36,11 +39,60 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for RepositorySpec via `CustomResource`
+          description: Auto-generated derived type for ClusterRepositorySpec via `CustomResource`
           properties:
             spec:
-              description: A kopia repository owned by one namespace, referenced by `SnapshotPolicy`s and `Restore`s.
+              description: A cluster-scoped kopia repository referenceable from allow-listed namespaces.
               properties:
+                allowedNamespaces:
+                  description: Which namespaces are permitted to reference this repository.
+                  oneOf:
+                    - required:
+                        - list
+                    - required:
+                        - selector
+                    - required:
+                        - all
+                  properties:
+                    all:
+                      description: Allow all namespaces (must be `true`).
+                      type: boolean
+                    list:
+                      description: Explicit namespace names.
+                      items:
+                        type: string
+                      type: array
+                    selector:
+                      description: Match namespaces by label.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                          items:
+                            description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector applies to.
+                                type: string
+                              operator:
+                                description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                              - key
+                              - operator
+                            type: object
+                          type: array
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                  type: object
                 backend:
                   description: Exactly one storage backend.
                   oneOf:
@@ -714,6 +766,15 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                credentialProjection:
+                  description: Repository-owner gate for projecting credential Secrets into a foreign consumer namespace.
+                  nullable: true
+                  properties:
+                    allowed:
+                      default: false
+                      description: When `true`, the owner permits projecting this repository's credential Secret(s) into a consumer namespace.
+                      type: boolean
+                  type: object
                 deletionProtection:
                   description: Mass-deletion circuit breaker for this repository's Snapshots.
                   nullable: true
@@ -733,7 +794,7 @@ spec:
                       type: integer
                   type: object
                 encryption:
-                  description: Repository password (a Secret reference).
+                  description: Repository password (a Secret reference that must carry an explicit `namespace`).
                   properties:
                     passwordSecretRef:
                       description: Repository password, always a Secret reference (never inline).
@@ -829,15 +890,7 @@ spec:
                       type: object
                   type: object
                 identityDefaults:
-                  description: |-
-                    Identity defaults (CEL `*Expr`) applied when consumers don't override.
-                    Set `cluster` when this repository's backend is shared across clusters
-                    (e.g. one bucket backed up from more than one Kubernetes cluster) — the
-                    default kopia identity hostname then becomes `<namespace>.<cluster>`
-                    instead of bare `<namespace>`, so same-named namespaces on different
-                    clusters never collide. Same semantics as `ClusterRepository`'s field of
-                    the same name (ADR-0004 §5); a consumer's explicit `spec.identity` still
-                    wins over anything here.
+                  description: Identity defaults (CEL `*Expr`) applied when consumers don't override.
                   nullable: true
                   properties:
                     cluster:
@@ -862,7 +915,7 @@ spec:
                       type: string
                   type: object
                 maintenance:
-                  description: Maintenance control; when absent or enabled the reconciler creates and owns a `Maintenance` CR.
+                  description: Maintenance control; `maintenance.namespace` selects where the owned `Maintenance` CR lands.
                   nullable: true
                   properties:
                     enabled:
@@ -898,16 +951,76 @@ spec:
                           nullable: true
                           properties:
                             capacity:
-                              description: Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).
+                              description: |-
+                                Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,
+                                unset cache budgets default to a percentage of it (content 60%, metadata
+                                15%) and the two budgets together may claim at most 90% of it. Raising it on
+                                a `Persistent` cache grows the existing PVC when its StorageClass allows
+                                volume expansion; a smaller value is never applied to an existing PVC. Must be
+                                at least `3Mi` (1MiB for each cache under the 90% ceiling).
                               nullable: true
                               type: string
+                            contentCacheSize:
+                              description: |-
+                                kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of
+                                `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                                defaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.
+                              nullable: true
+                              oneOf:
+                                - required:
+                                    - percent
+                                - required:
+                                    - size
+                              properties:
+                                percent:
+                                  description: |-
+                                    Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                    this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                                  format: uint32
+                                  minimum: 0.0
+                                  type: integer
+                                size:
+                                  description: |-
+                                    An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                    to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                                  type: string
+                              type: object
                             contentCacheSizeMb:
-                              description: kopia content cache budget in MiB (`--content-cache-size-mb`).
+                              description: |-
+                                kopia content cache budget in MiB (`--content-cache-size-mb`). The original
+                                spelling of `contentCacheSize`; set one or the other, not both.
                               format: int64
                               nullable: true
                               type: integer
+                            metadataCacheSize:
+                              description: |-
+                                kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of
+                                `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                                defaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.
+                              nullable: true
+                              oneOf:
+                                - required:
+                                    - percent
+                                - required:
+                                    - size
+                              properties:
+                                percent:
+                                  description: |-
+                                    Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                    this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                                  format: uint32
+                                  minimum: 0.0
+                                  type: integer
+                                size:
+                                  description: |-
+                                    An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                    to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                                  type: string
+                              type: object
                             metadataCacheSizeMb:
-                              description: kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).
+                              description: |-
+                                kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original
+                                spelling of `metadataCacheSize`; set one or the other, not both.
                               format: int64
                               nullable: true
                               type: integer
@@ -1135,7 +1248,13 @@ spec:
                               type: object
                           type: object
                         privilegedMode:
-                          description: Opt-in, namespace-gated privileged mode; preserves UID/GID on restore.
+                          description: |-
+                            Opt-in, namespace-gated privileged mode. Never changes the UID. When the mover runs
+                            as root (`runAsUser: 0`), adds the capabilities the operation needs on top of
+                            `drop: [ALL]`: `DAC_OVERRIDE` for a backup (read files owned by any uid/gid);
+                            `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID` for a restore (reproduce original
+                            ownership). Grants nothing for maintenance, or when the mover does not run as
+                            root (capabilities are inert for non-root); set `runAsUser: 0` yourself.
                           nullable: true
                           type: boolean
                         resources:
@@ -1948,16 +2067,76 @@ spec:
                       nullable: true
                       properties:
                         capacity:
-                          description: Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).
+                          description: |-
+                            Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,
+                            unset cache budgets default to a percentage of it (content 60%, metadata
+                            15%) and the two budgets together may claim at most 90% of it. Raising it on
+                            a `Persistent` cache grows the existing PVC when its StorageClass allows
+                            volume expansion; a smaller value is never applied to an existing PVC. Must be
+                            at least `3Mi` (1MiB for each cache under the 90% ceiling).
                           nullable: true
                           type: string
+                        contentCacheSize:
+                          description: |-
+                            kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         contentCacheSizeMb:
-                          description: kopia content cache budget in MiB (`--content-cache-size-mb`).
+                          description: |-
+                            kopia content cache budget in MiB (`--content-cache-size-mb`). The original
+                            spelling of `contentCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
+                        metadataCacheSize:
+                          description: |-
+                            kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         metadataCacheSizeMb:
-                          description: kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).
+                          description: |-
+                            kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original
+                            spelling of `metadataCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
@@ -3343,7 +3522,7 @@ spec:
                     - from
                   type: object
                 server:
-                  description: Optional kopia web-UI server, exposed via a `Service` in this namespace.
+                  description: Optional kopia web-UI server (the target `namespace` is required).
                   nullable: true
                   properties:
                     auth:
@@ -3391,6 +3570,9 @@ spec:
                             - usernameKey
                           type: object
                       type: object
+                    namespace:
+                      description: Target namespace for the server Deployment/Service (and generated Secret).
+                      type: string
                     podSecurityContext:
                       description: Pod-level security context for the server pod (notably `supplementalGroups` for NFS exports).
                       nullable: true
@@ -3769,11 +3951,14 @@ spec:
                             - LoadBalancer
                           type: string
                       type: object
+                  required:
+                    - namespace
                   type: object
                 suspend:
-                  description: "Pause this repository: skip connect/bootstrap and maintenance projection."
+                  description: Pause ALL new work against this cluster repository (backups, restores, maintenance, replication, seeding, verification); held work resumes once unsuspended.
                   type: boolean
               required:
+                - allowedNamespaces
                 - backend
                 - encryption
               type: object
@@ -3787,15 +3972,20 @@ spec:
                 - message: create.ecc is immutable after creation
                   rule: "!has(self.create) || !has(oldSelf.create) || (has(self.create.ecc) == has(oldSelf.create.ecc) && (!has(self.create.ecc) || self.create.ecc == oldSelf.create.ecc))"
             status:
-              description: Observed state of a `Repository`, carrying resolved values pinned by the reconciler.
+              description: Observed state of a `ClusterRepository`; mirrors `RepositoryStatus` plus `allowedNamespaceCount`.
               nullable: true
               properties:
+                allowedNamespaceCount:
+                  description: Number of namespaces currently resolved by `spec.allowedNamespaces`.
+                  format: int64
+                  nullable: true
+                  type: integer
                 backend:
                   description: Mirror of `spec.backend` discriminant for the print column.
                   nullable: true
                   type: string
                 catalog:
-                  description: Catalog-materialization status (how many discovered `Snapshot`s, last refresh).
+                  description: Catalog-materialization status (discovered-backup count, last refresh).
                   nullable: true
                   properties:
                     coverage:
@@ -4208,7 +4398,7 @@ spec:
               type: object
           required:
             - spec
-          title: Repository
+          title: ClusterRepository
           type: object
       served: true
       storage: true
