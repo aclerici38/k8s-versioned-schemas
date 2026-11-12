@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: proxmoxunmanagedtemplates.karpenter.proxmox.sinextra.dev
 spec:
   group: karpenter.proxmox.sinextra.dev
@@ -145,6 +145,27 @@ spec:
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   description: Resources is the list of resources that have been provisioned.
+                  type: object
+                template:
+                  description: |-
+                    Template records the hugepages and affinity keys of the VM
+                    config that the VM templates at the template placements in Zones
+                    share. It is unset while there are no VM templates or the keys of one
+                    are unknown, and when the VM templates disagree, which the
+                    ProxmoxVirtualMachineTemplateConsistent condition reports.
+                    This field is populated by the controller and should not be set manually.
+                  properties:
+                    affinity:
+                      description: Affinity reports whether the affinity key of the VM config is set.
+                      type: boolean
+                    hugepages:
+                      description: |-
+                        Hugepages is the hugepages key of the VM config: the page size
+                        in MiB ("2" or "1024"), or "any". Missing or empty means the VM
+                        template has no hugepages.
+                      type: string
+                  required:
+                    - affinity
                   type: object
                 zones:
                   description: |-
