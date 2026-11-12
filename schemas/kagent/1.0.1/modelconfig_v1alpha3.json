@@ -25,6 +25,136 @@
       "additionalProperties": false,
       "description": "ModelConfigSpec defines the desired state of ModelConfig.",
       "properties": {
+        "actorJwt": {
+          "additionalProperties": false,
+          "description": "ActorJWT authenticates as the executing Actor through the provider's credential header.\nSubstrate mints and injects the token at the egress gateway.",
+          "properties": {
+            "audiences": {
+              "description": "Audiences names the services permitted to accept this token. The runtime\ncontrol-plane audience is reserved and cannot be exported downstream.",
+              "items": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array",
+              "x-kubernetes-list-type": "set",
+              "x-kubernetes-validations": [
+                {
+                  "message": "the runtime control-plane audience is reserved",
+                  "rule": "!self.exists(a, a == 'kagent-runtime')"
+                }
+              ]
+            },
+            "expirationSeconds": {
+              "default": 900,
+              "description": "ExpirationSeconds requests a token lifetime. Substrate refreshes tokens at\nthe gateway independently of the invocation caller's token lifetime.",
+              "format": "int64",
+              "maximum": 3600,
+              "minimum": 300,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "audiences"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "allowedNamespaces": {
+          "additionalProperties": false,
+          "description": "AllowedNamespaces controls which namespaces may use this model and its credentials.\nOmitted policy permits only references from the same namespace.",
+          "properties": {
+            "from": {
+              "default": "Same",
+              "description": "From indicates where references to this resource can originate.\nPossible values are:\n* All: References from all namespaces are allowed.\n* Same: Only references from the same namespace are allowed (default).\n* Selector: References from namespaces matching the selector are allowed.",
+              "enum": [
+                "All",
+                "Same",
+                "Selector"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "selector": {
+              "additionalProperties": false,
+              "description": "Selector is a label selector for namespaces that are allowed to reference this resource.\nOnly used when From is set to \"Selector\".",
+              "properties": {
+                "matchExpressions": {
+                  "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                    "properties": {
+                      "key": {
+                        "description": "key is the label key that the selector applies to.",
+                        "type": "string"
+                      },
+                      "operator": {
+                        "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                        "type": "string"
+                      },
+                      "values": {
+                        "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "atomic"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "operator"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "x-kubernetes-list-type": "atomic"
+                },
+                "matchLabels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "selector must be specified when from is Selector",
+              "rule": "!(self.from == 'Selector' \u0026\u0026 !has(self.selector))"
+            }
+          ]
+        },
         "anthropic": {
           "additionalProperties": false,
           "description": "Anthropic-specific configuration",
@@ -36,10 +166,30 @@
                 "null"
               ]
             },
+            "cacheTTL": {
+              "default": "5m",
+              "description": "CacheTTL controls how long Anthropic retains a cached prefix when\nPromptCaching is enabled. Only meaningful when PromptCaching is true.\n\n  - \"5m\" (default): the standard 5-minute cache. Each cache hit refreshes\n    the window, so an agent loop whose calls are less than 5 minutes\n    apart keeps its prefix cached for the whole task.\n  - \"1h\": the extended 1-hour cache, useful for tasks whose model calls\n    are spaced more than 5 minutes apart.\n\nNOTE: \"1h\" is NOT strictly better than \"5m\". 1-hour cache writes are\nbilled at a higher per-token rate than 5-minute writes. Only choose\n\"1h\" when calls are spaced far enough apart that a 5-minute cache would\nexpire between them; otherwise the higher write cost is wasted. See the\nAnthropic prompt-caching docs above.",
+              "enum": [
+                "5m",
+                "1h"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "maxTokens": {
               "description": "Maximum tokens to generate",
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "promptCaching": {
+              "default": false,
+              "description": "PromptCaching enables Anthropic prompt caching by marking the reusable\nprefix of every Messages API request with `cache_control` breakpoints:\nthe last tool definition, the last system prompt block and the last\ncontent block of the most recent conversation turn. Anthropic caches the\nprefix up to each breakpoint and bills a cache hit at a fraction of the\nnormal input price on later requests within the TTL. Because the\nconversation breakpoint moves with every turn, each call of an agent\nloop reads the whole previous history from the cache and writes only\nthe new turn.\n\nRecommended for tool-using agents that make many model calls per task\nwith a stable system prompt and tool set — without it the full history\nis billed as fresh input on every call. Cache writes are billed at a\npremium over normal input, so a prefix has to be read at least once to\npay off, and each model has a minimum cacheable prefix (1024–4096\ntokens depending on the model) below which the markers are silently\nignored.\n\nSee https://platform.claude.com/docs/en/build-with-claude/prompt-caching\nfor the current list of supported models, minimum prefix sizes and\npricing.",
+              "type": [
+                "boolean",
                 "null"
               ]
             },
@@ -130,13 +280,6 @@
             "null"
           ]
         },
-        "apiKeyPassthrough": {
-          "description": "APIKeyPassthrough enables forwarding the Bearer token from incoming A2A requests\ndirectly to the LLM provider as the API key. This is useful for organizations\nwith federated identity that want to avoid separate secret management.\nMutually exclusive with apiKeySecret.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "apiKeySecret": {
           "description": "The name of the secret that contains the API key. Must be a reference to the name of a secret in the same namespace as the referencing ModelConfig.\nFor the SAPAICore provider, the secret must contain two keys: \"client_id\" and \"client_secret\"\n(the OAuth2 client credentials for SAP AI Core). The apiKeySecretKey field is not used for SAPAICore.",
           "type": [
@@ -155,9 +298,24 @@
           "additionalProperties": false,
           "description": "Azure OpenAI-specific configuration",
           "properties": {
+            "apiFormat": {
+              "default": "chatCompletions",
+              "description": "APIFormat selects chatCompletions (default, the dated deployments path) or\nresponses (the /openai/v1 surface, which needs no apiVersion and reads files by link).",
+              "enum": [
+                "chatCompletions",
+                "responses"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "apiVersion": {
-              "description": "API version for the Azure OpenAI API",
-              "type": "string"
+              "description": "API version for the Azure OpenAI API. Required unless apiFormat is responses.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "azureAdToken": {
               "description": "Azure AD token for authentication",
@@ -179,6 +337,7 @@
             },
             "maxTokens": {
               "description": "Maximum tokens to generate",
+              "minimum": 1,
               "type": [
                 "integer",
                 "null"
@@ -200,12 +359,17 @@
             }
           },
           "required": [
-            "apiVersion",
             "azureEndpoint"
           ],
           "type": [
             "object",
             "null"
+          ],
+          "x-kubernetes-validations": [
+            {
+              "message": "apiVersion is required unless apiFormat is responses",
+              "rule": "has(self.apiVersion) || (has(self.apiFormat) \u0026\u0026 self.apiFormat == 'responses')"
+            }
           ]
         },
         "bedrock": {
@@ -214,6 +378,10 @@
           "properties": {
             "additionalModelRequestFields": {
               "description": "AdditionalModelRequestFields passes model-specific parameters to Bedrock's\nadditionalModelRequestFields in the Converse API. Use this for provider-specific\noptions that are not part of the standard InferenceConfiguration block, such as\nClaude extended thinking or top_k. Values are forwarded as-is to the API.\nExample: {\"top_k\": 5, \"thinking\": {\"type\": \"enabled\", \"budget_tokens\": 16000}}",
+              "type": [
+                "object",
+                "null"
+              ],
               "x-kubernetes-preserve-unknown-fields": true
             },
             "cacheTTL": {
@@ -315,9 +483,21 @@
           "additionalProperties": false,
           "description": "Azure AI Foundry-specific configuration",
           "properties": {
+            "apiFormat": {
+              "default": "OpenAI",
+              "description": "APIFormat selects the Foundry API format: \"OpenAI\" (default, chat\ncompletions) or \"Anthropic\" (Claude models served over the Anthropic\nMessages API).",
+              "enum": [
+                "OpenAI",
+                "Anthropic"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "apiVersion": {
               "default": "2024-10-21",
-              "description": "APIVersion is the Foundry OpenAI-compatible data-plane API version.",
+              "description": "APIVersion is the Foundry OpenAI-compatible data-plane API version.\nIgnored when APIFormat is Anthropic (the Messages surface is versioned via\nthe anthropic-version header instead).",
               "type": [
                 "string",
                 "null"
@@ -339,7 +519,7 @@
               "description": "EndpointFrom resolves the Foundry endpoint from a ConfigMap key, such as\none written by Azure Service Operator. Mutually exclusive with Endpoint.\n\nThe selector's optional flag only controls how a missing key is handled: when\nset to true, the missing key is ignored while reading the ConfigMap, but a\nFoundry endpoint must always be supplied, so an unresolved endpointFrom still\nleaves the model unusable and the agent fails to start.",
               "properties": {
                 "key": {
-                  "description": "The key to select.",
+                  "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                   "type": "string"
                 },
                 "name": {
@@ -390,6 +570,15 @@
           "additionalProperties": false,
           "description": "Gemini-specific configuration",
           "properties": {
+            "baseUrl": {
+              "description": "BaseURL is the complete API prefix for a custom Gemini endpoint, including\nany required version (for example, https://gateway.example.com/team/v1).\nThe client appends /models/{model}:generateContent or its streaming equivalent.\nAuthentication for custom endpoints uses apiKeySecret or actorJwt, when configured.",
+              "minLength": 1,
+              "pattern": "^https?://[^/?#@ ]+(/[^?# ]*)?$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "maxOutputTokens": {
               "description": "Maximum output tokens to generate for a single response",
               "minimum": 1,
@@ -479,6 +668,53 @@
             "null"
           ]
         },
+        "mistral": {
+          "additionalProperties": false,
+          "description": "Mistral-specific configuration",
+          "properties": {
+            "baseUrl": {
+              "description": "Base URL for the Mistral API (overrides default https://api.mistral.ai/v1)",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "maxTokens": {
+              "description": "Maximum tokens to generate",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "temperature": {
+              "description": "Temperature for sampling",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "description": "Timeout in seconds for the underlying HTTP client",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "topP": {
+              "description": "Top-p sampling parameter",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "model": {
           "type": "string"
         },
@@ -557,6 +793,7 @@
             },
             "n": {
               "description": "N value",
+              "minimum": 1,
               "type": [
                 "integer",
                 "null"
@@ -607,45 +844,10 @@
             },
             "timeout": {
               "description": "Timeout",
+              "maximum": 9223372036,
+              "minimum": 1,
               "type": [
                 "integer",
-                "null"
-              ]
-            },
-            "tokenExchange": {
-              "additionalProperties": false,
-              "description": "TokenExchange configures dynamic bearer token acquisition via credential exchange.\nRequires apiKeySecret (used as the service account secret) and is mutually exclusive with apiKeyPassthrough.",
-              "properties": {
-                "gdchServiceAccount": {
-                  "additionalProperties": false,
-                  "description": "GDCHServiceAccountConfig holds GDCH-specific token exchange parameters.",
-                  "properties": {
-                    "audience": {
-                      "description": "Audience is the token exchange audience URL (the GDC inference gateway base URL)",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "audience"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "type": {
-                  "description": "TokenExchangeType identifies the token exchange mechanism",
-                  "enum": [
-                    "GDCHServiceAccount"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type"
-              ],
-              "type": [
-                "object",
                 "null"
               ]
             },
@@ -663,8 +865,8 @@
           ],
           "x-kubernetes-validations": [
             {
-              "message": "maxTokens and maxCompletionTokens are mutually exclusive",
-              "rule": "!(has(self.maxTokens) \u0026\u0026 has(self.maxCompletionTokens))"
+              "message": "at most one of the fields in [maxTokens maxCompletionTokens] may be set",
+              "rule": "(has(self.maxTokens)?1:0)+(has(self.maxCompletionTokens)?1:0) \u003c= 1"
             }
           ]
         },
@@ -681,7 +883,8 @@
             "AnthropicVertexAI",
             "Bedrock",
             "SAPAICore",
-            "Foundry"
+            "Foundry",
+            "Mistral"
           ],
           "type": [
             "string",
@@ -720,32 +923,18 @@
             "null"
           ]
         },
+        "stream": {
+          "default": true,
+          "description": "Stream controls LLM response streaming for the kagent harness. Set to false\nfor model endpoints that do not support streaming. Defaults to true.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "tls": {
           "additionalProperties": false,
           "description": "TLS configuration for provider connections.\nEnables agents to connect to internal LiteLLM gateways or other providers\nthat use self-signed certificates or custom certificate authorities.",
           "properties": {
-            "caCertSecretKey": {
-              "description": "CACertSecretKey is the key within the Secret that contains the\nCA certificate data (PEM-encoded). Required when CACertSecretRef\nis set — admission rejects ref-without-key regardless of\nDisableVerify (see the TLSConfig-level XValidation rules).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "caCertSecretRef": {
-              "description": "CACertSecretRef is a reference to a Kubernetes Secret containing\nCA certificate(s) in PEM format. The Secret must be in the same\nnamespace as the resource referencing it (ModelConfig,\nRemoteMCPServer, or any future consumer of TLSConfig).\nWhen set, the certificate will be used to verify the upstream's\nSSL certificate.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "disableSystemCAs": {
-              "default": false,
-              "description": "DisableSystemCAs disables the use of system CA certificates.\nWhen false (default), system CA certificates are used for verification (safe behavior).\nWhen true, only the custom CA from CACertSecretRef is trusted.\nThis allows strict security policies where only corporate CAs should be trusted.",
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "disableVerify": {
               "default": false,
               "description": "DisableVerify disables SSL certificate verification entirely.\nWhen false (default), SSL certificates are verified.\nWhen true, SSL certificate verification is disabled.\nWARNING: This should ONLY be used in development/testing environments.\nProduction deployments MUST use proper certificates.",
@@ -758,20 +947,13 @@
           "type": [
             "object",
             "null"
-          ],
-          "x-kubernetes-validations": [
-            {
-              "message": "caCertSecretKey requires caCertSecretRef",
-              "rule": "!(has(self.caCertSecretKey) \u0026\u0026 size(self.caCertSecretKey) \u003e 0 \u0026\u0026 (!has(self.caCertSecretRef) || size(self.caCertSecretRef) == 0))"
-            },
-            {
-              "message": "caCertSecretRef requires caCertSecretKey",
-              "rule": "!(has(self.caCertSecretRef) \u0026\u0026 size(self.caCertSecretRef) \u003e 0 \u0026\u0026 (!has(self.caCertSecretKey) || size(self.caCertSecretKey) == 0))"
-            },
-            {
-              "message": "disableSystemCAs requires caCertSecretRef or disableVerify (trust-nothing config rejects every upstream)",
-              "rule": "!(has(self.disableSystemCAs) \u0026\u0026 self.disableSystemCAs \u0026\u0026 (!has(self.disableVerify) || !self.disableVerify) \u0026\u0026 (!has(self.caCertSecretRef) || size(self.caCertSecretRef) == 0))"
-            }
+          ]
+        },
+        "tokenPassthrough": {
+          "description": "TokenPassthrough enables forwarding the bearer token from incoming A2A requests\ndirectly to the LLM provider as the API key. This is useful for organizations\nwith federated identity that want to avoid separate secret management.\nMutually exclusive with apiKeySecret.",
+          "type": [
+            "boolean",
+            "null"
           ]
         }
       },
@@ -824,6 +1006,10 @@
           "rule": "!(has(self.foundry) \u0026\u0026 self.provider != 'Foundry')"
         },
         {
+          "message": "provider.mistral must be nil if the provider is not Mistral",
+          "rule": "!(has(self.mistral) \u0026\u0026 self.provider != 'Mistral')"
+        },
+        {
           "message": "apiKeySecret must be set if apiKeySecretKey is set",
           "rule": "!(has(self.apiKeySecretKey) \u0026\u0026 !has(self.apiKeySecret))"
         },
@@ -832,24 +1018,20 @@
           "rule": "!(has(self.apiKeySecret) \u0026\u0026 !has(self.apiKeySecretKey) \u0026\u0026 self.provider != 'Bedrock' \u0026\u0026 self.provider != 'SAPAICore')"
         },
         {
-          "message": "apiKeyPassthrough and apiKeySecret are mutually exclusive",
-          "rule": "!(has(self.apiKeyPassthrough) \u0026\u0026 self.apiKeyPassthrough \u0026\u0026 has(self.apiKeySecret) \u0026\u0026 size(self.apiKeySecret) \u003e 0)"
+          "message": "tokenPassthrough must be false if provider is Gemini;GeminiVertexAI;AnthropicVertexAI",
+          "rule": "!(has(self.tokenPassthrough) \u0026\u0026 self.tokenPassthrough \u0026\u0026 (self.provider == 'Gemini' || self.provider == 'GeminiVertexAI' || self.provider == 'AnthropicVertexAI'))"
         },
         {
-          "message": "apiKeyPassthrough must be false if provider is Gemini;GeminiVertexAI;AnthropicVertexAI",
-          "rule": "!(has(self.apiKeyPassthrough) \u0026\u0026 self.apiKeyPassthrough \u0026\u0026 (self.provider == 'Gemini' || self.provider == 'GeminiVertexAI' || self.provider == 'AnthropicVertexAI'))"
+          "message": "Bedrock requires AWS credentials and does not support actorJwt",
+          "rule": "!has(self.actorJwt) || self.provider != 'Bedrock'"
         },
         {
-          "message": "openAI.tokenExchange requires apiKeySecret (the service account secret)",
-          "rule": "!(has(self.openAI) \u0026\u0026 has(self.openAI.tokenExchange) \u0026\u0026 (!has(self.apiKeySecret) || size(self.apiKeySecret) == 0))"
+          "message": "actorJwt requires a provider with a configurable endpoint and header credentials",
+          "rule": "!has(self.actorJwt) || (!(self.provider in ['Ollama', 'GeminiVertexAI', 'AnthropicVertexAI', 'SAPAICore']))"
         },
         {
-          "message": "openAI.tokenExchange and apiKeyPassthrough are mutually exclusive",
-          "rule": "!(has(self.openAI) \u0026\u0026 has(self.openAI.tokenExchange) \u0026\u0026 has(self.apiKeyPassthrough) \u0026\u0026 self.apiKeyPassthrough)"
-        },
-        {
-          "message": "openAI.tokenExchange type GDCHServiceAccount requires openAI.tokenExchange.gdchServiceAccount",
-          "rule": "!(has(self.openAI) \u0026\u0026 has(self.openAI.tokenExchange) \u0026\u0026 self.openAI.tokenExchange.type == 'GDCHServiceAccount' \u0026\u0026 !has(self.openAI.tokenExchange.gdchServiceAccount))"
+          "message": "at most one of the fields in [actorJwt apiKeySecret tokenPassthrough] may be set",
+          "rule": "(has(self.actorJwt)?1:0)+(has(self.apiKeySecret)?1:0)+(has(self.tokenPassthrough)?1:0) \u003c= 1"
         }
       ]
     },
