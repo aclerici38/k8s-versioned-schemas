@@ -1,13 +1,13 @@
 {
-  "description": "Auto-generated derived type for SnapshotReplicationSpec via `CustomResource`",
+  "description": "Auto-generated derived type for MaintenanceSpec via `CustomResource`",
   "properties": {
     "spec": {
       "additionalProperties": false,
-      "description": "Copy selected snapshots from a source repository into a destination repository on a schedule (`kopia snapshot migrate`).\n\nNot `Eq`: `mover` transitively embeds k8s-openapi types.",
+      "description": "Maintenance schedule and ownership lease for one `Repository`/`ClusterRepository`.\n\nNot `Eq`: `mover` transitively embeds k8s-openapi types.",
       "properties": {
         "credentialProjection": {
           "additionalProperties": false,
-          "description": "Opt-in projection of BOTH repositories' credential Secrets into the mover\nJob's namespace (required when the destination is a `ClusterRepository`\nwhose Secrets live elsewhere).",
+          "description": "Opt-in projection of the repository's credential Secret(s) into this run's namespace (default off).",
           "nullable": true,
           "properties": {
             "enabled": {
@@ -24,170 +24,35 @@
             "null"
           ]
         },
-        "destinationRef": {
+        "failurePolicy": {
           "additionalProperties": false,
-          "description": "The `Repository` or `ClusterRepository` snapshots are copied INTO. A real\nrepository CR with its own password and format (unlike a\n`RepositoryReplication` destination, which is a bare backend reusing the\nsource's password). Must not resolve to the same repository as `sourceRef`\n(webhook-enforced structurally; the shared validator catches the literal\nsame-ref case at admission).",
-          "properties": {
-            "kind": {
-              "default": "Repository",
-              "description": "Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].",
-              "enum": [
-                "Repository",
-                "ClusterRepository"
-              ],
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "name": {
-              "description": "Name of the referenced `Repository`/`ClusterRepository`.",
-              "type": "string"
-            },
-            "namespace": {
-              "description": "Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "type": "object"
-        },
-        "migrate": {
-          "additionalProperties": false,
-          "description": "Tuning for the underlying `kopia snapshot migrate` invocation. Absent:\nsequential copy, and NO policy copying (see [`PolicyCopyMode`]).",
+          "description": "How a failed maintenance run is retried and bounded (backoff, deadline).",
           "nullable": true,
           "properties": {
-            "parallel": {
-              "description": "`--parallel`: number of snapshots migrated concurrently (kopia default\n`1` — sequential). Must be \u003e= 1 when set.",
-              "format": "uint32",
-              "minimum": 0,
+            "activeDeadlineSeconds": {
+              "description": "Mover `Job.spec.activeDeadlineSeconds` — wall-clock cap after which a running run is killed.",
+              "format": "int64",
               "nullable": true,
               "type": [
                 "integer",
                 "null"
               ]
             },
-            "policies": {
-              "default": "none",
-              "description": "Whether kopia **policies** attached to the copied sources are also copied\nto the destination. Defaults to [`PolicyCopyMode::None`].",
-              "enum": [
-                "none",
-                "copy",
-                "copyOverwrite"
-              ],
+            "backoffLimit": {
+              "description": "Mover `Job.spec.backoffLimit` — retries before a failed run is marked failed.",
+              "format": "int32",
+              "nullable": true,
               "type": [
-                "string",
+                "integer",
                 "null"
               ]
             },
-            "throttle": {
-              "additionalProperties": false,
-              "description": "Bandwidth/ops caps for THIS replication's runs, per side. `snapshot\nmigrate` has no speed flags, so each side is applied as `kopia repository\nthrottle set` on that side's connection; `source` overrides the source\nrepository's `moverDefaults.throttle` and `destination` the destination\nrepository's, field by field (a field left unset keeps that repository's\ndefault). Absent: both sides use their repository's defaults.",
+            "podStartupDeadlineSeconds": {
+              "description": "Seconds a non-starting (wedged) mover pod may sit before the run is failed; default 300s.",
+              "format": "int64",
               "nullable": true,
-              "properties": {
-                "destination": {
-                  "additionalProperties": false,
-                  "description": "Caps for the DESTINATION (write) side, overriding the destination\nrepository's `moverDefaults.throttle` field by field. Applied with\n`repository throttle set` on the destination connection the migrate\nwrites through.",
-                  "nullable": true,
-                  "properties": {
-                    "downloadBytesPerSecond": {
-                      "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "readOpsPerSecond": {
-                      "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "uploadBytesPerSecond": {
-                      "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "writeOpsPerSecond": {
-                      "description": "Cap write ops/sec (`--write-requests-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "source": {
-                  "additionalProperties": false,
-                  "description": "Caps for the SOURCE (read) side, overriding the source repository's\n`moverDefaults.throttle` field by field. Applied with `repository\nthrottle set` on the migrate's read-only source connection — accepted\nthere, so a read-only source is throttled like any other.",
-                  "nullable": true,
-                  "properties": {
-                    "downloadBytesPerSecond": {
-                      "description": "Cap download throughput in bytes/sec (`--download-bytes-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "readOpsPerSecond": {
-                      "description": "Cap read/list ops/sec (`--read-requests-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "uploadBytesPerSecond": {
-                      "description": "Cap upload throughput in bytes/sec (`--upload-bytes-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "writeOpsPerSecond": {
-                      "description": "Cap write ops/sec (`--write-requests-per-second`).",
-                      "format": "int64",
-                      "nullable": true,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                }
-              },
               "type": [
-                "object",
+                "integer",
                 "null"
               ]
             }
@@ -199,7 +64,7 @@
         },
         "mover": {
           "additionalProperties": false,
-          "description": "Mover (Job pod) overrides for the replication run.",
+          "description": "Mover (Job pod) overrides for the maintenance run.",
           "nullable": true,
           "properties": {
             "cache": {
@@ -208,15 +73,51 @@
               "nullable": true,
               "properties": {
                 "capacity": {
-                  "description": "Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).",
+                  "description": "Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,\nunset cache budgets default to a percentage of it (content 60%, metadata\n15%) and the two budgets together may claim at most 90% of it. Raising it on\na `Persistent` cache grows the existing PVC when its StorageClass allows\nvolume expansion; a smaller value is never applied to an existing PVC. Must be\nat least `3Mi` (1MiB for each cache under the 90% ceiling).",
                   "nullable": true,
                   "type": [
                     "string",
                     "null"
                   ]
                 },
+                "contentCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "contentCacheSizeMb": {
-                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`).",
+                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`). The original\nspelling of `contentCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -224,8 +125,44 @@
                     "null"
                   ]
                 },
+                "metadataCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "metadataCacheSizeMb": {
-                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).",
+                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original\nspelling of `metadataCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -923,134 +860,32 @@
             "null"
           ]
         },
-        "pruning": {
+        "ownership": {
           "additionalProperties": false,
-          "description": "What happens to already-replicated copies at the destination on later runs.\nAbsent = `none`: copies accumulate forever and — like every mode here —\n**survive deletion of this CR** (copy `Snapshot` CRs carry no\nownerReference to it). Pruning only ever considers snapshots this CR\nreplicated (labeled at birth); it never touches the destination's own\ndirectly-written snapshots.",
-          "nullable": true,
-          "oneOf": [
-            {
-              "required": [
-                "none"
-              ]
-            },
-            {
-              "required": [
-                "mirrorSource"
-              ]
-            },
-            {
-              "required": [
-                "retention"
-              ]
-            }
-          ],
+          "description": "Maintenance ownership lease holder and takeover policy.",
           "properties": {
-            "mirrorSource": {
-              "description": "Mirror the source: delete a copy when its `(identity, startTime)` has\nvanished from the source repository.",
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "none": {
-              "description": "Never prune: copies accumulate until deleted by hand (the default when\n`spec.pruning` is absent).",
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "retention": {
-              "additionalProperties": false,
-              "description": "Keep copies under an independent GFS retention at the destination,\nregardless of what the source still holds.",
-              "properties": {
-                "keepAnnual": {
-                  "description": "Keep one snapshot per year for the most-recent N years.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepDaily": {
-                  "description": "Keep one snapshot per day for the most-recent N days.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepHourly": {
-                  "description": "Keep one snapshot per hour for the most-recent N hours.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepLatest": {
-                  "description": "Keep the N most-recent snapshots regardless of age.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepMonthly": {
-                  "description": "Keep one snapshot per month for the most-recent N months.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "keepWeekly": {
-                  "description": "Keep one snapshot per week for the most-recent N weeks.",
-                  "format": "uint32",
-                  "minimum": 0,
-                  "nullable": true,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                }
-              },
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "type": "object"
-        },
-        "schedule": {
-          "additionalProperties": false,
-          "description": "Cron and deterministic jitter for the replication runs.",
-          "properties": {
-            "cron": {
-              "description": "The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.",
+            "owner": {
+              "description": "Stable lease holder identity (e.g. `kopia-operator/nas-primary`).",
               "type": "string"
             },
-            "jitter": {
-              "description": "Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).",
-              "nullable": true,
+            "ownerAliases": {
+              "description": "Previous lease strings still recognized as SELF (a migration path):\nwhen kopia's currently-recorded maintenance owner matches the owner\nderived from one of these aliases, a run treats the lease as its own —\nit claims it and re-stamps `owner`, upgrading the recorded owner to the\ncurrent format. The operator populates this when a repository's managed\nMaintenance moves to a cluster-qualified lease (identityDefaults.cluster),\nso the transition never yields the lease to what merely looks like a\nforeign owner.",
+              "items": {
+                "type": "string"
+              },
               "type": [
-                "string",
+                "array",
                 "null"
               ]
             },
-            "timezone": {
-              "description": "IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses\nthe enclosing schedule's timezone, else the controller default (UTC).",
-              "nullable": true,
+            "takeoverPolicy": {
+              "default": "Never",
+              "description": "What to do when the lease is already held by a different `owner`.",
+              "enum": [
+                "Never",
+                "PromptCondition",
+                "Force"
+              ],
               "type": [
                 "string",
                 "null"
@@ -1058,118 +893,13 @@
             }
           },
           "required": [
-            "cron"
+            "owner"
           ],
           "type": "object"
         },
-        "selection": {
+        "repository": {
           "additionalProperties": false,
-          "description": "Which snapshots to copy. Absent: every identity in the source repository,\nfull history (`kopia snapshot migrate --all`).",
-          "nullable": true,
-          "properties": {
-            "identities": {
-              "additionalProperties": false,
-              "description": "Select source identities (`username@hostname:path`) to copy. Absent: all\nidentities in the source repository.",
-              "nullable": true,
-              "properties": {
-                "exclude": {
-                  "description": "Identities to skip, applied after `include`. Exclude wins on overlap.",
-                  "items": {
-                    "additionalProperties": false,
-                    "description": "One glob match against a kopia identity's structured\n`(username, hostname, sourcePath)` triple. Every set component must match\n(AND); an unset component matches anything — but at least one component must\nbe set (webhook-refused otherwise: a fully-empty matcher constrains nothing).\n\nGlob semantics, **per component** (non-crossing — a `*` in `username` can\nnever reach into `hostname`): `*` matches any run of characters (including\nnone), `?` matches exactly one character, everything else matches literally,\nand the pattern is anchored (it must cover the WHOLE component — `pg` does\nnot match `pg-main`; `pg*` does). Matching is always on the structured\ntriple, never on a joined `username@hostname:path` string, so literal `@`/`:`\ninside a component cannot confuse it. No character classes (`[...]`) or brace\nexpansion — those are rejected at admission rather than silently matched\nliterally. See [`component_glob_matches`].",
-                    "properties": {
-                      "hostname": {
-                        "description": "Glob for the `hostname` component; absent matches any hostname.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "sourcePath": {
-                        "description": "Glob for the `sourcePath` component; absent matches any path.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "username": {
-                        "description": "Glob for the `username` component; absent matches any username.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                },
-                "include": {
-                  "description": "Identities to copy. Empty/absent: every identity in the source.",
-                  "items": {
-                    "additionalProperties": false,
-                    "description": "One glob match against a kopia identity's structured\n`(username, hostname, sourcePath)` triple. Every set component must match\n(AND); an unset component matches anything — but at least one component must\nbe set (webhook-refused otherwise: a fully-empty matcher constrains nothing).\n\nGlob semantics, **per component** (non-crossing — a `*` in `username` can\nnever reach into `hostname`): `*` matches any run of characters (including\nnone), `?` matches exactly one character, everything else matches literally,\nand the pattern is anchored (it must cover the WHOLE component — `pg` does\nnot match `pg-main`; `pg*` does). Matching is always on the structured\ntriple, never on a joined `username@hostname:path` string, so literal `@`/`:`\ninside a component cannot confuse it. No character classes (`[...]`) or brace\nexpansion — those are rejected at admission rather than silently matched\nliterally. See [`component_glob_matches`].",
-                    "properties": {
-                      "hostname": {
-                        "description": "Glob for the `hostname` component; absent matches any hostname.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "sourcePath": {
-                        "description": "Glob for the `sourcePath` component; absent matches any path.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "username": {
-                        "description": "Glob for the `username` component; absent matches any username.",
-                        "nullable": true,
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
-                }
-              },
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "latestOnly": {
-              "description": "Copy only each selected identity's most recent snapshot instead of its\nfull history (`kopia snapshot migrate --latest`). Default `false`.",
-              "type": [
-                "boolean",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "sourceRef": {
-          "additionalProperties": false,
-          "description": "The `Repository` or `ClusterRepository` snapshots are copied FROM. Opened\nread-only by the replication mover — a replication never writes to its source.",
+          "description": "Reference to the `Repository` or `ClusterRepository` to maintain.",
           "properties": {
             "kind": {
               "default": "Repository",
@@ -1201,28 +931,100 @@
           ],
           "type": "object"
         },
-        "suspend": {
-          "description": "Pause this replication; a suspended replication runs no copies (default `false`).",
-          "type": [
-            "boolean",
-            "null"
-          ]
+        "schedule": {
+          "additionalProperties": false,
+          "description": "quick (cheap) and full (`--full`, reclamation) maintenance crons.",
+          "properties": {
+            "full": {
+              "additionalProperties": false,
+              "description": "Cron and jitter for `kopia maintenance run --full` (content reclamation).",
+              "properties": {
+                "cron": {
+                  "description": "The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.",
+                  "type": "string"
+                },
+                "jitter": {
+                  "description": "Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timezone": {
+                  "description": "IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses\nthe enclosing schedule's timezone, else the controller default (UTC).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "cron"
+              ],
+              "type": "object"
+            },
+            "quick": {
+              "additionalProperties": false,
+              "description": "Cron and jitter for `kopia maintenance run` (quick, cheap index/log work).",
+              "properties": {
+                "cron": {
+                  "description": "The cron expression, parsed by `croner`; may contain an `H` placeholder for deterministic jitter.",
+                  "type": "string"
+                },
+                "jitter": {
+                  "description": "Optional deterministic jitter window as a Go-style duration string (e.g. `30m`).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timezone": {
+                  "description": "IANA timezone the cron is evaluated in (e.g. `America/Chicago`); absent uses\nthe enclosing schedule's timezone, else the controller default (UTC).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "cron"
+              ],
+              "type": "object"
+            },
+            "timezone": {
+              "description": "IANA timezone both crons are evaluated in; absent means the controller default.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "full",
+            "quick"
+          ],
+          "type": "object"
         }
       },
       "required": [
-        "destinationRef",
-        "schedule",
-        "sourceRef"
+        "ownership",
+        "repository",
+        "schedule"
       ],
       "type": "object"
     },
     "status": {
       "additionalProperties": false,
-      "description": "Observed state of a `SnapshotReplication`.",
+      "description": "Observed maintenance state: lease holder and per-kind run results.",
       "nullable": true,
       "properties": {
         "conditions": {
-          "description": "Standard Kubernetes conditions (`Ready`, `Reconciling`, `Stalled`).",
+          "description": "Standard Kubernetes conditions surfacing maintenance health.",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
@@ -1271,76 +1073,50 @@
             "null"
           ]
         },
-        "lastReplicated": {
-          "description": "RFC3339 timestamp of the most recent successful replication run (also the\nscheduling anchor for the next slot).",
-          "nullable": true,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lastRun": {
+        "full": {
           "additionalProperties": false,
-          "description": "Counters from the most recent run.",
+          "description": "Last/next-run state for the full maintenance schedule.",
           "nullable": true,
           "properties": {
-            "alreadyPresent": {
-              "description": "Selected snapshots that were already present at the destination (skipped).",
-              "format": "uint32",
-              "minimum": 0,
+            "consecutiveFailures": {
+              "description": "Count of back-to-back failed runs of this kind; resets on success.",
+              "format": "int64",
               "nullable": true,
               "type": [
                 "integer",
                 "null"
               ]
             },
-            "failed": {
-              "description": "Selected snapshots that failed to copy (kopia migrate exits 0 on\nper-source failures; the mover's post-verify counts them here).",
-              "format": "uint32",
-              "minimum": 0,
+            "lastContentReclaimedBytes": {
+              "description": "Bytes of backend storage the most recent run of this kind actually freed:\nthe blobs kopia deleted (unreferenced packs, superseded epoch indexes and\nexpired logs), summed from the run history `kopia maintenance info`\nreports. It deliberately EXCLUDES kopia's snapshot-GC figure, which only\nmarks contents deleted in the index and frees no storage until a later run\nremoves the blobs. Absent when the run reclaimed nothing measurable — a\nquick run on an epoch-enabled repository only advances and compacts\nepochs, so there is no figure to report; `0` always means a measured zero,\nnever \"unknown\".",
+              "format": "int64",
               "nullable": true,
               "type": [
                 "integer",
                 "null"
               ]
             },
-            "identitiesSelected": {
-              "description": "Source identities the selector matched this run.",
-              "format": "uint32",
-              "minimum": 0,
+            "lastHandledAt": {
+              "description": "RFC3339 instant the controller last observed this kind's per-slot Job reach terminal success.",
               "nullable": true,
               "type": [
-                "integer",
+                "string",
                 "null"
               ]
             },
-            "incompleteSkipped": {
-              "description": "Incomplete source manifests of selected identities — checkpoints an\ninterrupted `kopia snapshot create` left behind — that this run did not\nreplicate. kopia can never migrate a checkpoint as a complete snapshot,\nso they are skipped rather than failing the post-verify. Non-zero\nusually means an abandoned manual backup worth cleaning up with\n`kopia snapshot delete \u003cid\u003e --delete` (the mover log names the ids).",
-              "format": "uint32",
-              "minimum": 0,
+            "lastRunAt": {
+              "description": "RFC3339 instant of the most recent run of this kind.",
               "nullable": true,
               "type": [
-                "integer",
+                "string",
                 "null"
               ]
             },
-            "pruned": {
-              "description": "Copies pruned this run per `spec.pruning`.",
-              "format": "uint32",
-              "minimum": 0,
+            "nextScheduledAt": {
+              "description": "RFC3339 instant of the next scheduled run of this kind (cron + jitter, pinned).",
               "nullable": true,
               "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "snapshotsCopied": {
-              "description": "Snapshots newly copied to the destination this run.",
-              "format": "uint32",
-              "minimum": 0,
-              "nullable": true,
-              "type": [
-                "integer",
+                "string",
                 "null"
               ]
             }
@@ -1352,7 +1128,7 @@
         },
         "manualRun": {
           "additionalProperties": false,
-          "description": "State of the most recent annotation-requested out-of-band run\n(`kopiur.home-operations.com/run-requested`); absent until one is\nrequested.",
+          "description": "State of the most recent annotation-requested out-of-band run; absent until one is requested.",
           "nullable": true,
           "properties": {
             "completedAt": {
@@ -1363,10 +1139,21 @@
                 "null"
               ]
             },
-            "phase": {
-              "description": "Lifecycle of a manual replication run. Closed enum.",
+            "mode": {
+              "description": "Which maintenance kind a manual (annotation-requested) run performs; the wire\nvalues are the `run-mode` annotation values. Defaults to `quick`.",
               "enum": [
-                "Pending",
+                "quick",
+                "full"
+              ],
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phase": {
+              "description": "Lifecycle of a manual run. Closed enum.",
+              "enum": [
                 "Running",
                 "Succeeded",
                 "Failed"
@@ -1378,7 +1165,7 @@
               ]
             },
             "requestedAt": {
-              "description": "The `run-requested` annotation value this status reflects (RFC3339),\nverbatim as the user wrote it — it pins WHICH request is answered.",
+              "description": "The `run-requested` annotation value this status reflects (RFC3339).",
               "nullable": true,
               "type": [
                 "string",
@@ -1392,7 +1179,7 @@
           ]
         },
         "observedGeneration": {
-          "description": "`metadata.generation` last reconciled, for staleness detection / kstatus.",
+          "description": "The `metadata.generation` this status reflects, for staleness detection.",
           "format": "int64",
           "nullable": true,
           "type": [
@@ -1400,18 +1187,111 @@
             "null"
           ]
         },
-        "phase": {
-          "description": "Lifecycle phase of a snapshot replication.",
-          "enum": [
-            "Pending",
-            "Replicating",
-            "Succeeded",
-            "Failed",
-            "Suspended"
-          ],
+        "observedIndexBlobs": {
+          "additionalProperties": false,
+          "description": "Content-index blob count re-counted right after the most recent successful run.",
           "nullable": true,
+          "properties": {
+            "count": {
+              "default": 0,
+              "description": "Number of content-index blobs (`kopia index list`) after the run.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "observedAt": {
+              "default": "",
+              "description": "RFC3339 instant the recount was taken. What makes this observation\ncomparable against the repository's own `storageStats.indexBlobCountAt`,\nso whichever is newer wins rather than whichever was written last.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           "type": [
-            "string",
+            "object",
+            "null"
+          ]
+        },
+        "ownership": {
+          "additionalProperties": false,
+          "description": "Current lease holder, if the lease has been claimed.",
+          "nullable": true,
+          "properties": {
+            "claimedAt": {
+              "description": "RFC3339 instant the lease was claimed.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "owner": {
+              "description": "The current lease holder's identity (matches `Ownership.owner`).",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "quick": {
+          "additionalProperties": false,
+          "description": "Last/next-run state for the quick maintenance schedule.",
+          "nullable": true,
+          "properties": {
+            "consecutiveFailures": {
+              "description": "Count of back-to-back failed runs of this kind; resets on success.",
+              "format": "int64",
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "lastContentReclaimedBytes": {
+              "description": "Bytes of backend storage the most recent run of this kind actually freed:\nthe blobs kopia deleted (unreferenced packs, superseded epoch indexes and\nexpired logs), summed from the run history `kopia maintenance info`\nreports. It deliberately EXCLUDES kopia's snapshot-GC figure, which only\nmarks contents deleted in the index and frees no storage until a later run\nremoves the blobs. Absent when the run reclaimed nothing measurable — a\nquick run on an epoch-enabled repository only advances and compacts\nepochs, so there is no figure to report; `0` always means a measured zero,\nnever \"unknown\".",
+              "format": "int64",
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "lastHandledAt": {
+              "description": "RFC3339 instant the controller last observed this kind's per-slot Job reach terminal success.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lastRunAt": {
+              "description": "RFC3339 instant of the most recent run of this kind.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nextScheduledAt": {
+              "description": "RFC3339 instant of the next scheduled run of this kind (cron + jitter, pinned).",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
             "null"
           ]
         }
@@ -1425,6 +1305,6 @@
   "required": [
     "spec"
   ],
-  "title": "SnapshotReplication",
+  "title": "Maintenance",
   "type": "object"
 }
