@@ -68,13 +68,31 @@
             "null"
           ]
         },
+        "downloadConcurrency": {
+          "description": "DownloadConcurrency is how many spec.files and spec.mmproj entries the\ndownloader stages at once. Unset stages one at a time. A file's close,\nSHA256 check and publish then overlap the next file's transfer. It\nrequires spec.files and a source the downloader stages: pvc:// and oci://\nare mounted, not downloaded. On a FUSE cache that holds each open file on\nthe node's disk (blobfuse2's file cache), every file in flight needs its\nsize free there; downloadMaxInFlightSize caps that.",
+          "format": "int32",
+          "maximum": 16,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "downloadMaxInFlightSize": {
+          "description": "DownloadMaxInFlightSize caps the combined size of the files the\ndownloadConcurrency workers hold at once, as a quantity such as \"90Gi\".\nA file starts only while the size in flight plus its own fits, or when\nnothing else is in flight, so a file larger than the cap still stages,\nalone. Files start in list order. A file present in the cache counts its\nsize on disk, and one whose size the origin does not report counts the\nwhole cap. Set it to the node disk a FUSE cache may fill. It takes up to\n15 digits of bytes, or up to 6 digits with a suffix up to Ti, so every\nadmitted value fits the downloader's 64-bit arithmetic.",
+          "pattern": "^([1-9][0-9]{0,14}|[1-9][0-9]{0,5}(Ki|Mi|Gi|Ti|k|M|G|T))$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "fileSha256": {
           "additionalProperties": {
             "description": "SHA256Digest is a hex-encoded SHA256 digest (64 characters, either case).",
             "pattern": "^[a-fA-F0-9]{64}$",
             "type": "string"
           },
-          "description": "FileSHA256 is a per-file SHA256 map for multi-file staging, keyed by\nrepo-relative path (each key is a spec.files entry or spec.mmproj). Only\nlisted files are verified; a file with no entry is staged as before. It\nis mutually exclusive with spec.sha256, and requires concrete file paths:\na glob cannot be keyed to an unknown expanded name, and a pre-staged\noci:// artifact carries its own digest, so both are rejected at admission\n(#1978).",
+          "description": "FileSHA256 is a per-file SHA256 map for multi-file staging, keyed by\nfile entry (the exact path or URL in spec.files, or spec.mmproj). Only\nlisted files are verified; a file with no entry is staged as before. It\nis mutually exclusive with spec.sha256, and requires concrete file paths:\na glob cannot be keyed to an unknown expanded name, and a pre-staged\noci:// artifact carries its own digest, so both are rejected at admission\n(#1978).",
           "maxProperties": 256,
           "type": [
             "object",
@@ -82,7 +100,7 @@
           ]
         },
         "files": {
-          "description": "Files lists model weight artifacts to stage from Source. Entries are\nrepo-relative for repository sources. The first entry is the primary model\nfile passed to the runtime. When Files is empty, Source must name a single\nobject directly.",
+          "description": "Files lists model weight artifacts to stage from Source. Entries are\nrepo-relative for repository sources, or absolute http(s)/s3 object URLs.\nResolve URLs on huggingface.co retain the path within their repository;\nS3 URLs retain the object key. Other HTTP URLs, including explicit\nHF_ENDPOINT mirror URLs, use the basename. Conflicting\ndestination paths are rejected. Explicit URLs use per-origin credentials\nand require in-cluster staging (not the Metal agent or pre-staged volumes).\nThe first entry is the primary model\nfile passed to the runtime. When Files is empty, Source must name a single\nobject directly.",
           "items": {
             "maxLength": 512,
             "type": "string"
@@ -352,6 +370,21 @@
                 "null"
               ]
             },
+            "size": {
+              "description": "Size overrides the operator's --model-cache-size flag (100Gi when the\nflag is unset too) for the model-cache PVC this operator creates for the\nservice (#2448). A cluster serving both small and large models can then\nsize each service's cache for its own model rather than for the largest\none, without hand-managing a claimName PVC per service.\n\nIt applies in perService mode only, to the per-service claim\n\u003cisvc\u003e-model-cache. When that claim already exists with a smaller\nstorage request, the operator raises the request and the StorageClass\nexpands the volume if its allowVolumeExpansion is true; a class that\ndoes not allow expansion rejects the request, which surfaces as a\nModelCacheResizeRejected warning while the service keeps the claim as\nit is. A claim is grown only once it is Bound, because the request of a\nPending claim is immutable. A smaller size never shrinks an existing\nclaim. In shared mode the namespace has one claim that every service\nshares, so the field is ignored with a ModelCacheSizeIgnored warning.\n\nMutually exclusive with claimName (the claim is user-owned) and with\npersistence Ephemeral (no PVC exists to size).",
+              "maxLength": 64,
+              "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "size must be a positive Kubernetes quantity",
+                  "rule": "isQuantity(self) \u0026\u0026 quantity(self).isGreaterThan(quantity('0'))"
+                }
+              ]
+            },
             "storageClassName": {
               "description": "StorageClassName overrides the operator's --model-cache-storage-class\nflag for the model-cache PVC this operator creates for the service\n(#1963). A mixed cluster can then cache on local disk where a\ncloud-default class cannot attach, without hand-managing a claimName\nPVC per service.\n\nIn perService mode the field is authoritative: the per-service claim is\ncreated with this class. In shared mode the namespace has one claim\nthat every service shares, so the field is honored only at first\ncreation (first writer wins); a service whose request differs from the\nexisting claim's class gets a ModelCacheStorageClassIgnored warning and\nuses the claim as created, because storageClassName is immutable once\nbound. An empty value falls back to the flag; with neither set, the\ncluster default applies. Existing PVCs are never mutated.\n\nMutually exclusive with claimName (the claim is user-owned) and with\npersistence Ephemeral (no PVC exists to class).",
               "maxLength": 63,
@@ -380,13 +413,21 @@
               "rule": "!(has(self.persistence) \u0026\u0026 self.persistence == 'Ephemeral' \u0026\u0026 has(self.storageClassName))"
             },
             {
+              "message": "size cannot be set together with claimName: the named claim is user-owned and its size was chosen when the claim itself was created",
+              "rule": "!(has(self.size) \u0026\u0026 has(self.claimName))"
+            },
+            {
+              "message": "size cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to size; bound the emptyDir with resources.ephemeralStorage instead",
+              "rule": "!(has(self.persistence) \u0026\u0026 self.persistence == 'Ephemeral' \u0026\u0026 has(self.size))"
+            },
+            {
               "message": "prefetch cannot be set when persistence is Ephemeral: there is no cache volume to stage into",
               "rule": "!(has(self.persistence) \u0026\u0026 self.persistence == 'Ephemeral' \u0026\u0026 has(self.prefetch) \u0026\u0026 self.prefetch)"
             }
           ]
         },
         "prefetch": {
-          "description": "Prefetch, when true on a remote (http/https/hf) source, makes the\noperator download the artifact into a model cache PVC ahead of any\nInferenceService, via an owner-ref'd Job that reuses the serving\ninit-container download stack. The Model reads Downloading until the\nJob completes and Ready after it, so a referencing service starts from\na cache hit. A glob in spec.files is expanded from the repository\nlisting before the Job is built, as the serving path expands it.\n\nThe Job stages into spec.modelCache.claimName when set. Otherwise the\ntarget is inferred: the single modelCache.claimName the referencing\nInferenceServices agree on, else the namespace's shared cache\n(llmkube-model-cache). Where every prefetch landed is recorded per\nclaim in status.prefetch; a referencing service that mounts a claim the\nModel was not staged into is reported by the PrefetchTargetMismatch\ncondition, since it downloads at serve time. A service can instead ask\nfor its own staging with modelCache.prefetch, which also holds its\nrollout until the weights are in place.\n\nA source the downloader does not stage (local paths, pvc://, oci://,\ns3://) is reported by the PrefetchSkipped condition rather than\nprefetched.",
+          "description": "Prefetch, when true on a remote (http/https/hf) source, makes the\noperator download the artifact into a model cache PVC ahead of any\nInferenceService, via an owner-ref'd Job that reuses the serving\ninit-container download stack. The Model reads Downloading until the\nJob completes and Ready after it, so a referencing service starts from\na cache hit. With prefetchOCI set, the Job publishes to a registry instead\nand consumers use a separate oci:// Model with the published digest.\nA glob in spec.files is expanded from the repository\nlisting before the Job is built, as the serving path expands it.\n\nThe Job stages into spec.modelCache.claimName when set. Otherwise the\ntarget is inferred: the single modelCache.claimName the referencing\nInferenceServices agree on, else the namespace's shared cache\n(llmkube-model-cache). Where every prefetch landed is recorded per\nclaim in status.prefetch; a referencing service that mounts a claim the\nModel was not staged into is reported by the PrefetchTargetMismatch\ncondition, since it downloads at serve time. A service can instead ask\nfor its own staging with modelCache.prefetch, which also holds its\nrollout until the weights are in place.\n\nA source the downloader does not stage (local paths, pvc://, oci://,\ns3://) is reported by the PrefetchSkipped condition rather than\nprefetched.",
           "type": [
             "boolean",
             "null"
@@ -1377,6 +1418,54 @@
             "null"
           ]
         },
+        "prefetchOCI": {
+          "additionalProperties": false,
+          "description": "PrefetchOCI publishes downloaded files as a container image instead of staging\nthe Model into a PVC. Consumers use a separate oci:// Model pinned to the\npublished digest. Setting this block enables publication without prefetch: true.\nAt most 64 resolved files (including mmproj) may be published.\nService-requested PVC prefetch remains independent.",
+          "properties": {
+            "ephemeralStorage": {
+              "description": "EphemeralStorage is the required node-local disk budget for downloading\nall selected files, with headroom for partial downloads and container logs.\nApplied to requests and limits on each Job container and to emptyDir.sizeLimit.\nNo default is safe for both small and very large models.",
+              "type": "string",
+              "x-kubernetes-validations": [
+                {
+                  "message": "ephemeralStorage must be a positive Kubernetes quantity",
+                  "rule": "isQuantity(self) \u0026\u0026 quantity(self).isGreaterThan(quantity('0'))"
+                }
+              ]
+            },
+            "image": {
+              "description": "Image is a fully qualified registry/repository:tag destination (no oci:// prefix).",
+              "minLength": 1,
+              "type": "string"
+            },
+            "pushSecretRef": {
+              "additionalProperties": false,
+              "description": "PushSecretRef names a kubernetes.io/dockerconfigjson Secret in the Model's\nnamespace. It is mounted only in the publisher, never in the downloader.",
+              "properties": {
+                "name": {
+                  "default": "",
+                  "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-map-type": "atomic"
+            }
+          },
+          "required": [
+            "ephemeralStorage",
+            "image"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "prefetchTolerations": {
           "description": "PrefetchTolerations are applied to the prefetch Job's pod, and govern\nnothing else: they say where the download may run, not where the model\nwill be served. A fleet whose GPU nodes are tainted needs the prefetch\ndownload to schedule onto those nodes when the shared cache lives on\nnode-local storage (#1621). Inheriting from an InferenceService would\nbe ill-defined here: prefetch runs before the first InferenceService\nexists by design.",
           "items": {
@@ -1479,13 +1568,16 @@
           ]
         },
         "source": {
-          "description": "Source defines where to obtain the model.\nFor GGUF models: URL or path to a .gguf file.\nFor MLX models: local directory path containing the model (config.json, weights).\nSupported schemes: http://, https://, file://, pvc://, hf://, s3://, oci://, or absolute paths.\nExamples:\n  - https://huggingface.co/org/repo/resolve/main/model.gguf\n  - file:///mnt/models/model.gguf\n  - /mnt/models/model.gguf (air-gapped deployments)\n  - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)\n  - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)\n  - oci://registry.example.com/models/llama-3.1-8b@sha256:... (mounted by a\n    Kubernetes ImageVolume; requires Kubernetes \u003e= 1.36 and containerd \u003e= 2.1.0\n    or CRI-O \u003e= 1.31 on the serving node; pin by digest)\n  - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)\n\nSource may also name a repository or bucket PREFIX rather than a single\nobject. In that case spec.files selects which artifacts to stage from it,\nand files[0] is the primary file handed to the runtime. This is how a\nsharded GGUF, an mmproj, or draft weights are expressed. Example:\n\n  source: s3://models/org/Repo-GGUF\n  files:\n    - Model-00001-of-00002.gguf\n    - Model-00002-of-00002.gguf\n\nfile:// caveat for hybrid topologies: the controller pod must be\nable to read the path. In Mac kind / k3s / GKE deployments where\nthe metal-agent runs on the host and the controller runs inside a\ncontainer, /Users/... and other host paths are invisible to the\ncontroller and will fail to fetch. The controller marks the Model\nFailed and backs off to a 5-minute requeue rather than retrying\ntightly (#405). Workaround: pre-stage on a pvc://, or use the\nequivalent https://huggingface.co/.../\u003cfilename\u003e.gguf URL which\nthe runtime/init container resolves at deploy time.",
+          "description": "Source defines where to obtain the model. It may be omitted when every\nfiles entry is an absolute http(s) or s3 object URL.\nFor GGUF models: URL or path to a .gguf file.\nFor MLX models: local directory path containing the model (config.json, weights).\nSupported schemes: http://, https://, file://, pvc://, hf://, s3://, oci://, or absolute paths.\nExamples:\n  - https://huggingface.co/org/repo/resolve/main/model.gguf\n  - file:///mnt/models/model.gguf\n  - /mnt/models/model.gguf (air-gapped deployments)\n  - pvc://my-models-pvc/path/to/model.gguf (pre-staged on a PersistentVolumeClaim)\n  - s3://my-bucket/models/llama-3.1-8b-q4_k_m.gguf (S3-compatible object store)\n  - oci://registry.example.com/models/llama-3.1-8b@sha256:... (mounted by a\n    Kubernetes ImageVolume; requires Kubernetes \u003e= 1.36 and containerd \u003e= 2.1.0\n    or CRI-O \u003e= 1.31 on the serving node; pin by digest)\n  - /mnt/models/Llama-3.2-3B-Instruct-4bit (MLX model directory)\n\nSource may also name a repository or bucket PREFIX rather than a single\nobject. In that case spec.files selects which artifacts to stage from it,\nand files[0] is the primary file handed to the runtime. This is how a\nsharded GGUF, an mmproj, or draft weights are expressed. Example:\n\n  source: s3://models/org/Repo-GGUF\n  files:\n    - Model-00001-of-00002.gguf\n    - Model-00002-of-00002.gguf\n\nfile:// caveat for hybrid topologies: the controller pod must be\nable to read the path. In Mac kind / k3s / GKE deployments where\nthe metal-agent runs on the host and the controller runs inside a\ncontainer, /Users/... and other host paths are invisible to the\ncontroller and will fail to fetch. The controller marks the Model\nFailed and backs off to a 5-minute requeue rather than retrying\ntightly (#405). Workaround: pre-stage on a pvc://, or use the\nequivalent https://huggingface.co/.../\u003cfilename\u003e.gguf URL which\nthe runtime/init container resolves at deploy time.",
           "pattern": "^(https?|file|pvc|hf|s3|oci)://.*|^/[^\\s]+$|^[a-zA-Z0-9][\\w\\-\\.\\/]+$",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "sourceSecretRef": {
           "additionalProperties": false,
-          "description": "SourceSecretRef names a Secret (in the Model's namespace) whose keys are\nwired as env into the model-downloader init container.\n\ns3:// sources read S3-compatible credentials and endpoint from\nAWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION and AWS_ENDPOINT_URL\n(path-style, e.g. https://minio.internal:9000 or\nhttps://s3.us-east-1.amazonaws.com).\n\nhf:// and huggingface.co sources read HF_TOKEN, which is sent as a bearer\ncredential so gated and private repositories can be downloaded. The token\nis attached only for huggingface.co and is dropped if a redirect leaves\nthat host, so it never reaches a CDN or any other origin. Omit the key,\nor the whole Secret, for public repositories.\n\nOne Secret may carry both sets of keys; each is used only by the source\nscheme it belongs to.",
+          "description": "SourceSecretRef names a Secret (in the Model's namespace) whose keys are\nwired as env into the model-downloader init container.\n\ns3:// sources read S3-compatible credentials and endpoint from\nAWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION and AWS_ENDPOINT_URL\n(path-style, e.g. https://minio.internal:9000 or\nhttps://s3.us-east-1.amazonaws.com).\n\nhf:// and huggingface.co sources read HF_TOKEN, which is sent as a bearer\ncredential so gated and private repositories can be downloaded. The token\nis attached only for huggingface.co and is dropped if a redirect leaves\nthat host, so it never reaches a CDN or any other origin. Omit the key,\nor the whole Secret, for public repositories.\n\nOne Secret may carry both sets of keys; each is used only by the source\nscheme it belongs to.\n\nOn the Metal path the metal-agent reads the Secret only when it carries\nthe label inference.llmkube.dev/model-source-credentials=true, and never\nreads the relay token Secret (llmkube-metal-relay); any other Secret\nrefuses the start with SourceSecretNotAllowed.",
           "properties": {
             "name": {
               "default": "",
@@ -1503,14 +1595,15 @@
           "x-kubernetes-map-type": "atomic"
         }
       },
-      "required": [
-        "source"
-      ],
       "type": "object",
       "x-kubernetes-validations": [
         {
+          "message": "source is required unless every files entry is an absolute http(s) or s3 URL and mmproj is unset",
+          "rule": "has(self.source) || (has(self.files) \u0026\u0026 self.files.size() \u003e 0 \u0026\u0026 self.files.all(f, f.matches('^(https?|s3)://')) \u0026\u0026 !has(self.mmproj))"
+        },
+        {
           "message": "sha256 verifies a single artifact: it cannot be combined with files or mmproj, or with a pre-staged oci:// source (use fileSha256 for multi-file staging)",
-          "rule": "!((has(self.sha256) \u0026\u0026 self.sha256.size() \u003e 0) \u0026\u0026 ((has(self.files) \u0026\u0026 self.files.size() \u003e 0) || (has(self.mmproj) \u0026\u0026 self.mmproj.size() \u003e 0) || self.source.startsWith('oci://')))"
+          "rule": "!((has(self.sha256) \u0026\u0026 self.sha256.size() \u003e 0) \u0026\u0026 ((has(self.files) \u0026\u0026 self.files.size() \u003e 0) || (has(self.mmproj) \u0026\u0026 self.mmproj.size() \u003e 0) || (has(self.source) \u0026\u0026 self.source.startsWith('oci://'))))"
         },
         {
           "message": "fileSha256 requires spec.files: it names the expected digest of each staged artifact",
@@ -1518,11 +1611,11 @@
         },
         {
           "message": "fileSha256 cannot verify a pre-staged oci:// artifact, which is already pinned by its image digest",
-          "rule": "!(has(self.fileSha256) \u0026\u0026 self.fileSha256.size() \u003e 0 \u0026\u0026 self.source.startsWith('oci://'))"
+          "rule": "!(has(self.fileSha256) \u0026\u0026 self.fileSha256.size() \u003e 0 \u0026\u0026 (has(self.source) \u0026\u0026 self.source.startsWith('oci://')))"
         },
         {
           "message": "fileSha256 needs concrete file paths: a glob cannot be keyed to an unknown expanded name",
-          "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || !has(self.files) || self.files.all(f, !f.contains('*') \u0026\u0026 !f.contains('?') \u0026\u0026 !f.contains('['))"
+          "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || !has(self.files) || self.files.all(f, f.matches('^(https?|s3)://') || (!f.contains('*') \u0026\u0026 !f.contains('?') \u0026\u0026 !f.contains('[')))"
         },
         {
           "message": "every fileSha256 key must name a spec.files entry or spec.mmproj",
@@ -1533,8 +1626,20 @@
           "rule": "!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, !k.matches('[[:space:]]'))"
         },
         {
+          "message": "downloadMaxInFlightSize caps what the downloadConcurrency workers hold at once: it requires downloadConcurrency above 1",
+          "rule": "!has(self.downloadMaxInFlightSize) || (has(self.downloadConcurrency) \u0026\u0026 self.downloadConcurrency \u003e 1)"
+        },
+        {
+          "message": "downloadConcurrency sets how many spec.files the downloader stages at once: it requires spec.files, and a pvc:// or oci:// source is not downloaded",
+          "rule": "!has(self.downloadConcurrency) || (has(self.files) \u0026\u0026 self.files.size() \u003e 0 \u0026\u0026 (!has(self.source) || (!self.source.startsWith('pvc://') \u0026\u0026 !self.source.startsWith('oci://'))))"
+        },
+        {
           "message": "prefetch cannot be combined with modelCache.persistence Ephemeral: there is no cache volume to stage into",
           "rule": "!(has(self.prefetch) \u0026\u0026 self.prefetch \u0026\u0026 has(self.modelCache) \u0026\u0026 has(self.modelCache.persistence) \u0026\u0026 self.modelCache.persistence == 'Ephemeral')"
+        },
+        {
+          "message": "prefetchOCI cannot be combined with modelCache; configure service caches on InferenceService",
+          "rule": "!has(self.prefetchOCI) || !has(self.modelCache)"
         }
       ]
     },
@@ -1557,7 +1662,7 @@
           ]
         },
         "conditions": {
-          "description": "conditions represent the current state of the Model resource.\nEach condition has a unique type and reflects the status of a specific aspect of the resource.\n\nStandard condition types include:\n- \"Available\": the model is downloaded and ready for use\n- \"Progressing\": the model is being downloaded or processed\n- \"Degraded\": the model download or setup failed\n- \"SourceDrifted\": the upstream source bytes differ from the cached copy\n\nThe status of each condition is one of True, False, or Unknown.",
+          "description": "conditions represent the current state of the Model resource.\nEach condition has a unique type and reflects the status of a specific aspect of the resource.\n\nStandard condition types include:\n- \"Available\": the model is ready for use. A source the controller caches\n  itself is downloaded by then; a remote source is fetched by the serving\n  pod when it starts, so the download can still be running\n- \"Progressing\": the model is being downloaded or processed\n- \"Degraded\": the model download or setup failed\n- \"SourceDrifted\": the upstream source differs from what the controller\n  last recorded: its cached copy for a source it caches, otherwise the\n  fingerprint it recorded\n\nThe status of each condition is one of True, False, or Unknown.",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
@@ -1867,6 +1972,73 @@
             "claimName"
           ],
           "x-kubernetes-list-type": "map"
+        },
+        "prefetchOCI": {
+          "additionalProperties": false,
+          "description": "PrefetchOCI records the published image and the files it contains.",
+          "properties": {
+            "files": {
+              "description": "Files contains image-root-relative paths, with the primary file first.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "fingerprint": {
+              "description": "Fingerprint identifies the source, file set and destination of this publication.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "image": {
+              "description": "Image is the published oci://registry/repository@sha256:... reference.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "jobName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "observedGeneration": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "phase": {
+              "description": "Phase is Pending, Running, Succeeded or Failed.",
+              "enum": [
+                "Pending",
+                "Running",
+                "Succeeded",
+                "Failed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "sha256": {
           "description": "SHA256 is the computed SHA256 hash of the model file.\nPopulated after download/copy for integrity tracking.",

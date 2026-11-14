@@ -3699,6 +3699,33 @@ spec:
                         modelCache.claimName, or a source the downloader does not stage ahead
                         of time (s3://).
                       type: boolean
+                    size:
+                      description: |-
+                        Size overrides the operator's --model-cache-size flag (100Gi when the
+                        flag is unset too) for the model-cache PVC this operator creates for the
+                        service (#2448). A cluster serving both small and large models can then
+                        size each service's cache for its own model rather than for the largest
+                        one, without hand-managing a claimName PVC per service.
+
+                        It applies in perService mode only, to the per-service claim
+                        <isvc>-model-cache. When that claim already exists with a smaller
+                        storage request, the operator raises the request and the StorageClass
+                        expands the volume if its allowVolumeExpansion is true; a class that
+                        does not allow expansion rejects the request, which surfaces as a
+                        ModelCacheResizeRejected warning while the service keeps the claim as
+                        it is. A claim is grown only once it is Bound, because the request of a
+                        Pending claim is immutable. A smaller size never shrinks an existing
+                        claim. In shared mode the namespace has one claim that every service
+                        shares, so the field is ignored with a ModelCacheSizeIgnored warning.
+
+                        Mutually exclusive with claimName (the claim is user-owned) and with
+                        persistence Ephemeral (no PVC exists to size).
+                      maxLength: 64
+                      minLength: 1
+                      type: string
+                      x-kubernetes-validations:
+                        - message: size must be a positive Kubernetes quantity
+                          rule: isQuantity(self) && quantity(self).isGreaterThan(quantity('0'))
                     storageClassName:
                       description: |-
                         StorageClassName overrides the operator's --model-cache-storage-class
@@ -3729,6 +3756,10 @@ spec:
                       rule: '!(has(self.storageClassName) && has(self.claimName))'
                     - message: 'storageClassName cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to class'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.storageClassName))'
+                    - message: 'size cannot be set together with claimName: the named claim is user-owned and its size was chosen when the claim itself was created'
+                      rule: '!(has(self.size) && has(self.claimName))'
+                    - message: 'size cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to size; bound the emptyDir with resources.ephemeralStorage instead'
+                      rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.size))'
                     - message: 'prefetch cannot be set when persistence is Ephemeral: there is no cache volume to stage into'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.prefetch) && self.prefetch)'
                 modelRef:
@@ -3809,6 +3840,36 @@ spec:
                       maxItems: 64
                       minItems: 2
                       type: array
+                    memory:
+                      description: |-
+                        Memory prepares each member node's memory right before the member's
+                        runtime starts. Unset adds nothing to the member pods.
+                      properties:
+                        dropPageCacheBeforeBoot:
+                          description: |-
+                            DropPageCacheBeforeBoot syncs and drops the node's page cache after the
+                            member has staged its weights and before its runtime container starts.
+                          type: boolean
+                        sysctls:
+                          additionalProperties:
+                            description: |-
+                              MultiNodeSysctlValue is the value written for one sysctl: a non-negative
+                              integer. It is a type of its own so the schema can bound it; the key rule
+                              above is CEL, whose cost budget an unbounded value would exceed.
+                            maxLength: 20
+                            pattern: ^[0-9]+$
+                            type: string
+                          description: |-
+                            Sysctls are kernel memory settings written on the member's node before
+                            the drop, each logged with its value before and after. Keys are vm.*
+                            names (vm.min_free_kbytes, vm.watermark_scale_factor); values are
+                            non-negative integers. They are not restored when the group goes away.
+                          maxProperties: 16
+                          type: object
+                          x-kubernetes-validations:
+                            - message: sysctls keys must be vm.<name> (lowercase letters, digits, '_')
+                              rule: self.all(k, k.matches('^vm[.][a-z0-9_]+$'))
+                      type: object
                     rdmaResource:
                       description: |-
                         RDMAResource is an extended resource name advertised by an RDMA device
@@ -3921,8 +3982,9 @@ spec:
                     PodAnnotations are merged into the inference Pod's metadata.annotations.
                     Use this to tag Pods for downstream tooling (cost attribution, service
                     mesh routing, custom admission controllers) without those tools needing
-                    to know about LLMKube's CRD schema. Pure passthrough; the operator
-                    itself does not set any annotations on inference Pods today.
+                    to know about LLMKube's CRD schema. A value set here wins over an
+                    annotation the operator sets (karpenter.sh/do-not-disrupt, the
+                    prometheus.io scrape hints). A key removed here is removed from the Pods.
                   type: object
                 podLabels:
                   additionalProperties:
@@ -3933,7 +3995,8 @@ spec:
                     `inference.llmkube.dev/service`). Operator-managed keys take precedence
                     on collision so the Deployment selector stays in sync with the Pods it
                     owns. The Deployment selector itself uses only the operator-managed
-                    labels and is immutable, so changing PodLabels later is safe.
+                    labels and is immutable, so changing PodLabels later is safe. A key
+                    removed here is removed from the Pods.
                   type: object
                 podSecurityContext:
                   description: |-

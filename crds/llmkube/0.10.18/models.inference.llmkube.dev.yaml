@@ -100,6 +100,32 @@ spec:
                   required:
                     - configMapKeyRef
                   type: object
+                downloadConcurrency:
+                  description: |-
+                    DownloadConcurrency is how many spec.files and spec.mmproj entries the
+                    downloader stages at once. Unset stages one at a time. A file's close,
+                    SHA256 check and publish then overlap the next file's transfer. It
+                    requires spec.files and a source the downloader stages: pvc:// and oci://
+                    are mounted, not downloaded. On a FUSE cache that holds each open file on
+                    the node's disk (blobfuse2's file cache), every file in flight needs its
+                    size free there; downloadMaxInFlightSize caps that.
+                  format: int32
+                  maximum: 16
+                  minimum: 1
+                  type: integer
+                downloadMaxInFlightSize:
+                  description: |-
+                    DownloadMaxInFlightSize caps the combined size of the files the
+                    downloadConcurrency workers hold at once, as a quantity such as "90Gi".
+                    A file starts only while the size in flight plus its own fits, or when
+                    nothing else is in flight, so a file larger than the cap still stages,
+                    alone. Files start in list order. A file present in the cache counts its
+                    size on disk, and one whose size the origin does not report counts the
+                    whole cap. Set it to the node disk a FUSE cache may fill. It takes up to
+                    15 digits of bytes, or up to 6 digits with a suffix up to Ti, so every
+                    admitted value fits the downloader's 64-bit arithmetic.
+                  pattern: ^([1-9][0-9]{0,14}|[1-9][0-9]{0,5}(Ki|Mi|Gi|Ti|k|M|G|T))$
+                  type: string
                 fileSha256:
                   additionalProperties:
                     description: SHA256Digest is a hex-encoded SHA256 digest (64 characters, either case).
@@ -107,7 +133,7 @@ spec:
                     type: string
                   description: |-
                     FileSHA256 is a per-file SHA256 map for multi-file staging, keyed by
-                    repo-relative path (each key is a spec.files entry or spec.mmproj). Only
+                    file entry (the exact path or URL in spec.files, or spec.mmproj). Only
                     listed files are verified; a file with no entry is staged as before. It
                     is mutually exclusive with spec.sha256, and requires concrete file paths:
                     a glob cannot be keyed to an unknown expanded name, and a pre-staged
@@ -118,7 +144,13 @@ spec:
                 files:
                   description: |-
                     Files lists model weight artifacts to stage from Source. Entries are
-                    repo-relative for repository sources. The first entry is the primary model
+                    repo-relative for repository sources, or absolute http(s)/s3 object URLs.
+                    Resolve URLs on huggingface.co retain the path within their repository;
+                    S3 URLs retain the object key. Other HTTP URLs, including explicit
+                    HF_ENDPOINT mirror URLs, use the basename. Conflicting
+                    destination paths are rejected. Explicit URLs use per-origin credentials
+                    and require in-cluster staging (not the Metal agent or pre-staged volumes).
+                    The first entry is the primary model
                     file passed to the runtime. When Files is empty, Source must name a single
                     object directly.
                   items:
@@ -485,6 +517,33 @@ spec:
                         modelCache.claimName, or a source the downloader does not stage ahead
                         of time (s3://).
                       type: boolean
+                    size:
+                      description: |-
+                        Size overrides the operator's --model-cache-size flag (100Gi when the
+                        flag is unset too) for the model-cache PVC this operator creates for the
+                        service (#2448). A cluster serving both small and large models can then
+                        size each service's cache for its own model rather than for the largest
+                        one, without hand-managing a claimName PVC per service.
+
+                        It applies in perService mode only, to the per-service claim
+                        <isvc>-model-cache. When that claim already exists with a smaller
+                        storage request, the operator raises the request and the StorageClass
+                        expands the volume if its allowVolumeExpansion is true; a class that
+                        does not allow expansion rejects the request, which surfaces as a
+                        ModelCacheResizeRejected warning while the service keeps the claim as
+                        it is. A claim is grown only once it is Bound, because the request of a
+                        Pending claim is immutable. A smaller size never shrinks an existing
+                        claim. In shared mode the namespace has one claim that every service
+                        shares, so the field is ignored with a ModelCacheSizeIgnored warning.
+
+                        Mutually exclusive with claimName (the claim is user-owned) and with
+                        persistence Ephemeral (no PVC exists to size).
+                      maxLength: 64
+                      minLength: 1
+                      type: string
+                      x-kubernetes-validations:
+                        - message: size must be a positive Kubernetes quantity
+                          rule: isQuantity(self) && quantity(self).isGreaterThan(quantity('0'))
                     storageClassName:
                       description: |-
                         StorageClassName overrides the operator's --model-cache-storage-class
@@ -515,6 +574,10 @@ spec:
                       rule: '!(has(self.storageClassName) && has(self.claimName))'
                     - message: 'storageClassName cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to class'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.storageClassName))'
+                    - message: 'size cannot be set together with claimName: the named claim is user-owned and its size was chosen when the claim itself was created'
+                      rule: '!(has(self.size) && has(self.claimName))'
+                    - message: 'size cannot be set when persistence is Ephemeral: the weights land in an emptyDir and no PVC is created to size; bound the emptyDir with resources.ephemeralStorage instead'
+                      rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.size))'
                     - message: 'prefetch cannot be set when persistence is Ephemeral: there is no cache volume to stage into'
                       rule: '!(has(self.persistence) && self.persistence == ''Ephemeral'' && has(self.prefetch) && self.prefetch)'
                 prefetch:
@@ -524,7 +587,9 @@ spec:
                     InferenceService, via an owner-ref'd Job that reuses the serving
                     init-container download stack. The Model reads Downloading until the
                     Job completes and Ready after it, so a referencing service starts from
-                    a cache hit. A glob in spec.files is expanded from the repository
+                    a cache hit. With prefetchOCI set, the Job publishes to a registry instead
+                    and consumers use a separate oci:// Model with the published digest.
+                    A glob in spec.files is expanded from the repository
                     listing before the Job is built, as the serving path expands it.
 
                     The Job stages into spec.modelCache.claimName when set. Otherwise the
@@ -1431,6 +1496,48 @@ spec:
                     prefetch pod schedules to; without a selector the PV can bind to a
                     node the InferenceService never runs on (#1964).
                   type: object
+                prefetchOCI:
+                  description: |-
+                    PrefetchOCI publishes downloaded files as a container image instead of staging
+                    the Model into a PVC. Consumers use a separate oci:// Model pinned to the
+                    published digest. Setting this block enables publication without prefetch: true.
+                    At most 64 resolved files (including mmproj) may be published.
+                    Service-requested PVC prefetch remains independent.
+                  properties:
+                    ephemeralStorage:
+                      description: |-
+                        EphemeralStorage is the required node-local disk budget for downloading
+                        all selected files, with headroom for partial downloads and container logs.
+                        Applied to requests and limits on each Job container and to emptyDir.sizeLimit.
+                        No default is safe for both small and very large models.
+                      type: string
+                      x-kubernetes-validations:
+                        - message: ephemeralStorage must be a positive Kubernetes quantity
+                          rule: isQuantity(self) && quantity(self).isGreaterThan(quantity('0'))
+                    image:
+                      description: Image is a fully qualified registry/repository:tag destination (no oci:// prefix).
+                      minLength: 1
+                      type: string
+                    pushSecretRef:
+                      description: |-
+                        PushSecretRef names a kubernetes.io/dockerconfigjson Secret in the Model's
+                        namespace. It is mounted only in the publisher, never in the downloader.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                  required:
+                    - ephemeralStorage
+                    - image
+                  type: object
                 prefetchTolerations:
                   description: |-
                     PrefetchTolerations are applied to the prefetch Job's pod, and govern
@@ -1523,7 +1630,8 @@ spec:
                   type: string
                 source:
                   description: |-
-                    Source defines where to obtain the model.
+                    Source defines where to obtain the model. It may be omitted when every
+                    files entry is an absolute http(s) or s3 object URL.
                     For GGUF models: URL or path to a .gguf file.
                     For MLX models: local directory path containing the model (config.json, weights).
                     Supported schemes: http://, https://, file://, pvc://, hf://, s3://, oci://, or absolute paths.
@@ -1577,6 +1685,11 @@ spec:
 
                     One Secret may carry both sets of keys; each is used only by the source
                     scheme it belongs to.
+
+                    On the Metal path the metal-agent reads the Secret only when it carries
+                    the label inference.llmkube.dev/model-source-credentials=true, and never
+                    reads the relay token Secret (llmkube-metal-relay); any other Secret
+                    refuses the start with SourceSecretNotAllowed.
                   properties:
                     name:
                       default: ""
@@ -1589,24 +1702,30 @@ spec:
                       type: string
                   type: object
                   x-kubernetes-map-type: atomic
-              required:
-                - source
               type: object
               x-kubernetes-validations:
+                - message: source is required unless every files entry is an absolute http(s) or s3 URL and mmproj is unset
+                  rule: has(self.source) || (has(self.files) && self.files.size() > 0 && self.files.all(f, f.matches('^(https?|s3)://')) && !has(self.mmproj))
                 - message: 'sha256 verifies a single artifact: it cannot be combined with files or mmproj, or with a pre-staged oci:// source (use fileSha256 for multi-file staging)'
-                  rule: '!((has(self.sha256) && self.sha256.size() > 0) && ((has(self.files) && self.files.size() > 0) || (has(self.mmproj) && self.mmproj.size() > 0) || self.source.startsWith(''oci://'')))'
+                  rule: '!((has(self.sha256) && self.sha256.size() > 0) && ((has(self.files) && self.files.size() > 0) || (has(self.mmproj) && self.mmproj.size() > 0) || (has(self.source) && self.source.startsWith(''oci://''))))'
                 - message: 'fileSha256 requires spec.files: it names the expected digest of each staged artifact'
                   rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || (has(self.files) && self.files.size() > 0)'
                 - message: fileSha256 cannot verify a pre-staged oci:// artifact, which is already pinned by its image digest
-                  rule: '!(has(self.fileSha256) && self.fileSha256.size() > 0 && self.source.startsWith(''oci://''))'
+                  rule: '!(has(self.fileSha256) && self.fileSha256.size() > 0 && (has(self.source) && self.source.startsWith(''oci://'')))'
                 - message: 'fileSha256 needs concrete file paths: a glob cannot be keyed to an unknown expanded name'
-                  rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || !has(self.files) || self.files.all(f, !f.contains(''*'') && !f.contains(''?'') && !f.contains(''[''))'
+                  rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || !has(self.files) || self.files.all(f, f.matches(''^(https?|s3)://'') || (!f.contains(''*'') && !f.contains(''?'') && !f.contains(''['')))'
                 - message: every fileSha256 key must name a spec.files entry or spec.mmproj
                   rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, (has(self.files) && self.files.exists(f, f == k)) || (has(self.mmproj) && self.mmproj == k))'
                 - message: fileSha256 keys must not contain whitespace
                   rule: '!has(self.fileSha256) || self.fileSha256.size() == 0 || self.fileSha256.all(k, !k.matches(''[[:space:]]''))'
+                - message: 'downloadMaxInFlightSize caps what the downloadConcurrency workers hold at once: it requires downloadConcurrency above 1'
+                  rule: '!has(self.downloadMaxInFlightSize) || (has(self.downloadConcurrency) && self.downloadConcurrency > 1)'
+                - message: 'downloadConcurrency sets how many spec.files the downloader stages at once: it requires spec.files, and a pvc:// or oci:// source is not downloaded'
+                  rule: '!has(self.downloadConcurrency) || (has(self.files) && self.files.size() > 0 && (!has(self.source) || (!self.source.startsWith(''pvc://'') && !self.source.startsWith(''oci://''))))'
                 - message: 'prefetch cannot be combined with modelCache.persistence Ephemeral: there is no cache volume to stage into'
                   rule: '!(has(self.prefetch) && self.prefetch && has(self.modelCache) && has(self.modelCache.persistence) && self.modelCache.persistence == ''Ephemeral'')'
+                - message: prefetchOCI cannot be combined with modelCache; configure service caches on InferenceService
+                  rule: '!has(self.prefetchOCI) || !has(self.modelCache)'
             status:
               description: status defines the observed state of Model
               properties:
@@ -1624,10 +1743,14 @@ spec:
                     Each condition has a unique type and reflects the status of a specific aspect of the resource.
 
                     Standard condition types include:
-                    - "Available": the model is downloaded and ready for use
+                    - "Available": the model is ready for use. A source the controller caches
+                      itself is downloaded by then; a remote source is fetched by the serving
+                      pod when it starts, so the download can still be running
                     - "Progressing": the model is being downloaded or processed
                     - "Degraded": the model download or setup failed
-                    - "SourceDrifted": the upstream source bytes differ from the cached copy
+                    - "SourceDrifted": the upstream source differs from what the controller
+                      last recorded: its cached copy for a source it caches, otherwise the
+                      fingerprint it recorded
 
                     The status of each condition is one of True, False, or Unknown.
                   items:
@@ -1849,6 +1972,39 @@ spec:
                   x-kubernetes-list-map-keys:
                     - claimName
                   x-kubernetes-list-type: map
+                prefetchOCI:
+                  description: PrefetchOCI records the published image and the files it contains.
+                  properties:
+                    files:
+                      description: Files contains image-root-relative paths, with the primary file first.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    fingerprint:
+                      description: Fingerprint identifies the source, file set and destination of this publication.
+                      type: string
+                    image:
+                      description: Image is the published oci://registry/repository@sha256:... reference.
+                      type: string
+                    jobName:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    phase:
+                      description: Phase is Pending, Running, Succeeded or Failed.
+                      enum:
+                        - Pending
+                        - Running
+                        - Succeeded
+                        - Failed
+                      type: string
+                  required:
+                    - phase
+                  type: object
                 sha256:
                   description: |-
                     SHA256 is the computed SHA256 hash of the model file.

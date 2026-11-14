@@ -143,6 +143,38 @@
                       "null"
                     ]
                   },
+                  "prefixAffinity": {
+                    "additionalProperties": false,
+                    "description": "PrefixAffinity sends a request to the pod most likely to hold its\nprompt's prefix in KV cache, traded against that pod's load. The router\nremembers which prompt blocks it sent to each pod, so it needs no session\nheader and no engine support. Set it (an empty object takes the\ndefaults) to turn it on. It requires mode: LoadAware; with RoundRobin it\nis ignored and the router emits a PrefixAffinityIgnored warning event.",
+                    "properties": {
+                      "blockBytes": {
+                        "default": 1024,
+                        "description": "BlockBytes is the size of the prompt blocks the router hashes, in bytes\nof the request's tools, system prompt and messages (about four bytes\nper token). A shared prefix counts in whole blocks, so smaller blocks\ncatch shorter shared prefixes and cost more memory. Defaults to 1024.",
+                        "format": "int32",
+                        "maximum": 16384,
+                        "minimum": 256,
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "maxBlocksPerEndpoint": {
+                        "default": 16384,
+                        "description": "MaxBlocksPerEndpoint bounds the blocks the router remembers per pod;\nthe least recently sent go first. The default, 16384, covers 16 MiB of\nprompt (about 4M tokens) per pod at the default block size, more than a\npod's KV cache holds.",
+                        "format": "int32",
+                        "maximum": 262144,
+                        "minimum": 1024,
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      }
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
                   "sessionAffinity": {
                     "additionalProperties": false,
                     "description": "SessionAffinity places a new session on the least-loaded pod. The session\nstays there unless that pod is queuing and clearly busier than another\npod, and then it stays where it moved. It requires mode: LoadAware; with\nRoundRobin it is ignored and the router emits a SessionAffinityIgnored\nwarning event.",
@@ -487,7 +519,7 @@
                 ]
               },
               "weight": {
-                "description": "Weight is used for the \"weighted\" routing strategy. Higher values\nreceive proportionally more traffic. Ignored for other strategies.\nDefault 1 when unset.",
+                "description": "Weight is used for the \"weighted\" routing strategy. Higher values\nreceive proportionally more traffic. Ignored for other strategies.\nDefault 1 when unset. 0 drains the backend from weighted rules: it\nreceives no traffic from them, even while every other backend in the\nrule is unavailable (the Gateway API meaning of a zero weight, which\nboth data planes follow). A weighted rule needs at least one backend\nwith a positive weight.",
                 "format": "int32",
                 "minimum": 0,
                 "type": [
@@ -749,6 +781,15 @@
               "additionalProperties": false,
               "description": "AuditLog controls structured audit emission. Auditing is always on;\nthis field tunes the destination and verbosity.",
               "properties": {
+                "callerHeader": {
+                  "description": "CallerHeader names a request header whose value is added to every\naudit entry as caller, for example X-LLMKube-Client set by each\nclient. The client chooses the value, so it is a label rather than an\nidentity. It is cut to 128 bytes, and characters outside printable\nASCII are replaced with '?'. A header that carries a credential (Authorization,\nProxy-Authorization, Cookie, X-Api-Key, Api-Key, X-Goog-Api-Key) is\nrefused.",
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9!#$%\u0026'*+.^_|~-]+$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "filePath": {
                   "description": "FilePath is the destination when Sink=file. Must be writable inside\nthe router-proxy container. Defaults to \"/var/log/mlx-router/audit.log\".",
                   "type": [
@@ -758,6 +799,13 @@
                 },
                 "includeRequestBody": {
                   "description": "IncludeRequestBody, when true, includes the OpenAI request body in\nevery audit entry. Disabled by default for size and privacy.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "logClientAddress": {
+                  "description": "LogClientAddress, when true, adds the address of the request's sender\nto every audit entry as client. It is the TCP peer: in-cluster callers\nkeep their pod IP through the ClusterIP. When the peer is in\nTrustedProxyCIDRs, it is the first address in X-Forwarded-For, read\nfrom the right, that is not a trusted proxy. Off by default, because a\nclient address is personal data in some deployments.",
                   "type": [
                     "boolean",
                     "null"
@@ -773,6 +821,18 @@
                   ],
                   "type": [
                     "string",
+                    "null"
+                  ]
+                },
+                "trustedProxyCIDRs": {
+                  "description": "TrustedProxyCIDRs lists the proxies in front of the router (an\ningress, a gateway) whose X-Forwarded-For is believed, as CIDRs or\nsingle addresses. Any client can send X-Forwarded-For, so with this\nunset the header is ignored and client is always the TCP peer.\nRequires logClientAddress. The controller validates the entries.",
+                  "items": {
+                    "maxLength": 50,
+                    "type": "string"
+                  },
+                  "maxItems": 32,
+                  "type": [
+                    "array",
                     "null"
                   ]
                 }
@@ -953,7 +1013,7 @@
                 },
                 "mode": {
                   "default": "header-only",
-                  "description": "Mode determines how the router determines a request's\nclassification.\n\"header-only\" (default) trusts the request header\n  (HeaderKey, defaults to x-llmkube-classification).\n\"detector\" runs the bundled in-proxy detector.\n\"hybrid\" prefers the header, falling back to the detector when no\n  header is present.",
+                  "description": "Mode determines how the router determines a request's\nclassification.\n\"header-only\" (default) trusts the request header\n  (HeaderKey, defaults to x-llmkube-classification) and never reads\n  a classification from the request body. It is the only implemented\n  mode.\n\"detector\" and \"hybrid\" are reserved for a future in-proxy content\n  classifier (#441) and are refused today. On dataPlane: Proxy the\n  webhook rejects them and a router that sets either is not\n  Validated (reason ClassifierNotImplemented when nothing else in the\n  spec is invalid). On dataPlane: Gateway and AgentGateway a\n  dataClassification match under either is refused.",
                   "enum": [
                     "header-only",
                     "detector",
@@ -988,7 +1048,7 @@
         },
         "proxy": {
           "additionalProperties": false,
-          "description": "Proxy configures the managed router-proxy Deployment (replicas,\nimage override for air-gapped sites, resources). Sensible defaults\napply when omitted.",
+          "description": "Proxy configures the managed router-proxy Deployment (replicas,\nimage override for air-gapped sites, resources) and the name of its\nService. Sensible defaults apply when omitted.",
           "properties": {
             "affinity": {
               "additionalProperties": false,
@@ -1965,6 +2025,19 @@
                 "null"
               ]
             },
+            "drainTimeout": {
+              "description": "DrainTimeout is how long a router-proxy replica keeps serving its\nin-flight requests after SIGTERM, so a rollout finishes the streams\nit holds instead of cutting them at the proxy's own default. It\nsets the proxy's --shutdown-timeout and the pod's\nterminationGracePeriodSeconds, which is this value plus a fixed\n5s margin so the kubelet does not SIGKILL before the drain ends.\nA stream longer than this still ends at the drain deadline. The\nproxy's default of 30s applies when unset, and nothing is rendered\non the pod template, so an operator upgrade does not roll existing\nproxies. Changing it changes the pod template, so it rolls the\nproxy pods, and a replica that drains stays Terminating for up to\nthis long, delaying that roll. Must be between 1s and 1h.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "drainTimeout must be between 1s and 1h",
+                  "rule": "duration(self) \u003e= duration('1s') \u0026\u0026 duration(self) \u003c= duration('1h')"
+                }
+              ]
+            },
             "image": {
               "description": "Image overrides the default router-proxy container image. Useful\nfor air-gapped clusters that pin to an internal registry digest.",
               "type": [
@@ -2031,6 +2104,21 @@
                 "string",
                 "null"
               ]
+            },
+            "readinessRequiredListeners": {
+              "description": "ReadinessRequiredListeners lists TCP ports that must have a LISTEN\nsocket in the proxy pod's network namespace before the replica is\nReady, for example [15008] for Istio ambient's HBONE inbound port, so a\nreplica the mesh cannot reach leaves the Service endpoints. When set,\nthe readiness probe moves to /readyz; liveness stays on /health. If the\nproxy cannot read /proc/net/tcp it reports Ready and logs a warning.\nUnset renders nothing on the pod template.",
+              "items": {
+                "format": "int32",
+                "maximum": 65535,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "maxItems": 16,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "set"
             },
             "replicas": {
               "description": "Replicas is the desired number of router-proxy pods. Defaults to 1.\nThe proxy is stateless for routing decisions; budget and SLO\ncounters live in memory and reset on pod restart until the\npersistence feature lands.\n\nWhen any backend resolves to a ModelPool member, the operator pins\nthis to 1 regardless of the value set here: ModelPool activation\nserializes swaps through a single in-process lock, so a second proxy\nreplica would race it and thrash the shared GPU slot. Multi-replica\npooled routers need cross-replica swap coordination (a lease), tracked\nas a follow-up.",
@@ -2140,6 +2228,15 @@
             },
             "runtimeClassName": {
               "description": "RuntimeClassName selects a Kubernetes RuntimeClass for the router-proxy\npod, for example a sandboxed runtime such as gVisor or Kata. Maps\ndirectly to PodSpec.RuntimeClassName. A RuntimeClass with a scheduling\nsection has its node selector and tolerations merged into the pod by the\nRuntimeClass admission controller, so no separate fields are needed.\nUnset leaves the pod spec unchanged.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "serviceName": {
+              "description": "ServiceName names the data-plane Service in front of the router-proxy\npods, so clients can use a short in-cluster URL such as\nhttp://llmkube.\u003cnamespace\u003e.svc.cluster.local/v1 (with endpoint.port 80).\nUnset keeps the generated name, \u003crouter\u003e-router-proxy. Only that Service\ntakes this name: the Deployment, ConfigMap, admin Service\n(\u003crouter\u003e-router-proxy-admin), pod labels, and selectors keep their\ngenerated names, so changing it does not roll the proxy pods.\nstatus.endpoint follows the Service.\n\nA Service with this name that this ModelRouter does not control is never\nadopted or overwritten: the router reports RouterProxyNameTaken and keeps\nits previous Service. When the name changes (including back to unset),\nthe previous Service this ModelRouter controls is deleted only after the\nnew one exists. Clients of the old name must move, and a NodePort the\ncluster allocated or a LoadBalancer address is reassigned (a pinned\nendpoint.nodePort is carried over). Must be a DNS-1035 label and must not\nequal the admin Service's name. Ignored unless dataPlane is Proxy.",
+              "maxLength": 63,
+              "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
               "type": [
                 "string",
                 "null"
@@ -2350,7 +2447,7 @@
                 "description": "Match groups all match conditions. All declared conditions must be\ntrue for the rule to fire (AND semantics). If Match is omitted the\nrule always matches (useful as a catch-all before DefaultRoute).",
                 "properties": {
                   "dataClassification": {
-                    "description": "DataClassification matches if the inbound request carries any of\nthese classifications. The classification source depends on\nPolicy.Classification.Mode: a request header\n(x-llmkube-classification by default), the bundled detector, or\nboth. Common values: \"public\", \"internal\", \"confidential\", \"pii\",\n\"phi\".",
+                    "description": "DataClassification matches if the inbound request carries any of\nthese classifications. The classification is the value of the\nrequest header named by Policy.Classification.HeaderKey\n(x-llmkube-classification by default); the router does not classify\nthe request body, so a request without the header matches no\ndataClassification rule. Common values: \"public\", \"internal\",\n\"confidential\", \"pii\", \"phi\".",
                     "items": {
                       "type": "string"
                     },
@@ -2389,7 +2486,7 @@
                     ]
                   },
                   "requiredCapabilities": {
-                    "description": "RequiredCapabilities filters backends. The rule only matches if at\nleast one backend in Route.Backends advertises every listed\ncapability.",
+                    "description": "RequiredCapabilities filters backends. The rule only matches if at\nleast one backend in Route.Backends advertises every listed\ncapability, and on dataPlane: Proxy only those backends serve the\nrule's requests, under every strategy. A backend that lacks one is\nnever tried, not even as a fallback.",
                     "items": {
                       "type": "string"
                     },
@@ -2426,7 +2523,7 @@
                 "description": "Route is the action taken when this rule matches.",
                 "properties": {
                   "backends": {
-                    "description": "Backends is an ordered list of RouterBackend.Name values. For the\n\"primary-fallback\" strategy, the first entry is the primary and\nsubsequent entries are tried in order on failure. For \"weighted\",\ntraffic is distributed across all entries by Backend.Weight. For\n\"shadow\", the first entry serves the response and subsequent entries\nreceive mirrored requests for evaluation only.",
+                    "description": "Backends is an ordered list of RouterBackend.Name values. For the\n\"primary-fallback\" strategy, the first entry is the primary and\nsubsequent entries are tried in order on failure. For \"weighted\",\ntraffic is distributed across all entries by Backend.Weight. For\n\"shadow\", the first entry serves the response (falling back in order\nas primary-fallback does) and the entries after the one that served\nreceive mirrored copies for evaluation only; it needs at least two.",
                     "items": {
                       "type": "string"
                     },
@@ -2447,7 +2544,7 @@
                   },
                   "strategy": {
                     "default": "primary-fallback",
-                    "description": "Strategy selects how multiple backends are used. On dataPlane:\nAgentGateway only primary-fallback compiles, and a rule routes to its\nfirst healthy backend: when that backend's InferenceService has no\nready replica, the next reconcile moves the rule to the next backend.\nFailover there follows replica readiness, not individual request errors.",
+                    "description": "Strategy selects how multiple backends are used. On dataPlane: Proxy,\nweighted picks a backend per request in proportion to its weight among\nthe rule's backends that are healthy, not quarantined and advertise\nevery required capability; a request that fails on it fails over to\nanother backend of the rule picked the same way, never the same one\ntwice. A weighted rule there cannot name two members of one ModelPool,\nsince they share one GPU slot and would swap on every other request.\nshadow serves the client exactly as primary-fallback does and sends a\ncopy of each request, marked x-llmkube-shadow: true, to the rule's\nother healthy backends after the one that served; their responses are\ndiscarded, their failures never quarantine them, and they are not\ncharged to budgets. Copies are best effort: at most 4 run at once per\nbackend and the rest are dropped and counted. An external backend that\nis a shadow target receives, and bills, every request. A shadow target\ncannot be a ModelPool member. dataPlane: Gateway rejects shadow. On dataPlane:\nAgentGateway only primary-fallback compiles, and a rule routes to its\nfirst healthy backend: when that backend's InferenceService has no\nready replica, the next reconcile moves the rule to the next backend.\nFailover there follows replica readiness, not individual request errors.",
                     "enum": [
                       "primary-fallback",
                       "weighted",
