@@ -1,35 +1,32 @@
 {
-  "description": "Auto-generated derived type for SnapshotSpec via `CustomResource`",
+  "description": "Auto-generated derived type for RestoreSpec via `CustomResource`",
   "properties": {
     "spec": {
       "additionalProperties": false,
-      "description": "A single kopia snapshot represented as a Kubernetes object.",
+      "description": "A restore operation from a snapshot/identity into a PVC, or a passive populator source.\nDesired state of a Restore: where to read from, where to write to, and how to behave when the snapshot is missing.",
       "properties": {
-        "deletionPolicy": {
-          "description": "Lifecycle of the underlying kopia snapshot when its `Snapshot` CR is deleted.\nProduced backups default to `Delete`; discovered snapshots are forced to `Retain`.",
-          "enum": [
-            "Delete",
-            "Retain",
-            "Orphan"
-          ],
+        "credentialProjection": {
+          "additionalProperties": false,
+          "description": "Opt-in copying of the repository's credential Secret(s) into the mover's namespace (default off).",
           "nullable": true,
+          "properties": {
+            "enabled": {
+              "default": false,
+              "description": "Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
           "type": [
-            "string",
-            "null"
-          ]
-        },
-        "description": {
-          "description": "Free-form text recorded on the kopia snapshot manifest\n(`snapshot create --description`). Per-invocation by nature —\nscheduled/discovered `Snapshot`s never set this (no templated\ndescriptions).",
-          "maxLength": 1024,
-          "nullable": true,
-          "type": [
-            "string",
+            "object",
             "null"
           ]
         },
         "failurePolicy": {
           "additionalProperties": false,
-          "description": "Mover Job retry and deadline limits for this run.",
+          "description": "Mover `Job` retry/deadline limits (`backoffLimit`, `activeDeadlineSeconds`).",
           "nullable": true,
           "properties": {
             "activeDeadlineSeconds": {
@@ -67,7 +64,7 @@
         },
         "mover": {
           "additionalProperties": false,
-          "description": "Per-run mover overrides for THIS snapshot's Job (resources, cache budgets,\n`securityContext`, `privilegedMode`, `ttlSecondsAfterFinished`).\n\nLayered field-wise as `repository.moverDefaults \u003c policyRef's mover \u003c\nthis mover` — the highest layer that sets a field wins, and a field you\nomit falls through, so a partial override here can only adjust what it\nnames. This exists so an ad-hoc one-shot (`kubectl create` before a risky\nchange, a debug run that needs more memory or a different UID) does not\nrequire editing the shared, GitOps-managed `SnapshotPolicy` that every\nscheduled run also uses.\n\nTwo deliberate exclusions:\n\n* `mover.cache` here is **run-scoped only**. It sets this run's kopia cache\n  budgets (`--content-cache-size-mb`/`--metadata-cache-size-mb`) and, when\n  the cache is `Ephemeral`, that Job's cache-volume `capacity` and\n  `storageClassName` — a generic ephemeral volume bound to this pod and\n  GC'd with it. What it cannot touch is anything **shared**: `cache.mode`\n  is policy-owned (a per-run `mode: Persistent` never mints the shared\n  PVC), and under `mode: Persistent` the PVC's own `capacity`/\n  `storageClassName` come from the policy alone, because that claim is\n  named per-POLICY and every sibling `Snapshot` depends on it.\n\n* `inheritSecurityContextFrom.snapshot` is restore-only and rejected here,\n  exactly as on `SnapshotPolicy`: a backup's identity comes from the live\n  workload; it is the run that *records* an identity.\n\nAn elevated mover assembled here is gated by the namespace's\n`privileged-movers` opt-in just like a policy-level one — the gate runs on\nthe merged result.",
+          "description": "Per-run mover overrides for this restore's Job (resources, cache, `securityContext`).",
           "nullable": true,
           "properties": {
             "cache": {
@@ -76,15 +73,51 @@
               "nullable": true,
               "properties": {
                 "capacity": {
-                  "description": "Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).",
+                  "description": "Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,\nunset cache budgets default to a percentage of it (content 60%, metadata\n15%) and the two budgets together may claim at most 90% of it. Raising it on\na `Persistent` cache grows the existing PVC when its StorageClass allows\nvolume expansion; a smaller value is never applied to an existing PVC. Must be\nat least `3Mi` (1MiB for each cache under the 90% ceiling).",
                   "nullable": true,
                   "type": [
                     "string",
                     "null"
                   ]
                 },
+                "contentCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "contentCacheSizeMb": {
-                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`).",
+                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`). The original\nspelling of `contentCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -92,8 +125,44 @@
                     "null"
                   ]
                 },
+                "metadataCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "metadataCacheSizeMb": {
-                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).",
+                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original\nspelling of `metadataCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -791,36 +860,141 @@
             "null"
           ]
         },
-        "onScheduleDelete": {
-          "description": "What the deletion of a `SnapshotSchedule` does to the `Snapshot` CRs it\nproduced (which Kubernetes GC cascade-deletes via their ownerReference).\nDefault `Retain`: the CRs are removed but their kopia snapshots survive and\nthe catalog rediscovers them as `origin: discovered`. `Delete` opts into the\ncascade: each Snapshot's own `deletionPolicy` applies.\n\nDeliberately 2-variant (not reusing [`DeletionPolicy`]): an `Orphan` in\ncascade position would differ from `Retain` only in per-CR event/metric\nbookkeeping — an invalid state made unrepresentable. The guard's `Retain`\nis exactly `DeletionPolicy::Retain`'s semantics (CR removed, kopia snapshot\nstays, catalog rediscovers it), deliberately NOT the `Orphan` event storm\n(no per-CR \"orphaned\" event/metric for every produced Snapshot).",
-          "enum": [
-            "Retain",
-            "Delete"
-          ],
-          "nullable": true,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pin": {
-          "description": "Exempt this snapshot from GFS retention.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "policyRef": {
+        "options": {
           "additionalProperties": false,
-          "description": "The `SnapshotPolicy` recipe to run; absent for `discovered` backups.",
+          "description": "kopia restore behavior (file deletion, permission/atomicity handling).",
           "nullable": true,
           "properties": {
-            "name": {
-              "description": "Name of the referenced `SnapshotPolicy`.",
-              "type": "string"
+            "enableFileDeletion": {
+              "description": "Delete files in the target that are not present in the snapshot (exact mirror); off by default.\nWired to kopia's `--[no-]delete-extra` (previously a silent no-op — see issue #216 gap sweep).",
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
-            "namespace": {
-              "description": "Namespace of the `SnapshotPolicy`; absent = same namespace as the referrer.",
+            "ignoreErrors": {
+              "description": "`--[no-]ignore-errors`: ignore all restore errors and continue (kopia default `false`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "ignorePermissionErrors": {
+              "description": "Continue past permission errors during restore (default true).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "overwriteDirectories": {
+              "description": "`--[no-]overwrite-directories`: overwrite existing directories in the target\n(kopia default `true`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "overwriteFiles": {
+              "description": "`--[no-]overwrite-files`: overwrite existing files in the target (kopia default `true`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "overwriteSymlinks": {
+              "description": "`--[no-]overwrite-symlinks`: overwrite existing symlinks in the target\n(kopia default `true`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "parallel": {
+              "description": "`--parallel`: restore parallelism (kopia default `8`; `1` disables parallelism).",
+              "format": "uint32",
+              "minimum": 0,
+              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "skipExisting": {
+              "description": "`--[no-]skip-existing`: skip files/symlinks that already exist in the target\n(kopia default `false`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "skipOwners": {
+              "description": "`--[no-]skip-owners`: skip restoring file owners (kopia default `false`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "skipPermissions": {
+              "description": "`--[no-]skip-permissions`: skip restoring file permissions (kopia default `false`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "skipTimes": {
+              "description": "`--[no-]skip-times`: skip restoring file modification times (kopia default `false`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "writeFilesAtomically": {
+              "description": "Write files atomically via a temp file + rename (default true).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "writeSparseFiles": {
+              "description": "`--[no-]write-sparse-files`: attempt to write files sparsely, allocating the\nminimum disk space needed (kopia default `false`).",
+              "nullable": true,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "policy": {
+          "additionalProperties": false,
+          "description": "What to do when the referenced snapshot doesn't exist yet, and how long to wait.",
+          "nullable": true,
+          "properties": {
+            "onMissingSnapshot": {
+              "description": "What to do when the resolved source matches no snapshot. Defaults to `Fail`\n(fail-closed) so an explicit restore can never silently no-op; choose\n`Continue` to provision an empty volume instead (deploy-or-restore).",
+              "enum": [
+                "Fail",
+                "Continue"
+              ],
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "waitTimeout": {
+              "description": "How long to wait for the source snapshot to appear before giving up (e.g. `5m`).",
               "nullable": true,
               "type": [
                 "string",
@@ -828,9 +1002,6 @@
               ]
             }
           },
-          "required": [
-            "name"
-          ],
           "type": [
             "object",
             "null"
@@ -838,7 +1009,7 @@
         },
         "repository": {
           "additionalProperties": false,
-          "description": "The ONE repository this `Snapshot` targets, pinned by value at mint\ntime. Stamped by a multi-repository `SnapshotPolicy` fan-out (each child\ncovers exactly one member of the policy's repository set) and by\n`SnapshotReplication` copy CRs (the destination repository). Absent for\nthe legacy single-repository case, where the policy's own\n`spec.repository` (or, for catalog rows, the owning repository CR) is\nthe answer — an absent pin resolves exactly as before this field\nexisted, so pre-feature `Snapshot`s are untouched.",
+          "description": "The repository to read from; derived from `source` when omitted, required only with `source.identity`.",
           "nullable": true,
           "properties": {
             "kind": {
@@ -874,126 +1045,715 @@
             "null"
           ]
         },
-        "source": {
+        "selection": {
           "additionalProperties": false,
-          "description": "The ONE concrete source this `Snapshot` covers, when `policyRef` names a\nrecipe whose `sources[]` expands to many — i.e. a\n[`pvcSelector`](crate::snapshot_policy::PvcSelector).\n\nStamped by whoever minted the CR: a `SnapshotSchedule` fire, or\n`kubectl kopiur snapshot now`. Absent for the ordinary single-source\ncase, where the policy's own `sources[0]` is the target.\n\nAbsent against a *selector* policy is refused rather than guessed. The\noperator must never pick a PVC on the user's behalf: silently backing up\none arbitrary volume out of N looks exactly like success.",
+          "description": "Restore only some paths out of the snapshot instead of its whole root —\na partial restore (e.g. bring back one deleted file into a live, shared\nPVC). Absent restores everything. Not allowed with `target.streamExec`,\nwhich already selects exactly one file.",
           "nullable": true,
           "properties": {
-            "group": {
-              "additionalProperties": false,
-              "description": "The consistency group this child belongs to, present only when the\npolicy asked for one (`groupBy: VolumeGroupSnapshot`) AND the expansion\nproduced more than one member in this namespace.",
-              "nullable": true,
-              "properties": {
-                "namespace": {
-                  "description": "Namespace the `VolumeGroupSnapshot` lives in.\n\nA `VolumeGroupSnapshot` is namespaced and its `source.selector` is\nnamespace-local, so a selector spanning namespaces yields ONE GROUP PER\nNAMESPACE, not one group. The consistency guarantee is per-namespace and\nthis field is where that shows.",
-                  "type": "string"
-                },
-                "volumeGroupSnapshotName": {
-                  "description": "Name of the shared `VolumeGroupSnapshot`.",
-                  "type": "string"
-                }
+            "paths": {
+              "description": "Snapshot-root-relative paths to restore (files or directories), e.g.\n`docs/report.odt` or `music/album`. Relative, `/`-separated, normalized:\nno leading `/`, no `.` or `..` segments, no empty segments (`a//b`), no\ntrailing `/`. At most 64 paths and 16 KiB in total, no duplicates, and no\npath inside another selected path (selecting `docs` already restores\n`docs/report.odt`).",
+              "items": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
               },
-              "required": [
-                "namespace",
-                "volumeGroupSnapshotName"
-              ],
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "sourceIndex": {
-              "description": "Zero-based index into `policyRef`'s `spec.sources` this child expanded\nfrom.\n\nPins WHICH source's knobs (`readOnly`, `sourcePathOverride`,\n`sourcePathStrategy`, `acknowledgeLiveMutation`) govern this run, so a\npolicy carrying several sources stays unambiguous. An index that is out\nof range at reconcile time — the policy shrank mid-run — is a named\nterminal failure, never a silent fallback to `sources[0]`.",
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "target": {
-              "additionalProperties": false,
-              "description": "What the expansion resolved to.",
-              "oneOf": [
-                {
-                  "required": [
-                    "pvc"
-                  ]
-                }
-              ],
-              "properties": {
-                "pvc": {
-                  "additionalProperties": false,
-                  "description": "One `PersistentVolumeClaim`, fully qualified.",
-                  "properties": {
-                    "name": {
-                      "description": "Name of the matched `PersistentVolumeClaim`.",
-                      "type": "string"
-                    },
-                    "namespace": {
-                      "description": "Namespace of the matched `PersistentVolumeClaim`.\n\nExplicit rather than inferred from the `Snapshot`'s own namespace: a\n`pvcSelector` under a `ClusterRepository` may match across namespaces.",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "namespace"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                }
-              },
-              "type": "object"
+              "maxItems": 64,
+              "minItems": 1,
+              "type": "array"
             }
           },
           "required": [
-            "sourceIndex",
-            "target"
+            "paths"
           ],
           "type": [
             "object",
             "null"
           ]
         },
-        "tags": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Free-form tags attached to the kopia snapshot manifest itself\n(`snapshot create --tags`), e.g. `reason: pre-upgrade` — durable in the\nrepository, independent of this CR. Keys must be non-empty, colon-free\n(kopia splits on the first colon), and must not start with the reserved\n`kopiur` prefix; at most 10 tags, keys ≤ 63 bytes, values ≤ 256 bytes\n(webhook-enforced).",
-          "nullable": true,
-          "type": [
-            "object",
-            "null"
-          ]
-        }
-      },
-      "type": "object"
-    },
-    "status": {
-      "additionalProperties": false,
-      "description": "Observed state of a [`Snapshot`].",
-      "nullable": true,
-      "properties": {
-        "cleanup": {
+        "source": {
           "additionalProperties": false,
-          "description": "Post-run cleanup bookkeeping, so each cleanup runs at most once per Snapshot.",
-          "nullable": true,
+          "description": "Where to read data from (snapshotRef, fromPolicy, or identity).",
+          "oneOf": [
+            {
+              "required": [
+                "snapshotRef"
+              ]
+            },
+            {
+              "required": [
+                "fromPolicy"
+              ]
+            },
+            {
+              "required": [
+                "identity"
+              ]
+            }
+          ],
           "properties": {
-            "credsReapedAt": {
-              "description": "When the run's projected credential Secrets were reclaimed (RFC 3339);\nabsent until the reap has run. A projected copy is only needed while a mover\nJob can still load it via `envFrom`, but it is owner-ref'd to this CR, which\nlong outlives that Job — so without an explicit reap it would sit in the\nworkload namespace holding live repository credentials until the CR is pruned\n(#240).",
-              "nullable": true,
+            "fromPolicy": {
+              "additionalProperties": false,
+              "description": "A `SnapshotPolicy` CR, resolved via identity even with no `Snapshot` CR present (deploy-or-restore).",
+              "properties": {
+                "asOf": {
+                  "description": "Restore the newest snapshot at or before this RFC3339 timestamp (point-in-time).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "description": "Name of the `SnapshotPolicy` whose identity selects the snapshot.",
+                  "type": "string"
+                },
+                "namespace": {
+                  "description": "Namespace of the `SnapshotPolicy`; absent = the `Restore`'s own namespace.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "offset": {
+                  "default": 0,
+                  "description": "Which snapshot to pick: 0 = latest, 1 = previous, and so on.",
+                  "format": "int64",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "sourcePath": {
+                  "description": "The kopia source path to restore FROM, overriding the path kopiur derives\nfrom the policy.\n\nNormally the path is derived: a policy with one plain `pvc:`/`nfs` source\ncontributes its own path, and a `pvcSelector` policy contributes the path\nits `sourcePathStrategy` would have produced for the PVC being restored\n(`/pvc/\u003cname\u003e` or `/pvc/\u003cnamespace\u003e/\u003cname\u003e`) — the same rule the backup\nside used when it wrote the snapshot, so a fan-out restore fills each PVC\nfrom ITS OWN snapshot instead of the newest snapshot of any member.\n\nSet this when the derivation is ambiguous or wrong: selector sources that\ndisagree on `sourcePathStrategy`/`sourcePathOverride` (kopiur fails closed\nrather than guess), a policy whose selector sources share one\n`sourcePathOverride`, or a cross-namespace `target.pvcRef` whose derived\n`/pvc/\u003cnamespace\u003e/\u003cname\u003e` names a namespace the repository never saw.\n\nMirrors `IdentitySource::source_path`: it selects which kopia source to\nREAD, it does not change where the data is written.",
+                  "maxLength": 4096,
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
               "type": [
-                "string",
+                "object",
+                "null"
+              ]
+            },
+            "identity": {
+              "additionalProperties": false,
+              "description": "A raw kopia identity (foreign writers / aged-out catalog); requires `spec.repository`.",
+              "properties": {
+                "asOf": {
+                  "description": "Restore the newest snapshot at or before this RFC3339 timestamp (point-in-time).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "hostname": {
+                  "description": "The kopia `hostname` to match.",
+                  "type": "string"
+                },
+                "offset": {
+                  "description": "Which snapshot to pick: 0 = latest, 1 = previous, and so on.",
+                  "format": "int64",
+                  "nullable": true,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "snapshotID": {
+                  "description": "Pin an exact kopia snapshot by ID.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sourcePath": {
+                  "description": "The kopia source path to match; absent matches any path for the identity.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "username": {
+                  "description": "The kopia `username` to match.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "hostname",
+                "username"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "snapshotRef": {
+              "additionalProperties": false,
+              "description": "A `Snapshot` CR (scheduled, manual, or discovered).",
+              "properties": {
+                "name": {
+                  "description": "Name of the referenced object.",
+                  "type": "string"
+                },
+                "namespace": {
+                  "description": "Namespace of the referenced object; absent = same namespace as the referrer.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
                 "null"
               ]
             }
           },
+          "type": "object"
+        },
+        "target": {
+          "additionalProperties": false,
+          "description": "Where to write the restored data (pvc, pvcRef, or populator).",
+          "oneOf": [
+            {
+              "required": [
+                "pvc"
+              ]
+            },
+            {
+              "required": [
+                "pvcRef"
+              ]
+            },
+            {
+              "required": [
+                "populator"
+              ]
+            },
+            {
+              "required": [
+                "streamExec"
+              ]
+            }
+          ],
+          "properties": {
+            "populator": {
+              "description": "Passive populator mode: the restore is claimed by a PVC's `spec.dataSourceRef`.",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "pvc": {
+              "additionalProperties": false,
+              "description": "Operator creates the PVC.",
+              "properties": {
+                "accessModes": {
+                  "description": "Access modes for the new PVC; empty defaults to `[ReadWriteOnce]`. Closed\nenum in the schema; a non-canonical value persisted before enforcement\ndecodes as [`PvcAccessMode::Unknown`] and is rejected per-CR with the\nvalue quoted (webhook + reconciler, via `validate_access_modes`) instead\nof poisoning the typed watcher.",
+                  "items": {
+                    "description": "A Kubernetes PersistentVolumeClaim access mode.",
+                    "enum": [
+                      "ReadWriteOnce",
+                      "ReadOnlyMany",
+                      "ReadWriteMany",
+                      "ReadWriteOncePod"
+                    ],
+                    "type": "string"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "capacity": {
+                  "description": "Requested size of the new PVC (e.g. `100Gi`).",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "description": "Name of the PVC to create.",
+                  "type": "string"
+                },
+                "storageClassName": {
+                  "description": "StorageClass for the new PVC; absent uses the cluster default.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "pvcRef": {
+              "additionalProperties": false,
+              "description": "Write into an existing PVC.",
+              "properties": {
+                "name": {
+                  "description": "Name of the referenced object.",
+                  "type": "string"
+                },
+                "namespace": {
+                  "description": "Namespace of the referenced object; absent = same namespace as the referrer.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "streamExec": {
+              "additionalProperties": false,
+              "description": "Stream one virtual file out of the snapshot into a command's stdin in a\nrunning Pod — the companion of a `stream` backup source (e.g. feeding a\n`pg_dumpall` artifact back through `psql`). Writes no PVC.",
+              "properties": {
+                "fileName": {
+                  "description": "Which virtual file inside the snapshot to read back — the `fileName` the\nbackup's stream source used (e.g. `postgres.sql`).",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "workloadExec": {
+                  "additionalProperties": false,
+                  "description": "Where to send it: the command receives the file's bytes on stdin.",
+                  "properties": {
+                    "command": {
+                      "description": "The argv to execute. NOT a shell line: element 0 is the program, so use\n`[\"sh\", \"-ec\", \"...\"]` explicitly if you want shell semantics.\n\nReference credentials through the container's existing environment or mounted\nSecrets — never inline them here. This argv is copied into the mover Pod's\nspec, so anyone with `pods:get` in the namespace can read it.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "container": {
+                      "description": "Container to exec in; absent uses the Pod's default container.",
+                      "nullable": true,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "podSelector": {
+                      "additionalProperties": false,
+                      "description": "Standard label selector identifying the workload Pod, resolved in the\n`SnapshotPolicy`'s (or `Restore`'s) own namespace. Must not be empty — an\nempty selector matches every Pod in the namespace.",
+                      "properties": {
+                        "matchExpressions": {
+                          "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                          "items": {
+                            "additionalProperties": false,
+                            "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+                            "properties": {
+                              "key": {
+                                "description": "key is the label key that the selector applies to.",
+                                "type": "string"
+                              },
+                              "operator": {
+                                "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+                                "type": "string"
+                              },
+                              "values": {
+                                "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "array",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "operator"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
+                        },
+                        "matchLabels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "timeout": {
+                      "default": "1h",
+                      "description": "Go duration bounding the command (e.g. `2h`; default `1h`). On expiry the\ncommand is abandoned and the run fails, leaving no snapshot behind.\n\nThe same bound applies whether this exec is a backup's producer or a\n`streamExec` restore's consumer.",
+                      "nullable": true,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "command",
+                    "podSelector"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "fileName",
+                "workloadExec"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "exactly one of target.pvc, target.pvcRef, target.populator, target.streamExec",
+          "rule": "[has(self.target.pvc), has(self.target.pvcRef), has(self.target.populator), has(self.target.streamExec)].filter(x, x).size() == 1"
+        }
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "Observed state of a Restore, written by the controller/mover.",
+      "nullable": true,
+      "properties": {
+        "claims": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "The state of ONE claiming PVC of a `target.populator` restore (#443).\n\nWritten by the controller (every field except `resolved`/`observedAt`/\n`logTail`/`failure`) and by that claim's mover `Job`, which nests its status\npatch under `status.claims.\u003cpvc\u003e` and deliberately omits `phase` — the\ncontroller owns claim phase exactly as it owns the top-level one.",
+            "properties": {
+              "failure": {
+                "additionalProperties": false,
+                "description": "Structured terminal-failure detail for this claim. Mover-owned.",
+                "nullable": true,
+                "properties": {
+                  "exitCode": {
+                    "description": "The process exit code, if one was reported.",
+                    "format": "int32",
+                    "nullable": true,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "kopiaErrorClass": {
+                    "description": "kopia error class (e.g. `RepositoryUnavailable`, `AuthFailure`).",
+                    "type": "string"
+                  },
+                  "message": {
+                    "description": "A short human-readable message: what failed, why, and how to fix it.",
+                    "type": "string"
+                  },
+                  "op": {
+                    "description": "The mover operation that failed, as a stable label (e.g.\n`repository connect`, `snapshot create`) — the values of the mover's\n`KopiaOp::as_str()`. Distinguishes a repository-level connect failure\nfrom a source-level failure (a broken PVC), which share\n`kopiaErrorClass` values (e.g. `NotFound`). Absent on failures that\noccurred outside a kopia invocation.",
+                    "nullable": true,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "retryRecommended": {
+                    "description": "Whether retrying the same operation unchanged could succeed.",
+                    "type": "boolean"
+                  },
+                  "stderrTail": {
+                    "description": "The last lines of kopia's stderr, if any were captured (bounded by\n[`MAX_LOG_TAIL_BYTES`]).",
+                    "nullable": true,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "kopiaErrorClass",
+                  "message",
+                  "retryRecommended"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "job": {
+                "description": "The mover `Job` populating this claim's prime PVC.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "logTail": {
+                "description": "The last lines of this claim's mover output, written once at its terminal\ntransition. Mover-owned.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "Human-readable what / why / fix for the current phase.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "observedAt": {
+                "description": "When this claim's mover last patched (RFC3339). Mover-owned: every\n`StatusUpdate` carries it, and the field must exist here or the schema's\n`additionalProperties` pruning would silently drop the mover's whole patch.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phase": {
+                "description": "Lifecycle phase of one claiming PVC of a populator restore.",
+                "enum": [
+                  "Pending",
+                  "Populating",
+                  "Rebinding",
+                  "Populated",
+                  "AlreadyBound",
+                  "Failed"
+                ],
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pvcPrime": {
+                "description": "The prime PVC provisioned for this claim's populate handshake.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "Machine-readable reason for the current phase (`PopulatingPrimePvc`,\n`MoverJobFailed`, `SourcePathAmbiguous`, …).",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resolved": {
+                "additionalProperties": false,
+                "description": "The source this claim resolved and pinned; never re-resolved.",
+                "nullable": true,
+                "properties": {
+                  "identity": {
+                    "additionalProperties": false,
+                    "description": "The resolved kopia identity (`username@hostname:path`) of the snapshot.",
+                    "nullable": true,
+                    "properties": {
+                      "hostname": {
+                        "description": "The final `hostname` kopia records, fixed at admission.",
+                        "type": "string"
+                      },
+                      "sourcePath": {
+                        "description": "The resolved snapshot source path, when applicable (`username@hostname:path`).",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "username": {
+                        "description": "The final `username` kopia records, fixed at admission.",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "hostname",
+                      "username"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "kopiaSnapshotID": {
+                    "description": "The exact kopia snapshot manifest id the source resolved to; pinned once.",
+                    "nullable": true,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pinnedAt": {
+                    "description": "Timestamp at which the source was pinned (RFC3339).",
+                    "nullable": true,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "repository": {
+                    "additionalProperties": false,
+                    "description": "The repository the snapshot lives in, resolved from the source.",
+                    "nullable": true,
+                    "properties": {
+                      "kind": {
+                        "default": "Repository",
+                        "description": "Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].",
+                        "enum": [
+                          "Repository",
+                          "ClusterRepository"
+                        ],
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "name": {
+                        "description": "Name of the referenced `Repository`/`ClusterRepository`.",
+                        "type": "string"
+                      },
+                      "namespace": {
+                        "description": "Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "resolution": {
+                    "description": "Which outcome the source resolution pinned, once and never re-resolved.",
+                    "enum": [
+                      "Snapshot",
+                      "NoSnapshot"
+                    ],
+                    "nullable": true,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "snapshotRef": {
+                    "additionalProperties": false,
+                    "description": "The concrete `Snapshot` CR the source resolved to, when applicable.",
+                    "nullable": true,
+                    "properties": {
+                      "name": {
+                        "description": "Name of the referenced object.",
+                        "type": "string"
+                      },
+                      "namespace": {
+                        "description": "Namespace of the referenced object; absent = same namespace as the referrer.",
+                        "nullable": true,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "sourcePath": {
+                "description": "The kopia source path this claim restores FROM, derived from the policy's\n`sourcePathStrategy` (or pinned from `source.fromPolicy.sourcePath`).\nRecorded so a fan-out restore is auditable: each claim shows which member's\ndata it read.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "uid": {
+                "description": "`metadata.uid` of the claiming PVC this record describes. A record whose\nuid no longer matches the live claimant is STALE — the PVC was deleted and\nre-created — so the claim re-arms and the old claim's prime PVC / Job / PV\nare reaped under the recorded uid.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "waitStartedAt": {
+                "description": "When THIS claim's `policy.waitTimeout` window opened (RFC3339) — the first\npass on which this claim could actually proceed. Per-claim because\nclaimants appear at different times: a sibling created an hour later gets\nits own full window.",
+                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "description": "Per-claimant state for a `target.populator` restore, keyed by the claiming\nPVC's name (#443).\n\nA populator `Restore` is claimed by EVERY PVC whose `spec.dataSourceRef`\nnames it, not just the first, and each claimant gets its own prime PVC, its\nown mover `Job` and its own kopia source path — so each needs its own state.\nA **map**, not a list, because an RFC-7386 merge patch merges map keys but\nREPLACES arrays: N concurrent populate movers each patch only their own key\nand can never clobber a sibling (the same reason as\n`SnapshotPolicyStatus.verificationStamps`).\n\nAbsent for a direct `target.pvc`/`target.pvcRef` restore, which keeps using\nthe top-level `resolved`/`target`/`waitStartedAt`/`logTail`/`failure`.\n\nThe schema renders as an object with `additionalProperties`, which PRUNES\nunknown keys — so every field any writer (controller or mover) puts under\n`claims.\u003cpvc\u003e` must exist on `RestoreClaimStatus`.",
           "type": [
             "object",
             "null"
           ]
         },
         "conditions": {
-          "description": "Standard Kubernetes conditions (e.g. `SourcesQuiesced`, `SnapshotCreated`).",
+          "description": "Standard Kubernetes conditions carrying the human-readable status/reason.",
           "items": {
             "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
@@ -1039,64 +1799,6 @@
           },
           "type": [
             "array",
-            "null"
-          ]
-        },
-        "copiedFrom": {
-          "additionalProperties": false,
-          "description": "Lineage for `origin: replicated` rows: the source repository, source\nmanifest id, and `startTime` the copy was migrated from. Written by the\n`SnapshotReplication` mover in the same atomic PATCH as\n`status.snapshot`; absent on every other origin. See [`CopiedFrom`] for\nwhy this lives on the CR rather than as kopia tags.",
-          "nullable": true,
-          "properties": {
-            "repository": {
-              "additionalProperties": false,
-              "description": "The SOURCE repository the snapshot was migrated from (the\n`SnapshotReplication`'s `sourceRef`, resolved at run time).",
-              "properties": {
-                "kind": {
-                  "default": "Repository",
-                  "description": "Which repository CRD this points at; defaults to [`RepositoryKind::Repository`].",
-                  "enum": [
-                    "Repository",
-                    "ClusterRepository"
-                  ],
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "name": {
-                  "description": "Name of the referenced `Repository`/`ClusterRepository`.",
-                  "type": "string"
-                },
-                "namespace": {
-                  "description": "Cross-namespace `Repository` reference; ignored/forbidden for `ClusterRepository`.",
-                  "nullable": true,
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "type": "object"
-            },
-            "sourceManifestId": {
-              "description": "The kopia manifest id the snapshot had in the SOURCE repository.\nMigrate assigns a NEW manifest id on the destination\n(`status.snapshot.kopiaSnapshotID`); this is the old one, kept for\ncross-repository correlation.",
-              "type": "string"
-            },
-            "startTime": {
-              "description": "The snapshot's RFC3339 `startTime` — preserved verbatim by migrate and\nthe key (together with the identity triple) both idempotent re-migration\nand `pruning: mirrorSource` correlate source and destination rows on.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "repository",
-            "sourceManifestId",
-            "startTime"
-          ],
-          "type": [
-            "object",
             "null"
           ]
         },
@@ -1153,61 +1855,6 @@
             "null"
           ]
         },
-        "hooks": {
-          "additionalProperties": false,
-          "description": "Hook-execution bookkeeping so each hook list runs exactly once per Snapshot.",
-          "nullable": true,
-          "properties": {
-            "postCompletedAt": {
-              "description": "When the `afterSnapshot` list completed (RFC3339); absent until it has.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "preCompletedAt": {
-              "description": "When the `beforeSnapshot` list completed (RFC3339); absent until it has.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "job": {
-          "additionalProperties": false,
-          "description": "The mover Job backing this run; absent for discovered.",
-          "nullable": true,
-          "properties": {
-            "attempts": {
-              "description": "Number of attempts so far (bounded by `failurePolicy.backoffLimit`).",
-              "format": "int32",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "name": {
-              "description": "Name of the mover `Job`.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "logTail": {
           "description": "The last lines of the run's output, written by the mover at the terminal transition.",
           "nullable": true,
@@ -1217,7 +1864,7 @@
           ]
         },
         "observedGeneration": {
-          "description": "`metadata.generation` last reconciled, for staleness detection.",
+          "description": "`metadata.generation` last reconciled, so stale status is detectable.",
           "format": "int64",
           "nullable": true,
           "type": [
@@ -1225,31 +1872,14 @@
             "null"
           ]
         },
-        "origin": {
-          "description": "How a `Snapshot` came to exist. Canonical value mirrored from the\n`kopiur.home-operations.com/origin` label. Origin drives the deletion-policy\ndefault: `discovered` backups are forced to `Retain` because the operator did\nnot create those snapshots.",
-          "enum": [
-            "scheduled",
-            "manual",
-            "discovered",
-            "adopted",
-            "replicated"
-          ],
-          "nullable": true,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "phase": {
-          "description": "Lifecycle phase of a `Snapshot`.",
+          "description": "Lifecycle phase of a restore.",
           "enum": [
             "Pending",
-            "Running",
-            "Succeeded",
-            "Failed",
-            "Deleting",
-            "Discovered",
-            "Unchanged"
+            "Resolving",
+            "Restoring",
+            "Completed",
+            "Failed"
           ],
           "nullable": true,
           "type": [
@@ -1257,29 +1887,13 @@
             "null"
           ]
         },
-        "pinned": {
-          "description": "The observed kopia-side pin state: `Some(true)` if pinned, `Some(false)` if unpinned, `None` before any pin reconcile.",
-          "nullable": true,
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "preflightSince": {
-          "description": "RFC 3339 timestamp of the first reconcile where the repository was `Ready`\nbut a `spec.preflight` check was failing. The one-shot anchor for the\npreflight `timeout` deadline (so the budget covers preflight only, not the\nearlier repository-not-Ready wait). Cleared once every preflight check passes,\nso a later failing episode gets a fresh budget rather than a stale anchor.",
-          "nullable": true,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "recorded": {
+        "progress": {
           "additionalProperties": false,
-          "description": "The mover identity recorded on the kopia snapshot itself (the\n`kopiur-meta` tag): the resolved effective uid/gid/fsGroup the backup ran\nas, plus its provenance. Produced runs stamp this at launch (from the\nsame value written into the tag); discovered rows decode it from the tag\nduring the catalog scan. Absent for pre-feature snapshots, foreign\nbackups without the tag, or a tag this operator version cannot decode.",
+          "description": "Bytes/files restored so far, patched periodically by the mover.",
           "nullable": true,
           "properties": {
-            "fsGroup": {
-              "description": "The resolved pod-level `fsGroup` the mover ran with (the hardened\ndefault is `65532`). Absent = no layer set one.",
+            "bytesRestored": {
+              "description": "Total bytes restored so far.",
               "format": "int64",
               "nullable": true,
               "type": [
@@ -1287,32 +1901,8 @@
                 "null"
               ]
             },
-            "gid": {
-              "description": "The resolved effective `runAsGroup` the mover ran as at backup time\n(container `runAsGroup`, else pod). Absent = image-determined.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "schema": {
-              "description": "The `kopiur-meta` schema version this value was written under. Writers\nemit the lowest schema that represents the data (currently\n[`KOPIUR_META_SCHEMA_V1`]); readers reject only a schema NEWER than they\nunderstand (degrading to recorded-absent, never an error).",
-              "format": "int64",
-              "type": "integer"
-            },
-            "src": {
-              "description": "Which layer pinned the recorded identity. Only `inherited` means the\nidentity tracked the workload.",
-              "enum": [
-                "inherited",
-                "explicit",
-                "defaults",
-                "unknown"
-              ],
-              "type": "string"
-            },
-            "uid": {
-              "description": "The resolved effective `runAsUser` the mover ran as at backup time\n(container `runAsUser`, else pod). Absent = no layer pinned a UID, so\nthe mover's UID was image-determined.",
+            "filesRestored": {
+              "description": "Total files restored so far.",
               "format": "int64",
               "nullable": true,
               "type": [
@@ -1321,10 +1911,6 @@
               ]
             }
           },
-          "required": [
-            "schema",
-            "src"
-          ],
           "type": [
             "object",
             "null"
@@ -1332,31 +1918,59 @@
         },
         "resolved": {
           "additionalProperties": false,
-          "description": "Frozen recipe values at run time (scheduled/manual).",
+          "description": "The source resolved and pinned at admission; never re-resolved.",
           "nullable": true,
           "properties": {
-            "credentialProjection": {
+            "identity": {
               "additionalProperties": false,
-              "description": "The recipe's `spec.credentialProjection` as it stood for this run.\n\nThe deletion path re-projects the mover's credentials, but the opt-in lives on the\n`SnapshotPolicy` — which a user may delete first. Pinning it here lets the finalizer\nhonor the opt-in that was actually in force, instead of reading an absent recipe as\n\"projection off\" and blocking on a Secret that was never meant to be namespace-local\n(#255). Absent only on a `Snapshot` that predates the pin or never ran; a run always\nwrites it, including `enabled: false`, so absent stays distinguishable from off.",
+              "description": "The resolved kopia identity (`username@hostname:path`) of the snapshot.",
               "nullable": true,
               "properties": {
-                "enabled": {
-                  "default": false,
-                  "description": "Copy the repository's credential Secret(s) into the namespace of each mover Job; off by default.",
+                "hostname": {
+                  "description": "The final `hostname` kopia records, fixed at admission.",
+                  "type": "string"
+                },
+                "sourcePath": {
+                  "description": "The resolved snapshot source path, when applicable (`username@hostname:path`).",
+                  "nullable": true,
                   "type": [
-                    "boolean",
+                    "string",
                     "null"
                   ]
+                },
+                "username": {
+                  "description": "The final `username` kopia records, fixed at admission.",
+                  "type": "string"
                 }
               },
+              "required": [
+                "hostname",
+                "username"
+              ],
               "type": [
                 "object",
                 "null"
               ]
             },
+            "kopiaSnapshotID": {
+              "description": "The exact kopia snapshot manifest id the source resolved to; pinned once.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pinnedAt": {
+              "description": "Timestamp at which the source was pinned (RFC3339).",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "repository": {
               "additionalProperties": false,
-              "description": "The repository this run targeted, frozen at run time.",
+              "description": "The repository the snapshot lives in, resolved from the source.",
               "nullable": true,
               "properties": {
                 "kind": {
@@ -1392,155 +2006,41 @@
                 "null"
               ]
             },
-            "sources": {
-              "description": "The concrete PVCs + source paths backed up this run.",
-              "items": {
-                "additionalProperties": false,
-                "description": "One resolved source backed up by a run — a concrete PVC and its kopia path.",
-                "properties": {
-                  "pvc": {
-                    "description": "`namespace/name` of the PVC, as kopia sees it.",
-                    "nullable": true,
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "sourcePath": {
-                    "description": "The source path kopia recorded for this PVC.",
-                    "nullable": true,
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "type": "object"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "snapshot": {
-          "additionalProperties": false,
-          "description": "The kopia artifact this CR represents.",
-          "nullable": true,
-          "properties": {
-            "description": {
-              "description": "The kopia snapshot description (`snapshot create --description`), when\none is recorded and non-empty. For discovered rows this is copied from\nthe repository listing TRUNCATED to 1024 bytes (char-boundary-safe) —\nthe value is foreign-writer-controlled and must never fail the CR write.",
+            "resolution": {
+              "description": "Which outcome the source resolution pinned, once and never re-resolved.",
+              "enum": [
+                "Snapshot",
+                "NoSnapshot"
+              ],
               "nullable": true,
               "type": [
                 "string",
                 "null"
               ]
             },
-            "identity": {
+            "snapshotRef": {
               "additionalProperties": false,
-              "description": "The `username@hostname:path` identity recorded for this snapshot.",
+              "description": "The concrete `Snapshot` CR the source resolved to, when applicable.",
+              "nullable": true,
               "properties": {
-                "hostname": {
-                  "description": "The final `hostname` kopia records, fixed at admission.",
+                "name": {
+                  "description": "Name of the referenced object.",
                   "type": "string"
                 },
-                "sourcePath": {
-                  "description": "The resolved snapshot source path, when applicable (`username@hostname:path`).",
+                "namespace": {
+                  "description": "Namespace of the referenced object; absent = same namespace as the referrer.",
                   "nullable": true,
                   "type": [
                     "string",
                     "null"
                   ]
-                },
-                "username": {
-                  "description": "The final `username` kopia records, fixed at admission.",
-                  "type": "string"
                 }
               },
               "required": [
-                "hostname",
-                "username"
+                "name"
               ],
-              "type": "object"
-            },
-            "kopiaSnapshotID": {
-              "description": "kopia's snapshot ID — the handle the finalizer uses to delete content.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "identity",
-            "kopiaSnapshotID"
-          ],
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "staged": {
-          "additionalProperties": false,
-          "description": "The CSI staging objects the run created for `copyMethod: Snapshot`/`Clone`.",
-          "nullable": true,
-          "properties": {
-            "copyMethod": {
-              "description": "The resolved capture method (`Snapshot` or `Clone`) that produced this stage.",
-              "nullable": true,
               "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pvcName": {
-              "description": "Name of the staged `PersistentVolumeClaim` the mover mounts in place of the live source PVC.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "ready": {
-              "description": "`true` once the stage is ready for the mover.",
-              "nullable": true,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "stagingTimeoutSeconds": {
-              "description": "The resolved `spec.staging.timeout` (seconds) pinned when the stage was\nstamped, so the running-Job staged-PVC bind watchdog never re-resolves a\npolicy that may have been edited or deleted mid-run. `0` = wait\nindefinitely.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "storageClassName": {
-              "description": "StorageClass of the staged PVC — `spec.staging.storageClassName` when set,\nelse the source PVC's class. Pinned for observability (e.g. confirming a\nCephFS shallow-clone class actually took effect).",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "volumeGroupSnapshotName": {
-              "description": "Name of the shared CSI `VolumeGroupSnapshot` this member staged from,\nwhen the recipe asked for a consistency group\n([`groupBy: VolumeGroupSnapshot`](crate::snapshot_policy::GroupBy)).\n\nRecorded because the group is otherwise invisible: it deliberately\ncarries no ownerReferences (see `io::group_staging`), so this is how an\noperator tells which capture a backup came from — and how `kubectl\nkopiur doctor` finds one that outlived its members.",
-              "nullable": true,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "volumeSnapshotName": {
-              "description": "Name of the `VolumeSnapshot` created from the source PVC (`copyMethod: Snapshot` only).",
-              "nullable": true,
-              "type": [
-                "string",
+                "object",
                 "null"
               ]
             }
@@ -1550,62 +2050,50 @@
             "null"
           ]
         },
-        "stats": {
+        "sourceKind": {
+          "description": "The pinned source kind (`SnapshotRef`/`FromPolicy`/`Identity`); backs the `SOURCE` printer column.",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
           "additionalProperties": false,
-          "description": "Byte/file counts parsed from kopia's JSON output.",
+          "description": "Resolved target details (the PVC written to / populator handshake).",
           "nullable": true,
           "properties": {
-            "bytesNew": {
-              "description": "Bytes newly uploaded this run (after dedup/compression).",
-              "format": "int64",
+            "pvcPrime": {
+              "description": "Populator handshake (passive / pvc-create modes).",
               "nullable": true,
               "type": [
-                "integer",
+                "string",
                 "null"
               ]
             },
-            "filesFailed": {
-              "description": "Count of source entries kopia could not read and excluded, making the snapshot incomplete.",
-              "format": "int64",
+            "pvcRef": {
+              "additionalProperties": false,
+              "description": "The PVC actually written to (created or pre-existing).",
               "nullable": true,
+              "properties": {
+                "name": {
+                  "description": "Name of the referenced object.",
+                  "type": "string"
+                },
+                "namespace": {
+                  "description": "Namespace of the referenced object; absent = same namespace as the referrer.",
+                  "nullable": true,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
               "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "filesModified": {
-              "description": "Count of files changed since the previous snapshot.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "filesNew": {
-              "description": "Count of files new since the previous snapshot.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "filesUnchanged": {
-              "description": "Count of files unchanged since the previous snapshot.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "sizeBytes": {
-              "description": "Total logical size of the snapshot in bytes.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
+                "object",
                 "null"
               ]
             }
@@ -1617,20 +2105,11 @@
         },
         "timing": {
           "additionalProperties": false,
-          "description": "Start/end/duration of the snapshot run.",
+          "description": "Start/end timestamps for the restore run.",
           "nullable": true,
           "properties": {
-            "durationSeconds": {
-              "description": "Wall-clock duration in seconds.",
-              "format": "int64",
-              "nullable": true,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
             "endTime": {
-              "description": "RFC3339 end time of the run.",
+              "description": "When the restore reached a terminal phase (RFC3339).",
               "nullable": true,
               "type": [
                 "string",
@@ -1638,7 +2117,7 @@
               ]
             },
             "startTime": {
-              "description": "RFC3339 start time of the run.",
+              "description": "When the mover began restoring (RFC3339).",
               "nullable": true,
               "type": [
                 "string",
@@ -1648,6 +2127,22 @@
           },
           "type": [
             "object",
+            "null"
+          ]
+        },
+        "waitPausedAt": {
+          "description": "When the `policy.waitTimeout` window was PAUSED (RFC3339) because the\nrepository was suspended (`spec.suspend: true`) while this restore — or\none of its populator claims — was still waiting to launch. Set on the\nfirst suspended pass that finds an open window; on the first pass after\nthe repository is resumed, every still-waiting anchor\n(`waitStartedAt`, and each unlaunched claim's `waitStartedAt`) is moved\nforward by the paused interval and this field is cleared, so time spent\nsuspended never consumes the window. Absent when nothing is paused.",
+          "nullable": true,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "waitStartedAt": {
+          "description": "When the `policy.waitTimeout` window OPENED (RFC3339) — the first reconcile on which\nthe restore could actually proceed (its repository reached `Ready`, and for a\n`target.populator` a PVC already claims it), NOT when the Restore was created. The\nwindow does NOT open while the referenced `Repository` object or `fromPolicy`\n`SnapshotPolicy` doesn't exist: the restore parks in `Pending`\n(`ReferentAvailable=False`, reason `RestoreReferentMissing`) and stays unstamped. It\nDOES still open for a `snapshotRef` whose `Snapshot` row doesn't exist yet (so\n`onMissingSnapshot` can fire for a ref that never appears) and for a restore whose\nmover Job already launched. Stamped once and then honored verbatim, so the window\nsurvives controller restarts and Job pod retries; cleared when a populator re-opens\nresolution for a re-created claim, so that claim gets the full window again. Absent\nmeans the window has not opened yet (or no `policy.waitTimeout` is configured, in\nwhich case there is no window to anchor).",
+          "nullable": true,
+          "type": [
+            "string",
             "null"
           ]
         }
@@ -1661,6 +2156,6 @@
   "required": [
     "spec"
   ],
-  "title": "Snapshot",
+  "title": "Restore",
   "type": "object"
 }
