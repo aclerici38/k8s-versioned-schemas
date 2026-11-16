@@ -3,12 +3,13 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: grafanamanifests.grafana.integreatly.org
 spec:
   group: grafana.integreatly.org
   names:
     categories:
+      - all
       - grafana-operator
     kind: GrafanaManifest
     listKind: GrafanaManifestList
@@ -116,7 +117,9 @@ spec:
                                 description: Selects a key of a ConfigMap.
                                 properties:
                                   key:
-                                    description: The key to select.
+                                    description: |-
+                                      The key to select from the ConfigMap's Data field.
+                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                     type: string
                                   name:
                                     default: ""
@@ -228,7 +231,7 @@ spec:
                       type: object
                       x-kubernetes-validations:
                         - message: namespace is immutable
-                          rule: (!(has(oldSelf.namespace) && !has(self.namespace)))
+                          rule: ((!has(oldSelf.__namespace__) && !has(self.__namespace__)) || (has(oldSelf.__namespace__) && has(self.__namespace__)))
                     spec:
                       x-kubernetes-preserve-unknown-fields: true
                   required:

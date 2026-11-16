@@ -1,41 +1,63 @@
 {
-  "description": "GrafanaNotificationTemplate is the Schema for the GrafanaNotificationTemplate API",
+  "description": "GrafanaSilence is the Schema for the GrafanaSilence API",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "kind": {
       "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "metadata": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "spec": {
-      "description": "GrafanaNotificationTemplateSpec defines the desired state of GrafanaNotificationTemplate",
+      "additionalProperties": false,
+      "description": "GrafanaSilenceSpec defines the desired state of GrafanaSilence\nKubernetes CEL validation cannot reference the current time, so \"endsAt must be in the\nfuture\" is enforced by the controller; here we only assert the window is well-formed.",
       "properties": {
         "allowCrossNamespaceImport": {
           "default": false,
           "description": "Allow the Operator to match this resource with Grafanas outside the current namespace",
-          "type": "boolean"
-        },
-        "editable": {
-          "description": "Whether to enable or disable editing of the notification template in Grafana UI",
-          "type": "boolean",
-          "x-kubernetes-validations": [
-            {
-              "message": "spec.editable is immutable",
-              "rule": "self == oldSelf"
-            }
+          "type": [
+            "boolean",
+            "null"
           ]
         },
+        "comment": {
+          "description": "Comment describing the reason for the silence",
+          "type": "string"
+        },
+        "createdBy": {
+          "default": "grafana-operator",
+          "description": "CreatedBy is the author attributed to the silence",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "endsAt": {
+          "description": "EndsAt is the time the silence expires (in UTC, RFC3339). It must be after startsAt\nand in the future; Grafana rejects silences whose window has already ended.",
+          "format": "date-time",
+          "type": "string"
+        },
         "instanceSelector": {
+          "additionalProperties": false,
           "description": "Selects Grafana instances for import",
           "properties": {
             "matchExpressions": {
               "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
               "items": {
+                "additionalProperties": false,
                 "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
                 "properties": {
                   "key": {
@@ -51,7 +73,10 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array",
+                    "type": [
+                      "array",
+                      "null"
+                    ],
                     "x-kubernetes-list-type": "atomic"
                   }
                 },
@@ -59,10 +84,12 @@
                   "key",
                   "operator"
                 ],
-                "type": "object",
-                "additionalProperties": false
+                "type": "object"
               },
-              "type": "array",
+              "type": [
+                "array",
+                "null"
+              ],
               "x-kubernetes-list-type": "atomic"
             },
             "matchLabels": {
@@ -70,7 +97,10 @@
                 "type": "string"
               },
               "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
           "type": "object",
@@ -80,50 +110,100 @@
               "message": "spec.instanceSelector is immutable",
               "rule": "self == oldSelf"
             }
-          ],
-          "additionalProperties": false
+          ]
         },
-        "name": {
-          "description": "Template name",
-          "type": "string"
+        "matchers": {
+          "description": "Matchers used to select the alerts that should be silenced.\nA matcher targeting an alert rule (name \"__alert_rule_uid__\") must be an exact-equality\nmatcher (isEqual=true, isRegex=false), otherwise Grafana will not associate the silence\nwith the rule in the silences list.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "isEqual": {
+                "default": true,
+                "description": "Whether the matcher is an equality matcher (true) or a negative matcher (false)",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "isRegex": {
+                "description": "Whether to interpret the value as a regular expression",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "The name of the label to match against",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value to match against",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array",
+          "x-kubernetes-validations": [
+            {
+              "message": "a matcher with name '__alert_rule_uid__' must set isEqual=true and isRegex=false",
+              "rule": "self.all(m, m.name != '__alert_rule_uid__' || (m.isEqual \u0026\u0026 (!has(m.isRegex) || !m.isRegex)))"
+            }
+          ]
         },
         "resyncPeriod": {
           "description": "How often the resource is synced, defaults to 10m0s if not set",
-          "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|\u00b5s|ms|s|m|h))+$",
+          "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startsAt": {
+          "description": "StartsAt is the time the silence starts taking effect (in UTC, RFC3339)",
+          "format": "date-time",
           "type": "string"
         },
         "suspend": {
           "description": "Suspend pauses synchronizing attempts and tells the operator to ignore changes",
-          "type": "boolean"
-        },
-        "template": {
-          "description": "Template content",
-          "type": "string"
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
       "required": [
+        "comment",
+        "endsAt",
         "instanceSelector",
-        "name"
+        "matchers",
+        "startsAt"
       ],
       "type": "object",
       "x-kubernetes-validations": [
         {
-          "message": "spec.editable is immutable",
-          "rule": "((!has(oldSelf.editable) && !has(self.editable)) || (has(oldSelf.editable) && has(self.editable)))"
+          "message": "spec.endsAt must be after spec.startsAt",
+          "rule": "timestamp(self.endsAt) \u003e timestamp(self.startsAt)"
         },
         {
           "message": "disabling spec.allowCrossNamespaceImport requires a recreate to ensure desired state",
-          "rule": "!oldSelf.allowCrossNamespaceImport || (oldSelf.allowCrossNamespaceImport && self.allowCrossNamespaceImport)"
+          "rule": "!oldSelf.allowCrossNamespaceImport || (oldSelf.allowCrossNamespaceImport \u0026\u0026 self.allowCrossNamespaceImport)"
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "status": {
-      "description": "The most recent observed state of a Grafana resource",
+      "additionalProperties": false,
+      "description": "GrafanaSilenceStatus defines the observed state of GrafanaSilence",
       "properties": {
         "conditions": {
           "description": "Results when synchronizing resource with Grafana instances",
           "items": {
+            "additionalProperties": false,
             "description": "Condition contains details for one aspect of the current state of this API Resource.",
             "properties": {
               "lastTransitionTime": {
@@ -140,7 +220,10 @@
                 "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
                 "format": "int64",
                 "minimum": 0,
-                "type": "integer"
+                "type": [
+                  "integer",
+                  "null"
+                ]
               },
               "reason": {
                 "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
@@ -172,19 +255,36 @@
               "status",
               "type"
             ],
-            "type": "object",
-            "additionalProperties": false
+            "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "lastResync": {
           "description": "Last time the resource was synchronized with Grafana instances",
           "format": "date-time",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "silenceIDs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "SilenceIDs maps \"\u003cinstance namespace\u003e/\u003cinstance name\u003e\" to the Grafana-assigned\nsilence ID for that instance. Grafana assigns silence IDs randomly, unlike other\nGrafana resources which are addressed by a UID the operator controls, so the\nassigned ID must be tracked here to reconcile updates and deletions correctly.",
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
-      "type": "object",
-      "additionalProperties": false
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
