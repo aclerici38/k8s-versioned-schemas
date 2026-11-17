@@ -3,23 +3,27 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
-  name: ciliumclusterwidenetworkpolicies.cilium.io
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: ciliumnetworkpolicies.cilium.io
 spec:
   group: cilium.io
   names:
     categories:
       - cilium
       - ciliumpolicy
-    kind: CiliumClusterwideNetworkPolicy
-    listKind: CiliumClusterwideNetworkPolicyList
-    plural: ciliumclusterwidenetworkpolicies
+    kind: CiliumNetworkPolicy
+    listKind: CiliumNetworkPolicyList
+    plural: ciliumnetworkpolicies
     shortNames:
-      - ccnp
-    singular: ciliumclusterwidenetworkpolicy
-  scope: Cluster
+      - cnp
+      - ciliumnp
+    singular: ciliumnetworkpolicy
+  scope: Namespaced
   versions:
     - additionalPrinterColumns:
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
         - jsonPath: .status.conditions[?(@.type=='Valid')].status
           name: Valid
           type: string
@@ -27,9 +31,8 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            CiliumClusterwideNetworkPolicy is a Kubernetes third-party resource with an
-            modified version of CiliumNetworkPolicy which is cluster scoped rather than
-            namespace scoped.
+            CiliumNetworkPolicy is a Kubernetes third-party resource with an extended
+            version of NetworkPolicy.
           properties:
             apiVersion:
               description: |-
@@ -6137,12 +6140,7 @@ spec:
                 type: object
               type: array
             status:
-              description: |-
-                Status is the status of the Cilium policy rule.
-
-                The reason this field exists in this structure is due a bug in the k8s
-                code-generator that doesn't create a `UpdateStatus` method because the
-                field does not exist in the structure.
+              description: Status is the status of the Cilium policy rule
               properties:
                 conditions:
                   items:

@@ -3,27 +3,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
-  name: ciliumnetworkpolicies.cilium.io
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: ciliumclusterwidenetworkpolicies.cilium.io
 spec:
   group: cilium.io
   names:
     categories:
       - cilium
       - ciliumpolicy
-    kind: CiliumNetworkPolicy
-    listKind: CiliumNetworkPolicyList
-    plural: ciliumnetworkpolicies
+    kind: CiliumClusterwideNetworkPolicy
+    listKind: CiliumClusterwideNetworkPolicyList
+    plural: ciliumclusterwidenetworkpolicies
     shortNames:
-      - cnp
-      - ciliumnp
-    singular: ciliumnetworkpolicy
-  scope: Namespaced
+      - ccnp
+    singular: ciliumclusterwidenetworkpolicy
+  scope: Cluster
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
         - jsonPath: .status.conditions[?(@.type=='Valid')].status
           name: Valid
           type: string
@@ -31,8 +27,9 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            CiliumNetworkPolicy is a Kubernetes third-party resource with an extended
-            version of NetworkPolicy.
+            CiliumClusterwideNetworkPolicy is a Kubernetes third-party resource with an
+            modified version of CiliumNetworkPolicy which is cluster scoped rather than
+            namespace scoped.
           properties:
             apiVersion:
               description: |-
@@ -6140,7 +6137,12 @@ spec:
                 type: object
               type: array
             status:
-              description: Status is the status of the Cilium policy rule
+              description: |-
+                Status is the status of the Cilium policy rule.
+
+                The reason this field exists in this structure is due a bug in the k8s
+                code-generator that doesn't create a `UpdateStatus` method because the
+                field does not exist in the structure.
               properties:
                 conditions:
                   items:
