@@ -155,7 +155,7 @@
                 ]
               },
               "timeout": {
-                "description": "Timeout for this health check",
+                "description": "Timeout has no effect and is kept for compatibility. Health checks are\nre-evaluated until they pass; a failing check never fails the upgrade.",
                 "minLength": 2,
                 "pattern": "^([0-9]+[smh])+$",
                 "type": [
@@ -5622,7 +5622,7 @@
         },
         "parallelism": {
           "default": 1,
-          "description": "Parallelism is the number of nodes to upgrade concurrently in each batch.\nDefaults to 1 (sequential upgrades). Must be \u003e= 1 and \u003c= the number of matching nodes.",
+          "description": "Parallelism is the number of worker nodes to upgrade concurrently in each batch.\nControl-plane nodes are always upgraded one at a time, in a batch of their own.\nDefaults to 1 (sequential upgrades). Must be \u003e= 1 and \u003c= the number of matching nodes.",
           "format": "int32",
           "minimum": 1,
           "type": [
@@ -5652,7 +5652,7 @@
             },
             "force": {
               "default": false,
-              "description": "Force the upgrade (skip checks on etcd health and members)",
+              "description": "Force the upgrade: skip the etcd check of tuppr's cluster health gate and\nTalos's own checks on etcd health and members. Talos runs those only on its\nlegacy upgrade API, which talosctl uses when the node or talosctl is older\nthan Talos 1.13.",
               "type": [
                 "boolean",
                 "null"
@@ -5700,7 +5700,7 @@
             },
             "stage": {
               "default": false,
-              "description": "Stage the upgrade to perform it after a reboot",
+              "description": "Stage the upgrade to perform it after a reboot.\nOnly takes effect on Talos's legacy upgrade API, which talosctl uses when the\nnode or talosctl is older than Talos 1.13.",
               "type": [
                 "boolean",
                 "null"
@@ -6047,6 +6047,14 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "healthChecksFailingSince": {
+          "description": "HealthChecksFailingSince is when spec.healthChecks started failing in\ntheir current streak; cleared once they pass. It spaces out the\nre-evaluations while they keep failing and times how long they took\nto pass.",
+          "format": "date-time",
+          "type": [
+            "string",
             "null"
           ]
         },
