@@ -169,15 +169,74 @@ spec:
                       rule: '!(has(self.routing) && self.routing == ''Model'') || has(self.sectionName) || has(self.hostnames)'
                     - message: 'sectionName and hostnames apply only to routing: Model'
                       rule: (has(self.routing) && self.routing == 'Model') || (!has(self.sectionName) && !has(self.hostnames))
+                backendSelector:
+                  description: |-
+                    BackendSelector adds every InferenceService in the router's namespace
+                    that matches this label selector as a tier: local backend named after
+                    the service. The name is the model id published on /v1/models and the
+                    id BackendNameMatch resolves. An empty selector ({}) selects every
+                    InferenceService in the namespace.
+
+                    Explicit backends entries still apply beside the selector. An entry
+                    with neither inferenceServiceRef nor external overrides the fields it
+                    sets on the selected backend of the same name, so per-model tuning does
+                    not restate the backend.
+
+                    Proxy data plane only: dataPlane Gateway and AgentGateway refuse it at
+                    admission.
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      items:
+                        description: |-
+                          A label selector requirement is a selector that contains values, a key, and an operator that
+                          relates the key and values.
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies to.
+                            type: string
+                          operator:
+                            description: |-
+                              operator represents a key's relationship to a set of values.
+                              Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: |-
+                              values is an array of string values. If the operator is In or NotIn,
+                              the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                              the values array must be empty. This array is replaced during a strategic
+                              merge patch.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                        map is equivalent to an element of matchExpressions, whose key field is "key", the
+                        operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
                 backends:
                   description: |-
                     Backends are the candidate destinations the router can dispatch to.
                     Order is not significant; selection is rule-driven. At least one
-                    backend must be declared.
+                    backend must be declared unless BackendSelector is set.
                   items:
                     description: |-
                       RouterBackend is one candidate destination for routed requests.
-                      Exactly one of InferenceServiceRef or External must be set.
+                      Exactly one of InferenceServiceRef or External must be set, except on a
+                      router with spec.backendSelector: there an entry with neither overrides the
+                      fields it sets on the selected backend of the same Name.
                     properties:
                       balancing:
                         description: |-
@@ -197,6 +256,38 @@ spec:
                               - RoundRobin
                               - LoadAware
                             type: string
+                          prefixAffinity:
+                            description: |-
+                              PrefixAffinity sends a request to the pod most likely to hold its
+                              prompt's prefix in KV cache, traded against that pod's load. The router
+                              remembers which prompt blocks it sent to each pod, so it needs no session
+                              header and no engine support. Set it (an empty object takes the
+                              defaults) to turn it on. It requires mode: LoadAware; with RoundRobin it
+                              is ignored and the router emits a PrefixAffinityIgnored warning event.
+                            properties:
+                              blockBytes:
+                                default: 1024
+                                description: |-
+                                  BlockBytes is the size of the prompt blocks the router hashes, in bytes
+                                  of the request's tools, system prompt and messages (about four bytes
+                                  per token). A shared prefix counts in whole blocks, so smaller blocks
+                                  catch shorter shared prefixes and cost more memory. Defaults to 1024.
+                                format: int32
+                                maximum: 16384
+                                minimum: 256
+                                type: integer
+                              maxBlocksPerEndpoint:
+                                default: 16384
+                                description: |-
+                                  MaxBlocksPerEndpoint bounds the blocks the router remembers per pod;
+                                  the least recently sent go first. The default, 16384, covers 16 MiB of
+                                  prompt (about 4M tokens) per pod at the default block size, more than a
+                                  pod's KV cache holds.
+                                format: int32
+                                maximum: 262144
+                                minimum: 1024
+                                type: integer
+                            type: object
                           sessionAffinity:
                             description: |-
                               SessionAffinity places a new session on the least-loaded pod. The session
@@ -491,7 +582,11 @@ spec:
                         description: |-
                           Weight is used for the "weighted" routing strategy. Higher values
                           receive proportionally more traffic. Ignored for other strategies.
-                          Default 1 when unset.
+                          Default 1 when unset. 0 drains the backend from weighted rules: it
+                          receives no traffic from them, even while every other backend in the
+                          rule is unavailable (the Gateway API meaning of a zero weight, which
+                          both data planes follow). A weighted rule needs at least one backend
+                          with a positive weight.
                         format: int32
                         minimum: 0
                         type: integer
@@ -499,9 +594,8 @@ spec:
                       - name
                     type: object
                     x-kubernetes-validations:
-                      - message: 'balancing requires an inferenceServiceRef backend with resolution: endpoint'
-                        rule: '!has(self.balancing) || (has(self.inferenceServiceRef) && has(self.resolution) && self.resolution == ''endpoint'')'
-                  minItems: 1
+                      - message: balancing requires an endpoint-resolution backend and no external provider
+                        rule: '!has(self.balancing) || (!has(self.external) && has(self.resolution) && self.resolution == ''endpoint'')'
                   type: array
                 dataPlane:
                   default: Proxy
@@ -946,10 +1040,15 @@ spec:
                             Mode determines how the router determines a request's
                             classification.
                             "header-only" (default) trusts the request header
-                              (HeaderKey, defaults to x-llmkube-classification).
-                            "detector" runs the bundled in-proxy detector.
-                            "hybrid" prefers the header, falling back to the detector when no
-                              header is present.
+                              (HeaderKey, defaults to x-llmkube-classification) and never reads
+                              a classification from the request body. It is the only implemented
+                              mode.
+                            "detector" and "hybrid" are reserved for a future in-proxy content
+                              classifier (#441) and are refused today. On dataPlane: Proxy the
+                              webhook rejects them and a router that sets either is not
+                              Validated (reason ClassifierNotImplemented when nothing else in the
+                              spec is invalid). On dataPlane: Gateway and AgentGateway a
+                              dataClassification match under either is refused.
                           enum:
                             - header-only
                             - detector
@@ -969,8 +1068,8 @@ spec:
                 proxy:
                   description: |-
                     Proxy configures the managed router-proxy Deployment (replicas,
-                    image override for air-gapped sites, resources). Sensible defaults
-                    apply when omitted.
+                    image override for air-gapped sites, resources) and the name of its
+                    Service. Sensible defaults apply when omitted.
                   properties:
                     affinity:
                       description: |-
@@ -1932,6 +2031,23 @@ spec:
                         probe load on genuinely-down upstreams. Tests can shrink this to
                         sub-second to verify recovery without sleeping the full default.
                       type: string
+                    readinessRequiredListeners:
+                      description: |-
+                        ReadinessRequiredListeners lists TCP ports that must have a LISTEN
+                        socket in the proxy pod's network namespace before the replica is
+                        Ready, for example [15008] for Istio ambient's HBONE inbound port, so a
+                        replica the mesh cannot reach leaves the Service endpoints. When set,
+                        the readiness probe moves to /readyz; liveness stays on /health. If the
+                        proxy cannot read /proc/net/tcp it reports Ready and logs a warning.
+                        Unset renders nothing on the pod template.
+                      items:
+                        format: int32
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-type: set
                     replicas:
                       description: |-
                         Replicas is the desired number of router-proxy pods. Defaults to 1.
@@ -2037,6 +2153,28 @@ spec:
                         section has its node selector and tolerations merged into the pod by the
                         RuntimeClass admission controller, so no separate fields are needed.
                         Unset leaves the pod spec unchanged.
+                      type: string
+                    serviceName:
+                      description: |-
+                        ServiceName names the data-plane Service in front of the router-proxy
+                        pods, so clients can use a short in-cluster URL such as
+                        http://llmkube.<namespace>.svc.cluster.local/v1 (with endpoint.port 80).
+                        Unset keeps the generated name, <router>-router-proxy. Only that Service
+                        takes this name: the Deployment, ConfigMap, admin Service
+                        (<router>-router-proxy-admin), pod labels, and selectors keep their
+                        generated names, so changing it does not roll the proxy pods.
+                        status.endpoint follows the Service.
+
+                        A Service with this name that this ModelRouter does not control is never
+                        adopted or overwritten: the router reports RouterProxyNameTaken and keeps
+                        its previous Service. When the name changes (including back to unset),
+                        the previous Service this ModelRouter controls is deleted only after the
+                        new one exists. Clients of the old name must move, and a NodePort the
+                        cluster allocated or a LoadBalancer address is reassigned (a pinned
+                        endpoint.nodePort is carried over). Must be a DNS-1035 label and must not
+                        equal the admin Service's name. Ignored unless dataPlane is Proxy.
+                      maxLength: 63
+                      pattern: ^[a-z]([-a-z0-9]*[a-z0-9])?$
                       type: string
                     streamIdleTimeout:
                       description: |-
@@ -2296,11 +2434,12 @@ spec:
                           dataClassification:
                             description: |-
                               DataClassification matches if the inbound request carries any of
-                              these classifications. The classification source depends on
-                              Policy.Classification.Mode: a request header
-                              (x-llmkube-classification by default), the bundled detector, or
-                              both. Common values: "public", "internal", "confidential", "pii",
-                              "phi".
+                              these classifications. The classification is the value of the
+                              request header named by Policy.Classification.HeaderKey
+                              (x-llmkube-classification by default); the router does not classify
+                              the request body, so a request without the header matches no
+                              dataClassification rule. Common values: "public", "internal",
+                              "confidential", "pii", "phi".
                             items:
                               type: string
                             type: array
@@ -2331,7 +2470,9 @@ spec:
                             description: |-
                               RequiredCapabilities filters backends. The rule only matches if at
                               least one backend in Route.Backends advertises every listed
-                              capability.
+                              capability, and on dataPlane: Proxy only those backends serve the
+                              rule's requests, under every strategy. A backend that lacks one is
+                              never tried, not even as a fallback.
                             items:
                               type: string
                             type: array
@@ -2358,8 +2499,9 @@ spec:
                               "primary-fallback" strategy, the first entry is the primary and
                               subsequent entries are tried in order on failure. For "weighted",
                               traffic is distributed across all entries by Backend.Weight. For
-                              "shadow", the first entry serves the response and subsequent entries
-                              receive mirrored requests for evaluation only.
+                              "shadow", the first entry serves the response (falling back in order
+                              as primary-fallback does) and the entries after the one that served
+                              receive mirrored copies for evaluation only; it needs at least two.
                             items:
                               type: string
                             minItems: 1
@@ -2384,7 +2526,21 @@ spec:
                           strategy:
                             default: primary-fallback
                             description: |-
-                              Strategy selects how multiple backends are used. On dataPlane:
+                              Strategy selects how multiple backends are used. On dataPlane: Proxy,
+                              weighted picks a backend per request in proportion to its weight among
+                              the rule's backends that are healthy, not quarantined and advertise
+                              every required capability; a request that fails on it fails over to
+                              another backend of the rule picked the same way, never the same one
+                              twice. A weighted rule there cannot name two members of one ModelPool,
+                              since they share one GPU slot and would swap on every other request.
+                              shadow serves the client exactly as primary-fallback does and sends a
+                              copy of each request, marked x-llmkube-shadow: true, to the rule's
+                              other healthy backends after the one that served; their responses are
+                              discarded, their failures never quarantine them, and they are not
+                              charged to budgets. Copies are best effort: at most 4 run at once per
+                              backend and the rest are dropped and counted. An external backend that
+                              is a shadow target receives, and bills, every request. A shadow target
+                              cannot be a ModelPool member. dataPlane: Gateway rejects shadow. On dataPlane:
                               AgentGateway only primary-fallback compiles, and a rule routes to its
                               first healthy backend: when that backend's InferenceService has no
                               ready replica, the next reconcile moves the rule to the next backend.
@@ -2412,12 +2568,12 @@ spec:
                       - route
                     type: object
                   type: array
-              required:
-                - backends
               type: object
               x-kubernetes-validations:
                 - message: endpoint.apiKeySecretRef is an InferenceService field; ModelRouter does not support it
                   rule: '!has(self.endpoint) || !has(self.endpoint.apiKeySecretRef)'
+                - message: spec must set backendSelector or at least one backends entry
+                  rule: has(self.backendSelector) || (has(self.backends) && self.backends.size() > 0)
             status:
               description: status defines the observed state of ModelRouter
               properties:
