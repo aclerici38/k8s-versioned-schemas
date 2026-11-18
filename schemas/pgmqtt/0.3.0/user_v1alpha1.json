@@ -1,0 +1,169 @@
+{
+  "description": "User configures an MQTT user account managed by pgmqttd. controller-runtime's K8s Lease elects exactly one reconciler at a time across Pods; the elected Pod materialises each User into a row in the broker's Postgres `users` table.",
+  "properties": {
+    "apiVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "UserSpec defines the desired state of User.",
+      "properties": {
+        "passwordSecretRef": {
+          "additionalProperties": false,
+          "description": "References an existing Secret holding the password. The\nkey must hold a non-empty value.\nOmit to have the reconciler generate a credentials Secret\nnamed `\u003cmetadata.name\u003e-mqtt-credentials` containing\n`username`, `password` and `host`, plus `port`/`uri`\nfor the TCP listener and `ws-port`/`ws-uri` for the\nwebsocket listener, each only while that listener is\nenabled. When the broker is given a TLS endpoint\n(`PGMQTT_TLS_HOST`) the Secret also carries `tls-host`,\nand `tls-port`/`mqtts-uri` and `wss-port`/`wss-uri`\nfor whichever of those ports is configured.\n",
+          "properties": {
+            "key": {
+              "maxLength": 253,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "maxLength": 253,
+              "type": "string"
+            },
+            "optional": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "username": {
+          "description": "MQTT username. Defaults to `metadata.name` when empty.\nA username belongs to the first User that claims it,\nin any namespace. Another User asking for the same\none gets no account and reports `UsernameConflict`\non its Ready condition until the owner is deleted or\nrenamed.\nRestricted to `[A-Za-z0-9._-]{1,128}` so a malformed\nname can't bloat broker storage or push the\npg_notify takeover/quota payloads (which carry the\nusername) past Postgres' 8 KB per-NOTIFY hard limit.\n",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "UserStatus defines the observed state of User.",
+      "properties": {
+        "conditions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "lastTransitionTime": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "observedGeneration": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "status"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "credentialsSecretRef": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "observedSecretHash": {
+          "description": "Deprecated and always empty. Releases before 0.3.0\nstored a SHA-256 of the password here; the reconciler\nclears it on its first pass over the User.\n",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedSecretVersion": {
+          "description": "Identity (`\u003cuid\u003e/\u003cresourceVersion\u003e`) of the Secret the\npassword was last read from. While the Secret still\nhas it, the reconciler knows the password is unchanged\nwithout comparing it against the stored hash.\n",
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observedUsername": {
+          "description": "MQTT username most recently reconciled into the\nbroker's `users` table. The reconciler compares\nthis to the currently-derived username (spec.username\nor metadata.name) and deletes the old row when they\ndiverge — preventing orphan rows on spec.username\nrename.\n",
+          "maxLength": 128,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
