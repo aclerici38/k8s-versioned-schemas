@@ -116,12 +116,16 @@
       "type": "string"
     },
     "gateways": {
-      "description": "A list of Gateway objects. View https://gateway-api.sigs.k8s.io/reference/spec/#gateway for full Gateway reference.",
+      "description": "(list/map) Gateway objects, either as a list or as a map keyed by Gateway name. View\nhttps://gateway-api.sigs.k8s.io/reference/api-spec/#gateway for full Gateway reference.\nPrefer the map form when layering values files: Helm replaces lists wholesale, so overriding one\nfield of one gateway in a list means re-declaring every gateway, whereas maps are deep-merged.\n`spec.listeners` accepts the same two shapes, keyed by listener name.",
       "items": {
         "required": []
       },
+      "required": [],
       "title": "gateways",
-      "type": "array"
+      "type": [
+        "array",
+        "object"
+      ]
     },
     "global": {
       "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
@@ -588,7 +592,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "2.7.0",
+              "default": "2.9.0",
               "title": "tag",
               "type": "string"
             }
@@ -697,6 +701,59 @@
           "title": "pod",
           "type": "object"
         },
+        "podDisruptionBudget": {
+          "description": "PodDisruptionBudget configuration for the NGINX data plane. Only applies when `nginx.kind` is `deployment`.\nA PodDisruptionBudget is created for every NGINX Deployment provisioned for a Gateway that uses this NginxProxy.",
+          "properties": {
+            "enable": {
+              "default": false,
+              "description": "Enable or disable PodDisruptionBudget for the NGINX data plane.",
+              "title": "enable",
+              "type": "boolean"
+            },
+            "maxUnavailable": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "",
+              "description": "Maximum number of pods that can be unavailable after an eviction. Value can be an absolute number (e.g. 1) or a percentage (e.g. 50%). Mutually exclusive with minAvailable.",
+              "required": [],
+              "title": "maxUnavailable"
+            },
+            "minAvailable": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": "1",
+              "description": "Minimum number of pods that must be available after an eviction. Value can be an absolute number (e.g. 1) or a percentage (e.g. 50%). Mutually exclusive with maxUnavailable; set this to \"\" to use maxUnavailable instead.",
+              "required": [],
+              "title": "minAvailable"
+            },
+            "unhealthyPodEvictionPolicy": {
+              "default": "",
+              "description": "Defines when unhealthy pods should be considered for eviction. Valid values are IfHealthyBudget and AlwaysAllow.",
+              "enum": [
+                "",
+                "IfHealthyBudget",
+                "AlwaysAllow"
+              ],
+              "required": [],
+              "title": "unhealthyPodEvictionPolicy"
+            }
+          },
+          "required": [],
+          "title": "podDisruptionBudget",
+          "type": "object"
+        },
         "replicas": {
           "default": 1,
           "description": "The number of replicas of the NGINX Deployment. This value is ignored if autoscaling.enable is true.",
@@ -779,6 +836,44 @@
           },
           "required": [],
           "title": "service",
+          "type": "object"
+        },
+        "serviceMonitor": {
+          "description": "Defines the configuration of the serviceMonitor for the nginx data plane.",
+          "properties": {
+            "annotations": {
+              "description": "Set the annotations to be added to the serviceMonitor.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enable": {
+              "default": false,
+              "description": "Enable the serviceMonitor for the data plane.",
+              "title": "enable",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "",
+              "description": "The scraping interval used by the serviceMonitor when scraping metrics.",
+              "title": "interval",
+              "type": "string"
+            },
+            "labels": {
+              "description": "Set the labels to be added to the serviceMonitor.",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "port": {
+              "default": "metrics",
+              "description": "The name of the port used for scraping metrics.",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "serviceMonitor",
           "type": "object"
         },
         "usage": {
@@ -954,6 +1049,14 @@
           "title": "externalLoadBalancer",
           "type": "object"
         },
+        "extraArgs": {
+          "description": "Additional command-line arguments for the nginx-gateway container.",
+          "items": {
+            "required": []
+          },
+          "title": "extraArgs",
+          "type": "array"
+        },
         "extraVolumeMounts": {
           "description": "extraVolumeMounts are the additional volume mounts for the nginx-gateway container.",
           "items": {
@@ -1020,8 +1123,8 @@
                   "type": "boolean"
                 },
                 "skipVerify": {
-                  "default": true,
-                  "description": "Disables TLS certificate verification when connecting to the EndpointPicker.\nBy default, certificate verification is disabled.\nREQUIRED: Must be true until Gateway API Inference Extension EndpointPicker supports mounting certificates.\nSee: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/1556",
+                  "default": false,
+                  "description": "Disables TLS certificate verification when connecting to the EndpointPicker.\nIf a BackendTLSPolicy is not defined and TLS is enabled, certificate verification is disabled.",
                   "title": "skipVerify",
                   "type": "boolean"
                 }
@@ -1055,7 +1158,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "2.7.0",
+              "default": "2.9.0",
               "title": "tag",
               "type": "string"
             }
@@ -1142,6 +1245,44 @@
               "description": "Enable serving metrics via https. By default metrics are served via http.\nPlease note that this endpoint will be secured with a self-signed certificate.",
               "title": "secure",
               "type": "boolean"
+            },
+            "serviceMonitor": {
+              "description": "Defines the configuration of the serviceMonitor for the nginxGateway control plane.",
+              "properties": {
+                "annotations": {
+                  "description": "Set the annotations to be added to the serviceMonitor.",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "enable": {
+                  "default": false,
+                  "description": "Enable the serviceMonitor for the control plane.",
+                  "title": "enable",
+                  "type": "boolean"
+                },
+                "interval": {
+                  "default": "",
+                  "description": "The scraping interval used by the serviceMonitor when scraping metrics.",
+                  "title": "interval",
+                  "type": "string"
+                },
+                "labels": {
+                  "description": "Set the labels to be added to the serviceMonitor.",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                },
+                "tlsConfig": {
+                  "description": "tlsConfig is an object that defines the full TLS configuration of the NGINX Gateway Fabric control plane for the Prometheus service monitor.\nAll fields are optional and can be configured by the user. For the full information on the fields that can be used in this object, refer to the official\nPrometheus documentation: https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.TLSConfig",
+                  "required": [],
+                  "title": "tlsConfig",
+                  "type": "object"
+                }
+              },
+              "required": [],
+              "title": "serviceMonitor",
+              "type": "object"
             }
           },
           "required": [],
@@ -1479,6 +1620,20 @@
             "required": []
           },
           "title": "watchNamespaces",
+          "type": "array"
+        },
+        "watchSecretLabelSelector": {
+          "default": "",
+          "description": "Label selector to restrict which Secrets the controller watches and caches\n(e.g. \"gateway.nginx.org/watch=true\"). If not set, all Secrets in the watch scope are watched.\nSecrets in the NGF namespace are always watched, and Secrets that NGF provisions for Gateways\nare labeled automatically.\nNOTE: Label every Secret referenced by Gateway resources (TLS certificates, etc.) with a label\nmatching the selector before enabling this option to avoid breaking existing Gateway configurations.",
+          "title": "watchSecretLabelSelector",
+          "type": "string"
+        },
+        "watchSecretNamespaces": {
+          "description": "List of namespaces to watch for Secrets. If not set, Secrets are watched in the same namespaces as all\nother resources (see watchNamespaces). The controller's own namespace is always included. When set, the\nchart grants Secret permissions only in these namespaces and the release namespace, instead of cluster-wide.\nNOTE: Every namespace that contains a Gateway, or a Secret referenced by Gateway API or NGINX Gateway Fabric\nresources, must be listed; Secrets in other namespaces are treated as if they do not exist. If watchNamespaces\nis also set, these namespaces must be a subset of it.",
+          "items": {
+            "required": []
+          },
+          "title": "watchSecretNamespaces",
           "type": "array"
         }
       },
