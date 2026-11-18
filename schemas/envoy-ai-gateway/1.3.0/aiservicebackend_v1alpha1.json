@@ -1,0 +1,331 @@
+{
+  "description": "AIServiceBackend is a resource that represents a single backend for AIGatewayRoute.\nA backend is a service that handles traffic with a concrete API specification.",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "spec": {
+      "additionalProperties": false,
+      "description": "Spec defines the details of AIServiceBackend.",
+      "properties": {
+        "backendRef": {
+          "additionalProperties": false,
+          "description": "BackendRef is the reference to the Backend resource that this AIServiceBackend corresponds to.\n\nA backend must be a Backend resource of Envoy Gateway.",
+          "properties": {
+            "group": {
+              "default": "",
+              "description": "Group is the group of the referent. For example, \"gateway.networking.k8s.io\".\nWhen unspecified or empty string, core API group is inferred.",
+              "maxLength": 253,
+              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "default": "Service",
+              "description": "Kind is the Kubernetes resource kind of the referent. For example\n\"Service\".\n\nDefaults to \"Service\" when not specified.",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Name is the name of the referent.",
+              "maxLength": 253,
+              "minLength": 1,
+              "type": "string"
+            },
+            "namespace": {
+              "description": "Namespace is the namespace of the backend. When unspecified, the local\nnamespace is inferred.",
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "port": {
+              "description": "Port specifies the destination port number to use for this resource.\nPort is required when the referent is a Kubernetes Service.",
+              "format": "int32",
+              "maximum": 65535,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object",
+          "x-kubernetes-validations": [
+            {
+              "message": "BackendRef must be a Backend resource of Envoy Gateway. See https://github.com/envoyproxy/ai-gateway/issues/902 for more details.",
+              "rule": "has(self.kind) \u0026\u0026 self.kind == 'Backend' \u0026\u0026 has(self.group) \u0026\u0026 self.group == 'gateway.envoyproxy.io'"
+            },
+            {
+              "message": "Must have port for Service reference",
+              "rule": "(size(self.group) == 0 \u0026\u0026 self.kind == 'Service') ? has(self.port) : true"
+            }
+          ]
+        },
+        "bodyMutation": {
+          "additionalProperties": false,
+          "description": "BodyMutation defines the mutation of HTTP request body JSON fields that will be applied to the request\nbefore sending it to the backend.",
+          "properties": {
+            "remove": {
+              "description": "Remove the given JSON field(s) from the HTTP request body before sending to the backend.\nThe value of Remove is a list of top-level field names to remove.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 16,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "set"
+            },
+            "set": {
+              "description": "Set overwrites/adds the request body with the given JSON field (name, value)\nbefore sending to the backend. Only top-level fields are currently supported.",
+              "items": {
+                "additionalProperties": false,
+                "description": "HTTPBodyField represents a JSON field name and value for body mutation",
+                "properties": {
+                  "path": {
+                    "description": "Path is the top-level field name to set in the request body.\nExamples: \"service_tier\", \"max_tokens\", \"temperature\"",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "value": {
+                    "description": "Value is the JSON value to set at the specified field. This can be any valid JSON value:\nstring, number, boolean, object, array, or null.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "maxItems": 16,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "path"
+              ],
+              "x-kubernetes-list-type": "map"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "headerMutation": {
+          "additionalProperties": false,
+          "description": "HeaderMutation defines the mutation of HTTP headers that will be applied to the request\nbefore sending it to the backend.",
+          "properties": {
+            "remove": {
+              "description": "Remove the given header(s) from the HTTP request before the action. The\nvalue of Remove is a list of HTTP header names. Note that the header\nnames are case-insensitive (see\nhttps://datatracker.ietf.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 16,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "set"
+            },
+            "set": {
+              "description": "Set overwrites/adds the request with the given header (name, value)\nbefore the action.\n\nInput:\n  GET /foo HTTP/1.",
+              "items": {
+                "additionalProperties": false,
+                "description": "HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.",
+                "properties": {
+                  "name": {
+                    "description": "Name is the name of the HTTP Header to be matched. Name matching MUST be\ncase-insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9!#$%\u0026'*+\\-.^_\\x60|~]+$",
+                    "type": "string"
+                  },
+                  "value": {
+                    "description": "Value is the value of HTTP Header to be matched.\n\u003cgateway:experimental:description\u003e\nMust consist of printable US-ASCII characters, optionally separated\nby single tabs or spaces. See: https://tools.",
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "maxItems": 16,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "name"
+              ],
+              "x-kubernetes-list-type": "map"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "schema": {
+          "additionalProperties": false,
+          "description": "APISchema specifies the API schema of the output format of requests from\nEnvoy that this AIServiceBackend can accept as incoming requests.",
+          "properties": {
+            "name": {
+              "description": "Name is the name of the API schema of the AIGatewayRoute or AIServiceBackend.",
+              "enum": [
+                "OpenAI",
+                "Cohere",
+                "AWSBedrock",
+                "AzureOpenAI",
+                "GCPVertexAI",
+                "GCPAnthropic",
+                "Anthropic",
+                "AWSAnthropic",
+                "AWSOpenAI",
+                "TypeSafe"
+              ],
+              "type": "string"
+            },
+            "prefix": {
+              "description": "Prefix is the prefix for the API.\n\nWhen the name is set to \"OpenAI\", \"chat completions\" API endpoint will be \"${this_field}/chat/completions\".",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "version": {
+              "description": "Version is the version of the API schema.\n\nWhen the name is set to AzureOpenAI, this version maps to \"API Version\" in the\nAzure OpenAI API documentation (https://learn.microsoft.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "backendRef",
+        "schema"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "additionalProperties": false,
+      "description": "Status defines the status details of the AIServiceBackend.",
+      "properties": {
+        "conditions": {
+          "description": "Conditions is the list of conditions by the reconciliation result.\nCurrently, at most one condition is set.\n\nKnown .status.conditions.type are: \"Accepted\", \"NotAccepted\".",
+          "items": {
+            "additionalProperties": false,
+            "description": "Condition contains details for one aspect of the current state of this API Resource.",
+            "properties": {
+              "lastTransitionTime": {
+                "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                "maxLength": 32768,
+                "type": "string"
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].",
+                "format": "int64",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.",
+                "maxLength": 1024,
+                "minLength": 1,
+                "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                "type": "string"
+              },
+              "status": {
+                "description": "status of the condition, one of True, False, Unknown.",
+                "enum": [
+                  "True",
+                  "False",
+                  "Unknown"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                "maxLength": 316,
+                "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lastTransitionTime",
+              "message",
+              "reason",
+              "status",
+              "type"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "type": "object"
+}
