@@ -73,15 +73,51 @@
               "nullable": true,
               "properties": {
                 "capacity": {
-                  "description": "Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).",
+                  "description": "Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,\nunset cache budgets default to a percentage of it (content 60%, metadata\n15%) and the two budgets together may claim at most 90% of it. Raising it on\na `Persistent` cache grows the existing PVC when its StorageClass allows\nvolume expansion; a smaller value is never applied to an existing PVC. Must be\nat least `3Mi` (1MiB for each cache under the 90% ceiling).",
                   "nullable": true,
                   "type": [
                     "string",
                     "null"
                   ]
                 },
+                "contentCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "contentCacheSizeMb": {
-                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`).",
+                  "description": "kopia content cache budget in MiB (`--content-cache-size-mb`). The original\nspelling of `contentCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -89,8 +125,44 @@
                     "null"
                   ]
                 },
+                "metadataCacheSize": {
+                  "additionalProperties": false,
+                  "description": "kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of\n`capacity`, or `{ size: \u003cquantity\u003e }`. Absent with a known `capacity`, it\ndefaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.",
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "percent"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "size"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "percent": {
+                      "description": "Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on\nthis layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.",
+                      "format": "uint32",
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "size": {
+                      "description": "An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down\nto whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
                 "metadataCacheSizeMb": {
-                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).",
+                  "description": "kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original\nspelling of `metadataCacheSize`; set one or the other, not both.",
                   "format": "int64",
                   "nullable": true,
                   "type": [
@@ -973,6 +1045,31 @@
             "null"
           ]
         },
+        "selection": {
+          "additionalProperties": false,
+          "description": "Restore only some paths out of the snapshot instead of its whole root —\na partial restore (e.g. bring back one deleted file into a live, shared\nPVC). Absent restores everything. Not allowed with `target.streamExec`,\nwhich already selects exactly one file.",
+          "nullable": true,
+          "properties": {
+            "paths": {
+              "description": "Snapshot-root-relative paths to restore (files or directories), e.g.\n`docs/report.odt` or `music/album`. Relative, `/`-separated, normalized:\nno leading `/`, no `.` or `..` segments, no empty segments (`a//b`), no\ntrailing `/`. At most 64 paths and 16 KiB in total, no duplicates, and no\npath inside another selected path (selecting `docs` already restores\n`docs/report.odt`).",
+              "items": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "paths"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "source": {
           "additionalProperties": false,
           "description": "Where to read data from (snapshotRef, fromPolicy, or identity).",
@@ -1705,6 +1802,24 @@
             "null"
           ]
         },
+        "execution": {
+          "additionalProperties": false,
+          "description": "Where this populator restore's prime PVCs and mover Jobs live when that\nis not the `Restore`'s own namespace: set under the repository's\n`execution.mode: Central`, absent otherwise. Pinned before anything is\ncreated there, so cleanup finds the objects even after the repository's\n`execution` is edited or the repository is deleted.",
+          "nullable": true,
+          "properties": {
+            "namespace": {
+              "description": "The namespace holding the prime PVCs and mover Jobs (the operator\nnamespace).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "failure": {
           "additionalProperties": false,
           "description": "Structured terminal-failure detail (kopia error class, stderr tail, retry hint).",
@@ -2030,6 +2145,14 @@
           },
           "type": [
             "object",
+            "null"
+          ]
+        },
+        "waitPausedAt": {
+          "description": "When the `policy.waitTimeout` window was PAUSED (RFC3339) because the\nrepository was suspended (`spec.suspend: true`) while this restore — or\none of its populator claims — was still waiting to launch. Set on the\nfirst suspended pass that finds an open window; on the first pass after\nthe repository is resumed, every still-waiting anchor\n(`waitStartedAt`, and each unlaunched claim's `waitStartedAt`) is moved\nforward by the paused interval and this field is cleared, so time spent\nsuspended never consumes the window. Absent when nothing is paused.",
+          "nullable": true,
+          "type": [
+            "string",
             "null"
           ]
         },

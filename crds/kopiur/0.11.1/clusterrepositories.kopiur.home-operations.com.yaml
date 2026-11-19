@@ -824,6 +824,59 @@ spec:
                   required:
                     - passwordSecretRef
                   type: object
+                execution:
+                  description: |-
+                    Where the backup movers of this repository's consumers run (absent =
+                    each consumer's own namespace). **Experimental**: `mode: Central`
+                    depends on the alpha Kubernetes `CrossNamespaceVolumeDataSource` feature.
+                  nullable: true
+                  properties:
+                    mode:
+                      description: |-
+                        `InNamespace` runs each mover beside the object it works for, in the
+                        consumer's namespace. `Central` runs it in the operator namespace, so
+                        that no mover pod and no repository credential enters the workload
+                        namespace.
+
+                        A central backup of a PVC crosses namespaces through CSI: the operator
+                        creates a temporary PVC in the operator namespace whose cross-namespace
+                        `dataSourceRef` names a `VolumeSnapshot` of the source
+                        (`copyMethod: Snapshot`, also for each member of a
+                        `groupBy: VolumeGroupSnapshot` group) or the source PVC itself
+                        (`copyMethod: Clone`), authorized by a `ReferenceGrant` it creates
+                        beside that object. The mover mounts every source at a fixed path; the
+                        path kopia records (`sourcePathOverride` included) is unchanged.
+                        `copyMethod: Direct` on a PVC and a `stream` source cannot leave the
+                        workload namespace, and an NFS source would be mounted outside the
+                        reach of that namespace's Pod Security rules: all three fail the
+                        `Snapshot` with the reason.
+
+                        A central restore fills a temporary PVC in the operator namespace, and
+                        its volume is then handed to the PVC that claims the `Restore`: one the
+                        user wrote (`target.populator`), or one the operator creates
+                        (`target.pvc`, when no PVC of that name exists). A restore into an
+                        existing PVC and a `target.streamExec` restore still run in the
+                        consumer's namespace.
+
+                        Verification, pins and browse sessions read only the repository and
+                        run in the operator namespace. A browse session is created by its user,
+                        who therefore needs access to that namespace.
+
+                        It needs, on the cluster: the repository's credential Secret(s) (and a
+                        filesystem backend's PVC) in the operator namespace; and, for a backup
+                        of a PVC, the `CrossNamespaceVolumeDataSource` feature gate on
+                        kube-apiserver and kube-controller-manager, the same gate on the CSI
+                        driver's external-provisioner, and the Gateway API `ReferenceGrant`
+                        CRD. A `mover.cache` of `mode: Persistent` is provisioned per run
+                        instead, because the persistent cache PVC lives in the workload
+                        namespace.
+                      enum:
+                        - InNamespace
+                        - Central
+                      type: string
+                  required:
+                    - mode
+                  type: object
                 health:
                   description: Repository health thresholds (tunes the index-blob-count warning).
                   nullable: true
@@ -951,16 +1004,76 @@ spec:
                           nullable: true
                           properties:
                             capacity:
-                              description: Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).
+                              description: |-
+                                Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,
+                                unset cache budgets default to a percentage of it (content 60%, metadata
+                                15%) and the two budgets together may claim at most 90% of it. Raising it on
+                                a `Persistent` cache grows the existing PVC when its StorageClass allows
+                                volume expansion; a smaller value is never applied to an existing PVC. Must be
+                                at least `3Mi` (1MiB for each cache under the 90% ceiling).
                               nullable: true
                               type: string
+                            contentCacheSize:
+                              description: |-
+                                kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of
+                                `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                                defaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.
+                              nullable: true
+                              oneOf:
+                                - required:
+                                    - percent
+                                - required:
+                                    - size
+                              properties:
+                                percent:
+                                  description: |-
+                                    Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                    this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                                  format: uint32
+                                  minimum: 0.0
+                                  type: integer
+                                size:
+                                  description: |-
+                                    An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                    to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                                  type: string
+                              type: object
                             contentCacheSizeMb:
-                              description: kopia content cache budget in MiB (`--content-cache-size-mb`).
+                              description: |-
+                                kopia content cache budget in MiB (`--content-cache-size-mb`). The original
+                                spelling of `contentCacheSize`; set one or the other, not both.
                               format: int64
                               nullable: true
                               type: integer
+                            metadataCacheSize:
+                              description: |-
+                                kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of
+                                `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                                defaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.
+                              nullable: true
+                              oneOf:
+                                - required:
+                                    - percent
+                                - required:
+                                    - size
+                              properties:
+                                percent:
+                                  description: |-
+                                    Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                    this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                                  format: uint32
+                                  minimum: 0.0
+                                  type: integer
+                                size:
+                                  description: |-
+                                    An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                    to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                                  type: string
+                              type: object
                             metadataCacheSizeMb:
-                              description: kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).
+                              description: |-
+                                kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original
+                                spelling of `metadataCacheSize`; set one or the other, not both.
                               format: int64
                               nullable: true
                               type: integer
@@ -2007,16 +2120,76 @@ spec:
                       nullable: true
                       properties:
                         capacity:
-                          description: Size of the PVC backing the mover's kopia cache (e.g. `10Gi`).
+                          description: |-
+                            Size of the volume backing the mover's kopia cache (e.g. `10Gi`). When set,
+                            unset cache budgets default to a percentage of it (content 60%, metadata
+                            15%) and the two budgets together may claim at most 90% of it. Raising it on
+                            a `Persistent` cache grows the existing PVC when its StorageClass allows
+                            volume expansion; a smaller value is never applied to an existing PVC. Must be
+                            at least `3Mi` (1MiB for each cache under the 90% ceiling).
                           nullable: true
                           type: string
+                        contentCacheSize:
+                          description: |-
+                            kopia content cache budget (`--content-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 60% of it. Mutually exclusive with `contentCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         contentCacheSizeMb:
-                          description: kopia content cache budget in MiB (`--content-cache-size-mb`).
+                          description: |-
+                            kopia content cache budget in MiB (`--content-cache-size-mb`). The original
+                            spelling of `contentCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
+                        metadataCacheSize:
+                          description: |-
+                            kopia metadata cache budget (`--metadata-cache-size-mb`): `{ percent: N }` of
+                            `capacity`, or `{ size: <quantity> }`. Absent with a known `capacity`, it
+                            defaults to 15% of it. Mutually exclusive with `metadataCacheSizeMb`.
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - percent
+                            - required:
+                                - size
+                          properties:
+                            percent:
+                              description: |-
+                                Percent of the cache volume's `capacity` (1–100). Needs a `capacity`, set on
+                                this layer or inherited from `moverDefaults.cache`. Rounded down to whole MiB.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            size:
+                              description: |-
+                                An absolute size as a Kubernetes quantity (e.g. `1Gi`, `500Mi`). Rounded down
+                                to whole MiB; must be at least `1Mi` and, when a `capacity` is known, fit in it.
+                              type: string
+                          type: object
                         metadataCacheSizeMb:
-                          description: kopia metadata cache budget in MiB (`--metadata-cache-size-mb`).
+                          description: |-
+                            kopia metadata cache budget in MiB (`--metadata-cache-size-mb`). The original
+                            spelling of `metadataCacheSize`; set one or the other, not both.
                           format: int64
                           nullable: true
                           type: integer
@@ -3835,7 +4008,7 @@ spec:
                     - namespace
                   type: object
                 suspend:
-                  description: "Pause this cluster repository: skip connect/bootstrap and maintenance projection."
+                  description: Pause ALL new work against this cluster repository (backups, restores, maintenance, replication, seeding, verification); held work resumes once unsuspended.
                   type: boolean
               required:
                 - allowedNamespaces
