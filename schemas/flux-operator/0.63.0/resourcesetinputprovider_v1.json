@@ -254,11 +254,70 @@
                 ]
               },
               "namespace": {
-                "description": "Namespace scopes ExternalArtifact discovery.\nWhen empty, ExternalArtifacts are listed in the ResourceSetInputProvider namespace.\nWhen set to \"*\", ExternalArtifacts are listed across all namespaces by\nomitting the namespace option from List().\nOtherwise, ExternalArtifacts are listed only in the specified namespace.",
+                "description": "Namespace scopes ExternalArtifact discovery.\nWhen empty, ExternalArtifacts are listed in the ResourceSetInputProvider namespace.\nWhen set to \"*\", ExternalArtifacts are listed across all namespaces by\nomitting the namespace option from List().\nOtherwise, ExternalArtifacts are listed only in the specified namespace.\nThis field is mutually exclusive with NamespaceSelector.",
                 "type": [
                   "string",
                   "null"
                 ]
+              },
+              "namespaceSelector": {
+                "additionalProperties": false,
+                "description": "NamespaceSelector selects the namespaces where ExternalArtifacts are\ndiscovered based on their labels. An empty selector matches all\nnamespaces. When both Namespace and NamespaceSelector are empty,\nExternalArtifacts are listed in the ResourceSetInputProvider namespace.\nThis field is mutually exclusive with Namespace.",
+                "properties": {
+                  "matchExpressions": {
+                    "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                      "properties": {
+                        "key": {
+                          "description": "key is the label key that the selector applies to.",
+                          "type": "string"
+                        },
+                        "operator": {
+                          "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                          "type": "string"
+                        },
+                        "values": {
+                          "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "x-kubernetes-list-type": "atomic"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "operator"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "x-kubernetes-list-type": "atomic"
+                  },
+                  "matchLabels": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "x-kubernetes-map-type": "atomic"
               }
             },
             "type": "object",
@@ -267,6 +326,10 @@
               {
                 "message": "name is mutually exclusive with matchLabels and matchExpressions",
                 "rule": "!has(self.name) || (!has(self.matchLabels) \u0026\u0026 !has(self.matchExpressions))"
+              },
+              {
+                "message": "namespace and namespaceSelector are mutually exclusive",
+                "rule": "!(has(self.__namespace__) \u0026\u0026 has(self.namespaceSelector))"
               }
             ]
           },
@@ -276,7 +339,7 @@
           ]
         },
         "serviceAccountName": {
-          "description": "ServiceAccountName specifies the name of the Kubernetes ServiceAccount\nused for authentication with AWS, Azure or GCP services through\nworkload identity federation features. If not specified, the\nauthentication for these cloud providers will use the ServiceAccount\nof the operator (or any other environment authentication configuration).",
+          "description": "ServiceAccountName specifies the name of the Kubernetes ServiceAccount\nused for authentication with external services using object identity.\nIf not specified, the default object identity ServiceAccount configured\nwith the --default-object-identity-service-account flag or the\nDEFAULT_OBJECT_IDENTITY_SERVICE_ACCOUNT environment variable is used.\nThis field can also be set for the ExternalArtifact type, where it is\nused only for impersonation and its annotations are ignored.\nFor a complete guide to the ServiceAccount annotations used for\nobject identity, including the spiffe credential provider, see:\nhttps://fluxcd.io/flux/integrations/object-identity/",
           "type": [
             "string",
             "null"
