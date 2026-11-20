@@ -1156,6 +1156,28 @@
           ],
           "type": "object"
         },
+        "execution": {
+          "additionalProperties": false,
+          "description": "Where the backup movers of this repository's consumers run (absent =\neach consumer's own namespace). **Experimental**: `mode: Central`\ndepends on the alpha Kubernetes `CrossNamespaceVolumeDataSource` feature.",
+          "nullable": true,
+          "properties": {
+            "mode": {
+              "description": "`InNamespace` runs each mover beside the object it works for, in the\nconsumer's namespace. `Central` runs it in the operator namespace, so\nthat no mover pod and no repository credential enters the workload\nnamespace.\n\nA central backup of a PVC crosses namespaces through CSI: the operator\ncreates a temporary PVC in the operator namespace whose cross-namespace\n`dataSourceRef` names a `VolumeSnapshot` of the source\n(`copyMethod: Snapshot`, also for each member of a\n`groupBy: VolumeGroupSnapshot` group) or the source PVC itself\n(`copyMethod: Clone`), authorized by a `ReferenceGrant` it creates\nbeside that object. The mover mounts every source at a fixed path; the\npath kopia records (`sourcePathOverride` included) is unchanged.\n`copyMethod: Direct` on a PVC and a `stream` source cannot leave the\nworkload namespace, and an NFS source would be mounted outside the\nreach of that namespace's Pod Security rules: all three fail the\n`Snapshot` with the reason.\n\nA central restore fills a temporary PVC in the operator namespace, and\nits volume is then handed to the PVC that claims the `Restore`: one the\nuser wrote (`target.populator`), or one the operator creates\n(`target.pvc`, when no PVC of that name exists). A restore into an\nexisting PVC and a `target.streamExec` restore still run in the\nconsumer's namespace.\n\nVerification, pins and browse sessions read only the repository and\nrun in the operator namespace. A browse session is created by its user,\nwho therefore needs access to that namespace.\n\nIt needs, on the cluster: the repository's credential Secret(s) (and a\nfilesystem backend's PVC) in the operator namespace; and, for a backup\nof a PVC, the `CrossNamespaceVolumeDataSource` feature gate on\nkube-apiserver and kube-controller-manager, the same gate on the CSI\ndriver's external-provisioner, and the Gateway API `ReferenceGrant`\nCRD. A central mover's `mover.cache` of `mode: Persistent` keeps its\ncache PVC in the operator namespace, beside the mover.",
+              "enum": [
+                "InNamespace",
+                "Central"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "health": {
           "additionalProperties": false,
           "description": "Repository health thresholds (tunes the index-blob-count warning).",
