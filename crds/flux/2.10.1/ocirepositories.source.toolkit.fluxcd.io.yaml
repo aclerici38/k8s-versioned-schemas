@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/component: source-controller
     app.kubernetes.io/instance: flux-system
     app.kubernetes.io/part-of: flux
-  name: buckets.source.toolkit.fluxcd.io
+  name: ocirepositories.source.toolkit.fluxcd.io
 spec:
   group: source.toolkit.fluxcd.io
   names:
@@ -17,29 +17,31 @@ spec:
       - all
       - fluxcd
       - fluxcd-sources
-    kind: Bucket
-    listKind: BucketList
-    plural: buckets
-    singular: bucket
+    kind: OCIRepository
+    listKind: OCIRepositoryList
+    plural: ocirepositories
+    shortNames:
+      - ocirepo
+    singular: ocirepository
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.endpoint
-          name: Endpoint
+        - jsonPath: .spec.url
+          name: URL
           type: string
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
         - jsonPath: .status.conditions[?(@.type=="Ready")].status
           name: Ready
           type: string
         - jsonPath: .status.conditions[?(@.type=="Ready")].message
           name: Status
           type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
       name: v1
       schema:
         openAPIV3Schema:
-          description: Bucket is the Schema for the buckets API.
+          description: OCIRepository is the Schema for the ocirepositories API
           properties:
             apiVersion:
               description: |-
@@ -59,13 +61,8 @@ spec:
             metadata:
               type: object
             spec:
-              description: |-
-                BucketSpec specifies the required configuration to produce an Artifact for
-                an object storage bucket.
+              description: OCIRepositorySpec defines the desired state of OCIRepository
               properties:
-                bucketName:
-                  description: BucketName is the name of the object storage bucket.
-                  type: string
                 certSecretRef:
                   description: |-
                     CertSecretRef can be given the name of a Secret containing
@@ -76,12 +73,10 @@ spec:
                     - a PEM-encoded CA certificate (`ca.crt`)
 
                     and whichever are supplied, will be used for connecting to the
-                    bucket. The client cert and key are useful if you are
+                    registry. The client cert and key are useful if you are
                     authenticating with a certificate; the CA cert is useful if
                     you are using a self-signed server certificate. The Secret must
                     be of type `Opaque` or `kubernetes.io/tls`.
-
-                    This field is only supported for the `generic` provider.
                   properties:
                     name:
                       description: Name of the referent.
@@ -89,9 +84,6 @@ spec:
                   required:
                     - name
                   type: object
-                endpoint:
-                  description: Endpoint is the object storage address the BucketName is located at.
-                  type: string
                 ignore:
                   description: |-
                     Ignore overrides the set of excluded patterns in the .sourceignore format
@@ -99,34 +91,51 @@ spec:
                     consult the documentation for your version to find out what those are.
                   type: string
                 insecure:
-                  description: Insecure allows connecting to a non-TLS HTTP Endpoint.
+                  description: Insecure allows connecting to a non-TLS HTTP container registry.
                   type: boolean
                 interval:
                   description: |-
-                    Interval at which the Bucket Endpoint is checked for updates.
+                    Interval at which the OCIRepository URL is checked for updates.
                     This interval is approximate and may be subject to jitter to ensure
                     efficient use of resources.
                   pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
                   type: string
-                prefix:
-                  description: Prefix to use for server-side filtering of files in the Bucket.
-                  type: string
-                provider:
-                  default: generic
+                layerSelector:
                   description: |-
-                    Provider of the object storage bucket.
-                    Defaults to 'generic', which expects an S3 (API) compatible object
-                    storage.
+                    LayerSelector specifies which layer should be extracted from the OCI artifact.
+                    When not specified, the first layer found in the artifact is selected.
+                  properties:
+                    mediaType:
+                      description: |-
+                        MediaType specifies the OCI media type of the layer
+                        which should be extracted from the OCI Artifact. The
+                        first layer matching this type is selected.
+                      type: string
+                    operation:
+                      description: |-
+                        Operation specifies how the selected layer should be processed.
+                        By default, the layer compressed content is extracted to storage.
+                        When the operation is set to 'copy', the layer compressed content
+                        is persisted to storage as it is.
+                      enum:
+                        - extract
+                        - copy
+                      type: string
+                  type: object
+                provider:
+                  description: |-
+                    The provider used for authentication, can be 'aws', 'azure', 'gcp' or 'generic'.
+                    When not specified, defaults to 'generic'.
                   enum:
                     - generic
                     - aws
-                    - gcp
                     - azure
+                    - gcp
                   type: string
                 proxySecretRef:
                   description: |-
                     ProxySecretRef specifies the Secret containing the proxy configuration
-                    to use while communicating with the Bucket server.
+                    to use while communicating with the container registry.
                   properties:
                     name:
                       description: Name of the referent.
@@ -134,13 +143,33 @@ spec:
                   required:
                     - name
                   type: object
-                region:
-                  description: Region of the Endpoint where the BucketName is located in.
-                  type: string
+                ref:
+                  description: |-
+                    The OCI reference to pull and monitor for changes,
+                    defaults to the latest tag.
+                  properties:
+                    digest:
+                      description: |-
+                        Digest is the image digest to pull, takes precedence over SemVer.
+                        The value should be in the format 'sha256:<HASH>'.
+                      type: string
+                    semver:
+                      description: |-
+                        SemVer is the range of tags to pull selecting the latest within
+                        the range, takes precedence over Tag.
+                      type: string
+                    semverFilter:
+                      description: SemverFilter is a regex pattern to filter the tags within the SemVer range.
+                      type: string
+                    tag:
+                      description: Tag is the image tag to pull, defaults to latest.
+                      type: string
+                  type: object
                 secretRef:
                   description: |-
-                    SecretRef specifies the Secret containing authentication credentials
-                    for the Bucket.
+                    SecretRef contains the secret name containing the registry login
+                    credentials to resolve image metadata.
+                    The secret must be of type kubernetes.io/dockerconfigjson.
                   properties:
                     name:
                       description: Name of the referent.
@@ -151,34 +180,71 @@ spec:
                 serviceAccountName:
                   description: |-
                     ServiceAccountName is the name of the Kubernetes ServiceAccount used to authenticate
-                    the bucket. This field is only supported for the 'gcp' and 'aws' providers.
-                    For more information about workload identity:
-                    https://fluxcd.io/flux/components/source/buckets/#workload-identity
+                    the image pull, either with the pull secrets attached to the service account or with
+                    an object identity.
+                    For more information about object identity:
+                    https://fluxcd.io/flux/integrations/object-identity/
+                    For more information about image pull secrets:
+                    https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#add-imagepullsecrets-to-a-service-account
                   type: string
-                sts:
+                suspend:
+                  description: This flag tells the controller to suspend the reconciliation of this source.
+                  type: boolean
+                timeout:
+                  description: The timeout for remote OCI Repository operations like pulling, defaults to 60s.
+                  pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
+                  type: string
+                url:
                   description: |-
-                    STS specifies the required configuration to use a Security Token
-                    Service for fetching temporary credentials to authenticate in a
-                    Bucket provider.
-
-                    This field is only supported for the `aws` and `generic` providers.
+                    URL is a reference to an OCI artifact repository hosted
+                    on a remote container registry.
+                  pattern: ^oci://.*$
+                  type: string
+                verify:
+                  description: |-
+                    Verify contains the secret name containing the trusted public keys
+                    used to verify the signature and specifies which provider to use to check
+                    whether OCI image is authentic.
                   properties:
-                    certSecretRef:
+                    matchOIDCIdentity:
                       description: |-
-                        CertSecretRef can be given the name of a Secret containing
-                        either or both of
-
-                        - a PEM-encoded client certificate (`tls.crt`) and private
-                        key (`tls.key`);
-                        - a PEM-encoded CA certificate (`ca.crt`)
-
-                        and whichever are supplied, will be used for connecting to the
-                        STS endpoint. The client cert and key are useful if you are
-                        authenticating with a certificate; the CA cert is useful if
-                        you are using a self-signed server certificate. The Secret must
-                        be of type `Opaque` or `kubernetes.io/tls`.
-
-                        This field is only supported for the `ldap` provider.
+                        MatchOIDCIdentity specifies the identity matching criteria to use
+                        while verifying an OCI artifact which was signed using Cosign keyless
+                        signing. The artifact's identity is deemed to be verified if any of the
+                        specified matchers match against the identity.
+                      items:
+                        description: |-
+                          OIDCIdentityMatch specifies options for verifying the certificate identity,
+                          i.e. the issuer and the subject of the certificate.
+                        properties:
+                          issuer:
+                            description: |-
+                              Issuer specifies the regex pattern to match against to verify
+                              the OIDC issuer in the Fulcio certificate. The pattern must be a
+                              valid Go regular expression.
+                            type: string
+                          subject:
+                            description: |-
+                              Subject specifies the regex pattern to match against to verify
+                              the identity subject in the Fulcio certificate. The pattern must
+                              be a valid Go regular expression.
+                            type: string
+                        required:
+                          - issuer
+                          - subject
+                        type: object
+                      type: array
+                    provider:
+                      default: cosign
+                      description: Provider specifies the technology used to sign the OCI Artifact.
+                      enum:
+                        - cosign
+                        - notation
+                      type: string
+                    secretRef:
+                      description: |-
+                        SecretRef specifies the Kubernetes Secret containing the
+                        trusted public keys.
                       properties:
                         name:
                           description: Name of the referent.
@@ -186,23 +252,12 @@ spec:
                       required:
                         - name
                       type: object
-                    endpoint:
+                    trustedRootSecretRef:
                       description: |-
-                        Endpoint is the HTTP/S endpoint of the Security Token Service from
-                        where temporary credentials will be fetched.
-                      pattern: ^(http|https)://.*$
-                      type: string
-                    provider:
-                      description: Provider of the Security Token Service.
-                      enum:
-                        - aws
-                        - ldap
-                      type: string
-                    secretRef:
-                      description: |-
-                        SecretRef specifies the Secret containing authentication credentials
-                        for the STS endpoint. This Secret must contain the fields `username`
-                        and `password` and is supported only for the `ldap` provider.
+                        TrustedRootSecretRef specifies the Kubernetes Secret containing a
+                        Sigstore trusted_root.json file. This enables verification against
+                        self-hosted Sigstore infrastructure (custom Fulcio CA, self-hosted
+                        Rekor instance). The Secret must contain a key named "trusted_root.json".
                       properties:
                         name:
                           description: Name of the referent.
@@ -211,46 +266,16 @@ spec:
                         - name
                       type: object
                   required:
-                    - endpoint
                     - provider
                   type: object
-                suspend:
-                  description: |-
-                    Suspend tells the controller to suspend the reconciliation of this
-                    Bucket.
-                  type: boolean
-                timeout:
-                  default: 60s
-                  description: Timeout for fetch operations, defaults to 60s.
-                  pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m))+$
-                  type: string
-              required:
-                - bucketName
-                - endpoint
-                - interval
               type: object
-              x-kubernetes-validations:
-                - message: STS configuration is only supported for the 'aws' and 'generic' Bucket providers
-                  rule: self.provider == 'aws' || self.provider == 'generic' || !has(self.sts)
-                - message: '''aws'' is the only supported STS provider for the ''aws'' Bucket provider'
-                  rule: self.provider != 'aws' || !has(self.sts) || self.sts.provider == 'aws'
-                - message: '''ldap'' is the only supported STS provider for the ''generic'' Bucket provider'
-                  rule: self.provider != 'generic' || !has(self.sts) || self.sts.provider == 'ldap'
-                - message: spec.sts.secretRef is not required for the 'aws' STS provider
-                  rule: '!has(self.sts) || self.sts.provider != ''aws'' || !has(self.sts.secretRef)'
-                - message: spec.sts.certSecretRef is not required for the 'aws' STS provider
-                  rule: '!has(self.sts) || self.sts.provider != ''aws'' || !has(self.sts.certSecretRef)'
-                - message: ServiceAccountName is not supported for the 'generic' Bucket provider
-                  rule: self.provider != 'generic' || !has(self.serviceAccountName)
-                - message: cannot set both .spec.secretRef and .spec.serviceAccountName
-                  rule: '!has(self.secretRef) || !has(self.serviceAccountName)'
             status:
               default:
                 observedGeneration: -1
-              description: BucketStatus records the observed state of a Bucket.
+              description: OCIRepositoryStatus defines the observed state of OCIRepository
               properties:
                 artifact:
-                  description: Artifact represents the last successful Bucket reconciliation.
+                  description: Artifact represents the output of the last successful OCI Repository sync.
                   properties:
                     digest:
                       description: Digest is the digest of the file in the form of '<algorithm>:<checksum>'.
@@ -296,7 +321,7 @@ spec:
                     - url
                   type: object
                 conditions:
-                  description: Conditions holds the conditions for the Bucket.
+                  description: Conditions holds the conditions for the OCIRepository.
                   items:
                     description: Condition contains details for one aspect of the current state of this API Resource.
                     properties:
@@ -358,7 +383,7 @@ spec:
                     can be detected.
                   type: string
                 observedGeneration:
-                  description: ObservedGeneration is the last observed generation of the Bucket object.
+                  description: ObservedGeneration is the last observed generation.
                   format: int64
                   type: integer
                 observedIgnore:
@@ -366,14 +391,45 @@ spec:
                     ObservedIgnore is the observed exclusion patterns used for constructing
                     the source artifact.
                   type: string
-                url:
+                observedLayerSelector:
                   description: |-
-                    URL is the dynamic fetch link for the latest Artifact.
-                    It is provided on a "best effort" basis, and using the precise
-                    BucketStatus.Artifact data is recommended.
+                    ObservedLayerSelector is the observed layer selector used for constructing
+                    the source artifact.
+                  properties:
+                    mediaType:
+                      description: |-
+                        MediaType specifies the OCI media type of the layer
+                        which should be extracted from the OCI Artifact. The
+                        first layer matching this type is selected.
+                      type: string
+                    operation:
+                      description: |-
+                        Operation specifies how the selected layer should be processed.
+                        By default, the layer compressed content is extracted to storage.
+                        When the operation is set to 'copy', the layer compressed content
+                        is persisted to storage as it is.
+                      enum:
+                        - extract
+                        - copy
+                      type: string
+                  type: object
+                sourceVerificationFingerprint:
+                  description: |-
+                    SourceVerificationFingerprint is the fingerprint of the verification
+                    material used to verify the signature of the current Artifact. It is
+                    used to detect changes to the verification policy, such as a key
+                    rotation, that require the current revision to be verified again.
+                  type: string
+                url:
+                  description: URL is the download link for the artifact output of the last OCI Repository sync.
                   type: string
               type: object
           type: object
+          x-kubernetes-validations:
+            - message: spec.url is required
+              rule: has(self.spec) && has(self.spec.url)
+            - message: spec.interval is required
+              rule: has(self.spec) && has(self.spec.interval)
       served: true
       storage: true
       subresources:
