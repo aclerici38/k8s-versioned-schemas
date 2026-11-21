@@ -65,6 +65,12 @@
           "title": "loopfileBaseDirs",
           "type": "array"
         },
+        "minReadySeconds": {
+          "default": 0,
+          "description": "Seconds an agent pod must stay Ready before the DaemonSet rollout\nmoves to the next node. The agent already reports Ready only once the\nDRBD legs that were healthy before its restart have settled again (or\nafter 2 minutes); this adds a fixed pause on top.",
+          "title": "minReadySeconds",
+          "type": "integer"
+        },
         "podAnnotations": {
           "description": "Extra annotations on the agent pods.",
           "required": [],
@@ -182,7 +188,7 @@
     },
     "autoDiskfulAfter": {
       "default": "",
-      "description": "Convert a diskless leg (client or tie-breaker) that has stayed DRBD\nPrimary past this duration into a local diskful replica on its node, so a\nsettled consumer stops paying network I/O (LINSTOR's auto-diskful; Go\nduration, e.g. \"10m\"). Conversion needs a MiroirNode for the leg's node\nwith fresh pool stats and room for the volume's full size. Empty disables\nit.\nSee the root README, \"Auto-diskful\".",
+      "description": "Convert a diskless leg (client or tie-breaker) that has stayed DRBD\nPrimary past this duration into a local diskful replica on its node, so a\nsettled consumer stops paying network I/O (LINSTOR's auto-diskful; Go\nduration, e.g. \"10m\"). Conversion needs a MiroirNode for the leg's node\nwith fresh pool stats and room for the volume's full size. Empty disables\nit.",
       "title": "autoDiskfulAfter",
       "type": "string"
     },
@@ -404,11 +410,6 @@
               "title": "digest",
               "type": "string"
             },
-            "pullPolicy": {
-              "default": "IfNotPresent",
-              "title": "pullPolicy",
-              "type": "string"
-            },
             "repository": {
               "default": "ghcr.io/home-operations/miroir-gateway",
               "title": "repository",
@@ -423,6 +424,31 @@
           },
           "required": [],
           "title": "image",
+          "type": "object"
+        },
+        "resources": {
+          "description": "Gateway container resources, applied to every per-volume gateway\nDeployment. No memory limit by default: the gateway performs all of the\nexport's reads and writes, so the kernel charges the exported\nfilesystem's page cache to the gateway pod's cgroup, and dirty pages\ndrain only as fast as DRBD replicates them. Under a limit the gateway is\nOOM-killed (an NFS grace period for every client) whenever a client\nwrite burst outruns that writeback.",
+          "properties": {
+            "requests": {
+              "properties": {
+                "cpu": {
+                  "default": "10m",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "64Mi",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [],
+          "title": "resources",
           "type": "object"
         }
       },
@@ -1020,7 +1046,7 @@
           "type": "string"
         },
         "image": {
-          "default": "registry.k8s.io/kubectl:v1.37.1",
+          "default": "registry.k8s.io/kubectl:v1.37.2",
           "description": "Image for the uninstall hook Job (needs only `kubectl`).",
           "title": "image",
           "type": "string"
