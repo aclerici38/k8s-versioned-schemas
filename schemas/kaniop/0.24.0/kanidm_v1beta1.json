@@ -6501,7 +6501,8 @@
             },
             "credentialsSecret": {
               "additionalProperties": false,
-              "description": "Kubernetes secret containing SMTP credentials (username and password).\nThe secret must have keys for username and password (defaults to \"username\" and \"password\").",
+              "description": "Optional Secret containing SMTP credentials (username and password).\nOmit for relays without SMTP AUTH. When present, it must contain the\nconfigured username and password keys (defaults to \"username\" and \"password\").",
+              "nullable": true,
               "properties": {
                 "name": {
                   "description": "Name of the Kubernetes secret containing SMTP credentials.",
@@ -6527,7 +6528,10 @@
               "required": [
                 "name"
               ],
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "fromAddress": {
               "description": "Email address used as the \"From\" address in sent emails.\nExample: `kanidm@example.com`",
@@ -6535,6 +6539,23 @@
             },
             "image": {
               "description": "Optional custom image for the mail sender deployment.\nDefaults to `kanidm/tools:\u003cversion\u003e` matching the Kanidm server image version.",
+              "nullable": true,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "logLevel": {
+              "description": "Optional log level for the mail sender process (sets RUST_LOG).\nOne of trace, debug, info, warn, error, off.\nIf omitted, no RUST_LOG override is set and the mail sender keeps its default.\nChanging this field triggers a rollout of the mail sender Deployment.",
+              "enum": [
+                "trace",
+                "debug",
+                "info",
+                "warn",
+                "error",
+                "off",
+                null
+              ],
               "nullable": true,
               "type": [
                 "string",
@@ -6703,7 +6724,6 @@
             }
           },
           "required": [
-            "credentialsSecret",
             "fromAddress",
             "relay"
           ],
@@ -12100,7 +12120,8 @@
               "default": "compatible",
               "enum": [
                 "compatible",
-                "incompatible"
+                "incompatible",
+                "not_checked"
               ],
               "type": [
                 "string",
@@ -12113,7 +12134,8 @@
             "upgradeCheckResult": {
               "enum": [
                 "passed",
-                "failed"
+                "failed",
+                "skipped"
               ],
               "type": "string"
             }
