@@ -5062,8 +5062,10 @@ spec:
                       type: integer
                     credentialsSecret:
                       description: |-
-                        Kubernetes secret containing SMTP credentials (username and password).
-                        The secret must have keys for username and password (defaults to "username" and "password").
+                        Optional Secret containing SMTP credentials (username and password).
+                        Omit for relays without SMTP AUTH. When present, it must contain the
+                        configured username and password keys (defaults to "username" and "password").
+                      nullable: true
                       properties:
                         name:
                           description: Name of the Kubernetes secret containing SMTP credentials.
@@ -5092,6 +5094,22 @@ spec:
                       description: |-
                         Optional custom image for the mail sender deployment.
                         Defaults to `kanidm/tools:<version>` matching the Kanidm server image version.
+                      nullable: true
+                      type: string
+                    logLevel:
+                      description: |-
+                        Optional log level for the mail sender process (sets RUST_LOG).
+                        One of trace, debug, info, warn, error, off.
+                        If omitted, no RUST_LOG override is set and the mail sender keeps its default.
+                        Changing this field triggers a rollout of the mail sender Deployment.
+                      enum:
+                        - trace
+                        - debug
+                        - info
+                        - warn
+                        - error
+                        - 'off'
+                        - null
                       nullable: true
                       type: string
                     nodeSelector:
@@ -5182,7 +5200,6 @@ spec:
                       nullable: true
                       type: array
                   required:
-                    - credentialsSecret
                     - fromAddress
                     - relay
                   type: object
@@ -8298,6 +8315,7 @@ spec:
                       enum:
                         - compatible
                         - incompatible
+                        - not_checked
                       type: string
                     imageTag:
                       type: string
@@ -8305,6 +8323,7 @@ spec:
                       enum:
                         - passed
                         - failed
+                        - skipped
                       type: string
                   required:
                     - imageTag
