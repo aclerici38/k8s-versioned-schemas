@@ -3,21 +3,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   labels:
-    gateway.networking.k8s.io/policy: inherited
-  name: clientsettingspolicies.gateway.nginx.org
+    gateway.networking.k8s.io/policy: direct
+  name: snippetspolicies.gateway.nginx.org
 spec:
   group: gateway.nginx.org
   names:
     categories:
       - nginx-gateway-fabric
-    kind: ClientSettingsPolicy
-    listKind: ClientSettingsPolicyList
-    plural: clientsettingspolicies
+    kind: SnippetsPolicy
+    listKind: SnippetsPolicyList
+    plural: snippetspolicies
     shortNames:
-      - cspolicy
-    singular: clientsettingspolicy
+      - snippetspolicy
+    singular: snippetspolicy
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -27,9 +27,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: |-
-            ClientSettingsPolicy is an Inherited Attached Policy. It provides a way to configure the behavior of the connection
-            between the client and NGINX Gateway Fabric.
+          description: SnippetsPolicy provides a way to inject NGINX snippets into the configuration on Gateway level.
           properties:
             apiVersion:
               description: |-
@@ -49,121 +47,82 @@ spec:
             metadata:
               type: object
             spec:
-              description: Spec defines the desired state of the ClientSettingsPolicy.
+              description: Spec defines the desired state of the SnippetsPolicy.
               properties:
-                body:
-                  description: Body defines the client request body settings.
-                  properties:
-                    bufferSize:
-                      description: |-
-                        BufferSize sets the buffer size for reading the client request body.
-                        If the request body is larger than the buffer, the whole body or only its part is written to a
-                        temporary file.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_buffer_size.
-                      pattern: ^\d{1,4}(k|m|g)?$
-                      type: string
-                    maxSize:
-                      description: |-
-                        MaxSize sets the maximum allowed size of the client request body.
-                        If the size in a request exceeds the configured value,
-                        the 413 (Request Entity Too Large) error is returned to the client.
-                        Setting size to 0 disables checking of client request body size.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size.
-                      pattern: ^\d{1,4}(k|m|g)?$
-                      type: string
-                    timeout:
-                      description: |-
-                        Timeout defines a timeout for reading client request body. The timeout is set only for a period between
-                        two successive read operations, not for the transmission of the whole request body.
-                        If a client does not transmit anything within this time, the request is terminated with the
-                        408 (Request Time-out) error.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_timeout.
-                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                      type: string
-                  type: object
-                keepAlive:
-                  description: KeepAlive defines the keep-alive settings.
-                  properties:
-                    minTimeout:
-                      description: |-
-                        MinTimeout defines the timeout for which the keep-alive client connection
-                        will not be closed on the server side for connection reuse or on
-                        graceful shutdown of worker processes.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_min_timeout.
-                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                      type: string
-                    requests:
-                      description: |-
-                        Requests sets the maximum number of requests that can be served through one keep-alive connection.
-                        After the maximum number of requests are made, the connection is closed. Closing connections periodically
-                        is necessary to free per-connection memory allocations. Therefore, using too high maximum number of requests
-                        is not recommended as it can lead to excessive memory usage.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_requests.
-                      format: int32
-                      minimum: 0
-                      type: integer
-                    time:
-                      description: |-
-                        Time defines the maximum time during which requests can be processed through one keep-alive connection.
-                        After this time is reached, the connection is closed following the subsequent request processing.
-                        Default: https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_time.
-                      pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                      type: string
-                    timeout:
-                      description: Timeout defines the keep-alive timeouts for clients.
-                      properties:
-                        header:
-                          description: 'Header sets the timeout in the "Keep-Alive: timeout=time" response header field.'
-                          pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                          type: string
-                        server:
-                          description: |-
-                            Server sets the timeout during which a keep-alive client connection will stay open on the server side.
-                            Setting this value to 0 disables keep-alive client connections.
-                          pattern: ^[0-9]{1,4}(ms|s|m|h)?$
-                          type: string
-                      type: object
-                      x-kubernetes-validations:
-                        - message: header can only be specified if server is specified
-                          rule: '!(has(self.header) && !has(self.server))'
-                  type: object
-                targetRef:
-                  description: |-
-                    TargetRef identifies an API object to apply the policy to.
-                    Object must be in the same namespace as the policy.
-                    Support: Gateway, HTTPRoute, GRPCRoute.
-                  properties:
-                    group:
-                      description: Group is the group of the target resource.
-                      maxLength: 253
-                      pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                      type: string
-                    kind:
-                      description: Kind is kind of the target resource.
-                      maxLength: 63
-                      minLength: 1
-                      pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
-                      type: string
-                    name:
-                      description: Name is the name of the target resource.
-                      maxLength: 253
-                      minLength: 1
-                      type: string
-                  required:
-                    - group
-                    - kind
-                    - name
-                  type: object
+                snippets:
+                  description: Snippets is a list of snippets to be injected into the NGINX configuration.
+                  items:
+                    description: Snippet represents an NGINX configuration snippet.
+                    properties:
+                      context:
+                        description: Context is the NGINX context to insert the snippet into.
+                        enum:
+                          - main
+                          - http
+                          - http.server
+                          - http.server.location
+                          - stream
+                          - stream.server
+                        type: string
+                      value:
+                        description: Value is the NGINX configuration snippet.
+                        minLength: 1
+                        type: string
+                    required:
+                      - context
+                      - value
+                    type: object
+                  maxItems: 6
+                  type: array
                   x-kubernetes-validations:
-                    - message: 'TargetRef Kind must be one of: Gateway, HTTPRoute, or GRPCRoute'
-                      rule: (self.kind=='Gateway' || self.kind=='HTTPRoute' || self.kind=='GRPCRoute')
-                    - message: TargetRef Group must be gateway.networking.k8s.io.
-                      rule: (self.group=='gateway.networking.k8s.io')
+                    - message: Only one snippet allowed per context
+                      rule: self.all(s1, self.exists_one(s2, s1.context == s2.context))
+                targetRefs:
+                  description: TargetRefs identifies API object(s) to apply the policy to.
+                  items:
+                    description: |-
+                      LocalPolicyTargetReference identifies an API object to apply a direct or
+                      inherited policy to. This should be used as part of Policy resources
+                      that can target Gateway API resources. For more information on how this
+                      policy attachment model works, and a sample Policy resource, refer to
+                      the policy attachment documentation for Gateway API.
+                    properties:
+                      group:
+                        description: Group is the group of the target resource.
+                        maxLength: 253
+                        pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                        type: string
+                      kind:
+                        description: Kind is kind of the target resource.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                        type: string
+                      name:
+                        description: Name is the name of the target resource.
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                      - group
+                      - kind
+                      - name
+                    type: object
+                  maxItems: 16
+                  minItems: 1
+                  type: array
+                  x-kubernetes-validations:
+                    - message: 'TargetRef Kind must be: Gateway'
+                      rule: self.all(t, t.kind == 'Gateway')
+                    - message: TargetRef Name must be unique
+                      rule: self.all(p1, self.exists_one(p2, (p1.name == p2.name)))
+                    - message: TargetRef Group must be gateway.networking.k8s.io
+                      rule: self.all(t, t.group == 'gateway.networking.k8s.io')
               required:
-                - targetRef
+                - targetRefs
               type: object
             status:
-              description: Status defines the state of the ClientSettingsPolicy.
+              description: Status defines the current state of the SnippetsPolicy.
               properties:
                 ancestors:
                   description: |-
