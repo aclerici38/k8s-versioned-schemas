@@ -1,5 +1,5 @@
 {
-  "description": "MCPOIDCConfig is the Schema for the mcpoidcconfigs API.\nMCPOIDCConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources within the same namespace. Cross-namespace references\nare not supported for security and isolation reasons.",
+  "description": "MCPOIDCConfig is the deprecated v1alpha1 version of the MCPOIDCConfig resource.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -192,14 +192,18 @@
               ]
             },
             "namespace": {
-              "description": "Namespace is the namespace of the service account.\nIf empty, uses the MCPServer's namespace.",
+              "description": "Namespace is the namespace of the service account(s) whose tokens are accepted.\nWhen set without ServiceAccount, any service account in this namespace is accepted\n(the \"sub\" claim must start with system:serviceaccount:\u003cnamespace\u003e:).\nWhen set with ServiceAccount, it selects that service account's namespace.\nWhen both ServiceAccount and Namespace are empty, no subject restriction is applied\nand any token from the issuer with a matching audience is accepted.\nMust be a valid namespace name (DNS-1123 label).",
+              "maxLength": 63,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
               "type": [
                 "string",
                 "null"
               ]
             },
             "serviceAccount": {
-              "description": "ServiceAccount is the name of the service account to validate tokens for.\nIf empty, uses the pod's service account.",
+              "description": "ServiceAccount restricts accepted tokens to a single service account.\nWhen set, the token's \"sub\" claim must equal\nsystem:serviceaccount:\u003cnamespace\u003e:\u003cserviceAccount\u003e, where \u003cnamespace\u003e is\nNamespace if set, otherwise the namespace of the workload referencing this config.\nWhen empty, tokens are not restricted to a specific service account.\nMust be a valid service account name (DNS-1123 subdomain).",
+              "maxLength": 253,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
               "type": [
                 "string",
                 "null"
