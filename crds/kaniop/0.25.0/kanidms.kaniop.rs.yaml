@@ -5096,6 +5096,22 @@ spec:
                         Defaults to `kanidm/tools:<version>` matching the Kanidm server image version.
                       nullable: true
                       type: string
+                    logLevel:
+                      description: |-
+                        Optional log level for the mail sender process (sets RUST_LOG).
+                        One of trace, debug, info, warn, error, off.
+                        If omitted, no RUST_LOG override is set and the mail sender keeps its default.
+                        Changing this field triggers a rollout of the mail sender Deployment.
+                      enum:
+                        - trace
+                        - debug
+                        - info
+                        - warn
+                        - error
+                        - 'off'
+                        - null
+                      nullable: true
+                      type: string
                     nodeSelector:
                       additionalProperties:
                         type: string
@@ -5158,6 +5174,23 @@ spec:
                             x-kubernetes-int-or-string: true
                           description: 'Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                           type: object
+                      type: object
+                    smtpCaBundleRef:
+                      description: |-
+                        Optional same-namespace ConfigMap containing a PEM-encoded CA bundle for
+                        verifying the SMTP relay's certificate. Independent of caBundleRef,
+                        which applies to Kanidm HTTPS. Native system CA roots are also trusted.
+                      nullable: true
+                      properties:
+                        key:
+                          description: Key in the ConfigMap containing a PEM-encoded CA bundle.
+                          type: string
+                        name:
+                          description: Name of the ConfigMap containing trusted CA certificates.
+                          type: string
+                      required:
+                        - key
+                        - name
                       type: object
                     tolerations:
                       description: Optional tolerations for the mail sender deployment.
@@ -5299,6 +5332,21 @@ spec:
                         type: string
                       description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                       type: object
+                  type: object
+                podAnnotations:
+                  additionalProperties:
+                    type: string
+                  description: |-
+                    Annotations to add to the Pod templates created for all replica groups.
+
+                    These annotations are applied to `spec.template.metadata.annotations` of the
+                    operator-generated StatefulSets. Per-replica-group `podAnnotations` override entries with
+                    the same key.
+
+                    The operator-managed `kanidm.kaniop.rs/tls-secret-hash` annotation always takes precedence
+                    over user-provided values.
+                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+                  nullable: true
                   type: object
                 portName:
                   default: https
@@ -5904,6 +5952,20 @@ spec:
                         additionalProperties:
                           type: string
                         description: Defines on which Nodes the Pods are scheduled.
+                        nullable: true
+                        type: object
+                      podAnnotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Annotations to add to the Pod template of the StatefulSet created for this replica group.
+
+                          These annotations are applied to `spec.template.metadata.annotations` and override
+                          top-level `podAnnotations` entries with the same key.
+
+                          The operator-managed `kanidm.kaniop.rs/tls-secret-hash` annotation always takes precedence
+                          over user-provided values.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
                         nullable: true
                         type: object
                       primaryNode:

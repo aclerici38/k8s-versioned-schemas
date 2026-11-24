@@ -36,7 +36,7 @@
         },
         "localVersions": {
           "default": 7,
-          "description": "Number of local backup versions to retain on the Kanidm PVC under /data/backups.",
+          "description": "Number of local backup versions to retain on the Kanidm PVC under /data/backups.\n\nMinimum 2: with a single version Kanidm deletes each backup file when it writes the next one, before the\ntransport sidecar can upload it.",
           "minimum": 0,
           "type": [
             "integer",
@@ -82,6 +82,12 @@
               "type": [
                 "string",
                 "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "minAge must contain digits with optional h or d suffix",
+                  "rule": "self.matches('^[0-9]+[hd]?$')"
+                }
               ]
             },
             "monthly": {
@@ -125,7 +131,7 @@
           ]
         },
         "schedule": {
-          "description": "Cron schedule for Kanidm's online backup. Kaniop renders this into Kanidm's [online_backup] configuration.\n\nThis field is immutable after creation. To change the schedule, delete this KanidmBackupSchedule and create a new one.\nExisting Backup CRs and remote S3 data are not affected by Schedule deletion.\n\nThe online backup transport is experimental (see TransportExperimental condition). Kanidm has no documented\ncompletion contract; Kaniop does not report production backup success based on file stability heuristics alone.",
+          "description": "Cron schedule for Kanidm's online backup. Kaniop renders this into Kanidm's [online_backup] configuration.\n\nAccepts 5 fields (min hour dom month dow), 6 fields (sec min hour dom month dow), 7 fields (with year) or a\nshorthand such as `@daily`. The expression must match at least one future date: Kanidm refuses to start with a\nschedule that never fires (for example `0 0 31 2 *`), so such schedules are rejected.\n\nThis field is immutable after creation. To change the schedule, delete this KanidmBackupSchedule and create a new one.\nExisting Backup CRs and remote S3 data are not affected by Schedule deletion.\n\nThe online backup transport is experimental (see TransportExperimental condition). Kanidm has no documented\ncompletion contract; Kaniop does not report production backup success based on file stability heuristics alone.",
           "type": "string"
         },
         "suspend": {
@@ -173,8 +179,8 @@
           "rule": "self.concurrencyPolicy == 'Forbid'"
         },
         {
-          "message": "localVersions must be between 1 and 3650",
-          "rule": "self.localVersions \u003e= 1 \u0026\u0026 self.localVersions \u003c= 3650"
+          "message": "localVersions must be between 2 and 3650",
+          "rule": "self.localVersions \u003e= 2 \u0026\u0026 self.localVersions \u003c= 3650"
         }
       ]
     },
