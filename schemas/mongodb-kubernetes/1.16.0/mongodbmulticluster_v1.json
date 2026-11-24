@@ -21,7 +21,6 @@
       ]
     },
     "spec": {
-      "additionalProperties": false,
       "properties": {
         "additionalMongodConfig": {
           "description": "AdditionalMongodConfig is additional configuration that can be passed to\neach data-bearing mongod at runtime. Uses the same structure as the mongod\nconfiguration file:\nhttps://docs.mongodb.com/manual/reference/configuration-options/",
@@ -1701,6 +1700,7 @@
           ]
         },
         "type": {
+          "description": "The type of MongoDB deployment. One of 'ReplicaSet', 'ShardedCluster' and 'Standalone'.\nStandalone is deprecated and will not be supported in the next major version, migrate to a\none member ReplicaSet.",
           "enum": [
             "Standalone",
             "ReplicaSet",
@@ -1722,8 +1722,8 @@
       "x-kubernetes-preserve-unknown-fields": true,
       "x-kubernetes-validations": [
         {
-          "message": "spec.role is not supported on MongoDBMultiCluster",
-          "rule": "!has(self.role) || self.role == \"\""
+          "message": "the total number of members across spec.clusterSpecList must be \u003e= 3 when spec.role is AppDB",
+          "rule": "!has(self.role) || self.role != 'AppDB' || self.clusterSpecList.map(c, c.members).sum() \u003e= 3"
         },
         {
           "message": "spec.security.authentication must be enabled with modes [SCRAM] only when spec.role is AppDB, or omitted entirely",
@@ -1736,10 +1736,6 @@
         {
           "message": "spec.resourceType must be ReplicaSet when spec.role is AppDB",
           "rule": "!has(self.role) || self.role != 'AppDB' || self.type == 'ReplicaSet'"
-        },
-        {
-          "message": "spec.topology MultiCluster is not supported when spec.role is AppDB",
-          "rule": "!has(self.role) || self.role != 'AppDB' || !has(self.topology) || self.topology != 'MultiCluster'"
         },
         {
           "message": "spec.role is immutable: it cannot be added, removed, or changed after creation; to stop using a resource as AppDB, perform a reverse migration (delete the resource)",
