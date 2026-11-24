@@ -102,6 +102,54 @@
             "null"
           ]
         },
+        "oauth2ClientCredentials": {
+          "additionalProperties": false,
+          "description": "oauth2ClientCredentials configures the OAuth 2.0 client credentials grant the broker uses\nto obtain access tokens for this MCP server. The broker refreshes the token on expiry.\nUsed exclusively by the broker for tool discovery and session management, exactly like\ncredentialRef. Mutually exclusive with credentialRef.",
+          "properties": {
+            "scopes": {
+              "description": "scopes requested with the token. Omitted from the request when empty.",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 10,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-type": "atomic"
+            },
+            "secretRef": {
+              "additionalProperties": false,
+              "description": "secretRef references a Secret containing the keys clientID and clientSecret.\nThe referenced Secret must have the label mcp.kuadrant.io/secret=true.",
+              "properties": {
+                "name": {
+                  "description": "name is the name of the Secret resource.",
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "tokenURL": {
+              "description": "tokenURL is the authorization server's token endpoint. Must be https: the client\nsecret is sent on this connection.",
+              "minLength": 1,
+              "pattern": "^https://",
+              "type": "string"
+            }
+          },
+          "required": [
+            "secretRef",
+            "tokenURL"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "path": {
           "default": "/mcp",
           "description": "path specifies the URL path where the MCP server endpoint is exposed.\nIf not specified, defaults to \"/mcp\".\nThis allows connecting to MCP servers that use custom paths like \"/v1/mcp\" or \"/api/mcp\".",
@@ -135,6 +183,19 @@
             "string",
             "null"
           ]
+        },
+        "supportedProtocolVersions": {
+          "description": "supportedProtocolVersions overrides the protocol versions the broker\ntreats this upstream as supporting.\nBy default the broker learns an upstream's versions from its\nserver/discover response, falling back to the version negotiated at\ninitialize. Some MCP servers do not advertise all the protocol versions\nthey actually support, so the broker classifies them from an incomplete\nlist and federates their tools only to clients on the advertised versions.\nSet this field to the full list of versions the upstream actually serves\n(for example [\"2025-11-25\",\"2026-07-28\"]) to force the broker to classify\nand serve its tools to clients on each listed version. The version\nnegotiated at initialize is always included implicitly.\nThis is a last-resort override for servers that misreport their supported\nversions; it does not guarantee any future protocol discovery or\ncompatibility.",
+          "items": {
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "type": [
+            "array",
+            "null"
+          ],
+          "x-kubernetes-list-type": "atomic"
         },
         "tags": {
           "description": "tags is an optional list of arbitrary labels for this MCP server.\nTags are propagated to the broker and exposed via the gateway's list_tags and filter_tools_by_tags tools.",
@@ -228,14 +289,15 @@
       "required": [
         "targetRef"
       ],
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": "object",
       "x-kubernetes-validations": [
         {
           "message": "prefix is required when userSpecificList is Enabled",
           "rule": "self.userSpecificList != \"Enabled\" || self.prefix != \"\" "
+        },
+        {
+          "message": "credentialRef and oauth2ClientCredentials are mutually exclusive",
+          "rule": "!(has(self.credentialRef) \u0026\u0026 has(self.oauth2ClientCredentials))"
         }
       ]
     },
@@ -316,5 +378,8 @@
       ]
     }
   },
+  "required": [
+    "spec"
+  ],
   "type": "object"
 }
