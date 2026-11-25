@@ -7,16 +7,18 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.22.0
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: garage-operator-0.8.2
+    helm.sh/chart: garage-operator-0.9.3
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.8.2"
+    app.kubernetes.io/version: "0.9.3"
     app.kubernetes.io/managed-by: Helm
   name: garagenodes.garage.rajsingh.info
 spec:
   group: garage.rajsingh.info
   names:
+    categories:
+      - garage
     kind: GarageNode
     listKind: GarageNodeList
     plural: garagenodes
@@ -51,6 +53,9 @@ spec:
         - jsonPath: .status.inLayout
           name: InLayout
           type: boolean
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -1024,12 +1029,14 @@ spec:
                       x-kubernetes-map-type: atomic
                     name:
                       description: Name of the GarageCluster resource.
+                      maxLength: 253
                       type: string
                     namespace:
                       description: |-
                         Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
                         Cross-namespace references require a GarageReferenceGrant where supported by
                         the owning resource. GarageNode and GarageAdminToken reject them.
+                      maxLength: 63
                       type: string
                   required:
                     - name
@@ -1472,12 +1479,14 @@ spec:
                           x-kubernetes-map-type: atomic
                         name:
                           description: Name of the GarageCluster resource.
+                          maxLength: 253
                           type: string
                         namespace:
                           description: |-
                             Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
                             Cross-namespace references require a GarageReferenceGrant where supported by
                             the owning resource. GarageNode and GarageAdminToken reject them.
+                          maxLength: 63
                           type: string
                       required:
                         - name
@@ -1633,6 +1642,7 @@ spec:
                     represents. Required when backing is NodeLocalPool: node_id discovery
                     selects the managed node-local-pool Pod scheduled on this Kubernetes node.
                     Immutable for node-local-pool-backed GarageNodes.
+                  maxLength: 253
                   type: string
                 logging:
                   description: |-
@@ -1686,6 +1696,7 @@ spec:
                     spec.storage.nodeLocalPools entry that owns this node. Required and
                     immutable when backing is NodeLocalPool; omitted for StatefulSet-backed and
                     external GarageNodes.
+                  maxLength: 63
                   type: string
                 nodeSelector:
                   additionalProperties:
@@ -2899,6 +2910,20 @@ spec:
                   rule: self.gateway || has(self.external) || has(self.capacity)
                 - message: initContainers and extraContainers names must be unique across both lists
                   rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
+                - message: clusterRef.name is immutable after creation
+                  rule: self.clusterRef.name == oldSelf.clusterRef.name
+                - message: clusterRef.namespace is immutable after creation
+                  rule: '!has(self.clusterRef.__namespace__) || !has(oldSelf.clusterRef.__namespace__) || self.clusterRef.__namespace__ == oldSelf.clusterRef.__namespace__'
+                - message: backing is immutable after creation
+                  rule: '(has(self.backing) ? self.backing : ''StatefulSet'') == (has(oldSelf.backing) ? oldSelf.backing : ''StatefulSet'')'
+                - message: gateway is immutable after creation
+                  rule: '(has(self.gateway) ? self.gateway : false) == (has(oldSelf.gateway) ? oldSelf.gateway : false)'
+                - message: external versus operator-managed ownership is immutable after creation
+                  rule: has(self.external) == has(oldSelf.external)
+                - message: nodeId is immutable after creation
+                  rule: has(self.nodeId) == has(oldSelf.nodeId) && (!has(self.nodeId) || self.nodeId == oldSelf.nodeId)
+                - message: kubernetesNodeName and nodeLocalPoolName are immutable for a node-local-pool-backed GarageNode
+                  rule: '!has(oldSelf.backing) || oldSelf.backing != ''NodeLocalPool'' || (((!has(self.kubernetesNodeName) || size(self.kubernetesNodeName) == 0) ? (!has(oldSelf.kubernetesNodeName) || size(oldSelf.kubernetesNodeName) == 0) : (has(oldSelf.kubernetesNodeName) && self.kubernetesNodeName == oldSelf.kubernetesNodeName)) && ((!has(self.nodeLocalPoolName) || size(self.nodeLocalPoolName) == 0) ? (!has(oldSelf.nodeLocalPoolName) || size(oldSelf.nodeLocalPoolName) == 0) : (has(oldSelf.nodeLocalPoolName) && self.nodeLocalPoolName == oldSelf.nodeLocalPoolName)))'
             status:
               description: GarageNodeStatus defines the observed state of GarageNode
               properties:
@@ -2909,6 +2934,8 @@ spec:
                   description: |-
                     BlockErrors is retained for API compatibility but is not currently populated;
                     Garage's node-status API does not expose a per-node block error count.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
                 clusterAdminEndpoint:
@@ -3056,14 +3083,10 @@ spec:
                       type: integer
                   type: object
                 dbEngine:
-                  description: |-
-                    DBEngine is retained for API compatibility but is not currently populated;
-                    Garage's node-status API does not report the active database engine.
+                  description: DBEngine is the metadata database engine reported by the node's GetNodeInfo API (e.g., lmdb, sqlite, fjall).
                   type: string
                 garageFeatures:
-                  description: |-
-                    GarageFeatures is retained for API compatibility but is not currently
-                    populated because Garage's node-status API does not report build features.
+                  description: GarageFeatures lists the Cargo build features reported by the node's GetNodeInfo API (e.g., webadmin, k2v, metrics).
                   items:
                     type: string
                   type: array
@@ -3187,12 +3210,20 @@ spec:
                   description: |-
                     RepairInProgress is retained for API compatibility but is not currently
                     populated because Garage's Admin API exposes no per-node repair status.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   type: boolean
                 repairProgress:
-                  description: RepairProgress is retained for API compatibility but is not currently populated.
+                  description: |-
+                    RepairProgress is retained for API compatibility but is not currently populated.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   type: string
                 repairType:
-                  description: RepairType is retained for API compatibility but is not currently populated.
+                  description: |-
+                    RepairType is retained for API compatibility but is not currently populated.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   type: string
                 storedData:
                   anyOf:
@@ -3201,6 +3232,8 @@ spec:
                   description: |-
                     StoredData is retained for API compatibility but is not currently populated;
                     Garage reports assigned partitions and disk free space, not per-node stored bytes.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                   x-kubernetes-int-or-string: true
                 tags:
