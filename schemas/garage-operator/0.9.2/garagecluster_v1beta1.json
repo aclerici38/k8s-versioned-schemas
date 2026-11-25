@@ -126,6 +126,197 @@
                 "string",
                 "null"
               ]
+            },
+            "webUI": {
+              "additionalProperties": false,
+              "description": "WebUI exposes Garage's web admin UI (served on this Admin API port by\nGarage v2.6.0 and newer) through a generated Ingress or HTTPRoute. It\ncontrols exposure only; Garage always serves the UI on the admin port\nand the operator cannot turn it off. Unset exposes nothing. Not\nsupported on management handles (spec.connectTo without storage or\ngateway), which run no Garage workload.",
+              "properties": {
+                "gateway": {
+                  "additionalProperties": false,
+                  "description": "Gateway configures a generated Gateway API HTTPRoute. Mutually exclusive\nwith Ingress. Requires the Gateway API CRDs and the operator's Gateway API\nsupport (chart value gatewayAPI.enabled); otherwise WebUIExposed is False with\nreason GatewayAPIUnavailable.",
+                  "properties": {
+                    "annotations": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Annotations to add to the HTTPRoute.",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "labels": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Labels to add to the HTTPRoute. Operator-managed labels take precedence\non conflict.",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "parentRefs": {
+                      "description": "ParentRefs are passed through verbatim to the HTTPRoute's\nspec.parentRefs (Gateway names, optional sectionName, and optional\ncross-namespace references). A parentRef without a namespace refers to\nthe cluster's namespace. At least one is required.",
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "ParentReference identifies an API object (usually a Gateway) that can be considered\na parent of this resource (usually a route). There are two kinds of parent resources\nwith \"Core\" support:\n\n* Gateway (Gateway conformance profile)\n* Service (Mesh conformance profile, ClusterIP Services only)\n\nThis API may be extended in the future to support additional kinds of parent\nresources.\n\nThe API object must be valid in the cluster; the Group and Kind must\nbe registered in the cluster for this reference to be valid.",
+                        "properties": {
+                          "group": {
+                            "default": "gateway.networking.k8s.io",
+                            "description": "Group is the group of the referent.\nWhen unspecified, \"gateway.networking.k8s.io\" is inferred.\nTo set the core API group (such as for a \"Service\" kind referent),\nGroup must be explicitly set to \"\" (empty string).\n\nSupport: Core",
+                            "maxLength": 253,
+                            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "kind": {
+                            "default": "Gateway",
+                            "description": "Kind is kind of the referent.\n\nThere are two kinds of parent resources with \"Core\" support:\n\n* Gateway (Gateway conformance profile)\n* Service (Mesh conformance profile, ClusterIP Services only)\n\nSupport for other resources is Implementation-Specific.",
+                            "maxLength": 63,
+                            "minLength": 1,
+                            "pattern": "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "description": "Name is the name of the referent.\n\nSupport: Core",
+                            "maxLength": 253,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace is the namespace of the referent. When unspecified, this refers\nto the local namespace of the Route.\n\nNote that there are specific rules for ParentRefs which cross namespace\nboundaries. Cross-namespace references are only valid if they are explicitly\nallowed by something in the namespace they are referring to. For example:\nGateway has the AllowedRoutes field, and ReferenceGrant provides a\ngeneric way to enable any other kind of cross-namespace reference.\n\n\u003cgateway:experimental:description\u003e\nParentRefs from a Route to a Service in the same namespace are \"producer\"\nroutes, which apply default routing rules to inbound connections from\nany namespace to the Service.\n\nParentRefs from a Route to a Service in a different namespace are\n\"consumer\" routes, and these routing rules are only applied to outbound\nconnections originating from the same namespace as the Route, for which\nthe intended destination of the connections are a Service targeted as a\nParentRef of the Route.\n\u003c/gateway:experimental:description\u003e\n\nSupport: Core",
+                            "maxLength": 63,
+                            "minLength": 1,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "port": {
+                            "description": "Port is the network port this Route targets. It can be interpreted\ndifferently based on the type of parent resource.\n\nWhen the parent resource is a Gateway, this targets all listeners\nlistening on the specified port that also support this kind of Route(and\nselect this Route). It's not recommended to set `Port` unless the\nnetworking behaviors specified in a Route must apply to a specific port\nas opposed to a listener(s) whose port(s) may be changed. When both Port\nand SectionName are specified, the name and port of the selected listener\nmust match both specified values.\n\n\u003cgateway:experimental:description\u003e\nWhen the parent resource is a Service, this targets a specific port in the\nService spec. When both Port (experimental) and SectionName are specified,\nthe name and port of the selected port must match both specified values.\n\u003c/gateway:experimental:description\u003e\n\nImplementations MAY choose to support other parent resources.\nImplementations supporting other types of parent resources MUST clearly\ndocument how/if Port is interpreted.\n\nFor the purpose of status, an attachment is considered successful as\nlong as the parent resource accepts it partially. For example, Gateway\nlisteners can restrict which Routes can attach to them by Route kind,\nnamespace, or hostname. If 1 of 2 Gateway listeners accept attachment\nfrom the referencing Route, the Route MUST be considered successfully\nattached. If no Gateway listeners accept attachment from this Route,\nthe Route MUST be considered detached from the Gateway.\n\nSupport: Extended",
+                            "format": "int32",
+                            "maximum": 65535,
+                            "minimum": 1,
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "sectionName": {
+                            "description": "SectionName is the name of a section within the target resource. In the\nfollowing resources, SectionName is interpreted as the following:\n\n* Gateway: Listener name. When both Port (experimental) and SectionName\nare specified, the name and port of the selected listener must match\nboth specified values.\n* Service: Port name. When both Port (experimental) and SectionName\nare specified, the name and port of the selected listener must match\nboth specified values.\n\nImplementations MAY choose to support attaching Routes to other resources.\nIf that is the case, they MUST clearly document how SectionName is\ninterpreted.\n\nWhen unspecified (empty string), this will reference the entire resource.\nFor the purpose of status, an attachment is considered successful if at\nleast one section in the parent resource accepts it. For example, Gateway\nlisteners can restrict which Routes can attach to them by Route kind,\nnamespace, or hostname. If 1 of 2 Gateway listeners accept attachment from\nthe referencing Route, the Route MUST be considered successfully\nattached. If no Gateway listeners accept attachment from this Route, the\nRoute MUST be considered detached from the Gateway.\n\nSupport: Core",
+                            "maxLength": 253,
+                            "minLength": 1,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "parentRefs"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "hostname": {
+                  "description": "Hostname is the external hostname the UI is served on. Wildcards are\nnot supported.",
+                  "maxLength": 253,
+                  "minLength": 1,
+                  "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-\\.]*[a-zA-Z0-9])?$",
+                  "type": "string"
+                },
+                "ingress": {
+                  "additionalProperties": false,
+                  "description": "Ingress configures a generated Kubernetes Ingress. Mutually exclusive\nwith Gateway. Requires the operator's Ingress support (chart value\ningress.enabled); otherwise WebUIExposed is False with reason\nIngressDisabled.",
+                  "properties": {
+                    "annotations": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Annotations to add to the Ingress (for example cert-manager or\ningress-controller annotations).",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "ingressClassName": {
+                      "description": "IngressClassName is the ingress class the Ingress must match\n(spec.ingressClassName). When empty, the Ingress is left without a\nclass so the cluster's default ingress controller picks it up.",
+                      "maxLength": 253,
+                      "minLength": 1,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "labels": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Labels to add to the Ingress. Operator-managed labels take precedence\non conflict.",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "tlsSecretName": {
+                      "description": "TLSSecretName is the name of a TLS Secret in the cluster's namespace,\nattached to the Ingress (spec.tls) for the hostname. The Secret must\nalready exist (or be issued by cert-manager from an annotation); the\noperator does not provision certificates.",
+                      "maxLength": 253,
+                      "minLength": 1,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "scheme": {
+                  "description": "Scheme is the URL scheme published in status.endpoints.webUI.external.\nIt does not configure TLS. When unset it is https if\ningress.tlsSecretName is set and http otherwise; set it to https when\nTLS is terminated elsewhere (for example on the Gateway listener).",
+                  "enum": [
+                    "http",
+                    "https"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "hostname"
+              ],
+              "type": [
+                "object",
+                "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "exactly one of webUI.ingress or webUI.gateway must be set",
+                  "rule": "has(self.ingress) != has(self.gateway)"
+                }
+              ]
             }
           },
           "type": [
@@ -1912,7 +2103,6 @@
         "extraContainers": {
           "description": "ExtraContainers run beside the Garage container in the same pod and network\nnamespace. They cannot mount operator-owned volumes.",
           "items": {
-            "additionalProperties": false,
             "description": "PodExtraContainer is one user-supplied container. The CRD schema declares\nonly name and preserves all other fields; the complete object is validated\nby the admission webhook and re-validated by the controller by strictly\ndecoding it into a corev1.Container (Resolve). This keeps the CRD small:\na fully typed corev1.Container would add ~120 KB per occurrence.",
             "properties": {
               "name": {
@@ -1948,7 +2138,6 @@
         "extraVolumes": {
           "description": "ExtraVolumes are added to the pod. Operator-owned volume names are reserved\n(config, metadata, data, data-\u003cN\u003e, rpc-secret, admin-token, metrics-token).",
           "items": {
-            "additionalProperties": false,
             "description": "PodExtraVolume is one user-supplied pod volume; same contract as\nPodExtraContainer, resolved as a corev1.Volume.",
             "properties": {
               "name": {
@@ -2027,7 +2216,7 @@
           ]
         },
         "imageRepository": {
-          "description": "ImageRepository overrides just the repository portion of the default Garage image,\npreserving the default tag for automatic version upgrades.\nFor example, setting this to \"my-mirror/garage\" with the default tag v2.4.0\nproduces \"my-mirror/garage:v2.4.0\".\nIgnored if image is set.",
+          "description": "ImageRepository overrides just the repository portion of the default Garage image,\npreserving the default tag for automatic version upgrades.\nFor example, setting this to \"my-mirror/garage\" with the default tag v2.6.0\nproduces \"my-mirror/garage:v2.6.0\".\nIgnored if image is set.",
           "type": [
             "string",
             "null"
@@ -2036,7 +2225,6 @@
         "initContainers": {
           "description": "InitContainers run before the Garage container, after any operator-injected\ninit containers. Entries with restartPolicy: Always are native sidecars\n(Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and\nthe prefix garage-operator- are reserved. Applies to the Garage pods of\nthis cluster (the gateway tier when gateway is true).",
           "items": {
-            "additionalProperties": false,
             "description": "PodExtraContainer is one user-supplied container. The CRD schema declares\nonly name and preserves all other fields; the complete object is validated\nby the admission webhook and re-validated by the controller by strictly\ndecoding it into a corev1.Container (Resolve). This keeps the CRD small:\na fully typed corev1.Container would add ~120 KB per occurrence.",
             "properties": {
               "name": {
@@ -2134,6 +2322,23 @@
               "description": "MinNodesHealthy is the minimum healthy nodes required before applying layout changes",
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "redundancyVerification": {
+              "additionalProperties": false,
+              "description": "RedundancyVerification configures the FullyReplicated proof (#474).",
+              "properties": {
+                "onTopologyChange": {
+                  "description": "OnTopologyChange starts a blocks-only proof, one local storage node at\na time, when the storage nodes, zones or capacities of the layout change\nafter the operator recorded its baseline. Off by default: proofs then\nrun only from the annotation. Ignored on a Follower site.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
                 "null"
               ]
             },
@@ -2444,7 +2649,7 @@
             },
             "service": {
               "additionalProperties": false,
-              "description": "Service configures the Kubernetes Service for the cluster",
+              "description": "Service configures operator-managed Kubernetes Services for the cluster\n(API, gateway, headless, and public-endpoint RPC), including optional IP family fields",
               "properties": {
                 "annotations": {
                   "additionalProperties": {
@@ -2457,7 +2662,36 @@
                   ]
                 },
                 "externalTrafficPolicy": {
-                  "description": "ExternalTrafficPolicy for LoadBalancer/NodePort",
+                  "description": "ExternalTrafficPolicy for LoadBalancer/NodePort.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ipFamilies": {
+                  "description": "IPFamilies for every operator-managed Service, primary family first.\nUnset keeps the Kubernetes default (on create) or the last applied live\nvalue (on update). The primary family is immutable on an existing\nService (enforced by the Kubernetes API server); a rejected update\nsurfaces as a reconcile error.",
+                  "items": {
+                    "description": "IPFamily represents the IP Family (IPv4 or IPv6). This type is used\nto express the family of an IP expressed by a type (e.g. service.spec.ipFamilies).",
+                    "enum": [
+                      "IPv4",
+                      "IPv6"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 2,
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "x-kubernetes-list-type": "atomic"
+                },
+                "ipFamilyPolicy": {
+                  "description": "IPFamilyPolicy for every operator-managed Service. Unset keeps the\nKubernetes default (on create) or the last applied live value (on\nupdate); set SingleStack to return to single-stack. Headless Services\n(ClusterIP=None) still accept these fields for dual-stack EndpointSlices.",
+                  "enum": [
+                    "SingleStack",
+                    "PreferDualStack",
+                    "RequireDualStack"
+                  ],
                   "type": [
                     "string",
                     "null"
@@ -2474,14 +2708,14 @@
                   ]
                 },
                 "loadBalancerIP": {
-                  "description": "LoadBalancerIP for LoadBalancer type",
+                  "description": "LoadBalancerIP for LoadBalancer type.",
                   "type": [
                     "string",
                     "null"
                   ]
                 },
                 "loadBalancerSourceRanges": {
-                  "description": "LoadBalancerSourceRanges for LoadBalancer type",
+                  "description": "LoadBalancerSourceRanges for LoadBalancer type.",
                   "items": {
                     "type": "string"
                   },
@@ -2492,7 +2726,7 @@
                 },
                 "type": {
                   "default": "ClusterIP",
-                  "description": "Type of service",
+                  "description": "Type of service.",
                   "enum": [
                     "ClusterIP",
                     "NodePort",
@@ -2507,6 +2741,16 @@
               "type": [
                 "object",
                 "null"
+              ],
+              "x-kubernetes-validations": [
+                {
+                  "message": "ipFamilies may list at most one family when ipFamilyPolicy is SingleStack",
+                  "rule": "!has(self.ipFamilyPolicy) || self.ipFamilyPolicy != 'SingleStack' || !has(self.ipFamilies) || size(self.ipFamilies) \u003c= 1"
+                },
+                {
+                  "message": "ipFamilies must not repeat the same family",
+                  "rule": "!has(self.ipFamilies) || size(self.ipFamilies) \u003c 2 || self.ipFamilies[0] != self.ipFamilies[1]"
+                }
               ]
             }
           },
@@ -5810,7 +6054,7 @@
       "description": "GarageClusterStatus defines the observed state of GarageCluster",
       "properties": {
         "activeRepairs": {
-          "description": "ActiveRepairs contains currently running repair operations",
+          "description": "ActiveRepairs contains currently running repair operations\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "items": {
             "additionalProperties": false,
             "description": "RepairStatus contains status of a repair operation",
@@ -5979,7 +6223,7 @@
           ]
         },
         "blockErrors": {
-          "description": "BlockErrors is the count of blocks with sync errors across all nodes",
+          "description": "BlockErrors is the count of blocks with sync errors across all nodes:\nthe largest per-node count reported by the block resync workers, a\nlower bound when more than one node reports errors. Block hashes\n(blockErrorDetails.topErrors) are listed only while a requested\nverify-redundancy proof runs and the set has at most 4096 records;\nthe count is then the exact number of distinct blocks.\nAbsent means not observed (Admin API unreachable, or a node that can\nhold blocks did not answer; silent capacityless gateways are ignored).\n0 means observed with no errors.",
           "format": "int32",
           "type": [
             "integer",
@@ -6143,6 +6387,30 @@
               "description": "Web is the web hosting endpoint",
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "webUI": {
+              "additionalProperties": false,
+              "description": "WebUI is where Garage's web admin UI is reachable: the in-cluster URL\non the admin port and, when spec.admin.webUI exposes it, the external\nURL. Not set on management handles.",
+              "properties": {
+                "external": {
+                  "description": "External is the UI URL on spec.admin.webUI.hostname, published once\nthe generated Ingress or HTTPRoute is in place (WebUIExposed=True).",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "inCluster": {
+                  "description": "InCluster is the UI URL through the \u003ccluster\u003e Service's admin port,\nalways published for operator-managed clusters. Garage serves the UI\nthere only when it was built with the \"webadmin\" feature (official\nimages v2.6.0 and newer); see the WebUIAvailable condition.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
                 "null"
               ]
             }
@@ -6514,7 +6782,7 @@
         },
         "lifecycleStatus": {
           "additionalProperties": false,
-          "description": "LifecycleStatus contains the status of bucket lifecycle operations",
+          "description": "LifecycleStatus contains the status of bucket lifecycle operations\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "properties": {
             "lastCompleted": {
               "description": "LastCompleted is when the last lifecycle worker run completed\n(from lifecycle-last-completed worker variable)",
@@ -6531,7 +6799,7 @@
           ]
         },
         "nodes": {
-          "description": "Nodes contains status information for each node",
+          "description": "Nodes contains status information for each node\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "items": {
             "additionalProperties": false,
             "description": "NodeStatus contains status information for a Garage node",
@@ -6700,6 +6968,502 @@
             "null"
           ]
         },
+        "redundancy": {
+          "additionalProperties": false,
+          "description": "Redundancy reports block-resync progress and the last full-redundancy\nproof. Absent on clusters without a storage tier, on connectTo clusters,\nand until the controller first observes Garage.",
+          "properties": {
+            "coordination": {
+              "additionalProperties": false,
+              "description": "Coordination is what this site last saw of other sites' repairs. It\nserializes proofs across a federation. Absent on a cluster that is not\nfederated.",
+              "properties": {
+                "lastRemoteRepairAt": {
+                  "description": "LastRemoteRepairAt is when a blocks repair on a remote storage node was\nlast seen starting or running, or when this site started watching.",
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lastRemoteRepairNodeId": {
+                  "description": "LastRemoteRepairNodeID is the remote node of that repair.",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "remoteRepairWorkerIds": {
+                  "additionalProperties": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "description": "RemoteRepairWorkerIDs maps each remote storage node ID to the highest\nBlock repair worker ID seen on it.",
+                  "maxProperties": 256,
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "deferredNodes": {
+              "description": "DeferredNodes lists owned storage nodes the current proof skipped.\nDown and NotReporting nodes are retried once they are back, no sooner\nthan retryAfter.",
+              "items": {
+                "additionalProperties": false,
+                "description": "RedundancyDeferredNode is an owned storage node the proof skipped.",
+                "properties": {
+                  "nodeId": {
+                    "description": "NodeID is the full Garage node ID.",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "reason": {
+                    "description": "Reason says why the node was skipped.",
+                    "enum": [
+                      "Down",
+                      "NotReporting",
+                      "RepairFailed"
+                    ],
+                    "type": "string"
+                  },
+                  "retryAfter": {
+                    "description": "RetryAfter is the earliest time the operator retries the node. Absent\nfor RepairFailed, which only a new verify-redundancy value retries.",
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "description": "Since is when the node was skipped.",
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "nodeId",
+                  "reason",
+                  "since"
+                ],
+                "type": "object"
+              },
+              "maxItems": 256,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "nodeId"
+              ],
+              "x-kubernetes-list-type": "map"
+            },
+            "lastProgressAt": {
+              "description": "LastProgressAt is the last time remaining work decreased (a resync or\ntable sync queue shrank, a repair scan advanced, or the proof moved to\na later step). It moves forward in steps of at least one minute.",
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nodes": {
+              "description": "Nodes holds per-node progress for every current storage node and every\nother node that reports block errors, sorted by nodeId.",
+              "items": {
+                "additionalProperties": false,
+                "description": "NodeRedundancyStatus is the progress of one Garage node.",
+                "properties": {
+                  "blockErrors": {
+                    "description": "BlockErrors is the node's number of blocks with resync errors.",
+                    "format": "int32",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "blockRepairProgress": {
+                    "description": "BlockRepairProgress is Garage's progress string for the exact\nverification repair worker on this node while it runs.",
+                    "maxLength": 64,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "metadataQueueLength": {
+                    "description": "MetadataQueueLength is the sum of the Merkle-updater and insert queues.",
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "metadataSyncPartitions": {
+                    "description": "MetadataSyncPartitions is the sum over tables of partitions left in the\ncurrent full-sync pass. It is 0 between passes.",
+                    "format": "int32",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "nodeId": {
+                    "description": "NodeID is the full Garage node ID.",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "observed": {
+                    "description": "Observed is false when the node did not answer this pass; the counters\nthen keep their previous values.",
+                    "type": "boolean"
+                  },
+                  "resyncIdle": {
+                    "description": "ResyncIdle is true when every enabled resync worker is idle.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "resyncQueueLength": {
+                    "description": "ResyncQueueLength is the node's block resync queue, including delayed\nrechecks.",
+                    "format": "int64",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "nodeId",
+                  "observed"
+                ],
+                "type": "object"
+              },
+              "maxItems": 256,
+              "type": [
+                "array",
+                "null"
+              ],
+              "x-kubernetes-list-map-keys": [
+                "nodeId"
+              ],
+              "x-kubernetes-list-type": "map"
+            },
+            "progressObservedAt": {
+              "description": "ProgressObservedAt is when nodes[] was last rewritten. Progress is\nrewritten at most once per minute unless another redundancy field\nchanges in the same pass, and only when a value changed.",
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scope": {
+              "description": "Scope is Cluster when every storage role of the layout runs at this\nsite, and Local when other sites run some of them; the proof covers\nonly this site's local storage nodes.",
+              "enum": [
+                "Cluster",
+                "Local"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "storageNodes": {
+              "additionalProperties": false,
+              "description": "StorageNodes counts the layout's storage roles for this site.",
+              "properties": {
+                "local": {
+                  "description": "Local is the number of storage roles that run at this site.",
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "remote": {
+                  "description": "Remote is the number of storage roles that run at other sites.",
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "total": {
+                  "description": "Total is the number of storage roles across all sites.",
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "verified": {
+                  "description": "Verified is the number of local storage nodes the current or last\nproof has completed.",
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "local",
+                "remote",
+                "total",
+                "verified"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "verification": {
+              "additionalProperties": false,
+              "description": "Verification is the proof state. Absent on a federated site without\nspec.layoutManagement.siteRole.",
+              "properties": {
+                "completedNodeIds": {
+                  "description": "CompletedNodeIDs are the owned storage nodes that finished this proof,\nsorted.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 256,
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "x-kubernetes-list-type": "set"
+                },
+                "currentNodeId": {
+                  "description": "CurrentNodeID is the owned storage node whose turn it is. Repairs run\non one storage node at a time.",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "evidence": {
+                  "additionalProperties": false,
+                  "description": "Evidence is the internal proof state. Its shape may change between\noperator releases; an unrecognized shape restarts the current node.",
+                  "properties": {
+                    "blockErrorsBaseline": {
+                      "description": "BlockErrorsBaseline is the block-error count at the start of the\ncurrent 30-minute window used to detect a growing count.",
+                      "format": "int64",
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "blockErrorsBaselineAt": {
+                      "description": "BlockErrorsBaselineAt is when the current block-error window opened.",
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "idleSince": {
+                      "description": "IdleSince is the first pass, after the tables launch, at which the\ncurrent node's sync workers were idle and its metadata queues empty.",
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "launches": {
+                      "description": "Launches counts the launches of the current node's stage. After three\nthe node is deferred as RepairFailed.",
+                      "format": "int32",
+                      "maximum": 3,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "nodeStage": {
+                      "description": "NodeStage is the current node's step.",
+                      "enum": [
+                        "Tables",
+                        "Blocks",
+                        "Pause"
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "pauseUntil": {
+                      "description": "PauseUntil ends the pause after the current node finished.",
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "peerDownSeen": {
+                      "description": "PeerDownSeen is true when some storage node was down during the\ncurrent node's table sync. Sync errors are then expected; the node is\nrechecked with a tables-only pass once every node is up.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "quietSince": {
+                      "description": "QuietSince starts the final quiet period.",
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "repairWorkerId": {
+                      "description": "RepairWorkerID is the blocks repair worker adopted on the current node.",
+                      "format": "int64",
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "resyncErrorBaselines": {
+                      "additionalProperties": {
+                        "format": "int64",
+                        "type": "integer"
+                      },
+                      "description": "ResyncErrorBaselines is the persistent-error counter of every block\nresync worker on the owned nodes when the quiet period started.",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "skipTables": {
+                      "description": "SkipTables is true for a proof started by a layout change: Garage's\nsettled layout history already proves a full table sync on every node.",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "stageLaunchedAt": {
+                      "description": "StageLaunchedAt is when the current node's repair was launched.",
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "syncErrorBaselines": {
+                      "additionalProperties": {
+                        "format": "int64",
+                        "type": "integer"
+                      },
+                      "description": "SyncErrorBaselines is the errors counter of each of the five\n\"\u003ctable\u003e sync\" workers of the current node at the tables launch.",
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "tablesRecheckNodeIds": {
+                      "description": "TablesRecheckNodeIDs are completed nodes whose table sync ran while a\npeer was down; each gets a tables-only pass once every node is up.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 256,
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "x-kubernetes-list-type": "set"
+                    },
+                    "workerBaseline": {
+                      "description": "WorkerBaseline is the current node's highest worker ID at the launch.\nA lower maximum later means Garage restarted.",
+                      "format": "int64",
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "layoutVersion": {
+                  "description": "LayoutVersion is the Garage layout version last observed.",
+                  "format": "int64",
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "phase": {
+                  "description": "Phase is the proof step.",
+                  "enum": [
+                    "Idle",
+                    "Pending",
+                    "SyncingMetadata",
+                    "ScanningBlocks",
+                    "Settling",
+                    "Partial",
+                    "Verified"
+                  ],
+                  "type": "string"
+                },
+                "phaseStartedAt": {
+                  "description": "PhaseStartedAt is when Phase was entered.",
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "requestToken": {
+                  "description": "RequestToken is the last handled value of the\ngarage.rajsingh.info/verify-redundancy annotation.",
+                  "maxLength": 253,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "startedAt": {
+                  "description": "StartedAt is when the current proof attempt began.",
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "topologyHash": {
+                  "description": "TopologyHash fingerprints the ID, zone and capacity of every storage\nrole in the current layout. A change after the baseline starts a proof;\ntag-only layout changes and Pod restarts do not change it.",
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "trigger": {
+                  "description": "Trigger is what started the current proof. Absent while Idle.",
+                  "enum": [
+                    "Requested",
+                    "LayoutChanged",
+                    "NodeChanged"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "verifiedAt": {
+                  "description": "VerifiedAt is when the last proof completed. It survives later proofs\nand outages, so it records the last time full redundancy was proven.",
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "phase"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "remoteClusters": {
           "description": "RemoteClusters contains status of remote clusters in the federation",
           "items": {
@@ -6763,7 +7527,7 @@
           "type": "integer"
         },
         "resyncQueueLength": {
-          "description": "ResyncQueueLength is the total block resync queue depth across all nodes",
+          "description": "ResyncQueueLength is the total block resync queue depth across all nodes.\nAbsent means not observed (Admin API unreachable, or a node that can\nhold blocks did not answer; silent capacityless gateways are ignored).\n0 means observed and drained.",
           "format": "int64",
           "type": [
             "integer",
@@ -6787,7 +7551,7 @@
         },
         "scrubStatus": {
           "additionalProperties": false,
-          "description": "ScrubStatus contains the status of data scrub operations",
+          "description": "ScrubStatus contains the status of data scrub operations\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "properties": {
             "corruptedBlocks": {
               "description": "CorruptedBlocks is the number of corrupted blocks found in the last scrub\n(from scrub-corruptions_detected worker variable)",
@@ -7294,14 +8058,14 @@
           ]
         },
         "totalNodes": {
-          "description": "TotalNodes is the total nodes across all clusters (local + remote)",
+          "description": "TotalNodes is the total nodes across all clusters (local + remote)\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "type": [
             "integer",
             "null"
           ]
         },
         "workerCount": {
-          "description": "WorkerCount is the total number of background workers",
+          "description": "WorkerCount is the total number of background workers\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "format": "int32",
           "type": [
             "integer",
@@ -7310,7 +8074,7 @@
         },
         "workers": {
           "additionalProperties": false,
-          "description": "Workers contains detailed information about background workers",
+          "description": "Workers contains detailed information about background workers\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "properties": {
             "busy": {
               "description": "Busy is the number of busy/active workers",
@@ -7413,7 +8177,7 @@
           ]
         },
         "workersFailed": {
-          "description": "WorkersFailed is the number of failed workers",
+          "description": "WorkersFailed is the number of failed workers\n\nDeprecated: never populated by the operator. It will be removed in the next API version.",
           "format": "int32",
           "type": [
             "integer",
