@@ -101,8 +101,55 @@
       },
       "additionalProperties": false
     },
+    "inboundTrafficHandler": {
+      "$ref": "#/$defs/common_inboundTrafficHandler"
+    },
     "ingress": {
       "$ref": "#/$defs/common_ingress_global"
+    },
+    "httpService": {
+      "type": "object",
+      "required": [
+        "type",
+        "internalTrafficPolicy"
+      ],
+      "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "internalTrafficPolicy": {
+          "type": "string",
+          "enum": [
+            "Cluster",
+            "Local"
+          ]
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "enum": [
+            "Cluster",
+            "Local"
+          ]
+        },
+        "externalIPs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "storage": {
       "$ref": "#/$defs/common_storage_global"
@@ -145,6 +192,22 @@
       },
       "additionalProperties": false
     },
+    "extraObjects": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "deploymentMarkers": {
       "$ref": "#/$defs/deployment-markers"
     },
@@ -174,9 +237,6 @@
     },
     "valkey": {
       "$ref": "#/$defs/valkey"
-    },
-    "redis": {
-      "$ref": "#/$defs/redis"
     },
     "synapse": {
       "$ref": "#/$defs/synapse"
@@ -328,6 +388,13 @@
       "type": "object",
       "additionalProperties": false
     },
+    "common_inboundTrafficHandler": {
+      "type": "string",
+      "enum": [
+        "ingress",
+        "none"
+      ]
+    },
     "common_ingress_global": {
       "type": "object",
       "properties": {
@@ -353,42 +420,50 @@
           ]
         },
         "service": {
+          "$ref": "#/$defs/common_service"
+        }
+      },
+      "additionalProperties": false
+    },
+    "common_service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "annotations": {
           "type": "object",
-          "required": [
-            "type",
-            "internalTrafficPolicy"
-          ],
-          "properties": {
-            "annotations": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "type": {
-              "type": "string",
-              "enum": [
-                "ClusterIP",
-                "NodePort",
-                "LoadBalancer"
-              ]
-            },
-            "internalTrafficPolicy": {
-              "type": "string",
-              "enum": [
-                "Cluster",
-                "Local"
-              ]
-            },
-            "externalTrafficPolicy": {
-              "type": "string",
-              "enum": [
-                "Cluster",
-                "Local"
-              ]
-            }
-          },
-          "additionalProperties": false
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "internalTrafficPolicy": {
+          "type": "string",
+          "enum": [
+            "Cluster",
+            "Local"
+          ]
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "enum": [
+            "Cluster",
+            "Local"
+          ]
+        },
+        "externalIPs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -1202,6 +1277,12 @@
         "image": {
           "$ref": "#/$defs/common_image"
         },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
+        },
         "ingress": {
           "$ref": "#/$defs/common_ingress"
         },
@@ -1560,49 +1641,6 @@
       },
       "additionalProperties": false
     },
-    "common_service": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "ClusterIP",
-            "NodePort",
-            "LoadBalancer"
-          ]
-        },
-        "annotations": {
-          "type": "object",
-          "additionalProperties": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "internalTrafficPolicy": {
-          "type": "string",
-          "enum": [
-            "Cluster",
-            "Local"
-          ]
-        },
-        "externalTrafficPolicy": {
-          "type": "string",
-          "enum": [
-            "Cluster",
-            "Local"
-          ]
-        },
-        "externalIPs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
     "common_hostAliases": {
       "type": "array",
       "items": {
@@ -1887,6 +1925,9 @@
             "config": {
               "type": "string"
             },
+            "templateInlineConfig": {
+              "type": "boolean"
+            },
             "configSecret": {
               "type": "string"
             },
@@ -2151,6 +2192,12 @@
         "image": {
           "$ref": "#/$defs/common_image"
         },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
+        },
         "ingress": {
           "$ref": "#/$defs/common_ingress"
         },
@@ -2260,6 +2307,12 @@
         },
         "image": {
           "$ref": "#/$defs/common_image"
+        },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
         },
         "ingress": {
           "$ref": "#/$defs/common_ingress"
@@ -2476,6 +2529,12 @@
         "additional": {
           "$ref": "#/$defs/common_additional"
         },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
+        },
         "ingress": {
           "$ref": "#/$defs/common_ingress"
         },
@@ -2654,6 +2713,10 @@
               "type": "boolean",
               "description": "Run the migration job in dry-run mode. Do not actually migrate the data."
             },
+            "acceptWarnings": {
+              "type": "boolean",
+              "description": "Let the migration job proceed when syn2mas check only reports warnings. Review the warnings before enabling this."
+            },
             "labels": {
               "$ref": "#/$defs/common_labels"
             },
@@ -2716,6 +2779,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
         },
         "ingress": {
           "$ref": "#/$defs/common_ingress"
@@ -3113,132 +3182,6 @@
       },
       "additionalProperties": false
     },
-    "redis": {
-      "type": "object",
-      "properties": {
-        "maxMemory": {
-          "type": "string"
-        },
-        "replicas": {
-          "minimum": 0,
-          "maximum": 1,
-          "type": "integer"
-        },
-        "maxMemoryPolicy": {
-          "type": "string",
-          "enum": [
-            "noeviction",
-            "allkeys-lru",
-            "allkeys-lfu",
-            "allkeys-random",
-            "volatile-lru",
-            "volatile-lfu",
-            "volatile-random",
-            "volatile-ttl"
-          ]
-        },
-        "image": {
-          "$ref": "#/$defs/common_image"
-        },
-        "labels": {
-          "$ref": "#/$defs/common_labels"
-        },
-        "annotations": {
-          "$ref": "#/$defs/common_workloadAnnotations"
-        },
-        "extraEnv": {
-          "$ref": "#/$defs/common_extraEnv"
-        },
-        "extraVolumes": {
-          "$ref": "#/$defs/common_extraVolumes"
-        },
-        "extraVolumeMounts": {
-          "$ref": "#/$defs/common_extraVolumeMounts"
-        },
-        "extraInitContainers": {
-          "$ref": "#/$defs/common_extraInitContainers"
-        },
-        "containersSecurityContext": {
-          "$ref": "#/$defs/common_containersSecurityContext"
-        },
-        "nodeSelector": {
-          "$ref": "#/$defs/common_nodeSelector"
-        },
-        "priorityClassName": {
-          "type": "string"
-        },
-        "schedulerName": {
-          "type": "string"
-        },
-        "runtimeClassName": {
-          "type": "string"
-        },
-        "affinity": {
-          "$ref": "#/$defs/common_affinity"
-        },
-        "podSecurityContext": {
-          "$ref": "#/$defs/common_podSecurityContext"
-        },
-        "resources": {
-          "$ref": "#/$defs/common_resources"
-        },
-        "serviceAccount": {
-          "$ref": "#/$defs/common_serviceAccount"
-        },
-        "tolerations": {
-          "$ref": "#/$defs/common_tolerations"
-        },
-        "topologySpreadConstraints": {
-          "$ref": "#/$defs/common_topologySpreadConstraints"
-        },
-        "livenessProbe": {
-          "$ref": "#/$defs/common_probe"
-        },
-        "readinessProbe": {
-          "$ref": "#/$defs/common_probe"
-        },
-        "startupProbe": {
-          "$ref": "#/$defs/common_probe"
-        },
-        "serviceMonitors": {
-          "$ref": "#/$defs/common_serviceMonitors"
-        },
-        "redisExporter": {
-          "type": "object",
-          "properties": {
-            "image": {
-              "$ref": "#/$defs/common_image"
-            },
-            "extraEnv": {
-              "$ref": "#/$defs/common_extraEnv"
-            },
-            "containersSecurityContext": {
-              "$ref": "#/$defs/common_containersSecurityContext"
-            },
-            "resources": {
-              "$ref": "#/$defs/common_resources"
-            },
-            "extraVolumes": {
-              "$ref": "#/$defs/common_extraVolumes"
-            },
-            "extraVolumeMounts": {
-              "$ref": "#/$defs/common_extraVolumeMounts"
-            },
-            "livenessProbe": {
-              "$ref": "#/$defs/common_probe"
-            },
-            "readinessProbe": {
-              "$ref": "#/$defs/common_probe"
-            },
-            "startupProbe": {
-              "$ref": "#/$defs/common_probe"
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
     "synapse": {
       "type": "object",
       "properties": {
@@ -3395,6 +3338,12 @@
           "minimum": 0,
           "maximum": 1,
           "type": "integer"
+        },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
         },
         "ingress": {
           "$ref": "#/$defs/synapse_ingress_with_additional_paths"
@@ -3811,6 +3760,12 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "inboundTrafficHandler": {
+          "$ref": "#/$defs/common_inboundTrafficHandler"
+        },
+        "httpService": {
+          "$ref": "#/$defs/common_service"
         },
         "ingress": {
           "$ref": "#/$defs/common_ingress_without_host"
