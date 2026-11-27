@@ -1,5 +1,5 @@
 {
-  "description": "MCPServer is the deprecated v1alpha1 version of the MCPServer resource.",
+  "description": "MCPServer is the Schema for the mcpservers API",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -269,7 +269,7 @@
         },
         "externalAuthConfigRef": {
           "additionalProperties": false,
-          "description": "ExternalAuthConfigRef references a MCPExternalAuthConfig resource for external authentication.\nThe referenced MCPExternalAuthConfig must exist in the same namespace as this MCPServer.",
+          "description": "ExternalAuthConfigRef references an MCPExternalAuthConfig resource for external authentication.\nSupported types are tokenExchange, unauthenticated, embeddedAuthServer, and\nobo. For new embedded authorization\nserver configurations, prefer AuthServerRef. headerInjection, upstreamInject,\nand xaa are accepted but not applied by the MCPServer: they take effect when\na VirtualMCPServer discovers this server as a backend. Other types are\nreported in status.conditions with Reason: UnsupportedAuthType.\nThe referenced MCPExternalAuthConfig must exist in the same namespace as this MCPServer.",
           "properties": {
             "name": {
               "description": "Name is the name of the MCPExternalAuthConfig resource",
@@ -305,6 +305,39 @@
         "image": {
           "description": "Image is the container image for the MCP server",
           "type": "string"
+        },
+        "instructions": {
+          "additionalProperties": false,
+          "description": "Instructions sets the instructions clients receive in the result of a successful\ninitialize or server/discover request: the proxy combines it with the\ninstructions the MCP server returns, as mode says. Clients commonly add server\ninstructions to the model's context, so this adds policy or usage guidance\nwithout changing the server.",
+          "properties": {
+            "mode": {
+              "default": "append",
+              "description": "Mode says how value combines with the instructions the server returns.\nreplace returns value alone. append returns the server's instructions,\na blank line, and value. prepend returns value, a blank line, and the\nserver's instructions. When the server returns no instructions, every\nmode returns value alone.",
+              "enum": [
+                "replace",
+                "append",
+                "prepend"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "description": "Value is the text that mode combines with the server's instructions.\nLeading and trailing ASCII white space (tab, LF, FF, CR, space) is\ndropped, and a value that is only such white space is rejected.",
+              "maxLength": 65536,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "maxRequestBodySize": {
           "description": "MaxRequestBodySize is the maximum inbound MCP proxy request body size in bytes.\nZero uses the default limit of 8 MiB.",

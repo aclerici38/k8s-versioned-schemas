@@ -240,6 +240,24 @@
                         "additionalProperties": false,
                         "description": "JWTBearerIssuerPolicyConfig binds RFC 7523 policy to a named trusted issuer.",
                         "properties": {
+                          "acceptedAssertionTypes": {
+                            "description": "AcceptedAssertionTypes selects which assertion form(s) this issuer's\njwt-bearer grant accepts. When omitted, both \"jwt_bearer\" and \"id_jag\"\nare accepted, which is the behavior before this field existed. Set\n[\"id_jag\"] to restrict an IdP issuer (e.g. Okta acting as a\nCross-App-Access IdP) to ID-JAG grants, so its other signed JWTs cannot\nbe redeemed on the credential-free plain jwt-bearer path. Set\n[\"jwt_bearer\"] to refuse ID-JAG.\n\nWhen \"id_jag\" is listed explicitly and acceptedAudiences is set, it must\ninclude this AS's own issuer identifier (the ID-JAG's \"aud\" per\ndraft-ietf-oauth-identity-assertion-authz-grant §4.4.1), not just the\ntoken endpoint URL. When acceptedAudiences is empty the issuer is\naccepted by default, unless it is also listed as an allowed audience\n(resource), which fails startup. Subject bindings are shared between both forms, so\neach binding also authorizes a plain jwt-bearer assertion from that\nsubject whenever \"jwt_bearer\" is accepted.",
+                            "items": {
+                              "description": "JWTBearerAssertionType identifies one assertion form the RFC 7523\njwt-bearer grant may accept for a trusted issuer.",
+                              "enum": [
+                                "jwt_bearer",
+                                "id_jag"
+                              ],
+                              "type": "string"
+                            },
+                            "maxItems": 2,
+                            "minItems": 1,
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "x-kubernetes-list-type": "set"
+                          },
                           "acceptedAudiences": {
                             "description": "AcceptedAudiences identifies this authorization server's accepted\nassertion audiences. When omitted, plain JWT-bearer assertions must name\nthe token endpoint, and ID-JAG assertions may name the token endpoint or\nthis server's issuer identifier, unless the issuer is also an allowed\nresource audience. A configured list replaces these defaults.",
                             "items": {
@@ -1416,6 +1434,24 @@
                     "additionalProperties": false,
                     "description": "JWTBearerGrant enables the plain RFC 7523 JWT-bearer grant for this\nissuer. It is independent of RFC 8693 delegation policy.\nThis legacy field is deprecated; configure RFC 7523 policy under\ninboundGrants.jwtBearer.issuerPolicies.",
                     "properties": {
+                      "acceptedAssertionTypes": {
+                        "description": "AcceptedAssertionTypes selects which assertion form(s) this issuer's\njwt-bearer grant accepts. When omitted, both \"jwt_bearer\" and \"id_jag\"\nare accepted, which is the behavior before this field existed. Set\n[\"id_jag\"] to restrict an IdP issuer (e.g. Okta acting as a\nCross-App-Access IdP) to ID-JAG grants, so its other signed JWTs cannot\nbe redeemed on the credential-free plain jwt-bearer path. Set\n[\"jwt_bearer\"] to refuse ID-JAG.\n\nWhen \"id_jag\" is listed explicitly and acceptedAudiences is set, it must\ninclude this AS's own issuer identifier (the ID-JAG's \"aud\" per\ndraft-ietf-oauth-identity-assertion-authz-grant §4.4.1), not just the\ntoken endpoint URL. When acceptedAudiences is empty the issuer is\naccepted by default, unless it is also listed as an allowed audience\n(resource), which fails startup. Subject bindings are shared between both forms, so\neach binding also authorizes a plain jwt-bearer assertion from that\nsubject whenever \"jwt_bearer\" is accepted.",
+                        "items": {
+                          "description": "JWTBearerAssertionType identifies one assertion form the RFC 7523\njwt-bearer grant may accept for a trusted issuer.",
+                          "enum": [
+                            "jwt_bearer",
+                            "id_jag"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 2,
+                        "minItems": 1,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "set"
+                      },
                       "acceptedAudiences": {
                         "description": "AcceptedAudiences identifies this authorization server's accepted\nassertion audiences. When omitted, plain JWT-bearer assertions must name\nthe token endpoint, and ID-JAG assertions may name the token endpoint or\nthis server's issuer identifier, unless the issuer is also an allowed\nresource audience. A configured list replaces these defaults.",
                         "items": {
@@ -3512,6 +3548,13 @@
                         "null"
                       ]
                     },
+                    "jwksAuthTokenPath": {
+                      "description": "JWKSAuthTokenPath is the absolute file path to a bearer token that the\nOIDC middleware sends with OIDC discovery and JWKS requests to the issuer.\nNeeded when the issuer requires authentication for those endpoints, such\nas the Kubernetes API server. Typically populated by the Kubernetes\noperator from MCPOIDCConfig.spec.inline.jwksAuthTokenPath or with the\npod's service-account token when using Kubernetes service-account auth.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "jwksUrl": {
                       "description": "JWKSURL is the explicit JWKS endpoint URL.\nWhen set, skips OIDC discovery and fetches the JWKS directly from this URL.\nThis is useful when the OIDC issuer does not serve a /.well-known/openid-configuration.",
                       "type": [
@@ -3523,6 +3566,20 @@
                       "description": "ProtectedResourceAllowPrivateIP allows protected resource endpoint on private IP addresses\nUse with caution - only enable for trusted internal IDPs or testing",
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "requiredSubject": {
+                      "description": "RequiredSubject, when set, requires the token's \"sub\" claim to equal this value exactly.\nTokens with a missing or empty \"sub\" claim are rejected.\nIf RequiredSubjectPrefix is also set, both checks must pass.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "requiredSubjectPrefix": {
+                      "description": "RequiredSubjectPrefix, when set, requires the token's \"sub\" claim to start with this value.\nTokens with a missing or empty \"sub\" claim are rejected.\nIf RequiredSubject is also set, both checks must pass.",
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -3561,6 +3618,39 @@
               },
               "required": [
                 "type"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "instructions": {
+              "additionalProperties": false,
+              "description": "Instructions sets the instructions clients receive in the result of a\nsuccessful initialize or server/discover request: vMCP combines it with\nany instructions it produces, as mode says. A VirtualMCPServer sets\neither spec.instructions or this field, not both.",
+              "properties": {
+                "mode": {
+                  "default": "append",
+                  "description": "Mode says how value combines with the instructions the server returns.\nreplace returns value alone. append returns the server's instructions,\na blank line, and value. prepend returns value, a blank line, and the\nserver's instructions. When the server returns no instructions, every\nmode returns value alone.",
+                  "enum": [
+                    "replace",
+                    "append",
+                    "prepend"
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "description": "Value is the text that mode combines with the server's instructions.\nLeading and trailing ASCII white space (tab, LF, FF, CR, space) is\ndropped, and a value that is only such white space is rejected.",
+                  "maxLength": 65536,
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
               ],
               "type": [
                 "object",
@@ -3866,7 +3956,7 @@
             },
             "outgoingAuth": {
               "additionalProperties": false,
-              "description": "OutgoingAuth configures how the virtual MCP server authenticates to backends.\nWhen using the Kubernetes operator, this is populated by the converter from\nVirtualMCPServerSpec.OutgoingAuth and any values set here will be superseded.",
+              "description": "OutgoingAuth configures how the virtual MCP server authenticates to backends.\nWhen using the Kubernetes operator, this is populated by the converter from\nVirtualMCPServerSpec.OutgoingAuth and any values set here will be superseded.\nSee VirtualMCPServerSpec.OutgoingAuth for supported MCPExternalAuthConfig types.",
               "properties": {
                 "backends": {
                   "additionalProperties": {
@@ -4009,17 +4099,17 @@
                       },
                       "obo": {
                         "additionalProperties": false,
-                        "description": "OBO contains configuration for on-behalf-of (OBO) auth strategy.\nUsed when Type = \"obo\". The default upstream build returns ErrEnterpriseRequired;\nan out-of-tree build registers a real strategy via auth.RegisterOBOStrategy.",
+                        "description": "OBO contains configuration for on-behalf-of (OBO) auth strategy.\nUsed when Type = \"obo\".",
                         "properties": {
                           "audience": {
-                            "description": "Audience is the target audience (resource URI) for the exchanged token.",
+                            "description": "Audience is the backend resource (Application ID URI or client ID) for the\nexchanged token. Used when Scopes is empty, sent to Entra as\n\u003caudience\u003e/.default (see exchange.Target).",
                             "type": [
                               "string",
                               "null"
                             ]
                           },
                           "cacheSkewSeconds": {
-                            "description": "CacheSkewSeconds is the number of seconds to subtract from a cached token's\nexpiry when deciding whether to refresh it. Defaults to zero (no skew).\nThe operator CRD stores this as CacheSkew *metav1.Duration and converts it\nto an integer-seconds value for the vMCP runtime contract.",
+                            "description": "CacheSkewSeconds is the number of seconds to subtract from a cached token's\nexpiry when deciding whether to refresh it. When nil or zero the token\ncache's default skew (60 seconds) applies; negative values are rejected.\nThe int32 type caps it at math.MaxInt32, the bound the operator enforces\non the CRD's CacheSkew.\nThe operator CRD stores this as CacheSkew *metav1.Duration and converts it\nto an integer-seconds value for the vMCP runtime contract.",
                             "format": "int32",
                             "type": [
                               "integer",
@@ -4059,7 +4149,7 @@
                             "x-kubernetes-list-type": "atomic"
                           },
                           "subjectTokenProviderName": {
-                            "description": "SubjectTokenProviderName selects which upstream provider's token to use as the\nsubject (assertion) token for the OBO exchange. When set, the token is looked\nup from Identity.UpstreamTokens[SubjectTokenProviderName]; when omitted, the\ninbound end-user token (Identity.Token) is used directly.\nMatches the operator CRD's SubjectTokenProviderName field; the enterprise OBO\nconverter maps both to the runtime contract without renaming.",
+                            "description": "SubjectTokenProviderName selects which upstream provider's token to use as the\nsubject (assertion) token for the OBO exchange. When set, the token is looked\nup from Identity.UpstreamTokens[SubjectTokenProviderName]; when omitted, the\ninbound end-user token (Identity.Token) is used directly. Behind an embedded\nauth server an omitted value defaults to its upstream provider, and is an\nerror when it has more than one (see DefaultSubjectProviderName).\nMatches the operator CRD's SubjectTokenProviderName field; the OBO\nconverter maps it to the runtime contract without renaming.",
                             "type": [
                               "string",
                               "null"
@@ -4429,17 +4519,17 @@
                     },
                     "obo": {
                       "additionalProperties": false,
-                      "description": "OBO contains configuration for on-behalf-of (OBO) auth strategy.\nUsed when Type = \"obo\". The default upstream build returns ErrEnterpriseRequired;\nan out-of-tree build registers a real strategy via auth.RegisterOBOStrategy.",
+                      "description": "OBO contains configuration for on-behalf-of (OBO) auth strategy.\nUsed when Type = \"obo\".",
                       "properties": {
                         "audience": {
-                          "description": "Audience is the target audience (resource URI) for the exchanged token.",
+                          "description": "Audience is the backend resource (Application ID URI or client ID) for the\nexchanged token. Used when Scopes is empty, sent to Entra as\n\u003caudience\u003e/.default (see exchange.Target).",
                           "type": [
                             "string",
                             "null"
                           ]
                         },
                         "cacheSkewSeconds": {
-                          "description": "CacheSkewSeconds is the number of seconds to subtract from a cached token's\nexpiry when deciding whether to refresh it. Defaults to zero (no skew).\nThe operator CRD stores this as CacheSkew *metav1.Duration and converts it\nto an integer-seconds value for the vMCP runtime contract.",
+                          "description": "CacheSkewSeconds is the number of seconds to subtract from a cached token's\nexpiry when deciding whether to refresh it. When nil or zero the token\ncache's default skew (60 seconds) applies; negative values are rejected.\nThe int32 type caps it at math.MaxInt32, the bound the operator enforces\non the CRD's CacheSkew.\nThe operator CRD stores this as CacheSkew *metav1.Duration and converts it\nto an integer-seconds value for the vMCP runtime contract.",
                           "format": "int32",
                           "type": [
                             "integer",
@@ -4479,7 +4569,7 @@
                           "x-kubernetes-list-type": "atomic"
                         },
                         "subjectTokenProviderName": {
-                          "description": "SubjectTokenProviderName selects which upstream provider's token to use as the\nsubject (assertion) token for the OBO exchange. When set, the token is looked\nup from Identity.UpstreamTokens[SubjectTokenProviderName]; when omitted, the\ninbound end-user token (Identity.Token) is used directly.\nMatches the operator CRD's SubjectTokenProviderName field; the enterprise OBO\nconverter maps both to the runtime contract without renaming.",
+                          "description": "SubjectTokenProviderName selects which upstream provider's token to use as the\nsubject (assertion) token for the OBO exchange. When set, the token is looked\nup from Identity.UpstreamTokens[SubjectTokenProviderName]; when omitted, the\ninbound end-user token (Identity.Token) is used directly. Behind an embedded\nauth server an omitted value defaults to its upstream provider, and is an\nerror when it has more than one (see DefaultSubjectProviderName).\nMatches the operator CRD's SubjectTokenProviderName field; the OBO\nconverter maps it to the runtime contract without renaming.",
                           "type": [
                             "string",
                             "null"
@@ -4707,7 +4797,7 @@
                   ]
                 },
                 "source": {
-                  "description": "Source defines how to discover backend auth: \"inline\", \"discovered\"\n- inline: Explicit configuration in OutgoingAuth\n- discovered: Auto-discover from backend MCPServer.externalAuthConfigRef (Kubernetes only)",
+                  "description": "Source defines how to discover backend auth: \"inline\", \"discovered\"\n- inline: Explicit configuration in OutgoingAuth\n- discovered: Auto-discover from backend MCPServer, MCPRemoteProxy, and\n  MCPServerEntry externalAuthConfigRef fields (Kubernetes only)",
                   "type": "string"
                 }
               },
@@ -5346,18 +5436,51 @@
             }
           ]
         },
+        "instructions": {
+          "additionalProperties": false,
+          "description": "Instructions sets the instructions clients receive in the result of a successful\ninitialize or server/discover request: the Virtual MCP server combines it with\nany instructions it produces, as mode says. Clients commonly add server\ninstructions to the model's context, so this adds policy or usage guidance\nwithout changing the server. Set this or config.instructions, not both.",
+          "properties": {
+            "mode": {
+              "default": "append",
+              "description": "Mode says how value combines with the instructions the server returns.\nreplace returns value alone. append returns the server's instructions,\na blank line, and value. prepend returns value, a blank line, and the\nserver's instructions. When the server returns no instructions, every\nmode returns value alone.",
+              "enum": [
+                "replace",
+                "append",
+                "prepend"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "description": "Value is the text that mode combines with the server's instructions.\nLeading and trailing ASCII white space (tab, LF, FF, CR, space) is\ndropped, and a value that is only such white space is rejected.",
+              "maxLength": 65536,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "outgoingAuth": {
           "additionalProperties": false,
-          "description": "OutgoingAuth configures authentication from Virtual MCP to backend MCPServers.\nThis field takes precedence over config.OutgoingAuth and should be preferred because it\nsupports Kubernetes-native secret references (SecretKeyRef, ConfigMapRef) for secure\ndynamic discovery of credentials, rather than requiring secrets to be embedded in config.",
+          "description": "OutgoingAuth configures authentication from Virtual MCP to backend resources.\nThis field takes precedence over config.OutgoingAuth and should be preferred because it\nsupports Kubernetes-native secret references (SecretKeyRef, ConfigMapRef) for secure\ndynamic discovery of credentials, rather than requiring secrets to be embedded in config.\nReferenced MCPExternalAuthConfig types supported by VirtualMCPServer are tokenExchange,\nheaderInjection, unauthenticated, awsSts, upstreamInject, xaa, and obo.\nUnsupported types are reported per backend in\nstatus.conditions with Reason: UnsupportedAuthType.",
           "properties": {
             "backends": {
               "additionalProperties": {
                 "additionalProperties": false,
-                "description": "BackendAuthConfig defines authentication configuration for a backend MCPServer",
+                "description": "BackendAuthConfig defines authentication configuration for a backend resource.",
                 "properties": {
                   "externalAuthConfigRef": {
                     "additionalProperties": false,
-                    "description": "ExternalAuthConfigRef references an MCPExternalAuthConfig resource\nOnly used when Type is \"externalAuthConfigRef\"",
+                    "description": "ExternalAuthConfigRef references an MCPExternalAuthConfig resource.\nOnly used when Type is \"externalAuthConfigRef\". Supported referenced types are\ntokenExchange, headerInjection, unauthenticated, awsSts, upstreamInject, xaa,\nand obo. Unsupported types are reported for the affected backend in\nstatus.conditions with Reason: UnsupportedAuthType.",
                     "properties": {
                       "name": {
                         "description": "Name is the name of the MCPExternalAuthConfig resource",
@@ -5398,7 +5521,7 @@
               "properties": {
                 "externalAuthConfigRef": {
                   "additionalProperties": false,
-                  "description": "ExternalAuthConfigRef references an MCPExternalAuthConfig resource\nOnly used when Type is \"externalAuthConfigRef\"",
+                  "description": "ExternalAuthConfigRef references an MCPExternalAuthConfig resource.\nOnly used when Type is \"externalAuthConfigRef\". Supported referenced types are\ntokenExchange, headerInjection, unauthenticated, awsSts, upstreamInject, xaa,\nand obo. Unsupported types are reported for the affected backend in\nstatus.conditions with Reason: UnsupportedAuthType.",
                   "properties": {
                     "name": {
                       "description": "Name is the name of the MCPExternalAuthConfig resource",
@@ -5432,7 +5555,7 @@
             },
             "source": {
               "default": "discovered",
-              "description": "Source defines how backend authentication configurations are determined\n- discovered: Automatically discover from backend's MCPServer.spec.externalAuthConfigRef\n- inline: Explicit per-backend configuration in VirtualMCPServer",
+              "description": "Source defines how backend authentication configurations are determined\n- discovered: Automatically discover from backend MCPServer, MCPRemoteProxy,\n  and MCPServerEntry externalAuthConfigRef fields\n- inline: Explicit per-backend configuration in VirtualMCPServer",
               "enum": [
                 "discovered",
                 "inline"
@@ -5687,6 +5810,10 @@
         {
           "message": "embeddingServerRef provisions a managed TEI server and cannot be combined with optimizer.embeddingProvider 'openai'; openai mode uses embeddingService directly",
           "rule": "!(has(self.embeddingServerRef) \u0026\u0026 has(self.config) \u0026\u0026 has(self.config.optimizer) \u0026\u0026 has(self.config.optimizer.embeddingProvider) \u0026\u0026 self.config.optimizer.embeddingProvider == 'openai')"
+        },
+        {
+          "message": "set instructions or config.instructions, not both",
+          "rule": "!(has(self.instructions) \u0026\u0026 has(self.config) \u0026\u0026 has(self.config.instructions))"
         },
         {
           "message": "authServerUpstreamFilter requires authServerConfig to be set",

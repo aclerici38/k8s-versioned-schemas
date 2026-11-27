@@ -227,7 +227,7 @@
         },
         "externalAuthConfigRef": {
           "additionalProperties": false,
-          "description": "ExternalAuthConfigRef references a MCPExternalAuthConfig resource for token exchange.\nWhen specified, the proxy will exchange validated incoming tokens for remote service tokens.\nThe referenced MCPExternalAuthConfig must exist in the same namespace as this MCPRemoteProxy.",
+          "description": "ExternalAuthConfigRef references an MCPExternalAuthConfig resource for external authentication.\nSupported types are tokenExchange, bearerToken, unauthenticated,\nembeddedAuthServer, awsSts, and obo.\nFor new embedded authorization server configurations, prefer AuthServerRef.\nheaderInjection, upstreamInject, and xaa are accepted but not applied by the\nMCPRemoteProxy: they take effect when a VirtualMCPServer discovers this\nproxy as a backend.\nThe referenced MCPExternalAuthConfig must exist in the same namespace as this MCPRemoteProxy.",
           "properties": {
             "name": {
               "description": "Name is the name of the MCPExternalAuthConfig resource",
@@ -322,6 +322,39 @@
               ]
             }
           },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "instructions": {
+          "additionalProperties": false,
+          "description": "Instructions sets the instructions clients receive in the result of a successful\ninitialize or server/discover request: the proxy combines it with the\ninstructions the remote MCP server returns, as mode says. Clients commonly add\nserver instructions to the model's context, so this adds policy or usage\nguidance without changing the server.",
+          "properties": {
+            "mode": {
+              "default": "append",
+              "description": "Mode says how value combines with the instructions the server returns.\nreplace returns value alone. append returns the server's instructions,\na blank line, and value. prepend returns value, a blank line, and the\nserver's instructions. When the server returns no instructions, every\nmode returns value alone.",
+              "enum": [
+                "replace",
+                "append",
+                "prepend"
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "description": "Value is the text that mode combines with the server's instructions.\nLeading and trailing ASCII white space (tab, LF, FF, CR, space) is\ndropped, and a value that is only such white space is rejected.",
+              "maxLength": 65536,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
           "type": [
             "object",
             "null"
