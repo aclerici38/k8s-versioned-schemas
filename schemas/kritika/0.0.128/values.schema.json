@@ -45,6 +45,9 @@
           "required": [],
           "type": "object"
         },
+        "badgeUrl": {
+          "type": "string"
+        },
         "comments": {
           "required": [],
           "type": "object"
@@ -206,6 +209,16 @@
           "type": "string"
         },
         "trigger": {
+          "required": [],
+          "type": "object"
+        },
+        "tuning": {
+          "additionalProperties": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "required": [],
           "type": "object"
         },
@@ -1233,8 +1246,7 @@
               "properties": {
                 "activeDeadlineSeconds": {
                   "default": 900,
-                  "description": "How long a runner Job can run, in seconds. It is at most 7200, since River's job timeout cap otherwise cuts the run off early. A review's or follow-up's Job runs as long as its agent's `timeout` needs, if that is longer. That need covers each part that a review is split into. The deadline bounds the work around the run and the run's gateway token too.",
-                  "maximum": 7200,
+                  "description": "How long a runner Job can run, in seconds. kritika refuses one past what `config.tuning.jobTimeout.maxJobTimeout` leaves after its headrooms, 7200 at the defaults, since River's job timeout cap otherwise cuts the run off early. A review's or follow-up's Job runs as long as its agent's `timeout` needs, if that is longer. That need covers each part that a review is split into. The deadline bounds the work around the run and the run's gateway token too.",
                   "minimum": 1,
                   "title": "activeDeadlineSeconds",
                   "type": "integer"
@@ -1657,7 +1669,7 @@
     },
     "terminationGracePeriodSeconds": {
       "default": 200,
-      "description": "Grace period for a clean shutdown. kritika serve keeps accepting webhooks, dashboard requests and model steps for 5s while traffic moves off the pod. It stops taking jobs and lets running ones finish for up to 100s. It then takes up to 90s to hand back the reviews that it cut for a retry. Its gateway lets model steps in flight finish for up to 2m.",
+      "description": "Grace period for a clean shutdown, which must outlast the longest of four paths that run side by side. Jobs: kritika serve stops taking jobs and lets running ones finish for up to 100s (`process.queueDrain`), takes up to 90s to hand back the reviews that it cut for a retry (`process.queueStopHeadroom`), then 5s for their Events (`process.eventsDrain`). Gateway: it keeps accepting model steps for 5s while traffic moves off the pod (`process.linger`), then lets those in flight finish for up to 2m (`gateway.drain`). Public listener: the same 5s, then 10s for webhook and dashboard requests (`process.publicDrain`). Leader: once its duties return, it unlocks the leader lock within `store.sessionCloseTimeout` (5s); with ChatGPT providers, its duties include a token refresh, which runs on past the stop for up to `worker.chatGptRefreshTimeout` (1m) to save the token it rotated and then releases its claim within as long again, so that path is 2 × `worker.chatGptRefreshTimeout` + `store.sessionCloseTimeout`. Raise this when raising any of them.",
       "title": "terminationGracePeriodSeconds",
       "type": "integer"
     },
