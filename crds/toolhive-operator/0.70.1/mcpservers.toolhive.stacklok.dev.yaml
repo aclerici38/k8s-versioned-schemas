@@ -257,7 +257,13 @@ spec:
                   x-kubernetes-list-type: map
                 externalAuthConfigRef:
                   description: |-
-                    ExternalAuthConfigRef references a MCPExternalAuthConfig resource for external authentication.
+                    ExternalAuthConfigRef references an MCPExternalAuthConfig resource for external authentication.
+                    Supported types are tokenExchange, unauthenticated, embeddedAuthServer, and
+                    obo. For new embedded authorization
+                    server configurations, prefer AuthServerRef. headerInjection, upstreamInject,
+                    and xaa are accepted but not applied by the MCPServer: they take effect when
+                    a VirtualMCPServer discovers this server as a backend. Other types are
+                    reported in status.conditions with Reason: UnsupportedAuthType.
                     The referenced MCPExternalAuthConfig must exist in the same namespace as this MCPServer.
                   properties:
                     name:
@@ -281,6 +287,39 @@ spec:
                 image:
                   description: Image is the container image for the MCP server
                   type: string
+                instructions:
+                  description: |-
+                    Instructions sets the instructions clients receive in the result of a successful
+                    initialize or server/discover request: the proxy combines it with the
+                    instructions the MCP server returns, as mode says. Clients commonly add server
+                    instructions to the model's context, so this adds policy or usage guidance
+                    without changing the server.
+                  properties:
+                    mode:
+                      default: append
+                      description: |-
+                        Mode says how value combines with the instructions the server returns.
+                        replace returns value alone. append returns the server's instructions,
+                        a blank line, and value. prepend returns value, a blank line, and the
+                        server's instructions. When the server returns no instructions, every
+                        mode returns value alone.
+                      enum:
+                        - replace
+                        - append
+                        - prepend
+                      type: string
+                    value:
+                      description: |-
+                        Value is the text that mode combines with the server's instructions.
+                        Leading and trailing ASCII white space (tab, LF, FF, CR, space) is
+                        dropped, and a value that is only such white space is rejected.
+                      maxLength: 65536
+                      minLength: 1
+                      pattern: \S
+                      type: string
+                  required:
+                    - value
+                  type: object
                 maxRequestBodySize:
                   description: |-
                     MaxRequestBodySize is the maximum inbound MCP proxy request body size in bytes.
@@ -2147,7 +2186,13 @@ spec:
                   x-kubernetes-list-type: map
                 externalAuthConfigRef:
                   description: |-
-                    ExternalAuthConfigRef references a MCPExternalAuthConfig resource for external authentication.
+                    ExternalAuthConfigRef references an MCPExternalAuthConfig resource for external authentication.
+                    Supported types are tokenExchange, unauthenticated, embeddedAuthServer, and
+                    obo. For new embedded authorization
+                    server configurations, prefer AuthServerRef. headerInjection, upstreamInject,
+                    and xaa are accepted but not applied by the MCPServer: they take effect when
+                    a VirtualMCPServer discovers this server as a backend. Other types are
+                    reported in status.conditions with Reason: UnsupportedAuthType.
                     The referenced MCPExternalAuthConfig must exist in the same namespace as this MCPServer.
                   properties:
                     name:
@@ -2171,6 +2216,39 @@ spec:
                 image:
                   description: Image is the container image for the MCP server
                   type: string
+                instructions:
+                  description: |-
+                    Instructions sets the instructions clients receive in the result of a successful
+                    initialize or server/discover request: the proxy combines it with the
+                    instructions the MCP server returns, as mode says. Clients commonly add server
+                    instructions to the model's context, so this adds policy or usage guidance
+                    without changing the server.
+                  properties:
+                    mode:
+                      default: append
+                      description: |-
+                        Mode says how value combines with the instructions the server returns.
+                        replace returns value alone. append returns the server's instructions,
+                        a blank line, and value. prepend returns value, a blank line, and the
+                        server's instructions. When the server returns no instructions, every
+                        mode returns value alone.
+                      enum:
+                        - replace
+                        - append
+                        - prepend
+                      type: string
+                    value:
+                      description: |-
+                        Value is the text that mode combines with the server's instructions.
+                        Leading and trailing ASCII white space (tab, LF, FF, CR, space) is
+                        dropped, and a value that is only such white space is rejected.
+                      maxLength: 65536
+                      minLength: 1
+                      pattern: \S
+                      type: string
+                  required:
+                    - value
+                  type: object
                 maxRequestBodySize:
                   description: |-
                     MaxRequestBodySize is the maximum inbound MCP proxy request body size in bytes.

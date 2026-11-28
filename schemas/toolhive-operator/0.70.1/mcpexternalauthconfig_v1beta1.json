@@ -1,5 +1,5 @@
 {
-  "description": "MCPExternalAuthConfig is the Schema for the mcpexternalauthconfigs API.\nMCPExternalAuthConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources within the same namespace. Cross-namespace references\nare not supported for security and isolation reasons.",
+  "description": "MCPExternalAuthConfig is the Schema for the mcpexternalauthconfigs API.\nMCPExternalAuthConfig resources are namespace-scoped and may be referenced by\nMCPServer, MCPRemoteProxy, MCPServerEntry, and VirtualMCPServer resources in\nthe same namespace. Cross-namespace references are not supported for security\nand isolation reasons. Each consumer supports only a subset of authentication types.",
   "properties": {
     "apiVersion": {
       "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
@@ -23,7 +23,7 @@
     },
     "spec": {
       "additionalProperties": false,
-      "description": "MCPExternalAuthConfigSpec defines the desired state of MCPExternalAuthConfig.\nMCPExternalAuthConfig resources are namespace-scoped and can only be referenced by\nMCPServer resources in the same namespace.",
+      "description": "MCPExternalAuthConfigSpec defines the desired state of MCPExternalAuthConfig.\nMCPExternalAuthConfig resources are namespace-scoped and may be referenced by\nMCPServer, MCPRemoteProxy, MCPServerEntry, and VirtualMCPServer resources in\nthe same namespace. Each consumer supports only a subset of authentication types.",
       "properties": {
         "awsSts": {
           "additionalProperties": false,
@@ -389,6 +389,24 @@
                         "additionalProperties": false,
                         "description": "JWTBearerIssuerPolicyConfig binds RFC 7523 policy to a named trusted issuer.",
                         "properties": {
+                          "acceptedAssertionTypes": {
+                            "description": "AcceptedAssertionTypes selects which assertion form(s) this issuer's\njwt-bearer grant accepts. When omitted, both \"jwt_bearer\" and \"id_jag\"\nare accepted, which is the behavior before this field existed. Set\n[\"id_jag\"] to restrict an IdP issuer (e.g. Okta acting as a\nCross-App-Access IdP) to ID-JAG grants, so its other signed JWTs cannot\nbe redeemed on the credential-free plain jwt-bearer path. Set\n[\"jwt_bearer\"] to refuse ID-JAG.\n\nWhen \"id_jag\" is listed explicitly and acceptedAudiences is set, it must\ninclude this AS's own issuer identifier (the ID-JAG's \"aud\" per\ndraft-ietf-oauth-identity-assertion-authz-grant §4.4.1), not just the\ntoken endpoint URL. When acceptedAudiences is empty the issuer is\naccepted by default, unless it is also listed as an allowed audience\n(resource), which fails startup. Subject bindings are shared between both forms, so\neach binding also authorizes a plain jwt-bearer assertion from that\nsubject whenever \"jwt_bearer\" is accepted.",
+                            "items": {
+                              "description": "JWTBearerAssertionType identifies one assertion form the RFC 7523\njwt-bearer grant may accept for a trusted issuer.",
+                              "enum": [
+                                "jwt_bearer",
+                                "id_jag"
+                              ],
+                              "type": "string"
+                            },
+                            "maxItems": 2,
+                            "minItems": 1,
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "x-kubernetes-list-type": "set"
+                          },
                           "acceptedAudiences": {
                             "description": "AcceptedAudiences identifies this authorization server's accepted\nassertion audiences. When omitted, plain JWT-bearer assertions must name\nthe token endpoint, and ID-JAG assertions may name the token endpoint or\nthis server's issuer identifier, unless the issuer is also an allowed\nresource audience. A configured list replaces these defaults.",
                             "items": {
@@ -1565,6 +1583,24 @@
                     "additionalProperties": false,
                     "description": "JWTBearerGrant enables the plain RFC 7523 JWT-bearer grant for this\nissuer. It is independent of RFC 8693 delegation policy.\nThis legacy field is deprecated; configure RFC 7523 policy under\ninboundGrants.jwtBearer.issuerPolicies.",
                     "properties": {
+                      "acceptedAssertionTypes": {
+                        "description": "AcceptedAssertionTypes selects which assertion form(s) this issuer's\njwt-bearer grant accepts. When omitted, both \"jwt_bearer\" and \"id_jag\"\nare accepted, which is the behavior before this field existed. Set\n[\"id_jag\"] to restrict an IdP issuer (e.g. Okta acting as a\nCross-App-Access IdP) to ID-JAG grants, so its other signed JWTs cannot\nbe redeemed on the credential-free plain jwt-bearer path. Set\n[\"jwt_bearer\"] to refuse ID-JAG.\n\nWhen \"id_jag\" is listed explicitly and acceptedAudiences is set, it must\ninclude this AS's own issuer identifier (the ID-JAG's \"aud\" per\ndraft-ietf-oauth-identity-assertion-authz-grant §4.4.1), not just the\ntoken endpoint URL. When acceptedAudiences is empty the issuer is\naccepted by default, unless it is also listed as an allowed audience\n(resource), which fails startup. Subject bindings are shared between both forms, so\neach binding also authorizes a plain jwt-bearer assertion from that\nsubject whenever \"jwt_bearer\" is accepted.",
+                        "items": {
+                          "description": "JWTBearerAssertionType identifies one assertion form the RFC 7523\njwt-bearer grant may accept for a trusted issuer.",
+                          "enum": [
+                            "jwt_bearer",
+                            "id_jag"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 2,
+                        "minItems": 1,
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "x-kubernetes-list-type": "set"
+                      },
                       "acceptedAudiences": {
                         "description": "AcceptedAudiences identifies this authorization server's accepted\nassertion audiences. When omitted, plain JWT-bearer assertions must name\nthe token endpoint, and ID-JAG assertions may name the token endpoint or\nthis server's issuer identifier, unless the issuer is also an allowed\nresource audience. A configured list replaces these defaults.",
                         "items": {
@@ -2706,10 +2742,10 @@
         },
         "obo": {
           "additionalProperties": false,
-          "description": "OBO configures On-Behalf-Of (OBO) authentication.\nOnly used when Type is \"obo\". Setting this field on an upstream-only build\ncauses the MCPExternalAuthConfig to transition to\nstatus.conditions[Valid] = False with Reason: EnterpriseRequired, because\nno OBO handler is registered. See OBOConfig for the field-to-runtime\ncontract mapping.",
+          "description": "OBO configures Microsoft Entra On-Behalf-Of (OBO) authentication.\nOnly used when Type is \"obo\". See OBOConfig for the field-to-runtime\ncontract mapping.",
           "properties": {
             "audience": {
-              "description": "Audience is the backend target identifier requested in the exchanged\ntoken. Used as the exchange target when Scopes is empty. At least one of\naudience or scopes must be set; the operator enforces that at reconcile\n(it is not an admission-time rule — see the type doc).",
+              "description": "Audience is the backend resource the exchanged token is for: its\nApplication ID URI (e.g. api://backend) or application (client) ID. Used\nwhen Scopes is empty, as the scope \u003caudience\u003e/.default (a trailing \"/\" is\ndropped, and a value already ending in /.default is sent as is), because\nthe Entra v2.0 endpoint accepts only scopes. To request specific delegated\npermissions, use Scopes instead. At least one of audience or scopes must be\nset; the operator enforces that at reconcile (it is not an admission-time\nrule — see the type doc).",
               "type": [
                 "string",
                 "null"
@@ -2724,7 +2760,7 @@
               ]
             },
             "cacheSkew": {
-              "description": "CacheSkew overrides the OBO token cache's default expiry skew (the margin\nby which a cached token is treated as expired before its real expiry),\ne.g. \"30s\". The operator converts it to the runtime contract's\ninteger-seconds cacheSkewSeconds. Should not be negative, but the schema\ndoes not enforce that — metav1.Duration carries no numeric minimum — and\nupstream builds do not reject it. A negative value is rejected only by an\nenterprise build's OBO handler once that handler validates the converted\nparameters; it is not enforced at admission or in upstream-only builds.\nWhen omitted, the cache default applies.",
+              "description": "CacheSkew overrides the OBO token cache's default expiry skew (the margin\nby which a cached token is treated as expired before its real expiry),\ne.g. \"30s\". The operator converts it to the runtime contract's\ninteger-seconds cacheSkewSeconds (truncated toward zero). Must be between\nzero and 2147483647 seconds (math.MaxInt32); metav1.Duration carries no\nnumeric bounds, so the operator rejects a negative or larger value at\nreconcile (Valid=False, Reason: InvalidConfig) rather than at admission.\nWhen omitted, the cache default applies.",
               "type": [
                 "string",
                 "null"
@@ -2774,7 +2810,7 @@
               "x-kubernetes-list-type": "atomic"
             },
             "subjectTokenProviderName": {
-              "description": "SubjectTokenProviderName selects the source of the OBO subject (assertion)\ntoken from the request's authenticated Identity:\n  - Omitted: use the inbound end-user token the client presented\n    (Identity.Token) — the deployment with no embedded auth server, where\n    the client holds an Entra token directly.\n  - Set: use the named upstream provider's token\n    (Identity.UpstreamTokens[\u003cname\u003e]) — the embedded-auth-server\n    deployment, where the inbound token is the proxy's own session token.\n    The value must match a configured upstream provider name.\nThe subject is always sourced from the authenticated Identity, never from\nan inbound request header, so the upstream auth middleware must run first.",
+              "description": "SubjectTokenProviderName selects the source of the OBO subject (assertion)\ntoken from the request's authenticated Identity:\n  - Omitted, with no embedded auth server: use the inbound end-user token\n    the client presented (Identity.Token), where the client holds an Entra\n    token directly.\n  - Omitted, behind an embedded auth server: defaults to its upstream\n    provider, since the inbound token is then the proxy's own session\n    token. A VirtualMCPServer whose embedded auth server has more than one\n    upstream must set it explicitly.\n  - Set: use the named upstream provider's token\n    (Identity.UpstreamTokens[\u003cname\u003e]) — the embedded-auth-server\n    deployment, where the inbound token is the proxy's own session token.\n    The value must match a configured upstream provider name.\nThe subject is always sourced from the authenticated Identity, never from\nan inbound request header, so the upstream auth middleware must run first.",
               "maxLength": 63,
               "minLength": 1,
               "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
@@ -2784,7 +2820,7 @@
               ]
             },
             "tenantId": {
-              "description": "TenantID is the Microsoft Entra (Azure AD) directory (tenant) identifier.\nOptional at the CRD level (see the type doc); the operator enforces its\npresence, since an OBO confidential-client exchange must target a specific\ntenant. When set, it must be one of the two forms the Entra v2.0 token\nendpoint addresses: a directory GUID, or a verified domain name (e.g.\ncontoso.onmicrosoft.com). Well-known aliases such as \"common\",\n\"organizations\", and \"consumers\" are NOT accepted. The operator\ninterpolates it into the token endpoint\n(\u003cauthority\u003e/\u003ctenantId\u003e/oauth2/v2.0/token), so the value is constrained to\nthe GUID/domain shape (no path metacharacters); the pattern and 253-char\ncap mirror the enterprise exchanger's validateTenant, so any tenantId\nadmitted here is one the runtime can consume.",
+              "description": "TenantID is the Microsoft Entra (Azure AD) directory (tenant) identifier.\nOptional at the CRD level (see the type doc); the operator enforces its\npresence, since an OBO confidential-client exchange must target a specific\ntenant. When set, it must be one of the two forms the Entra v2.0 token\nendpoint addresses: a directory GUID, or a verified domain name (e.g.\ncontoso.onmicrosoft.com). Well-known aliases such as \"common\",\n\"organizations\", and \"consumers\" are NOT accepted. The operator\ninterpolates it into the token endpoint\n(\u003cauthority\u003e/\u003ctenantId\u003e/oauth2/v2.0/token), so the value is constrained to\nthe GUID/domain shape (no path metacharacters); the pattern and 253-char\ncap mirror the Entra exchanger's tenant validation, so any tenantId\nadmitted here is one the runtime can consume.",
               "maxLength": 253,
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,})$",
               "type": [
@@ -2883,7 +2919,7 @@
           ]
         },
         "type": {
-          "description": "Type is the type of external authentication to configure.\nWhen set to \"obo\", the cluster must run a build that has registered an\nOBO handler via controllerutil.RegisterOBOHandler; upstream-only builds\nsurface status.conditions[Valid] = False with Reason: EnterpriseRequired\nfor obo-typed configs.",
+          "description": "Type is the type of external authentication to configure.\nConsumer support is as follows:\n  - tokenExchange and unauthenticated: MCPServer, MCPRemoteProxy,\n    MCPServerEntry, and VirtualMCPServer outgoing authentication.\n  - headerInjection, upstreamInject, and xaa: MCPServerEntry and\n    VirtualMCPServer outgoing authentication. An MCPServer or\n    MCPRemoteProxy may reference them too, but does not apply them\n    itself: they take effect when a VirtualMCPServer discovers that\n    backend.\n  - bearerToken: MCPRemoteProxy.\n  - embeddedAuthServer: MCPServer and MCPRemoteProxy.\n  - awsSts: MCPRemoteProxy, MCPServerEntry, and VirtualMCPServer outgoing\n    authentication.\n  - obo: all four consumers. An MCPServer or MCPRemoteProxy that\n    references an obo config must also set oidcConfigRef.\n\nUnsupported consumer/type combinations are reported on the consuming\nresource with Reason: UnsupportedAuthType.",
           "enum": [
             "tokenExchange",
             "headerInjection",
