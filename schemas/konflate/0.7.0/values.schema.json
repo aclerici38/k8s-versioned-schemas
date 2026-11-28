@@ -24,7 +24,7 @@
         },
         "cacheTtl": {
           "default": "",
-          "description": "Advanced: prune source-cache entries unused longer than this (Go duration); bare git mirrors are kept. Empty = default (168h/7d); \"0\" disables the sweep.",
+          "description": "Advanced: age at which an unused source-cache entry is due for removal (Go duration). Empty = default (168h/7d). No effect at present: konflate does not prune the source cache, so it grows until you run `flate cache gc` against the cache volume.",
           "title": "cacheTtl",
           "type": "string"
         },
@@ -44,6 +44,12 @@
           "default": "",
           "description": "Directory flate renders from; empty = repo root (correct for the standard root-relative layout).",
           "title": "clusterPath",
+          "type": "string"
+        },
+        "commentTag": {
+          "default": "",
+          "description": "Disambiguates this instance's hidden comment marker from another konflate deployment's when multiple instances (sharing one bot identity, a folder-per-cluster monorepo's normal shape) render the same PR — otherwise the second to post finds and overwrites the first's comment instead of creating its own. Empty falls back to `statusCheckName` (already commonly set to a distinct per-instance name), then to no tag at all — a single-instance setup with neither set is unaffected.",
+          "title": "commentTag",
           "type": "string"
         },
         "diffTimeout": {
@@ -66,16 +72,10 @@
           "title": "fetchTimeout",
           "type": "string"
         },
-        "helmRenderCacheMb": {
+        "helmApiVersions": {
           "default": "",
-          "description": "Advanced: persistent on-disk Helm render cache in MiB, reused across renders/PRs/restarts. Empty = default (1024); \"0\" disables.",
-          "title": "helmRenderCacheMb",
-          "type": "string"
-        },
-        "helmTemplateCacheMb": {
-          "default": "",
-          "description": "Advanced: in-memory Helm template cache in MiB (the biggest CPU saver). Empty = auto (256 ÷ render concurrency, so it doesn't scale with the CPU limit); \"0\" disables.",
-          "title": "helmTemplateCacheMb",
+          "description": "Extra API versions charts see in `.Capabilities.APIVersions`, comma-separated (e.g. `\"resource.k8s.io/v1/DeviceClass\"`). Appended to helm's built-in set, so list only what the target cluster serves beyond the core APIs: a chart gated on a CRD or feature-gated API (`.Capabilities.APIVersions.Has`) otherwise fails or renders differently than in-cluster, since konflate templates offline. Set `\"{{ join \\\",\\\" .Capabilities.APIVersions }}\"` to track the cluster this release installs into (only correct when it is also the deploy target).",
+          "title": "helmApiVersions",
           "type": "string"
         },
         "imageVerifyTimeout": {
@@ -1024,7 +1024,7 @@
               "type": "string"
             },
             "tag": {
-              "default": "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13",
+              "default": "8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93",
               "description": "`helm test` image, pinned as `tag",
               "title": "tag",
               "type": "string"
